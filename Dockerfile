@@ -12,8 +12,14 @@ RUN npm ci
 # Copier le reste du code source
 COPY . .
 
-# Build du frontend
+# Générer les migrations de base de données
+RUN npx drizzle-kit generate || echo "No schema changes to generate"
+
+# Build du frontend et backend
 RUN npm run build
+
+# Compiler le script de migration
+RUN npx esbuild server/migrate.ts --platform=node --packages=external --bundle --format=esm --outfile=dist/migrate.js
 
 # Étape 2: Image de production
 FROM node:20-alpine
@@ -29,6 +35,7 @@ COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/drizzle.config.ts ./
+COPY --from=builder /app/drizzle ./drizzle
 
 # Créer le dossier uploads
 RUN mkdir -p uploads
@@ -41,4 +48,4 @@ ENV NODE_ENV=production
 ENV PORT=5000
 
 # Démarrer l'application
-CMD ["node", "dist/server.js"]
+CMD ["npm", "run", "start"]

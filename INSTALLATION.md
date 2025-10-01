@@ -149,12 +149,26 @@ server {
 2. Configurez un reverse proxy avec cache
 3. Utilisez un stockage SSD pour les volumes
 
+## Accès à la base de données PostgreSQL
+
+Par défaut, le port PostgreSQL n'est **pas exposé** sur l'hôte pour des raisons de sécurité. Si vous avez besoin d'accéder à la base de données depuis votre machine locale (pour administration, backup, etc.), décommentez les lignes suivantes dans `docker-compose.yml` :
+
+```yaml
+# À décommenter si vous avez besoin d'accéder à la DB localement
+ports:
+  - "${PGPORT:-5432}:5432"
+```
+
+**Attention :** N'exposez jamais le port PostgreSQL en production sur un serveur accessible depuis Internet.
+
 ## Sécurité
 
-- Changez toujours `PGPASSWORD` et `SESSION_SECRET`
+- Changez toujours `PGPASSWORD` et `SESSION_SECRET` avant le déploiement
 - Utilisez HTTPS en production (avec Let's Encrypt par exemple)
 - Configurez un firewall pour limiter l'accès aux ports
+- N'exposez pas le port PostgreSQL (5432) sur Internet en production
 - Mettez à jour régulièrement les images Docker
+- Sauvegardez régulièrement votre base de données
 
 ## Support
 
