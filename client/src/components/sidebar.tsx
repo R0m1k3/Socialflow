@@ -40,25 +40,24 @@ export default function Sidebar() {
             
             return (
               <li key={item.href}>
-                <Link href={item.href}>
-                  <a 
-                    className={`
-                      flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all
-                      ${isActive 
-                        ? 'bg-accent text-accent-foreground' 
-                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                      }
-                    `}
-                    data-testid={`link-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    <Icon className="w-5 h-5" />
-                    <span>{item.label}</span>
-                    {item.badge && (
-                      <span className="ml-auto inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary text-primary-foreground">
-                        {item.badge}
-                      </span>
-                    )}
-                  </a>
+                <Link 
+                  href={item.href}
+                  className={`
+                    flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all
+                    ${isActive 
+                      ? 'bg-accent text-accent-foreground' 
+                      : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                    }
+                  `}
+                  data-testid={`link-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span>{item.label}</span>
+                  {item.badge && (
+                    <span className="ml-auto inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary text-primary-foreground">
+                      {item.badge}
+                    </span>
+                  )}
                 </Link>
               </li>
             );
@@ -74,20 +73,19 @@ export default function Sidebar() {
               
               return (
                 <li key={item.href}>
-                  <Link href={item.href}>
-                    <a 
-                      className={`
-                        flex items-center gap-3 px-4 py-3 rounded-lg transition-all
-                        ${isActive 
-                          ? 'bg-accent text-accent-foreground' 
-                          : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-                        }
-                      `}
-                      data-testid={`link-${item.label.toLowerCase()}`}
-                    >
-                      <Icon className="w-5 h-5" />
-                      <span>{item.label}</span>
-                    </a>
+                  <Link 
+                    href={item.href}
+                    className={`
+                      flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+                      ${isActive 
+                        ? 'bg-accent text-accent-foreground' 
+                        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                      }
+                    `}
+                    data-testid={`link-${item.label.toLowerCase()}`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{item.label}</span>
                   </Link>
                 </li>
               );
@@ -97,14 +95,13 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-4 border-t border-border">
-        <Link href="/settings">
-          <a 
-            className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all"
-            data-testid="link-settings"
-          >
-            <Settings className="w-5 h-5" />
-            <span>Paramètres</span>
-          </a>
+        <Link 
+          href="/settings"
+          className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all"
+          data-testid="link-settings"
+        >
+          <Settings className="w-5 h-5" />
+          <span>Paramètres</span>
         </Link>
       </div>
     </aside>
