@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import multer from "multer";
 import { openRouterService } from "./services/openrouter";
 import { cloudinaryService } from "./services/cloudinary";
-import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema } from "@shared/schema";
+import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, insertOpenrouterConfigSchema } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -41,7 +41,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const productInfo = req.body;
       const userId = "demo-user"; // In real app, get from session/auth
 
-      const generatedTexts = await openRouterService.generatePostText(productInfo);
+      const generatedTexts = await openRouterService.generatePostText(productInfo, userId);
 
       // Save to database
       await storage.createAiGeneration({
@@ -280,6 +280,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error saving Cloudinary config:", error);
       res.status(500).json({ error: "Failed to save Cloudinary config" });
+    }
+  });
+
+  // OpenRouter configuration
+  app.get("/api/openrouter/config", async (req, res) => {
+    try {
+      const userId = "demo-user"; // In real app, get from session/auth
+      const config = await storage.getOpenrouterConfig(userId);
+      
+      if (!config) {
+        return res.json(null);
+      }
+
+      // Don't send the API key to the client
+      const { apiKey, ...safeConfig } = config;
+      res.json(safeConfig);
+    } catch (error) {
+      console.error("Error fetching OpenRouter config:", error);
+      res.status(500).json({ error: "Failed to fetch OpenRouter config" });
+    }
+  });
+
+  app.post("/api/openrouter/config", async (req, res) => {
+    try {
+      const userId = "demo-user"; // In real app, get from session/auth
+      
+      const configData = insertOpenrouterConfigSchema.parse({
+        ...req.body,
+        userId,
+      });
+
+      // Check if config already exists
+      const existingConfig = await storage.getOpenrouterConfig(userId);
+      
+      let config;
+      if (existingConfig) {
+        config = await storage.updateOpenrouterConfig(userId, configData);
+      } else {
+        config = await storage.createOpenrouterConfig(configData);
+      }
+
+      // Don't send the API key back
+      const { apiKey, ...safeConfig } = config;
+      res.json(safeConfig);
+    } catch (error) {
+      console.error("Error saving OpenRouter config:", error);
+      res.status(500).json({ error: "Failed to save OpenRouter config" });
     }
   });
 

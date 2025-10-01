@@ -12,35 +12,32 @@ interface GeneratedText {
   characterCount: number;
 }
 
+import { storage } from '../storage';
+
 export class OpenRouterService {
-  private apiKey: string;
   private baseUrl = "https://openrouter.ai/api/v1/chat/completions";
 
-  constructor() {
-    this.apiKey = process.env.OPENROUTER_API_KEY || "";
-    if (!this.apiKey) {
-      console.warn("OPENROUTER_API_KEY not set. AI text generation will not work.");
-    }
-  }
-
-  async generatePostText(productInfo: ProductInfo): Promise<GeneratedText[]> {
-    if (!this.apiKey) {
-      throw new Error("OpenRouter API key not configured");
+  async generatePostText(productInfo: ProductInfo, userId: string): Promise<GeneratedText[]> {
+    // Get user's OpenRouter configuration
+    const config = await storage.getOpenrouterConfig(userId);
+    
+    if (!config) {
+      throw new Error('Configuration OpenRouter non trouvée. Veuillez configurer OpenRouter dans les paramètres.');
     }
 
-    const prompt = this.buildPrompt(productInfo);
+    const prompt = this.buildPrompt(productInfo, config.systemPrompt);
 
     try {
       const response = await fetch(this.baseUrl, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${this.apiKey}`,
+          "Authorization": `Bearer ${config.apiKey}`,
           "Content-Type": "application/json",
-          "HTTP-Referer": process.env.APP_URL || "http://localhost:5000",
+          "HTTP-Referer": process.env.APP_URL || "http://localhost:5555",
           "X-Title": "Social Flow"
         },
         body: JSON.stringify({
-          model: "anthropic/claude-3.5-sonnet",
+          model: config.model,
           messages: [
             {
               role: "user",
@@ -66,26 +63,18 @@ export class OpenRouterService {
     }
   }
 
-  private buildPrompt(productInfo: ProductInfo): string {
+  private buildPrompt(productInfo: ProductInfo, systemPrompt: string): string {
     const features = productInfo.features?.join(", ") || "";
     
-    return `Tu es un expert en marketing sur les réseaux sociaux. Génère 3 variantes de texte pour une publication Facebook/Instagram pour ce produit:
-
-Nom: ${productInfo.name}
+    const productDetails = `Nom: ${productInfo.name}
 ${productInfo.description ? `Description: ${productInfo.description}` : ''}
 ${productInfo.price ? `Prix: ${productInfo.price}` : ''}
-${features ? `Caractéristiques: ${features}` : ''}
+${features ? `Caractéristiques: ${features}` : ''}`;
 
-Crée 3 versions différentes:
-1. Version Dynamique - Énergique et engageante avec des emojis
-2. Version Informative - Factuelle et professionnelle
-3. Version Émotionnelle - Axée sur les bénéfices émotionnels
+    return `${systemPrompt}
 
-Chaque version doit:
-- Être en français
-- Faire entre 150-250 caractères
-- Être optimisée pour les réseaux sociaux
-- Inclure des emojis pertinents (sauf la version informative)
+Informations produit:
+${productDetails}
 
 Format de réponse:
 VERSION 1 - DYNAMIQUE:

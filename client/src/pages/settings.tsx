@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Bell, Key, Shield, Cloud } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
@@ -7,6 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -18,10 +20,17 @@ export default function Settings() {
   const [cloudName, setCloudName] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
+  const [openrouterApiKey, setOpenrouterApiKey] = useState("");
+  const [openrouterModel, setOpenrouterModel] = useState("anthropic/claude-3.5-sonnet");
+  const [openrouterSystemPrompt, setOpenrouterSystemPrompt] = useState("Tu es un expert en marketing des réseaux sociaux. Génère 3 variations de textes engageants pour des publications Facebook et Instagram à partir des informations produit fournies. Chaque variation doit être unique, captivante et optimisée pour l'engagement.");
   const { toast } = useToast();
 
   const { data: cloudinaryConfig } = useQuery({
     queryKey: ['/api/cloudinary/config'],
+  });
+
+  const { data: openrouterConfig } = useQuery({
+    queryKey: ['/api/openrouter/config'],
   });
 
   useEffect(() => {
@@ -30,6 +39,13 @@ export default function Settings() {
       setApiKey((cloudinaryConfig as any).apiKey || "");
     }
   }, [cloudinaryConfig]);
+
+  useEffect(() => {
+    if (openrouterConfig) {
+      setOpenrouterModel((openrouterConfig as any).model || "anthropic/claude-3.5-sonnet");
+      setOpenrouterSystemPrompt((openrouterConfig as any).systemPrompt || "Tu es un expert en marketing des réseaux sociaux. Génère 3 variations de textes engageants pour des publications Facebook et Instagram à partir des informations produit fournies. Chaque variation doit être unique, captivante et optimisée pour l'engagement.");
+    }
+  }, [openrouterConfig]);
 
   const saveCloudinaryMutation = useMutation({
     mutationFn: () => 
@@ -50,6 +66,30 @@ export default function Settings() {
       toast({
         title: "Erreur",
         description: "Impossible de sauvegarder la configuration",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveOpenrouterMutation = useMutation({
+    mutationFn: () => 
+      apiRequest('POST', '/api/openrouter/config', {
+        apiKey: openrouterApiKey,
+        model: openrouterModel,
+        systemPrompt: openrouterSystemPrompt,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/openrouter/config'] });
+      toast({
+        title: "Configuration sauvegardée",
+        description: "Vos paramètres OpenRouter ont été enregistrés",
+      });
+      setOpenrouterApiKey(""); // Clear the API key after saving
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder la configuration OpenRouter",
         variant: "destructive",
       });
     },
@@ -128,26 +168,72 @@ export default function Settings() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Key className="w-5 h-5" />
-                  Clés API
+                  <Brain className="w-5 h-5" />
+                  Configuration OpenRouter (IA)
                 </CardTitle>
                 <CardDescription>
-                  Configurez vos clés API pour les intégrations
+                  Configurez OpenRouter pour la génération de texte avec l'IA
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="openrouterKey">Clé API OpenRouter</Label>
+                  <Label htmlFor="openrouterApiKey">Clé API OpenRouter</Label>
                   <Input
-                    id="openrouterKey"
+                    id="openrouterApiKey"
                     type="password"
+                    value={openrouterApiKey}
+                    onChange={(e) => setOpenrouterApiKey(e.target.value)}
                     placeholder="sk-or-v1-..."
-                    data-testid="input-openrouter-key"
+                    data-testid="input-openrouter-api-key"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Utilisée pour la génération de texte IA
+                    Obtenez votre clé API sur{" "}
+                    <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="underline">
+                      openrouter.ai
+                    </a>
                   </p>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="openrouterModel">Modèle d'IA</Label>
+                  <Select value={openrouterModel} onValueChange={setOpenrouterModel}>
+                    <SelectTrigger id="openrouterModel" data-testid="select-openrouter-model">
+                      <SelectValue placeholder="Sélectionner un modèle" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</SelectItem>
+                      <SelectItem value="anthropic/claude-3-opus">Claude 3 Opus</SelectItem>
+                      <SelectItem value="openai/gpt-4o">GPT-4o</SelectItem>
+                      <SelectItem value="openai/gpt-4-turbo">GPT-4 Turbo</SelectItem>
+                      <SelectItem value="google/gemini-pro-1.5">Gemini 1.5 Pro</SelectItem>
+                      <SelectItem value="meta-llama/llama-3.1-70b-instruct">Llama 3.1 70B</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Choisissez le modèle d'IA pour générer vos publications
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="openrouterSystemPrompt">Prompt système</Label>
+                  <Textarea
+                    id="openrouterSystemPrompt"
+                    value={openrouterSystemPrompt}
+                    onChange={(e) => setOpenrouterSystemPrompt(e.target.value)}
+                    placeholder="Instructions pour l'IA..."
+                    rows={6}
+                    data-testid="textarea-openrouter-system-prompt"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Définissez les instructions que l'IA doit suivre pour générer vos textes
+                  </p>
+                </div>
+                <Button 
+                  onClick={() => saveOpenrouterMutation.mutate()}
+                  disabled={saveOpenrouterMutation.isPending || !openrouterApiKey || !openrouterModel || !openrouterSystemPrompt}
+                  data-testid="button-save-openrouter"
+                  className="w-full"
+                >
+                  {saveOpenrouterMutation.isPending ? "Enregistrement..." : "Enregistrer OpenRouter"}
+                </Button>
               </CardContent>
             </Card>
 
