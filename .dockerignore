@@ -1,0 +1,40 @@
+# Dépendances
+node_modules
+npm-debug.log
+
+# Fichiers de build
+dist
+.vite
+
+# Fichiers de développement
+.env
+.env.local
+.env.*.local
+
+# Fichiers Git
+.git
+.gitignore
+
+# Fichiers Replit
+.replit
+replit.nix
+
+# Fichiers de test
+*.test.js
+*.test.ts
+__tests__
+
+# Documentation
+*.md
+!README.md
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+
+# Logs
+logs
+*.log
+
+# Uploads (seront montés comme volume)
+uploads/*
