@@ -48,7 +48,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: sh -c "node dist/migrate.js && npm run start"
+    command: sh -c "npx drizzle-kit push --force && npm run start"
 
 volumes:
   postgres_data:
