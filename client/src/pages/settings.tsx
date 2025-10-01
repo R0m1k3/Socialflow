@@ -33,6 +33,10 @@ export default function Settings() {
     queryKey: ['/api/openrouter/config'],
   });
 
+  const { data: openrouterModels } = useQuery({
+    queryKey: ['/api/openrouter/models'],
+  });
+
   useEffect(() => {
     if (cloudinaryConfig) {
       setCloudName((cloudinaryConfig as any).cloudName || "");
@@ -200,12 +204,11 @@ export default function Settings() {
                       <SelectValue placeholder="Sélectionner un modèle" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="anthropic/claude-3.5-sonnet">Claude 3.5 Sonnet</SelectItem>
-                      <SelectItem value="anthropic/claude-3-opus">Claude 3 Opus</SelectItem>
-                      <SelectItem value="openai/gpt-4o">GPT-4o</SelectItem>
-                      <SelectItem value="openai/gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                      <SelectItem value="google/gemini-pro-1.5">Gemini 1.5 Pro</SelectItem>
-                      <SelectItem value="meta-llama/llama-3.1-70b-instruct">Llama 3.1 70B</SelectItem>
+                      {openrouterModels?.data?.map((model: any) => (
+                        <SelectItem key={model.id} value={model.id}>
+                          {model.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">

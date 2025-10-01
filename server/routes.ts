@@ -283,6 +283,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // OpenRouter models list
+  app.get("/api/openrouter/models", async (req, res) => {
+    try {
+      const response = await fetch("https://openrouter.ai/api/v1/models", {
+        headers: {
+          "Content-Type": "application/json",
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`OpenRouter API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching OpenRouter models:", error);
+      res.status(500).json({ error: "Failed to fetch OpenRouter models" });
+    }
+  });
+
   // OpenRouter configuration
   app.get("/api/openrouter/config", async (req, res) => {
     try {
