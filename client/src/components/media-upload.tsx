@@ -48,7 +48,7 @@ export default function MediaUpload() {
     }
   }, []);
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     accept: {
       "image/*": [".png", ".jpg", ".jpeg", ".gif"],
@@ -76,7 +76,10 @@ export default function MediaUpload() {
             Ajoutez des photos ou vidéos, elles seront automatiquement recadrées pour Facebook et Instagram
           </p>
         </div>
-        <Button data-testid="button-browse">
+        <Button 
+          onClick={open}
+          data-testid="button-browse"
+        >
           <CloudUpload className="w-4 h-4 mr-2" />
           Parcourir
         </Button>
