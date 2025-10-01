@@ -15,6 +15,9 @@ COPY . .
 # Générer les migrations de base de données
 RUN npx drizzle-kit generate || echo "No schema changes to generate"
 
+# Créer le dossier drizzle s'il n'existe pas
+RUN mkdir -p drizzle
+
 # Build du frontend et backend
 RUN npm run build
 
@@ -36,9 +39,6 @@ COPY --from=builder /app/server ./server
 COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/drizzle.config.ts ./
 COPY --from=builder /app/drizzle ./drizzle
-
-# Créer le dossier uploads
-RUN mkdir -p uploads
 
 # Exposer le port 5000
 EXPOSE 5000
