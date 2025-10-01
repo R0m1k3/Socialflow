@@ -55,7 +55,7 @@ Preferred communication style: Simple, everyday language.
 - `/api/pages/*` - Social page management
 - `/api/posts/*` - Post and scheduling management
 
-**File Upload**: Multer middleware for handling multipart/form-data with in-memory storage strategy
+**File Upload**: Multer middleware for handling multipart/form-data with in-memory storage strategy, integrated with Cloudinary for cloud storage
 
 **Background Processing**: 
 - Node-cron for scheduled task execution
@@ -65,7 +65,7 @@ Preferred communication style: Simple, everyday language.
 **Session Management**: Stateless authentication with session cookies (connect-pg-simple for PostgreSQL session store)
 
 **Key Architectural Patterns**:
-- Service layer pattern (OpenRouterService, ImageProcessor, SchedulerService)
+- Service layer pattern (OpenRouterService, CloudinaryService, SchedulerService)
 - Storage abstraction layer for database operations
 - Middleware-based request processing pipeline
 - Separation of concerns between routes, services, and storage
@@ -80,8 +80,9 @@ Preferred communication style: Simple, everyday language.
 
 Core Tables:
 - `users` - User authentication and profiles
+- `cloudinary_config` - Cloudinary configuration per user (cloud name, API key, API secret)
 - `social_pages` - Connected Facebook/Instagram pages with access tokens
-- `media` - Uploaded media files with platform-specific processed versions
+- `media` - Uploaded media files with Cloudinary public IDs and transformation URLs
 - `posts` - Post content with AI generation tracking and status
 - `scheduled_posts` - Scheduled publication queue with page assignments
 - `ai_generations` - History of AI-generated content
@@ -101,20 +102,21 @@ Core Tables:
 
 ### Media Processing Pipeline
 
-**Image Processing Library**: Sharp for high-performance image manipulation
+**Cloud Storage**: Cloudinary for image/video storage and transformation
 
 **Format Optimization Strategy**:
 - Facebook Feed: 1200x630px (landscape format)
 - Instagram Feed: 1080x1080px (square format)
 - Instagram Story: 1080x1920px (vertical format)
 
-**Storage**: Local filesystem storage in `/uploads` directory with unique UUID-based filenames
+**Storage**: Cloud-based storage via Cloudinary CDN with automatic transformations
 
 **Processing Flow**:
-1. Upload original file to memory buffer
-2. Generate three optimized versions for different platforms
-3. Store all versions with references in database
-4. Serve via `/uploads` static route
+1. Upload original file to memory buffer via Multer
+2. Upload to Cloudinary with unique public_id
+3. Cloudinary automatically generates transformation URLs for all platform formats
+4. Store Cloudinary public_id and transformation URLs in database
+5. Serve optimized images via Cloudinary CDN
 
 ## External Dependencies
 
@@ -125,6 +127,16 @@ Core Tables:
 - Purpose: Generate multiple post text variations from product information
 - Configuration: Requires `OPENROUTER_API_KEY` environment variable
 - Temperature: 0.8 for creative variation
+
+### Cloud Storage
+
+**Cloudinary**:
+- Purpose: Cloud-based image and video storage with automatic transformations
+- Configuration: User-configurable via Settings page (cloud name, API key, API secret)
+- Storage: Images stored in Cloudinary cloud with unique public IDs
+- Transformations: Automatic generation of platform-specific formats (Facebook Feed, Instagram Feed, Instagram Story)
+- CDN: Global content delivery network for fast image loading
+- Status: Fully integrated for media uploads
 
 ### Social Media APIs
 

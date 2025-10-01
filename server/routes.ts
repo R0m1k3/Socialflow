@@ -3,16 +3,12 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
 import { openRouterService } from "./services/openrouter";
-import { imageProcessor } from "./services/imageProcessor";
-import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema } from "@shared/schema";
-import express from "express";
-import path from "path";
+import { cloudinaryService } from "./services/cloudinary";
+import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Serve uploaded files
-  app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
   // Stats endpoint
   app.get("/api/stats", async (req, res) => {
@@ -69,21 +65,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const userId = "demo-user"; // In real app, get from session/auth
+
+      // Check if Cloudinary is configured
+      const cloudinaryConfig = await storage.getCloudinaryConfig(userId);
       
-      const originalUrl = await imageProcessor.saveOriginalFile(req.file.buffer, req.file.originalname);
-      
-      let processedUrls = null;
-      if (req.file.mimetype.startsWith("image/")) {
-        processedUrls = await imageProcessor.processImage(req.file.buffer, req.file.originalname);
+      if (!cloudinaryConfig) {
+        return res.status(400).json({ 
+          error: "Cloudinary not configured. Please configure Cloudinary in Settings first." 
+        });
       }
+
+      // Upload to Cloudinary
+      const uploadResult = await cloudinaryService.uploadMedia(
+        req.file.buffer,
+        req.file.originalname,
+        userId,
+        req.file.mimetype
+      );
 
       const mediaItem = await storage.createMedia({
         userId,
         type: req.file.mimetype.startsWith("video/") ? "video" : "image",
-        originalUrl,
-        facebookFeedUrl: processedUrls?.facebookFeed || null,
-        instagramFeedUrl: processedUrls?.instagramFeed || null,
-        instagramStoryUrl: processedUrls?.instagramStory || null,
+        cloudinaryPublicId: uploadResult.publicId,
+        originalUrl: uploadResult.originalUrl,
+        facebookFeedUrl: uploadResult.facebookFeedUrl,
+        instagramFeedUrl: uploadResult.instagramFeedUrl,
+        instagramStoryUrl: uploadResult.instagramStoryUrl,
         fileName: req.file.originalname,
         fileSize: req.file.size,
       });
@@ -91,7 +98,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(mediaItem);
     } catch (error) {
       console.error("Error uploading media:", error);
-      res.status(500).json({ error: "Failed to upload media" });
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload media";
+      res.status(500).json({ error: errorMessage });
     }
   });
 
@@ -104,6 +112,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching media:", error);
       res.status(500).json({ error: "Failed to fetch media" });
+    }
+  });
+
+  // Delete media
+  app.delete("/api/media/:id", async (req, res) => {
+    try {
+      const userId = "demo-user"; // In real app, get from session/auth
+      const mediaId = req.params.id;
+      
+      // Get media to find cloudinary public ID
+      const allMedia = await storage.getMedia(userId);
+      const mediaToDelete = allMedia.find(m => m.id === mediaId);
+      
+      if (!mediaToDelete) {
+        return res.status(404).json({ error: "Media not found" });
+      }
+
+      // Delete from Cloudinary
+      if (mediaToDelete.cloudinaryPublicId) {
+        await cloudinaryService.deleteMedia(
+          mediaToDelete.cloudinaryPublicId, 
+          userId,
+          mediaToDelete.type
+        );
+      }
+
+      // Delete from database
+      await storage.deleteMedia(mediaId);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting media:", error);
+      res.status(500).json({ error: "Failed to delete media" });
     }
   });
 
@@ -192,6 +233,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching AI generations:", error);
       res.status(500).json({ error: "Failed to fetch AI generations" });
+    }
+  });
+
+  // Cloudinary Config
+  app.get("/api/cloudinary/config", async (req, res) => {
+    try {
+      const userId = "demo-user"; // In real app, get from session/auth
+      const config = await storage.getCloudinaryConfig(userId);
+      
+      if (!config) {
+        return res.json(null);
+      }
+
+      // Don't send the API secret to the client
+      const { apiSecret, ...safeConfig } = config;
+      res.json(safeConfig);
+    } catch (error) {
+      console.error("Error fetching Cloudinary config:", error);
+      res.status(500).json({ error: "Failed to fetch Cloudinary config" });
+    }
+  });
+
+  app.post("/api/cloudinary/config", async (req, res) => {
+    try {
+      const userId = "demo-user"; // In real app, get from session/auth
+      
+      const configData = insertCloudinaryConfigSchema.parse({
+        ...req.body,
+        userId,
+      });
+
+      // Check if config already exists
+      const existingConfig = await storage.getCloudinaryConfig(userId);
+      
+      let config;
+      if (existingConfig) {
+        config = await storage.updateCloudinaryConfig(userId, configData);
+      } else {
+        config = await storage.createCloudinaryConfig(configData);
+      }
+
+      // Don't send the API secret back
+      const { apiSecret, ...safeConfig } = config;
+      res.json(safeConfig);
+    } catch (error) {
+      console.error("Error saving Cloudinary config:", error);
+      res.status(500).json({ error: "Failed to save Cloudinary config" });
     }
   });
 

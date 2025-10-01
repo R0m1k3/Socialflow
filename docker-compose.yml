@@ -40,8 +40,6 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       SESSION_SECRET: ${SESSION_SECRET:-your-secret-key-change-me}
       APP_URL: ${APP_URL:-http://localhost:5000}
-    volumes:
-      - ./uploads:/app/uploads
     networks:
       - internal
       - nginx_default
