@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,22 @@ export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [showDefaultPassword, setShowDefaultPassword] = useState(false);
+
+  // Vérifier si le mot de passe admin par défaut est toujours actif
+  useEffect(() => {
+    const checkDefaultPassword = async () => {
+      try {
+        const response = await fetch("/api/auth/default-password-status");
+        const data = await response.json();
+        setShowDefaultPassword(data.isDefault === true);
+      } catch (error) {
+        console.error("Error checking default password status:", error);
+      }
+    };
+
+    checkDefaultPassword();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -102,10 +118,13 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="mt-6 text-center text-sm text-muted-foreground">
-            <p>Identifiants par défaut :</p>
-            <p>admin / admin</p>
-          </div>
+          {showDefaultPassword && (
+            <div className="mt-6 text-center text-sm text-muted-foreground">
+              <p>Identifiants par défaut :</p>
+              <p className="font-semibold">admin / admin</p>
+              <p className="text-xs mt-2 text-orange-500">⚠️ Changez ce mot de passe après la première connexion</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

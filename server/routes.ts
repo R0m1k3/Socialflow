@@ -8,7 +8,7 @@ import { z } from "zod";
 import { openRouterService } from "./services/openrouter";
 import { cloudinaryService } from "./services/cloudinary";
 import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, insertOpenrouterConfigSchema, insertUserSchema } from "@shared/schema";
-import type { User } from "@shared/schema";
+import type { User, InsertUser } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -78,6 +78,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Route pour obtenir la liste de tous les utilisateurs (réservée aux admins)
+  app.get("/api/users", requireAdmin, async (req, res) => {
+    try {
+      const allUsers = await storage.getAllUsers();
+      
+      // Ne pas envoyer les mots de passe
+      const safeUsers = allUsers.map(user => ({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+      }));
+      
+      res.json(safeUsers);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ error: "Erreur lors de la récupération des utilisateurs" });
+    }
+  });
+
   // Route pour créer un nouvel utilisateur (réservée aux admins)
   app.post("/api/users", requireAdmin, async (req, res) => {
     try {
@@ -115,6 +134,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: error.errors[0]?.message || "Données invalides" });
       }
       res.status(500).json({ error: "Erreur lors de la création de l'utilisateur" });
+    }
+  });
+
+  // Route pour modifier un utilisateur (réservée aux admins)
+  app.patch("/api/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const userId = req.params.id;
+      const { username, password, role } = req.body;
+      
+      // Vérifier si l'utilisateur existe
+      const existingUser = await storage.getUser(userId);
+      if (!existingUser) {
+        return res.status(404).json({ error: "Utilisateur non trouvé" });
+      }
+
+      const updateData: Partial<InsertUser> = {};
+      
+      if (username && username !== existingUser.username) {
+        // Vérifier si le nouveau username est déjà pris
+        const userWithSameUsername = await storage.getUserByUsername(username);
+        if (userWithSameUsername && userWithSameUsername.id !== userId) {
+          return res.status(409).json({ error: "Ce nom d'utilisateur est déjà utilisé" });
+        }
+        updateData.username = username;
+      }
+      
+      if (password) {
+        // Hasher le nouveau mot de passe
+        updateData.password = await bcrypt.hash(password, 10);
+      }
+      
+      if (role && (role === "admin" || role === "user")) {
+        updateData.role = role;
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({ error: "Aucune modification fournie" });
+      }
+
+      const updatedUser = await storage.updateUser(userId, updateData);
+      
+      res.json({
+        id: updatedUser.id,
+        username: updatedUser.username,
+        role: updatedUser.role,
+      });
+    } catch (error: any) {
+      console.error("Error updating user:", error);
+      res.status(500).json({ error: "Erreur lors de la modification de l'utilisateur" });
+    }
+  });
+
+  // Route pour supprimer un utilisateur (réservée aux admins)
+  app.delete("/api/users/:id", requireAdmin, async (req, res) => {
+    try {
+      const userId = req.params.id;
+      const currentUser = req.user as User;
+      
+      // Empêcher l'admin de se supprimer lui-même
+      if (userId === currentUser.id) {
+        return res.status(400).json({ error: "Vous ne pouvez pas supprimer votre propre compte" });
+      }
+
+      // Vérifier si l'utilisateur existe
+      const existingUser = await storage.getUser(userId);
+      if (!existingUser) {
+        return res.status(404).json({ error: "Utilisateur non trouvé" });
+      }
+
+      await storage.deleteUser(userId);
+      
+      res.json({ success: true, message: "Utilisateur supprimé avec succès" });
+    } catch (error: any) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ error: "Erreur lors de la suppression de l'utilisateur" });
+    }
+  });
+
+  // Route pour vérifier si le mot de passe admin par défaut a été changé
+  app.get("/api/auth/default-password-status", async (req, res) => {
+    try {
+      const adminUser = await storage.getUserByUsername("admin");
+      
+      if (!adminUser) {
+        return res.json({ isDefault: false });
+      }
+
+      // Vérifier si le mot de passe correspond à "admin"
+      const isDefaultPassword = await bcrypt.compare("admin", adminUser.password);
+      
+      res.json({ isDefault: isDefaultPassword });
+    } catch (error) {
+      console.error("Error checking default password:", error);
+      res.status(500).json({ error: "Erreur lors de la vérification" });
     }
   });
 

@@ -11,12 +11,12 @@ export default function Sidebar() {
   const { toast } = useToast();
 
   // Charger la session utilisateur
-  const { data: session } = useQuery({
+  const { data: session } = useQuery<{ id: string; username: string; role: string }>({
     queryKey: ["/api/auth/session"],
     retry: false,
   });
 
-  const isAdmin = (session as any)?.role === "admin";
+  const isAdmin = session?.role === "admin";
 
   // Mutation pour déconnexion
   const logoutMutation = useMutation({
@@ -191,8 +191,8 @@ export default function Sidebar() {
         {session && (
           <div className="mt-4 px-4 py-3 bg-muted rounded-lg">
             <p className="text-xs text-muted-foreground">Connecté en tant que</p>
-            <p className="text-sm font-semibold truncate">{(session as any).username}</p>
-            <p className="text-xs text-muted-foreground capitalize">{(session as any).role}</p>
+            <p className="text-sm font-semibold truncate">{session.username}</p>
+            <p className="text-xs text-muted-foreground capitalize">{session.role}</p>
           </div>
         )}
       </div>
