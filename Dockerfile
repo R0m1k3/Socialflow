@@ -40,12 +40,12 @@ COPY --from=builder /app/shared ./shared
 COPY --from=builder /app/drizzle.config.ts ./
 COPY --from=builder /app/drizzle ./drizzle
 
-# Exposer le port 5000
-EXPOSE 5000
+# Exposer le port 5555
+EXPOSE 5555
 
 # Variables d'environnement par défaut
 ENV NODE_ENV=production
-ENV PORT=5000
+ENV PORT=5555
 
 # Démarrer l'application
 CMD ["npm", "run", "start"]
