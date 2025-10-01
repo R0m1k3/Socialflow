@@ -1,20 +1,180 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import multer from "multer";
+import bcrypt from "bcrypt";
+import passport from "./auth";
+import { z } from "zod";
 import { openRouterService } from "./services/openrouter";
 import { cloudinaryService } from "./services/cloudinary";
-import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, insertOpenrouterConfigSchema } from "@shared/schema";
+import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, insertOpenrouterConfigSchema, insertUserSchema } from "@shared/schema";
+import type { User } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
+// Middleware pour vérifier l'authentification
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: "Non authentifié" });
+  }
+  next();
+}
+
+// Middleware pour vérifier le rôle admin
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  if (!req.isAuthenticated()) {
+    return res.status(401).json({ error: "Non authentifié" });
+  }
+  const user = req.user as User;
+  if (user.role !== "admin") {
+    return res.status(403).json({ error: "Accès refusé. Réservé aux administrateurs." });
+  }
+  next();
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
 
-  // Stats endpoint
-  app.get("/api/stats", async (req, res) => {
+  // Routes d'authentification
+  app.post("/api/auth/login", (req, res, next) => {
+    passport.authenticate("local", (err: any, user: User | false, info: any) => {
+      if (err) {
+        return next(err);
+      }
+      if (!user) {
+        return res.status(401).json({ error: info?.message || "Authentification échouée" });
+      }
+      req.logIn(user, (err) => {
+        if (err) {
+          return next(err);
+        }
+        return res.json({
+          id: user.id,
+          username: user.username,
+          role: user.role,
+        });
+      });
+    })(req, res, next);
+  });
+
+  app.post("/api/auth/logout", (req, res) => {
+    req.logout((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Erreur lors de la déconnexion" });
+      }
+      res.json({ message: "Déconnecté avec succès" });
+    });
+  });
+
+  app.get("/api/auth/session", (req, res) => {
+    if (req.isAuthenticated()) {
+      const user = req.user as User;
+      res.json({
+        id: user.id,
+        username: user.username,
+        role: user.role,
+      });
+    } else {
+      res.status(401).json({ error: "Non authentifié" });
+    }
+  });
+
+  // Route pour créer un nouvel utilisateur (réservée aux admins)
+  app.post("/api/users", requireAdmin, async (req, res) => {
     try {
-      // For now, return mock stats. In a real app, calculate from database
-      const userId = "demo-user"; // In real app, get from session/auth
+      // Validation Zod
+      const createUserSchema = insertUserSchema.extend({
+        username: insertUserSchema.shape.username.min(3, "Le nom d'utilisateur doit contenir au moins 3 caractères"),
+        password: insertUserSchema.shape.password.min(4, "Le mot de passe doit contenir au moins 4 caractères"),
+      });
+
+      const validatedData = createUserSchema.parse(req.body);
+
+      // Vérifier si l'utilisateur existe déjà
+      const existingUser = await storage.getUserByUsername(validatedData.username);
+      if (existingUser) {
+        return res.status(409).json({ error: "Ce nom d'utilisateur existe déjà" });
+      }
+
+      // Hasher le mot de passe
+      const hashedPassword = await bcrypt.hash(validatedData.password, 10);
+
+      const newUser = await storage.createUser({
+        username: validatedData.username,
+        password: hashedPassword,
+        role: validatedData.role || "user",
+      });
+
+      res.json({
+        id: newUser.id,
+        username: newUser.username,
+        role: newUser.role,
+      });
+    } catch (error: any) {
+      console.error("Error creating user:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: error.errors[0]?.message || "Données invalides" });
+      }
+      res.status(500).json({ error: "Erreur lors de la création de l'utilisateur" });
+    }
+  });
+
+  // Route SQL (réservée aux admins)
+  app.post("/api/sql/execute", requireAdmin, async (req, res) => {
+    try {
+      // Validation Zod
+      const sqlQuerySchema = z.object({
+        query: z.string().min(1, "La requête SQL ne peut pas être vide"),
+      });
+
+      const validatedData = sqlQuerySchema.parse(req.body);
+
+      const { db } = await import("./db");
+      const result = await db.execute(validatedData.query);
+      
+      res.json({
+        success: true,
+        result,
+      });
+    } catch (error: any) {
+      console.error("Error executing SQL:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({
+          success: false,
+          error: error.errors[0]?.message || "Données invalides",
+        });
+      }
+      res.status(500).json({
+        success: false,
+        error: error.message || "Erreur lors de l'exécution de la requête SQL",
+      });
+    }
+  });
+
+  // Route pour obtenir la liste des tables (réservée aux admins)
+  app.get("/api/sql/tables", requireAdmin, async (req, res) => {
+    try {
+      const { db } = await import("./db");
+      const result = await db.execute<{ tablename: string }>(
+        `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;`
+      );
+      
+      res.json({
+        tables: result.rows || result,
+      });
+    } catch (error: any) {
+      console.error("Error fetching tables:", error);
+      res.status(500).json({
+        error: error.message || "Erreur lors de la récupération des tables",
+      });
+    }
+  });
+
+
+  // Stats endpoint
+  app.get("/api/stats", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const userId = user.id;
       
       const posts = await storage.getPosts(userId);
       const pages = await storage.getSocialPages(userId);
@@ -36,10 +196,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI text generation
-  app.post("/api/ai/generate", async (req, res) => {
+  app.post("/api/ai/generate", requireAuth, async (req, res) => {
     try {
+      const user = req.user as User;
+      const userId = user.id;
       const productInfo = req.body;
-      const userId = "demo-user"; // In real app, get from session/auth
 
       const generatedTexts = await openRouterService.generatePostText(productInfo, userId);
 
@@ -58,13 +219,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Media upload
-  app.post("/api/media/upload", upload.single("file"), async (req, res) => {
+  app.post("/api/media/upload", requireAuth, upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const userId = "demo-user"; // In real app, get from session/auth
+      const user = req.user as User;
+      const userId = user.id;
 
       // Check if Cloudinary is configured
       const cloudinaryConfig = await storage.getCloudinaryConfig(userId);
@@ -104,9 +266,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get media
-  app.get("/api/media", async (req, res) => {
+  app.get("/api/media", requireAuth, async (req, res) => {
     try {
-      const userId = "demo-user"; // In real app, get from session/auth
+      const user = req.user as User;
+      const userId = user.id;
       const media = await storage.getMedia(userId);
       res.json(media);
     } catch (error) {
@@ -116,9 +279,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete media
-  app.delete("/api/media/:id", async (req, res) => {
+  app.delete("/api/media/:id", requireAuth, async (req, res) => {
     try {
-      const userId = "demo-user"; // In real app, get from session/auth
+      const user = req.user as User;
+      const userId = user.id;
       const mediaId = req.params.id;
       
       // Get media to find cloudinary public ID
@@ -149,9 +313,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Posts
-  app.get("/api/posts", async (req, res) => {
+  app.get("/api/posts", requireAuth, async (req, res) => {
     try {
-      const userId = "demo-user"; // In real app, get from session/auth
+      const user = req.user as User;
+      const userId = user.id;
       const posts = await storage.getPosts(userId);
       res.json(posts);
     } catch (error) {
@@ -160,9 +325,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/posts", async (req, res) => {
+  app.post("/api/posts", requireAuth, async (req, res) => {
     try {
-      const userId = "demo-user"; // In real app, get from session/auth
+      const user = req.user as User;
+      const userId = user.id;
       const postData = insertPostSchema.parse({ ...req.body, userId });
       const post = await storage.createPost(postData);
       res.json(post);
@@ -173,9 +339,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Scheduled posts
-  app.get("/api/scheduled-posts", async (req, res) => {
+  app.get("/api/scheduled-posts", requireAuth, async (req, res) => {
     try {
-      const userId = "demo-user"; // In real app, get from session/auth
+      const user = req.user as User;
+      const userId = user.id;
       const { startDate, endDate } = req.query;
       
       const start = startDate ? new Date(startDate as string) : undefined;
@@ -189,7 +356,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/scheduled-posts", async (req, res) => {
+  app.post("/api/scheduled-posts", requireAuth, async (req, res) => {
     try {
       const scheduledPostData = insertScheduledPostSchema.parse(req.body);
       const scheduledPost = await storage.createScheduledPost(scheduledPostData);
@@ -201,9 +368,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Social pages
-  app.get("/api/pages", async (req, res) => {
+  app.get("/api/pages", requireAuth, async (req, res) => {
     try {
-      const userId = "demo-user"; // In real app, get from session/auth
+      const user = req.user as User;
+      const userId = user.id;
       const pages = await storage.getSocialPages(userId);
       res.json(pages);
     } catch (error) {
@@ -212,9 +380,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/pages", async (req, res) => {
+  app.post("/api/pages", requireAuth, async (req, res) => {
     try {
-      const userId = "demo-user"; // In real app, get from session/auth
+      const user = req.user as User;
+      const userId = user.id;
       const pageData = insertSocialPageSchema.parse({ ...req.body, userId });
       const page = await storage.createSocialPage(pageData);
       res.json(page);
@@ -225,9 +394,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Generations
-  app.get("/api/ai/generations", async (req, res) => {
+  app.get("/api/ai/generations", requireAuth, async (req, res) => {
     try {
-      const userId = "demo-user"; // In real app, get from session/auth
+      const user = req.user as User;
+      const userId = user.id;
       const generations = await storage.getAiGenerations(userId);
       res.json(generations);
     } catch (error) {
@@ -237,9 +407,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Cloudinary Config
-  app.get("/api/cloudinary/config", async (req, res) => {
+  app.get("/api/cloudinary/config", requireAdmin, async (req, res) => {
     try {
-      const userId = "demo-user"; // In real app, get from session/auth
+      const user = req.user as User;
+      const userId = user.id;
       const config = await storage.getCloudinaryConfig(userId);
       
       if (!config) {
@@ -255,9 +426,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/cloudinary/config", async (req, res) => {
+  app.post("/api/cloudinary/config", requireAdmin, async (req, res) => {
     try {
-      const userId = "demo-user"; // In real app, get from session/auth
+      const user = req.user as User;
+      const userId = user.id;
       
       const configData = insertCloudinaryConfigSchema.parse({
         ...req.body,
@@ -284,7 +456,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // OpenRouter models list
-  app.get("/api/openrouter/models", async (req, res) => {
+  app.get("/api/openrouter/models", requireAuth, async (req, res) => {
     try {
       const response = await fetch("https://openrouter.ai/api/v1/models", {
         headers: {
@@ -305,9 +477,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // OpenRouter configuration
-  app.get("/api/openrouter/config", async (req, res) => {
+  app.get("/api/openrouter/config", requireAdmin, async (req, res) => {
     try {
-      const userId = "demo-user"; // In real app, get from session/auth
+      const user = req.user as User;
+      const userId = user.id;
       const config = await storage.getOpenrouterConfig(userId);
       
       if (!config) {
@@ -323,9 +496,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/openrouter/config", async (req, res) => {
+  app.post("/api/openrouter/config", requireAdmin, async (req, res) => {
     try {
-      const userId = "demo-user"; // In real app, get from session/auth
+      const user = req.user as User;
+      const userId = user.id;
       
       const configData = insertOpenrouterConfigSchema.parse({
         ...req.body,

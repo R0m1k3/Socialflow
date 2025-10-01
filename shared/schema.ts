@@ -8,11 +8,13 @@ export const platformEnum = pgEnum("platform", ["facebook", "instagram"]);
 export const postTypeEnum = pgEnum("post_type", ["feed", "story"]);
 export const postStatusEnum = pgEnum("post_status", ["draft", "scheduled", "published", "failed"]);
 export const mediaTypeEnum = pgEnum("media_type", ["image", "video"]);
+export const userRoleEnum = pgEnum("user_role", ["admin", "user"]);
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  role: userRoleEnum("role").notNull().default("user"),
 });
 
 export const socialPages = pgTable("social_pages", {
@@ -181,6 +183,7 @@ export const aiGenerationsRelations = relations(aiGenerations, ({ one }) => ({
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
+  role: true,
 });
 
 export const insertSocialPageSchema = createInsertSchema(socialPages).omit({

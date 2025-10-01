@@ -1,8 +1,38 @@
-import { Home, PlusCircle, Calendar, Images, Users, Bot, BarChart3, Clock, Settings } from "lucide-react";
+import { Home, PlusCircle, Calendar, Images, Users, Bot, BarChart3, Clock, Settings, Database, UserCog, LogOut } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 
 export default function Sidebar() {
   const [location] = useLocation();
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+
+  // Charger la session utilisateur
+  const { data: session } = useQuery({
+    queryKey: ["/api/auth/session"],
+    retry: false,
+  });
+
+  const isAdmin = (session as any)?.role === "admin";
+
+  // Mutation pour déconnexion
+  const logoutMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/auth/logout", {});
+      return await res.json();
+    },
+    onSuccess: () => {
+      queryClient.clear();
+      setLocation("/login");
+      toast({
+        title: "Déconnecté",
+        description: "Vous avez été déconnecté avec succès",
+      });
+    },
+  });
 
   const navItems = [
     { icon: Home, label: "Tableau de bord", href: "/", badge: null },
@@ -94,15 +124,77 @@ export default function Sidebar() {
         </div>
       </nav>
 
-      <div className="p-4 border-t border-border">
-        <Link 
-          href="/settings"
-          className="flex items-center gap-3 px-4 py-3 rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-all"
-          data-testid="link-settings"
-        >
-          <Settings className="w-5 h-5" />
-          <span>Paramètres</span>
-        </Link>
+      <div className="p-4 border-t border-border space-y-2">
+        {isAdmin && (
+          <>
+            <div className="mb-2">
+              <p className="text-xs text-muted-foreground mb-2 px-4 uppercase tracking-wider">Administration</p>
+            </div>
+            <Link 
+              href="/users"
+              className={`
+                flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+                ${location === "/users"
+                  ? 'bg-accent text-accent-foreground' 
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }
+              `}
+              data-testid="link-users"
+            >
+              <UserCog className="w-5 h-5" />
+              <span>Utilisateurs</span>
+            </Link>
+            <Link 
+              href="/sql"
+              className={`
+                flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+                ${location === "/sql"
+                  ? 'bg-accent text-accent-foreground' 
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }
+              `}
+              data-testid="link-sql"
+            >
+              <Database className="w-5 h-5" />
+              <span>SQL</span>
+            </Link>
+            <Link 
+              href="/settings"
+              className={`
+                flex items-center gap-3 px-4 py-3 rounded-lg transition-all
+                ${location === "/settings"
+                  ? 'bg-accent text-accent-foreground' 
+                  : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                }
+              `}
+              data-testid="link-settings"
+            >
+              <Settings className="w-5 h-5" />
+              <span>Paramètres</span>
+            </Link>
+          </>
+        )}
+        
+        <div className="pt-2">
+          <Button
+            variant="ghost"
+            className="w-full justify-start text-muted-foreground hover:text-accent-foreground"
+            onClick={() => logoutMutation.mutate()}
+            disabled={logoutMutation.isPending}
+            data-testid="button-logout"
+          >
+            <LogOut className="w-5 h-5 mr-3" />
+            {logoutMutation.isPending ? "Déconnexion..." : "Déconnexion"}
+          </Button>
+        </div>
+        
+        {session && (
+          <div className="mt-4 px-4 py-3 bg-muted rounded-lg">
+            <p className="text-xs text-muted-foreground">Connecté en tant que</p>
+            <p className="text-sm font-semibold truncate">{(session as any).username}</p>
+            <p className="text-xs text-muted-foreground capitalize">{(session as any).role}</p>
+          </div>
+        )}
       </div>
     </aside>
   );
