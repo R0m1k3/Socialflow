@@ -27,10 +27,21 @@ export const socialPages = pgTable("social_pages", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const cloudinaryConfig = pgTable("cloudinary_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  cloudName: text("cloud_name").notNull(),
+  apiKey: text("api_key").notNull(),
+  apiSecret: text("api_secret").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const media = pgTable("media", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   type: mediaTypeEnum("type").notNull(),
+  cloudinaryPublicId: text("cloudinary_public_id"),
   originalUrl: text("original_url").notNull(),
   facebookFeedUrl: text("facebook_feed_url"),
   instagramFeedUrl: text("instagram_feed_url"),
@@ -79,11 +90,19 @@ export const aiGenerations = pgTable("ai_generations", {
 });
 
 // Relations
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
   socialPages: many(socialPages),
   media: many(media),
   posts: many(posts),
   aiGenerations: many(aiGenerations),
+  cloudinaryConfig: one(cloudinaryConfig),
+}));
+
+export const cloudinaryConfigRelations = relations(cloudinaryConfig, ({ one }) => ({
+  user: one(users, {
+    fields: [cloudinaryConfig.userId],
+    references: [users.id],
+  }),
 }));
 
 export const socialPagesRelations = relations(socialPages, ({ one, many }) => ({
@@ -174,6 +193,12 @@ export const insertAiGenerationSchema = createInsertSchema(aiGenerations).omit({
   createdAt: true,
 });
 
+export const insertCloudinaryConfigSchema = createInsertSchema(cloudinaryConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -192,3 +217,6 @@ export type InsertScheduledPost = z.infer<typeof insertScheduledPostSchema>;
 
 export type AiGeneration = typeof aiGenerations.$inferSelect;
 export type InsertAiGeneration = z.infer<typeof insertAiGenerationSchema>;
+
+export type CloudinaryConfig = typeof cloudinaryConfig.$inferSelect;
+export type InsertCloudinaryConfig = z.infer<typeof insertCloudinaryConfigSchema>;
