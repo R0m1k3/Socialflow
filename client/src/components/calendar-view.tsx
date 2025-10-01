@@ -2,13 +2,22 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import type { ScheduledPost } from "@shared/schema";
 
 export default function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
 
-  const { data: scheduledPosts } = useQuery({
+  const { data: scheduledPosts = [] } = useQuery<ScheduledPost[]>({
     queryKey: ["/api/scheduled-posts"],
   });
+
+  const getPostsForDate = (date: Date) => {
+    return (scheduledPosts || []).filter(post => {
+      if (!post.scheduledAt) return false;
+      const postDate = new Date(post.scheduledAt);
+      return postDate.toDateString() === date.toDateString();
+    });
+  };
 
   const goToPreviousMonth = () => {
     setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
@@ -131,24 +140,41 @@ export default function CalendarView() {
                 )}
               </div>
               
-              {/* Sample events - in real app, filter scheduledPosts by date */}
-              {day.isCurrentMonth && day.date.getDate() % 7 === 5 && (
-                <div className="space-y-1">
-                  <div className="px-2 py-1 rounded text-xs bg-chart-1/20 text-chart-1 cursor-pointer hover:bg-chart-1/30 transition-all">
-                    <i className="fab fa-facebook text-[10px] mr-1"></i>
-                    <span>14h - Promo</span>
+              {/* Real scheduled posts for this date */}
+              {(() => {
+                if (!day.isCurrentMonth) return null;
+                const postsForDay = getPostsForDate(day.date);
+                if (postsForDay.length === 0) return null;
+                
+                return (
+                  <div className="space-y-1">
+                    {postsForDay.slice(0, 2).map((post, idx) => {
+                      const time = post.scheduledAt ? new Date(post.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+                      const isPending = !post.publishedAt;
+                      const isPublished = !!post.publishedAt;
+                      
+                      return (
+                        <div 
+                          key={idx}
+                          className={`
+                            px-2 py-1 rounded text-xs cursor-pointer transition-all
+                            ${isPending ? 'bg-chart-3/20 text-chart-3 hover:bg-chart-3/30' : ''}
+                            ${isPublished ? 'bg-chart-2/20 text-chart-2 hover:bg-chart-2/30' : ''}
+                          `}
+                          data-testid={`calendar-post-${post.id}`}
+                        >
+                          <span>{time} - {post.postType || 'Post'}</span>
+                        </div>
+                      );
+                    })}
+                    {postsForDay.length > 2 && (
+                      <div className="text-[10px] text-muted-foreground pl-2">
+                        +{postsForDay.length - 2} autre(s)
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
-              
-              {day.isCurrentMonth && day.date.getDate() % 7 === 0 && (
-                <div className="space-y-1">
-                  <div className="px-2 py-1 rounded text-xs bg-chart-5/20 text-chart-5 cursor-pointer hover:bg-chart-5/30 transition-all">
-                    <i className="fab fa-instagram text-[10px] mr-1"></i>
-                    <span>10h - Story</span>
-                  </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           ))}
         </div>
@@ -156,20 +182,12 @@ export default function CalendarView() {
         {/* Legend */}
         <div className="mt-6 flex items-center justify-center gap-6 flex-wrap">
           <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-chart-1"></div>
-            <span className="text-sm text-muted-foreground">Facebook</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-chart-5"></div>
-            <span className="text-sm text-muted-foreground">Instagram</span>
-          </div>
-          <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded bg-chart-3"></div>
-            <span className="text-sm text-muted-foreground">Story</span>
+            <span className="text-sm text-muted-foreground">Programmé</span>
           </div>
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded bg-chart-2"></div>
-            <span className="text-sm text-muted-foreground">Vidéo</span>
+            <span className="text-sm text-muted-foreground">Publié</span>
           </div>
         </div>
       </div>

@@ -173,11 +173,21 @@ export default function AiChat() {
           </Button>
         </div>
         <div className="mt-3 flex items-center gap-2">
-          <Button variant="outline" size="sm" data-testid="button-suggestions">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => toast({ title: "Bientôt disponible", description: "Les suggestions de produits seront disponibles prochainement" })}
+            data-testid="button-suggestions"
+          >
             <Lightbulb className="w-4 h-4 mr-1" />
             Suggestions
           </Button>
-          <Button variant="outline" size="sm" data-testid="button-history">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={() => toast({ title: "Bientôt disponible", description: "L'historique des générations sera disponible prochainement" })}
+            data-testid="button-history"
+          >
             <History className="w-4 h-4 mr-1" />
             Historique
           </Button>
