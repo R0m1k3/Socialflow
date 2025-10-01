@@ -5,6 +5,7 @@ import {
   posts, 
   scheduledPosts,
   aiGenerations,
+  cloudinaryConfig,
   type User, 
   type InsertUser,
   type SocialPage,
@@ -17,6 +18,8 @@ import {
   type InsertScheduledPost,
   type AiGeneration,
   type InsertAiGeneration,
+  type CloudinaryConfig,
+  type InsertCloudinaryConfig,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, isNull } from "drizzle-orm";
@@ -58,6 +61,11 @@ export interface IStorage {
   // AI Generations
   getAiGenerations(userId: string): Promise<AiGeneration[]>;
   createAiGeneration(generation: InsertAiGeneration): Promise<AiGeneration>;
+
+  // Cloudinary Config
+  getCloudinaryConfig(userId: string): Promise<CloudinaryConfig | undefined>;
+  createCloudinaryConfig(config: InsertCloudinaryConfig): Promise<CloudinaryConfig>;
+  updateCloudinaryConfig(userId: string, config: Partial<InsertCloudinaryConfig>): Promise<CloudinaryConfig>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -207,6 +215,25 @@ export class DatabaseStorage implements IStorage {
   async createAiGeneration(generation: InsertAiGeneration): Promise<AiGeneration> {
     const [newGeneration] = await db.insert(aiGenerations).values(generation).returning();
     return newGeneration;
+  }
+
+  // Cloudinary Config
+  async getCloudinaryConfig(userId: string): Promise<CloudinaryConfig | undefined> {
+    const [config] = await db.select().from(cloudinaryConfig).where(eq(cloudinaryConfig.userId, userId));
+    return config || undefined;
+  }
+
+  async createCloudinaryConfig(config: InsertCloudinaryConfig): Promise<CloudinaryConfig> {
+    const [newConfig] = await db.insert(cloudinaryConfig).values(config).returning();
+    return newConfig;
+  }
+
+  async updateCloudinaryConfig(userId: string, config: Partial<InsertCloudinaryConfig>): Promise<CloudinaryConfig> {
+    const [updated] = await db.update(cloudinaryConfig)
+      .set({ ...config, updatedAt: new Date() })
+      .where(eq(cloudinaryConfig.userId, userId))
+      .returning();
+    return updated;
   }
 }
 
