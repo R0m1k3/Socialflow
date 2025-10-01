@@ -12,6 +12,8 @@ services:
       POSTGRES_PASSWORD: ${PGPASSWORD:-changeme}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    networks:
+      - internal
     # Port non exposé sur l'hôte pour plus de sécurité en production
     # Décommentez la ligne suivante si vous avez besoin d'accéder à la DB localement
     # ports:
@@ -40,6 +42,9 @@ services:
       APP_URL: ${APP_URL:-http://localhost:5000}
     volumes:
       - ./uploads:/app/uploads
+    networks:
+      - internal
+      - nginx_default
     depends_on:
       postgres:
         condition: service_healthy
@@ -48,3 +53,12 @@ services:
 volumes:
   postgres_data:
     driver: local
+
+networks:
+  # Réseau interne pour la communication DB <-> App
+  internal:
+    driver: bridge
+  
+  # Réseau externe pour nginx reverse proxy
+  nginx_default:
+    external: true
