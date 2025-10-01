@@ -204,7 +204,7 @@ export default function Settings() {
                       <SelectValue placeholder="Sélectionner un modèle" />
                     </SelectTrigger>
                     <SelectContent>
-                      {openrouterModels?.data?.map((model: any) => (
+                      {(openrouterModels as any)?.data?.map((model: any) => (
                         <SelectItem key={model.id} value={model.id}>
                           {model.name}
                         </SelectItem>
