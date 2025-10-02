@@ -95,15 +95,16 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
+  
+  // Initialiser l'utilisateur admin par défaut avant de démarrer le serveur
+  await ensureAdminUserExists();
+  
   server.listen({
     port,
     host: "0.0.0.0",
     reusePort: true,
-  }, async () => {
+  }, () => {
     log(`serving on port ${port}`);
-    
-    // Initialiser l'utilisateur admin par défaut
-    await ensureAdminUserExists();
     
     // Démarrer le scheduler pour les publications programmées
     schedulerService.start();
