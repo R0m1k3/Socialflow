@@ -39,16 +39,15 @@ export class FacebookService {
   }
 
   private async publishTextPost(post: Post, page: SocialPage): Promise<string> {
-    const url = `${this.baseUrl}/${page.pageId}/feed`;
-
     const params = new URLSearchParams({
       access_token: page.accessToken!,
       message: post.content,
     });
 
+    const url = `${this.baseUrl}/${page.pageId}/feed?${params.toString()}`;
+
     const response = await fetch(url, {
       method: 'POST',
-      body: params,
     });
 
     if (!response.ok) {
@@ -61,8 +60,6 @@ export class FacebookService {
   }
 
   private async publishPhotoPost(post: Post, page: SocialPage, media: Media): Promise<string> {
-    const url = `${this.baseUrl}/${page.pageId}/photos`;
-
     // Use the Facebook Feed optimized URL (1200x630)
     const photoUrl = media.facebookFeedUrl || media.originalUrl;
 
@@ -72,9 +69,10 @@ export class FacebookService {
       url: photoUrl,
     });
 
+    const url = `${this.baseUrl}/${page.pageId}/photos?${params.toString()}`;
+
     const response = await fetch(url, {
       method: 'POST',
-      body: params,
     });
 
     if (!response.ok) {
@@ -120,8 +118,6 @@ export class FacebookService {
   }
 
   private async scheduleTextPost(post: Post, page: SocialPage, scheduledTimestamp: number): Promise<string> {
-    const url = `${this.baseUrl}/${page.pageId}/feed`;
-
     const params = new URLSearchParams({
       access_token: page.accessToken!,
       message: post.content,
@@ -129,9 +125,10 @@ export class FacebookService {
       scheduled_publish_time: scheduledTimestamp.toString(),
     });
 
+    const url = `${this.baseUrl}/${page.pageId}/feed?${params.toString()}`;
+
     const response = await fetch(url, {
       method: 'POST',
-      body: params,
     });
 
     if (!response.ok) {
@@ -144,8 +141,6 @@ export class FacebookService {
   }
 
   private async schedulePhotoPost(post: Post, page: SocialPage, scheduledTimestamp: number, media: Media): Promise<string> {
-    const url = `${this.baseUrl}/${page.pageId}/photos`;
-
     const photoUrl = media.facebookFeedUrl || media.originalUrl;
 
     const params = new URLSearchParams({
@@ -156,9 +151,10 @@ export class FacebookService {
       scheduled_publish_time: scheduledTimestamp.toString(),
     });
 
+    const url = `${this.baseUrl}/${page.pageId}/photos?${params.toString()}`;
+
     const response = await fetch(url, {
       method: 'POST',
-      body: params,
     });
 
     if (!response.ok) {
