@@ -23,6 +23,8 @@ export default function NewPost() {
   const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [scheduledDate, setScheduledDate] = useState('');
+  const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
+  const [postText, setPostText] = useState('');
 
   const { data: pages = [] } = useQuery<SocialPage[]>({
     queryKey: ['/api/pages'],
@@ -36,9 +38,11 @@ export default function NewPost() {
     mutationFn: (productInfo: string) => 
       apiRequest('POST', '/api/ai/generate', { productInfo }),
     onSuccess: (data: any) => {
+      const variants = data.variants || [];
+      setGeneratedVariants(variants);
       toast({
         title: "Texte généré",
-        description: `${data.variations?.length || 0} variations créées`,
+        description: `${variants.length} variations créées`,
       });
       queryClient.invalidateQueries({ queryKey: ['/api/ai/generations'] });
     },
@@ -83,7 +87,7 @@ export default function NewPost() {
   };
 
   const handleCreatePost = () => {
-    if (!productInfo.trim()) {
+    if (!postText.trim()) {
       toast({
         title: "Contenu requis",
         description: "Veuillez saisir le contenu de la publication",
@@ -93,8 +97,16 @@ export default function NewPost() {
     }
 
     createPostMutation.mutate({
-      content: productInfo,
+      content: postText,
       scheduledFor: scheduledDate || undefined,
+    });
+  };
+
+  const handleUseVariant = (text: string) => {
+    setPostText(text);
+    toast({
+      title: "Texte sélectionné",
+      description: "Le texte a été ajouté à votre publication",
     });
   };
 
@@ -155,6 +167,57 @@ export default function NewPost() {
                   </Button>
                 </CardContent>
               </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle>Texte de la publication</CardTitle>
+                  <CardDescription>Écrivez ou générez le texte de votre publication</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    value={postText}
+                    onChange={(e) => setPostText(e.target.value)}
+                    placeholder="Écrivez votre texte ici ou générez-le avec l'IA..."
+                    rows={8}
+                    data-testid="textarea-post-text"
+                  />
+                </CardContent>
+              </Card>
+
+              {generatedVariants.length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Variations générées par l'IA</CardTitle>
+                    <CardDescription>Cliquez sur "Utiliser" pour remplir le texte ci-dessus</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    {generatedVariants.map((variant, index) => (
+                      <div 
+                        key={index}
+                        className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1">
+                            <div className="text-xs font-semibold text-muted-foreground mb-2">
+                              {variant.variant || `Version ${index + 1}`}
+                            </div>
+                            <p className="text-sm leading-relaxed whitespace-pre-wrap">
+                              {variant.text}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            onClick={() => handleUseVariant(variant.text)}
+                            data-testid={`button-use-variant-${index}`}
+                          >
+                            Utiliser
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+              )}
 
               <Card>
                 <CardHeader>
