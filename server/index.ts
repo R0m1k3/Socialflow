@@ -4,6 +4,7 @@ import passport from "./auth";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { schedulerService } from "./services/scheduler";
+import { ensureAdminUserExists } from "./init-admin";
 
 const app = express();
 
@@ -98,8 +99,11 @@ app.use((req, res, next) => {
     port,
     host: "0.0.0.0",
     reusePort: true,
-  }, () => {
+  }, async () => {
     log(`serving on port ${port}`);
+    
+    // Initialiser l'utilisateur admin par défaut
+    await ensureAdminUserExists();
     
     // Démarrer le scheduler pour les publications programmées
     schedulerService.start();
