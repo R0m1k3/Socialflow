@@ -6,6 +6,7 @@ import {
   scheduledPosts,
   aiGenerations,
   cloudinaryConfig,
+  openrouterConfig,
   type User, 
   type InsertUser,
   type SocialPage,
@@ -20,6 +21,8 @@ import {
   type InsertAiGeneration,
   type CloudinaryConfig,
   type InsertCloudinaryConfig,
+  type OpenrouterConfig,
+  type InsertOpenrouterConfig,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, isNull } from "drizzle-orm";
@@ -28,7 +31,10 @@ export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getAllUsers(): Promise<User[]>;
   createUser(user: InsertUser): Promise<User>;
+  updateUser(id: string, user: Partial<InsertUser>): Promise<User>;
+  deleteUser(id: string): Promise<void>;
 
   // Social Pages
   getSocialPages(userId: string): Promise<SocialPage[]>;
@@ -66,6 +72,11 @@ export interface IStorage {
   getCloudinaryConfig(userId: string): Promise<CloudinaryConfig | undefined>;
   createCloudinaryConfig(config: InsertCloudinaryConfig): Promise<CloudinaryConfig>;
   updateCloudinaryConfig(userId: string, config: Partial<InsertCloudinaryConfig>): Promise<CloudinaryConfig>;
+
+  // OpenRouter Config
+  getOpenrouterConfig(userId: string): Promise<OpenrouterConfig | undefined>;
+  createOpenrouterConfig(config: InsertOpenrouterConfig): Promise<OpenrouterConfig>;
+  updateOpenrouterConfig(userId: string, config: Partial<InsertOpenrouterConfig>): Promise<OpenrouterConfig>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -80,9 +91,22 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const [user] = await db.insert(users).values(insertUser).returning();
     return user;
+  }
+
+  async updateUser(id: string, updateData: Partial<InsertUser>): Promise<User> {
+    const [updated] = await db.update(users).set(updateData).where(eq(users.id, id)).returning();
+    return updated;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
   }
 
   // Social Pages
@@ -232,6 +256,25 @@ export class DatabaseStorage implements IStorage {
     const [updated] = await db.update(cloudinaryConfig)
       .set({ ...config, updatedAt: new Date() })
       .where(eq(cloudinaryConfig.userId, userId))
+      .returning();
+    return updated;
+  }
+
+  // OpenRouter Config
+  async getOpenrouterConfig(userId: string): Promise<OpenrouterConfig | undefined> {
+    const [config] = await db.select().from(openrouterConfig).where(eq(openrouterConfig.userId, userId));
+    return config || undefined;
+  }
+
+  async createOpenrouterConfig(config: InsertOpenrouterConfig): Promise<OpenrouterConfig> {
+    const [newConfig] = await db.insert(openrouterConfig).values(config).returning();
+    return newConfig;
+  }
+
+  async updateOpenrouterConfig(userId: string, config: Partial<InsertOpenrouterConfig>): Promise<OpenrouterConfig> {
+    const [updated] = await db.update(openrouterConfig)
+      .set({ ...config, updatedAt: new Date() })
+      .where(eq(openrouterConfig.userId, userId))
       .returning();
     return updated;
   }

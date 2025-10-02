@@ -8,11 +8,13 @@ export const platformEnum = pgEnum("platform", ["facebook", "instagram"]);
 export const postTypeEnum = pgEnum("post_type", ["feed", "story"]);
 export const postStatusEnum = pgEnum("post_status", ["draft", "scheduled", "published", "failed"]);
 export const mediaTypeEnum = pgEnum("media_type", ["image", "video"]);
+export const userRoleEnum = pgEnum("user_role", ["admin", "user"]);
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  role: userRoleEnum("role").notNull().default("user"),
 });
 
 export const socialPages = pgTable("social_pages", {
@@ -33,6 +35,16 @@ export const cloudinaryConfig = pgTable("cloudinary_config", {
   cloudName: text("cloud_name").notNull(),
   apiKey: text("api_key").notNull(),
   apiSecret: text("api_secret").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const openrouterConfig = pgTable("openrouter_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  apiKey: text("api_key").notNull(),
+  model: text("model").notNull().default("anthropic/claude-3.5-sonnet"),
+  systemPrompt: text("system_prompt").notNull().default("Tu es un expert en marketing des réseaux sociaux. Génère 3 variations de textes engageants pour des publications Facebook et Instagram à partir des informations produit fournies. Chaque variation doit être unique, captivante et optimisée pour l'engagement."),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -96,11 +108,19 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   posts: many(posts),
   aiGenerations: many(aiGenerations),
   cloudinaryConfig: one(cloudinaryConfig),
+  openrouterConfig: one(openrouterConfig),
 }));
 
 export const cloudinaryConfigRelations = relations(cloudinaryConfig, ({ one }) => ({
   user: one(users, {
     fields: [cloudinaryConfig.userId],
+    references: [users.id],
+  }),
+}));
+
+export const openrouterConfigRelations = relations(openrouterConfig, ({ one }) => ({
+  user: one(users, {
+    fields: [openrouterConfig.userId],
     references: [users.id],
   }),
 }));
@@ -163,6 +183,7 @@ export const aiGenerationsRelations = relations(aiGenerations, ({ one }) => ({
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
+  role: true,
 });
 
 export const insertSocialPageSchema = createInsertSchema(socialPages).omit({
@@ -199,6 +220,16 @@ export const insertCloudinaryConfigSchema = createInsertSchema(cloudinaryConfig)
   updatedAt: true,
 });
 
+export const insertOpenrouterConfigSchema = createInsertSchema(openrouterConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateOpenrouterConfigSchema = insertOpenrouterConfigSchema.partial({
+  apiKey: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -220,3 +251,6 @@ export type InsertAiGeneration = z.infer<typeof insertAiGenerationSchema>;
 
 export type CloudinaryConfig = typeof cloudinaryConfig.$inferSelect;
 export type InsertCloudinaryConfig = z.infer<typeof insertCloudinaryConfigSchema>;
+
+export type OpenrouterConfig = typeof openrouterConfig.$inferSelect;
+export type InsertOpenrouterConfig = z.infer<typeof insertOpenrouterConfigSchema>;

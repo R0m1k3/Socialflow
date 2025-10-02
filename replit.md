@@ -18,13 +18,40 @@ Social Flow is a comprehensive social media automation platform designed to stre
 
 Preferred communication style: Simple, everyday language.
 
+## Authentication & Authorization
+
+**System**: Passport.js avec stratégie locale et bcrypt pour le hachage des mots de passe
+
+**Rôles utilisateur**:
+- `admin` - Accès complet à tous les paramètres, SQL, et gestion des utilisateurs
+- `user` - Accès aux fonctionnalités de publication uniquement (pas de paramètres)
+
+**Utilisateur par défaut**:
+- Username: `admin`
+- Password: `admin`
+- Rôle: admin
+- **Important**: Changez ce mot de passe en production
+
+**Session Management**:
+- express-session avec cookies HTTP-only
+- sameSite: 'lax' pour prévention CSRF
+- Durée de session: 7 jours
+- Secret de session via variable d'environnement `SESSION_SECRET`
+
+**Protection des routes**:
+- Backend: Middleware `requireAuth` pour routes utilisateur, `requireAdmin` pour routes admin
+- Frontend: Composant `ProtectedRoute` avec vérification de session et redirection vers /login
+
 ## System Architecture
 
 ### Frontend Architecture
 
 **Framework**: React with TypeScript using Vite as the build tool
 
-**Routing**: Wouter for lightweight client-side routing
+**Routing**: Wouter for lightweight client-side routing with protected routes
+- Public: `/login`
+- Protected (authenticated): Dashboard, Media, AI, Posts, Calendar, Pages, Analytics, History
+- Protected (admin only): `/settings`, `/sql`, `/users`
 
 **State Management**: 
 - TanStack Query (React Query) for server state management and caching
@@ -49,11 +76,16 @@ Preferred communication style: Simple, everyday language.
 **Type Safety**: Full TypeScript implementation across frontend, backend, and shared schema
 
 **API Design**: RESTful endpoints with conventional HTTP methods
-- `/api/stats` - Dashboard statistics
-- `/api/ai/generate` - AI text generation
-- `/api/media/*` - Media upload and management
-- `/api/pages/*` - Social page management
-- `/api/posts/*` - Post and scheduling management
+- `/api/auth/*` - Authentication (login, logout, session)
+- `/api/users` - User management (admin only)
+- `/api/sql/*` - SQL administration (admin only)
+- `/api/stats` - Dashboard statistics (authenticated)
+- `/api/ai/generate` - AI text generation (authenticated)
+- `/api/media/*` - Media upload and management (authenticated)
+- `/api/pages/*` - Social page management (authenticated)
+- `/api/posts/*` - Post and scheduling management (authenticated)
+- `/api/cloudinary/config` - Cloudinary configuration (admin only)
+- `/api/openrouter/config` - OpenRouter configuration (admin only)
 
 **File Upload**: Multer middleware for handling multipart/form-data with in-memory storage strategy, integrated with Cloudinary for cloud storage
 
@@ -79,7 +111,7 @@ Preferred communication style: Simple, everyday language.
 **Schema Design**:
 
 Core Tables:
-- `users` - User authentication and profiles
+- `users` - User authentication and profiles with role-based access (admin/user)
 - `cloudinary_config` - Cloudinary configuration per user (cloud name, API key, API secret)
 - `social_pages` - Connected Facebook/Instagram pages with access tokens
 - `media` - Uploaded media files with Cloudinary public IDs and transformation URLs

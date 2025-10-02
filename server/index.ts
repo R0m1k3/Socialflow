@@ -1,4 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import passport from "./auth";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { schedulerService } from "./services/scheduler";
@@ -16,6 +18,26 @@ app.use(express.json({
   }
 }));
 app.use(express.urlencoded({ extended: false }));
+
+// Configuration des sessions
+if (!process.env.SESSION_SECRET) {
+  console.warn('⚠️ SESSION_SECRET non défini. Utilisation d\'une clé par défaut (NON SÉCURISÉ en production)');
+}
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your-secret-key-change-me',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
+  }
+}));
+
+// Initialisation de Passport
+app.use(passport.initialize());
+app.use(passport.session());
 
 app.use((req, res, next) => {
   const start = Date.now();
