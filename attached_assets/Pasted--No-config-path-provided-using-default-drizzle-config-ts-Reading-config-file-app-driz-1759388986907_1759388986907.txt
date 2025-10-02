@@ -1,0 +1,70 @@
+      
+No config path provided, using default 'drizzle.config.ts'
+
+Reading config file '/app/drizzle.config.ts'
+
+Using 'pg' driver for database querying
+
+[⣷] Pulling schema from database...
+
+[⣯] Pulling schema from database...
+
+[⣟] Pulling schema from database...
+
+[⡿] Pulling schema from database...
+
+[✓] Pulling schema from database...
+
+[i] No changes detected
+
+> rest-express@1.0.0 start
+
+> NODE_ENV=production node dist/index.js
+
+Warning: connect.session() MemoryStore is not
+
+designed for a production environment, as it will leak
+
+memory, and will not scale past a single process.
+
+🔧 Création de l'utilisateur admin par défaut...
+
+✅ Utilisateur admin créé avec succès
+
+   Username: admin
+
+   Password: admin
+
+   ⚠️  IMPORTANT: Changez ce mot de passe immédiatement !
+
+6:42:05 AM [express] serving on port 5555
+
+Scheduler service started
+
+6:42:07 AM [express] GET /api/auth/default-password-status 200 in 60ms :: {"isDefault":true}
+
+6:42:12 AM [express] POST /api/auth/login 200 in 61ms :: {"id":"417b5410-1184-46d7-ac96-e85f731b0c98…
+
+6:42:12 AM [express] GET /api/auth/session 401 in 1ms :: {"error":"Non authentifié"}
+
+6:42:13 AM [express] GET /api/auth/default-password-status 304 in 74ms :: {"isDefault":true}
+
+6:42:21 AM [express] POST /api/auth/login 200 in 57ms :: {"id":"417b5410-1184-46d7-ac96-e85f731b0c98…
+
+6:42:21 AM [express] GET /api/auth/session 401 in 1ms :: {"error":"Non authentifié"}
+
+6:42:21 AM [express] GET /api/auth/default-password-status 304 in 54ms :: {"isDefault":true}
+
+6:45:00 AM [express] GET /api/auth/default-password-status 304 in 60ms :: {"isDefault":true}
+
+6:45:07 AM [express] POST /api/auth/login 200 in 60ms :: {"id":"417b5410-1184-46d7-ac96-e85f731b0c98…
+
+6:45:07 AM [express] GET /api/auth/session 401 in 1ms :: {"error":"Non authentifié"}
+
+6:45:07 AM [express] GET /api/auth/default-password-status 304 in 59ms :: {"isDefault":true}
+
+6:47:48 AM [express] POST /api/auth/login 200 in 69ms :: {"id":"417b5410-1184-46d7-ac96-e85f731b0c98…
+
+6:47:48 AM [express] GET /api/auth/session 401 in 1ms :: {"error":"Non authentifié"}
+
+6:47:48 AM [express] GET /api/auth/default-password-status 304 in 57ms :: {"isDefault":true}

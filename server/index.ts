@@ -24,12 +24,16 @@ app.use(express.urlencoded({ extended: false }));
 if (!process.env.SESSION_SECRET) {
   console.warn('⚠️ SESSION_SECRET non défini. Utilisation d\'une clé par défaut (NON SÉCURISÉ en production)');
 }
+
+// Déterminer si on utilise HTTPS basé sur APP_URL
+const isHttps = process.env.APP_URL?.startsWith('https://') || false;
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'your-secret-key-change-me',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: isHttps,
     httpOnly: true,
     sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000, // 7 jours
