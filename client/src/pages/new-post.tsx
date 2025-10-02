@@ -35,7 +35,7 @@ export default function NewPost() {
   });
 
   const generateTextMutation = useMutation({
-    mutationFn: (productInfoText: string) => {
+    mutationFn: async (productInfoText: string) => {
       const productInfo = {
         name: productInfoText.match(/Produit:\s*(.+?)(?:\n|$)/i)?.[1] || 
               productInfoText.match(/Nom:\s*(.+?)(?:\n|$)/i)?.[1] || 
@@ -44,7 +44,8 @@ export default function NewPost() {
         description: productInfoText.match(/Description:\s*(.+?)(?:\n|$)/i)?.[1] || "",
         features: productInfoText.match(/Caractéristiques:\s*(.+?)(?:\n|$)/i)?.[1]?.split(",") || [],
       };
-      return apiRequest('POST', '/api/ai/generate', productInfo);
+      const response = await apiRequest('POST', '/api/ai/generate', productInfo);
+      return response.json();
     },
     onSuccess: (data: any) => {
       const variants = data.variants || [];
