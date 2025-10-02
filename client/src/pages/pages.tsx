@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Facebook, Instagram, Trash2, RefreshCw } from "lucide-react";
+import { Plus, Facebook, Instagram, Trash2, RefreshCw, Edit } from "lucide-react";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import type { SocialPage } from "@shared/schema";
 export default function PagesManagement() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingPage, setEditingPage] = useState<SocialPage | null>(null);
   const { toast } = useToast();
 
   const { data: pages = [], isLoading } = useQuery<SocialPage[]>({
@@ -69,6 +70,7 @@ export default function PagesManagement() {
               </p>
             </div>
             <AddPageDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+            <EditPageDialog page={editingPage} onOpenChange={(open) => !open && setEditingPage(null)} />
           </div>
 
           {isLoading ? (
@@ -125,15 +127,25 @@ export default function PagesManagement() {
                       <div className="text-sm text-muted-foreground">
                         ID: {page.pageId}
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteMutation.mutate(page.id)}
-                        disabled={deleteMutation.isPending}
-                        data-testid={`button-delete-page-${page.id}`}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditingPage(page)}
+                          data-testid={`button-edit-page-${page.id}`}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => deleteMutation.mutate(page.id)}
+                          disabled={deleteMutation.isPending}
+                          data-testid={`button-delete-page-${page.id}`}
+                        >
+                          <Trash2 className="w-4 h-4 text-destructive" />
+                        </Button>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
@@ -285,6 +297,105 @@ function AddPageDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
                 </>
               ) : (
                 'Ajouter'
+              )}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditPageDialog({ page, onOpenChange }: { page: SocialPage | null; onOpenChange: (open: boolean) => void }) {
+  const [accessToken, setAccessToken] = useState('');
+  const { toast } = useToast();
+
+  const editMutation = useMutation({
+    mutationFn: (data: any) => 
+      apiRequest('PUT', `/api/pages/${page?.id}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/pages'] });
+      toast({
+        title: "Page modifiée",
+        description: "Le jeton d'accès a été mis à jour avec succès",
+      });
+      onOpenChange(false);
+      setAccessToken('');
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier la page",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!page) return;
+    editMutation.mutate({
+      accessToken,
+    });
+  };
+
+  if (!page) return null;
+
+  return (
+    <Dialog open={!!page} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Modifier le jeton d'accès</DialogTitle>
+          <DialogDescription>
+            Mettez à jour le jeton d'accès pour {page.pageName}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="editAccessToken">Nouveau jeton d'accès</Label>
+            <Input
+              id="editAccessToken"
+              type="password"
+              value={accessToken}
+              onChange={(e) => setAccessToken(e.target.value)}
+              placeholder="EAAxxxxxxxxxxxxx"
+              required
+              data-testid="input-edit-access-token"
+            />
+            <p className="text-xs text-muted-foreground">
+              Obtenez un nouveau jeton depuis{' '}
+              <a 
+                href="https://developers.facebook.com/tools/explorer" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                Facebook Graph API Explorer
+              </a>
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button 
+              type="button" 
+              variant="outline" 
+              onClick={() => onOpenChange(false)}
+              data-testid="button-cancel-edit"
+            >
+              Annuler
+            </Button>
+            <Button 
+              type="submit" 
+              disabled={editMutation.isPending}
+              data-testid="button-submit-edit"
+            >
+              {editMutation.isPending ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Modification...
+                </>
+              ) : (
+                'Modifier'
               )}
             </Button>
           </div>

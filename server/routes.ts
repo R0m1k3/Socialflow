@@ -541,6 +541,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.put("/api/pages/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const userId = user.id;
+      const pageId = req.params.id;
+      
+      const existingPage = await storage.getSocialPage(pageId);
+      if (!existingPage || existingPage.userId !== userId) {
+        return res.status(404).json({ error: "Page non trouvée" });
+      }
+      
+      const pageData = insertSocialPageSchema.partial().parse(req.body);
+      const updatedPage = await storage.updateSocialPage(pageId, pageData);
+      res.json(updatedPage);
+    } catch (error) {
+      console.error("Error updating page:", error);
+      res.status(500).json({ error: "Failed to update page" });
+    }
+  });
+
+  app.delete("/api/pages/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const userId = user.id;
+      const pageId = req.params.id;
+      
+      const existingPage = await storage.getSocialPage(pageId);
+      if (!existingPage || existingPage.userId !== userId) {
+        return res.status(404).json({ error: "Page non trouvée" });
+      }
+      
+      await storage.deleteSocialPage(pageId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting page:", error);
+      res.status(500).json({ error: "Failed to delete page" });
+    }
+  });
+
   // AI Generations
   app.get("/api/ai/generations", requireAuth, async (req, res) => {
     try {
