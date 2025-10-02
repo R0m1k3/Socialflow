@@ -1,0 +1,322 @@
+{
+  "name": "My workflow 8",
+  "nodes": [
+    {
+      "parameters": {
+        "formTitle": "SocialFlow",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "Non du produit",
+              "placeholder": "nom_produit",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Prix",
+              "placeholder": "prix",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Caractéristiques",
+              "placeholder": "caractéristiques"
+            },
+            {
+              "fieldLabel": "Promo",
+              "placeholder": "promo"
+            },
+            {
+              "fieldLabel": "Date publication",
+              "fieldType": "date",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Heure de publication (HH:mm)",
+              "placeholder": "heure_publication",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "Photo",
+              "fieldType": "file",
+              "acceptFileTypes": "photo"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.2,
+      "position": [
+        -720,
+        160
+      ],
+      "id": "3441e9d7-35ff-4f14-bee8-78397d0e2e28",
+      "name": "On form submission",
+      "webhookId": "17357858-667e-4a3d-afd1-82039f41c927"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.cloudinary.com/v1_1/dspr8yjfu/image/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "upload_preset",
+              "value": "=upload_n8n"
+            },
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "Photo"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -208,
+        16
+      ],
+      "id": "49ff16a6-a004-4ff4-a1dc-cb6902f7f46a",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "14257b6b-82c8-4151-85a5-f56ab814f6f3",
+              "name": "image_ready_url",
+              "value": "={{$json.secure_url\n  ? $json.secure_url.replace('/upload/','/upload/c_fill,g_auto,h_1350,w_1080,q_auto,f_auto,e_auto_contrast,e_auto_color,e_sharpen:50/')\n  : ''}}\n",
+              "type": "string"
+            },
+            {
+              "id": "74f9dbae-0e18-4cdb-b316-5976f65ad6c8",
+              "name": "image_public_id",
+              "value": "={{$json.public_id}}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        16,
+        16
+      ],
+      "id": "dc95401f-403a-4a72-87e6-622709b10046",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Langue: fr\nPAS DE TEXTE AVANT OU APRÈS.\n\nContraintes:\n- Accroche d'ouverture engageante\n- 1-2 phrases sur bénéfice client, pas style catalogue\n- Pas de lien, pas d'URL\n- 3-5 hashtags ciblés (locaux/thématiques) Ajouter #lafoirfouille\n- Ton chaleureux, concret, non agressif\n- Maximum 250 caractères \n\nContexte:\n- Produit: {{ $('On form submission').item.json['Non du produit'] }}\n- Prix: {{ $('On form submission').item.json.Prix }}\n- Caractéristiques: {{ $('On form submission').item.json['Caractéristiques'] }}\n- Promo: {{$json.promo || \"aucune\"}}\n",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Tu es un community manager de boutique physique. Tu écris pour Facebook. Objectif: engagement + visites en magasin. Pas de lien web. pas de json que du texte pure avec quelques emoji. structure le texte pour un post facebook et instagram - ne parle pas de boutique locale."
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        240,
+        16
+      ],
+      "id": "b7de85b4-8a06-4cd6-b3b1-dd28f7e30720",
+      "name": "Basic LLM Chain",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-4o",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        224,
+        320
+      ],
+      "id": "03c7dc91-a5e0-4b58-946f-7217cfbb7f22",
+      "name": "OpenRouter Chat Model",
+      "credentials": {
+        "openRouterApi": {
+          "id": "QrDzqP7MluNzhC1L",
+          "name": "OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v23.0/119315771483782/photos",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $('Edit Fields').first().json.image_ready_url.trim().replace(/\\)+$/,'') }}\n"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.text }}"
+            },
+            {
+              "name": "access_token",
+              "value": "EAASQALmsF1UBPlhtfZBbZCkuu9fZAbr8OpEAXuXcLuZCAx6F2BmhZBprak0AQfdqKZA0aGsR8pDtpqmkBjb7lIqZCadMJ919IrvwwE75nEo1uZCIIuAJDqkq3Cl9feQMX126sPIabGerrLtd8Dw5NGlQTNzYB7KYqUgcjZA6N5fDt7Bn4pMKMzsh0p5MCxMxq5xV1qyNLVykNMbgE7HZBkas1oLdeFj3M2hAZAYlS4NBuoZD"
+            },
+            {
+              "name": "published",
+              "value": "=0"
+            },
+            {
+              "name": "scheduled_publish_time",
+              "value": "={{ $json.scheduled_publish_time }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        -16
+      ],
+      "id": "6fbaf6c3-1744-4116-b599-047a978ba504",
+      "name": "Facebook Post Photo"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Récupère les valeurs depuis le Form Trigger, pas depuis l'item courant\nconst dateStr = $item(0).$node[\"On form submission\"].json[\"Date publication\"];\nconst timeStr = $item(0).$node[\"On form submission\"].json[\"Heure de publication (HH:mm)\"];\n\nif (!dateStr || !timeStr) {\n  throw new Error(\"Champs manquants: \" + JSON.stringify({ dateStr, timeStr }));\n}\n\nconst [y,m,d] = dateStr.split('-').map(Number);\nconst [H,Mi] = timeStr.split(':').map(Number);\n\n// Epoch UTC\nlet ts = Math.floor(Date.UTC(y, m - 1, d, H, Mi) / 1000);\n\n// Sécurité: forcer ≥ maintenant+600s\nconst now = Math.floor(Date.now()/1000);\nif (ts < now + 600) ts = now + 1200;\n\nreturn { json: { ...$json, scheduled_publish_time: ts } };\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        816,
+        144
+      ],
+      "id": "93f14550-2ccd-4da7-bfb7-7ecacee3e830",
+      "name": "Code",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        592,
+        144
+      ],
+      "id": "557d9b2a-ceb1-42d8-ad2d-29e8c2533d51",
+      "name": "Merge"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Facebook Post Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "72a43b73-4460-49de-88aa-90afde0ef73b",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "95265e6405e55fa03a3687565ed8e8c464bd659d0d56a9696d7d25f954abf511"
+  },
+  "id": "cTnh6OMO9wxPEPBS",
+  "tags": []
+}
