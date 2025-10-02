@@ -59,17 +59,17 @@ class CloudinaryService {
     if (!isVideo) {
       facebookFeedUrl = cloudinary.url(publicId, {
         transformation: [
-          { width: 1200, height: 630, crop: 'pad', gravity: 'auto', background: 'black' }
+          { width: 1200, height: 630, crop: 'pad', background: 'black' }
         ]
       });
       instagramFeedUrl = cloudinary.url(publicId, {
         transformation: [
-          { width: 1080, height: 1080, crop: 'pad', gravity: 'auto', background: 'black' }
+          { width: 1080, height: 1080, crop: 'pad', background: 'black' }
         ]
       });
       instagramStoryUrl = cloudinary.url(publicId, {
         transformation: [
-          { width: 1080, height: 1920, crop: 'pad', gravity: 'auto', background: 'black' }
+          { width: 1080, height: 1920, crop: 'pad', background: 'black' }
         ]
       });
     }
