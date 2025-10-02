@@ -106,9 +106,21 @@ export default function NewPost() {
       return;
     }
 
+    if (selectedPages.length === 0) {
+      toast({
+        title: "Page requise",
+        description: "Veuillez sélectionner au moins une page",
+        variant: "destructive",
+      });
+      return;
+    }
+
     createPostMutation.mutate({
       content: postText,
       scheduledFor: scheduledDate || undefined,
+      mediaId: selectedMedia || undefined,
+      pageIds: selectedPages,
+      postType: 'feed', // Default to feed post
     });
   };
 

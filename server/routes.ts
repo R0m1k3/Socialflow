@@ -1,13 +1,14 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
 import multer from "multer";
 import bcrypt from "bcrypt";
 import passport from "./auth";
 import { z } from "zod";
 import { openRouterService } from "./services/openrouter";
 import { cloudinaryService } from "./services/cloudinary";
-import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema } from "@shared/schema";
+import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia } from "@shared/schema";
 import type { User, InsertUser } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -442,12 +443,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const userId = user.id;
-      const postData = insertPostSchema.parse({ ...req.body, userId });
+      const { pageIds, postType, mediaId, ...postFields } = req.body;
+      
+      // Create the post
+      const postData = insertPostSchema.parse({ ...postFields, userId });
       const post = await storage.createPost(postData);
+      
+      // Link media to post if provided
+      if (mediaId) {
+        await db.insert(postMedia).values({
+          postId: post.id,
+          mediaId: mediaId,
+        });
+      }
+      
+      // Create scheduled posts for each selected page
+      if (pageIds && Array.isArray(pageIds) && pageIds.length > 0) {
+        const scheduledAt = postFields.scheduledFor 
+          ? new Date(postFields.scheduledFor) 
+          : new Date(); // Publish immediately if no date specified
+        
+        for (const pageId of pageIds) {
+          await storage.createScheduledPost({
+            postId: post.id,
+            pageId,
+            postType: postType || 'feed',
+            scheduledAt,
+          });
+        }
+      }
+      
       res.json(post);
     } catch (error) {
       console.error("Error creating post:", error);
-      res.status(500).json({ error: "Failed to create post" });
+      const errorMessage = error instanceof Error ? error.message : "Failed to create post";
+      res.status(500).json({ error: errorMessage });
     }
   });
 
