@@ -35,8 +35,17 @@ export default function NewPost() {
   });
 
   const generateTextMutation = useMutation({
-    mutationFn: (productInfo: string) => 
-      apiRequest('POST', '/api/ai/generate', { productInfo }),
+    mutationFn: (productInfoText: string) => {
+      const productInfo = {
+        name: productInfoText.match(/Produit:\s*(.+?)(?:\n|$)/i)?.[1] || 
+              productInfoText.match(/Nom:\s*(.+?)(?:\n|$)/i)?.[1] || 
+              productInfoText,
+        price: productInfoText.match(/Prix:\s*(.+?)(?:\n|$)/i)?.[1] || "",
+        description: productInfoText.match(/Description:\s*(.+?)(?:\n|$)/i)?.[1] || "",
+        features: productInfoText.match(/Caractéristiques:\s*(.+?)(?:\n|$)/i)?.[1]?.split(",") || [],
+      };
+      return apiRequest('POST', '/api/ai/generate', productInfo);
+    },
     onSuccess: (data: any) => {
       const variants = data.variants || [];
       setGeneratedVariants(variants);
