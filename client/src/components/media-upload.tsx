@@ -115,7 +115,8 @@ export default function MediaUpload() {
               {(mediaList as any[])?.slice(0, 3).map((media: any) => (
                 <div
                   key={media.id}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-accent border border-border"
+                  onClick={() => setSelectedFile(media)}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-accent border border-border cursor-pointer hover:bg-accent/80 transition-colors"
                   data-testid={`media-item-${media.id}`}
                 >
                   <div className="w-12 h-12 rounded bg-muted flex items-center justify-center flex-shrink-0">
