@@ -226,6 +226,10 @@ export const insertOpenrouterConfigSchema = createInsertSchema(openrouterConfig)
   updatedAt: true,
 });
 
+export const updateOpenrouterConfigSchema = insertOpenrouterConfigSchema.partial({
+  apiKey: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;

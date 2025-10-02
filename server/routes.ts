@@ -7,7 +7,7 @@ import passport from "./auth";
 import { z } from "zod";
 import { openRouterService } from "./services/openrouter";
 import { cloudinaryService } from "./services/cloudinary";
-import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, insertOpenrouterConfigSchema, insertUserSchema } from "@shared/schema";
+import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema } from "@shared/schema";
 import type { User, InsertUser } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -614,18 +614,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       
-      const configData = insertOpenrouterConfigSchema.parse({
-        ...req.body,
-        userId,
-      });
-
       // Check if config already exists
       const existingConfig = await storage.getOpenrouterConfig(userId);
       
       let config;
       if (existingConfig) {
-        config = await storage.updateOpenrouterConfig(userId, configData);
+        // Pour les mises à jour, utiliser le schéma qui rend apiKey optionnel
+        const updateData = updateOpenrouterConfigSchema.parse({
+          ...req.body,
+          userId,
+        });
+        
+        // Si apiKey n'est pas fourni, garder l'ancien
+        const finalData = {
+          ...updateData,
+          apiKey: updateData.apiKey || existingConfig.apiKey,
+        };
+        
+        config = await storage.updateOpenrouterConfig(userId, finalData);
       } else {
+        // Pour les créations, exiger tous les champs
+        const configData = insertOpenrouterConfigSchema.parse({
+          ...req.body,
+          userId,
+        });
         config = await storage.createOpenrouterConfig(configData);
       }
 
