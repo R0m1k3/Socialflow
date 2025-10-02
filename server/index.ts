@@ -4,6 +4,7 @@ import passport from "./auth";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { schedulerService } from "./services/scheduler";
+import { ensureAdminUserExists } from "./init-admin";
 
 const app = express();
 
@@ -94,6 +95,10 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
+  
+  // Initialiser l'utilisateur admin par défaut avant de démarrer le serveur
+  await ensureAdminUserExists();
+  
   server.listen({
     port,
     host: "0.0.0.0",
