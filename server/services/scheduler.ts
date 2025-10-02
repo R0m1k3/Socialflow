@@ -1,5 +1,6 @@
 import cron, { ScheduledTask } from "node-cron";
 import { storage } from "../storage";
+import { facebookService } from "./facebook";
 
 export class SchedulerService {
   private task: ScheduledTask | null = null;
@@ -47,14 +48,35 @@ export class SchedulerService {
       throw new Error("Post or page not found");
     }
 
-    // In a real implementation, this would call Facebook/Instagram Graph API
-    // For now, we'll simulate the publishing
     console.log(`Publishing post ${post.id} to ${page.platform} page ${page.pageName}`);
+
+    // Get media if post has media
+    const postMediaList = await storage.getPostMedia(post.id);
+    const media = postMediaList.length > 0 ? await storage.getMediaById(postMediaList[0].mediaId) : undefined;
+
+    // Publish to Facebook/Instagram
+    let externalPostId: string;
+    
+    if (page.platform === 'facebook') {
+      externalPostId = await facebookService.publishPost(post, page, scheduledPost.postType, media || undefined);
+    } else if (page.platform === 'instagram') {
+      // Instagram publishing not yet implemented
+      console.warn(`Instagram publishing not yet implemented for post ${post.id}`);
+      await storage.updateScheduledPost(scheduledPost.id, {
+        error: 'Instagram publishing not yet implemented',
+      });
+      await storage.updatePost(post.id, {
+        status: "failed",
+      });
+      return;
+    } else {
+      throw new Error(`Unsupported platform: ${page.platform}`);
+    }
 
     // Update the scheduled post as published
     await storage.updateScheduledPost(scheduledPost.id, {
       publishedAt: new Date(),
-      externalPostId: `simulated-${Date.now()}`, // In real app, this would be the ID from FB/IG
+      externalPostId,
     });
 
     // Update post status
@@ -62,7 +84,7 @@ export class SchedulerService {
       status: "published",
     });
 
-    console.log(`Successfully published post ${post.id}`);
+    console.log(`Successfully published post ${post.id} with external ID: ${externalPostId}`);
   }
 }
 
