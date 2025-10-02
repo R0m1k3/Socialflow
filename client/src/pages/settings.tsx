@@ -51,6 +51,9 @@ export default function Settings() {
     }
   }, [openrouterConfig]);
 
+  // Vérifier si une config OpenRouter existe déjà
+  const hasExistingConfig = !!openrouterConfig;
+
   const saveCloudinaryMutation = useMutation({
     mutationFn: () => 
       apiRequest('POST', '/api/cloudinary/config', {
@@ -187,14 +190,22 @@ export default function Settings() {
                     type="password"
                     value={openrouterApiKey}
                     onChange={(e) => setOpenrouterApiKey(e.target.value)}
-                    placeholder="sk-or-v1-..."
+                    placeholder={hasExistingConfig ? "••••••••••••••••" : "sk-or-v1-..."}
                     data-testid="input-openrouter-api-key"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Obtenez votre clé API sur{" "}
-                    <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="underline">
-                      openrouter.ai
-                    </a>
+                    {hasExistingConfig ? (
+                      <>
+                        <span className="text-green-600 dark:text-green-400">✓ Clé API configurée</span> - Laissez vide pour garder la clé actuelle
+                      </>
+                    ) : (
+                      <>
+                        Obtenez votre clé API sur{" "}
+                        <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="underline">
+                          openrouter.ai
+                        </a>
+                      </>
+                    )}
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -231,7 +242,12 @@ export default function Settings() {
                 </div>
                 <Button 
                   onClick={() => saveOpenrouterMutation.mutate()}
-                  disabled={saveOpenrouterMutation.isPending || !openrouterApiKey || !openrouterModel || !openrouterSystemPrompt}
+                  disabled={
+                    saveOpenrouterMutation.isPending || 
+                    !openrouterModel || 
+                    !openrouterSystemPrompt ||
+                    (!hasExistingConfig && !openrouterApiKey)
+                  }
                   data-testid="button-save-openrouter"
                   className="w-full"
                 >
