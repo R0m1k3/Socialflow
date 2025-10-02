@@ -1,0 +1,182 @@
+
+
+Host
+
+Administration
+
+User-related
+
+
+Environment-related
+
+Registries
+
+Logs
+
+Notifications
+
+Settings
+
+New version available 2.33.2
+DismissSee what's new
+Community Edition
+2.27.6 LTS
+Containers>socialflow-app>Logs
+Container logs
+
+
+admin
+Log viewer settings
+Auto-refresh logs
+Wrap lines
+Display timestamps
+Fetch
+All logs
+Search
+Filter...
+Lines
+100
+Actions
+ 
+ 
+ 
+      
+No config path provided, using default 'drizzle.config.ts'
+
+Reading config file '/app/drizzle.config.ts'
+
+Using 'pg' driver for database querying
+
+[⣷] Pulling schema from database...
+
+[⣯] Pulling schema from database...
+
+[⣟] Pulling schema from database...
+
+[⡿] Pulling schema from database...
+
+[✓] Pulling schema from database...
+
+[i] No changes detected
+
+> rest-express@1.0.0 start
+
+> NODE_ENV=production node dist/index.js
+
+Warning: connect.session() MemoryStore is not
+
+designed for a production environment, as it will leak
+
+memory, and will not scale past a single process.
+
+✓ Utilisateur admin existe déjà
+
+1:27:54 PM [express] serving on port 5555
+
+Scheduler service started
+
+1:27:55 PM [express] GET /api/auth/session 401 in 2ms :: {"error":"Non authentifié"}
+
+1:27:55 PM [express] GET /api/auth/default-password-status 304 in 55ms :: {"isDefault":true}
+
+1:27:56 PM [express] POST /api/auth/login 200 in 58ms :: {"id":"417b5410-1184-46d7-ac96-e85f731b0c98…
+
+1:27:56 PM [express] GET /api/auth/session 304 in 1ms :: {"id":"417b5410-1184-46d7-ac96-e85f731b0c98…
+
+1:27:56 PM [express] GET /api/stats 200 in 17ms :: {"scheduledPosts":0,"connectedPages":1,"aiTextsGe…
+
+1:27:56 PM [express] GET /api/scheduled-posts 304 in 6ms :: []
+
+1:27:56 PM [express] GET /api/posts 304 in 4ms :: []
+
+1:27:56 PM [express] GET /api/media 304 in 6ms :: [{"id":"47d3623a-7760-4fc7-87a7-a83e3a0c1020","use…
+
+1:27:56 PM [express] GET /api/pages 304 in 3ms :: [{"id":"1abe2ba5-fd7b-423a-b82d-da953c340db2","use…
+
+1:28:31 PM [express] POST /api/ai/generate 200 in 14475ms :: {"variants":[{"variant":"Version 1 - Dy…
+
+Error creating post: ZodError: [
+
+  {
+
+    "code": "invalid_type",
+
+    "expected": "date",
+
+    "received": "string",
+
+    "path": [
+
+      "scheduledFor"
+
+    ],
+
+    "message": "Expected date, received string"
+
+  }
+
+]
+
+    at get error [as error] (file:///app/node_modules/zod/lib/index.mjs:587:31)
+
+    at ZodObject.parse (file:///app/node_modules/zod/lib/index.mjs:663:22)
+
+    at file:///app/dist/index.js:997:41
+
+    at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)
+
+    at next (/app/node_modules/express/lib/router/route.js:149:13)
+
+    at requireAuth (file:///app/dist/index.js:666:3)
+
+    at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5)
+
+    at next (/app/node_modules/express/lib/router/route.js:149:13)
+
+    at Route.dispatch (/app/node_modules/express/lib/router/route.js:119:3)
+
+    at Layer.handle [as handle_request] (/app/node_modules/express/lib/router/layer.js:95:5) {
+
+  issues: [
+
+    {
+
+      code: 'invalid_type',
+
+      expected: 'date',
+
+      received: 'string',
+
+      path: [Array],
+
+      message: 'Expected date, received string'
+
+    }
+
+  ],
+
+  addIssue: [Function (anonymous)],
+
+  addIssues: [Function (anonymous)],
+
+  errors: [
+
+    {
+
+      code: 'invalid_type',
+
+      expected: 'date',
+
+      received: 'string',
+
+      path: [Array],
+
+      message: 'Expected date, received string'
+
+    }
+
+  ]
+
+}
+
+1:29:28 PM [express] POST /api/posts 500 in 5ms :: {"error":"[\n  {\n    \"code\": \"invalid_type\",…
