@@ -167,7 +167,7 @@ export default function MediaUpload() {
                     <img
                       src={selectedFile.facebookFeedUrl}
                       alt="Facebook preview"
-                      className="w-full h-full object-contain bg-black"
+                      className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
@@ -191,7 +191,7 @@ export default function MediaUpload() {
                     <img
                       src={selectedFile.instagramFeedUrl}
                       alt="Instagram feed preview"
-                      className="w-full h-full object-contain bg-black"
+                      className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
@@ -215,7 +215,7 @@ export default function MediaUpload() {
                     <img
                       src={selectedFile.instagramStoryUrl}
                       alt="Instagram story preview"
-                      className="w-full h-full object-contain bg-black"
+                      className="w-full h-full object-cover"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
