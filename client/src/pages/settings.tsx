@@ -79,12 +79,19 @@ export default function Settings() {
   });
 
   const saveOpenrouterMutation = useMutation({
-    mutationFn: () => 
-      apiRequest('POST', '/api/openrouter/config', {
-        apiKey: openrouterApiKey,
+    mutationFn: () => {
+      const payload: any = {
         model: openrouterModel,
         systemPrompt: openrouterSystemPrompt,
-      }),
+      };
+      
+      // N'inclure apiKey que s'il n'est pas vide
+      if (openrouterApiKey && openrouterApiKey.trim() !== "") {
+        payload.apiKey = openrouterApiKey;
+      }
+      
+      return apiRequest('POST', '/api/openrouter/config', payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/openrouter/config'] });
       toast({
