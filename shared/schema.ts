@@ -254,3 +254,5 @@ export type InsertCloudinaryConfig = z.infer<typeof insertCloudinaryConfigSchema
 
 export type OpenrouterConfig = typeof openrouterConfig.$inferSelect;
 export type InsertOpenrouterConfig = z.infer<typeof insertOpenrouterConfigSchema>;
+
+export type PostMedia = typeof postMedia.$inferSelect;

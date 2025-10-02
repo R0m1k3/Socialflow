@@ -3,6 +3,7 @@ import {
   socialPages, 
   media, 
   posts, 
+  postMedia,
   scheduledPosts,
   aiGenerations,
   cloudinaryConfig,
@@ -15,6 +16,7 @@ import {
   type InsertMedia,
   type Post,
   type InsertPost,
+  type PostMedia,
   type ScheduledPost,
   type InsertScheduledPost,
   type AiGeneration,
@@ -48,6 +50,7 @@ export interface IStorage {
   getMediaById(id: string): Promise<Media | undefined>;
   createMedia(media: InsertMedia): Promise<Media>;
   deleteMedia(id: string): Promise<void>;
+  getPostMedia(postId: string): Promise<PostMedia[]>;
 
   // Posts
   getPosts(userId: string): Promise<Post[]>;
@@ -150,6 +153,10 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMedia(id: string): Promise<void> {
     await db.delete(media).where(eq(media.id, id));
+  }
+
+  async getPostMedia(postId: string): Promise<PostMedia[]> {
+    return await db.select().from(postMedia).where(eq(postMedia.postId, postId));
   }
 
   // Posts
