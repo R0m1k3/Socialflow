@@ -51,39 +51,17 @@ class CloudinaryService {
     const publicId = uploadResult.public_id;
     const originalUrl = uploadResult.secure_url;
 
-    // Generate transformation URLs manually with lpad (limit pad) for images
+    // For now, use the original URL for all formats - no transformations
+    // The frontend will handle display with CSS to prevent cropping
     let facebookFeedUrl = null;
     let instagramFeedUrl = null;
     let instagramStoryUrl = null;
 
     if (!isVideo) {
-      // Use lpad (limit pad) - only scales down if needed, adds padding to fit dimensions
-      facebookFeedUrl = cloudinary.url(publicId, {
-        width: 1200,
-        height: 630,
-        crop: 'lpad',
-        background: 'black',
-        fetch_format: 'auto',
-        quality: 'auto'
-      });
-      
-      instagramFeedUrl = cloudinary.url(publicId, {
-        width: 1080,
-        height: 1080,
-        crop: 'lpad',
-        background: 'black',
-        fetch_format: 'auto',
-        quality: 'auto'
-      });
-      
-      instagramStoryUrl = cloudinary.url(publicId, {
-        width: 1080,
-        height: 1920,
-        crop: 'lpad',
-        background: 'black',
-        fetch_format: 'auto',
-        quality: 'auto'
-      });
+      // Use original image for all formats - NO CROPPING
+      facebookFeedUrl = originalUrl;
+      instagramFeedUrl = originalUrl;
+      instagramStoryUrl = originalUrl;
     }
 
     return {
