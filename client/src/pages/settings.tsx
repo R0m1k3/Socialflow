@@ -55,18 +55,28 @@ export default function Settings() {
   const hasExistingConfig = !!openrouterConfig;
 
   const saveCloudinaryMutation = useMutation({
-    mutationFn: () => 
-      apiRequest('POST', '/api/cloudinary/config', {
+    mutationFn: () => {
+      const payload: any = {
         cloudName,
-        apiKey,
-        apiSecret,
-      }),
+      };
+      
+      // N'inclure apiKey et apiSecret que s'ils ne sont pas vides
+      if (apiKey && apiKey.trim() !== "") {
+        payload.apiKey = apiKey;
+      }
+      if (apiSecret && apiSecret.trim() !== "") {
+        payload.apiSecret = apiSecret;
+      }
+      
+      return apiRequest('POST', '/api/cloudinary/config', payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/cloudinary/config'] });
       toast({
         title: "Configuration sauvegardée",
         description: "Vos paramètres Cloudinary ont été enregistrés",
       });
+      setApiKey(""); // Clear the API key after saving
       setApiSecret(""); // Clear the secret after saving
     },
     onError: () => {
