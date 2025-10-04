@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { ScheduledPost } from "@shared/schema";
 
@@ -44,18 +44,15 @@ export default function CalendarView() {
 
     const days = [];
 
-    // Previous month days
     for (let i = 0; i < startingDayOfWeek; i++) {
       const prevMonthDay = new Date(year, month, -startingDayOfWeek + i + 1);
       days.push({ date: prevMonthDay, isCurrentMonth: false });
     }
 
-    // Current month days
     for (let i = 1; i <= daysInMonth; i++) {
       days.push({ date: new Date(year, month, i), isCurrentMonth: true });
     }
 
-    // Next month days to fill the grid
     const remainingDays = 42 - days.length;
     for (let i = 1; i <= remainingDays; i++) {
       days.push({ date: new Date(year, month + 1, i), isCurrentMonth: false });
@@ -71,83 +68,90 @@ export default function CalendarView() {
   };
 
   return (
-    <div className="bg-card rounded-lg border border-border overflow-hidden">
-      <div className="border-b border-border p-4 flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold text-foreground">Calendrier des publications</h3>
-          <p className="text-sm text-muted-foreground mt-1">Planifiez vos publications sur plusieurs pages</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={goToPreviousMonth}
-            data-testid="button-prev-month"
-          >
-            <ChevronLeft className="w-4 h-4 mr-2" />
-            Précédent
-          </Button>
-          <span className="text-sm font-medium text-foreground min-w-[120px] text-center">
-            {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-          </span>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={goToNextMonth}
-            data-testid="button-next-month"
-          >
-            Suivant
-            <ChevronRight className="w-4 h-4 ml-2" />
-          </Button>
+    <div className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-lg">
+      <div className="border-b border-border/50 p-6 bg-gradient-to-r from-primary/5 to-secondary/5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
+              <CalendarIcon className="text-white w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">Calendrier</h3>
+              <p className="text-sm text-muted-foreground">Visualisez vos publications planifiées</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={goToPreviousMonth}
+              className="rounded-xl"
+              data-testid="button-prev-month"
+            >
+              <ChevronLeft className="w-4 h-4 mr-2" />
+              Précédent
+            </Button>
+            <span className="text-sm font-semibold text-foreground min-w-[140px] text-center px-4 py-2 bg-muted/30 rounded-xl">
+              {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={goToNextMonth}
+              className="rounded-xl"
+              data-testid="button-next-month"
+            >
+              Suivant
+              <ChevronRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
         </div>
       </div>
 
-      <div className="p-6">
-        {/* Calendar Header */}
-        <div className="grid grid-cols-7 gap-px bg-border mb-px">
+      <div className="p-8">
+        <div className="grid grid-cols-7 gap-2 mb-2">
           {daysOfWeek.map((day) => (
-            <div key={day} className="bg-muted p-3 text-center">
-              <span className="text-xs font-semibold text-muted-foreground">{day}</span>
+            <div key={day} className="bg-muted/30 py-3 rounded-lg text-center">
+              <span className="text-sm font-semibold text-muted-foreground">{day}</span>
             </div>
           ))}
         </div>
 
-        {/* Calendar Grid */}
-        <div className="grid grid-cols-7 gap-px bg-border">
+        <div className="grid grid-cols-7 gap-2">
           {days.map((day, index) => (
             <div
               key={index}
               className={`
-                bg-card p-3 min-h-[120px]
-                ${isToday(day.date) ? "border-2 border-primary" : ""}
+                bg-card border border-border/50 rounded-xl p-4 min-h-[140px] transition-all hover:shadow-md
+                ${isToday(day.date) ? "ring-2 ring-primary shadow-lg" : ""}
+                ${!day.isCurrentMonth ? "opacity-40" : ""}
               `}
               data-testid={`calendar-day-${index}`}
             >
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-3">
                 <span
                   className={`
-                    text-xs font-medium
-                    ${!day.isCurrentMonth ? "text-muted-foreground/50" : "text-foreground"}
-                    ${isToday(day.date) ? "font-bold text-primary" : ""}
+                    text-sm font-semibold
+                    ${!day.isCurrentMonth ? "text-muted-foreground" : "text-foreground"}
+                    ${isToday(day.date) ? "text-primary" : ""}
                   `}
                 >
                   {day.date.getDate()}
                 </span>
                 {isToday(day.date) && (
-                  <span className="text-[10px] bg-primary text-primary-foreground px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] bg-gradient-to-r from-primary to-secondary text-white px-2 py-0.5 rounded-full font-semibold">
                     Aujourd'hui
                   </span>
                 )}
               </div>
               
-              {/* Real scheduled posts for this date */}
               {(() => {
                 if (!day.isCurrentMonth) return null;
                 const postsForDay = getPostsForDate(day.date);
                 if (postsForDay.length === 0) return null;
                 
                 return (
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     {postsForDay.slice(0, 2).map((post, idx) => {
                       const time = post.scheduledAt ? new Date(post.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
                       const isPending = !post.publishedAt;
@@ -157,18 +161,19 @@ export default function CalendarView() {
                         <div 
                           key={idx}
                           className={`
-                            px-2 py-1 rounded text-xs cursor-pointer transition-all
-                            ${isPending ? 'bg-chart-3/20 text-chart-3 hover:bg-chart-3/30' : ''}
-                            ${isPublished ? 'bg-chart-2/20 text-chart-2 hover:bg-chart-2/30' : ''}
+                            px-3 py-2 rounded-lg text-xs cursor-pointer transition-all font-medium shadow-sm
+                            ${isPending ? 'bg-warning/20 text-warning hover:bg-warning/30' : ''}
+                            ${isPublished ? 'bg-success/20 text-success hover:bg-success/30' : ''}
                           `}
                           data-testid={`calendar-post-${post.id}`}
                         >
-                          <span>{time} - {post.postType || 'Post'}</span>
+                          <div className="font-semibold">{time}</div>
+                          <div className="truncate opacity-90">{post.postType || 'Post'}</div>
                         </div>
                       );
                     })}
                     {postsForDay.length > 2 && (
-                      <div className="text-[10px] text-muted-foreground pl-2">
+                      <div className="text-[11px] text-muted-foreground pl-2 font-medium">
                         +{postsForDay.length - 2} autre(s)
                       </div>
                     )}
@@ -179,15 +184,14 @@ export default function CalendarView() {
           ))}
         </div>
 
-        {/* Legend */}
-        <div className="mt-6 flex items-center justify-center gap-6 flex-wrap">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-chart-3"></div>
-            <span className="text-sm text-muted-foreground">Programmé</span>
+        <div className="mt-8 flex items-center justify-center gap-8 flex-wrap">
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-4 rounded-md bg-warning/20 border-2 border-warning"></div>
+            <span className="text-sm text-muted-foreground font-medium">Programmé</span>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded bg-chart-2"></div>
-            <span className="text-sm text-muted-foreground">Publié</span>
+          <div className="flex items-center gap-3">
+            <div className="w-4 h-4 rounded-md bg-success/20 border-2 border-success"></div>
+            <span className="text-sm text-muted-foreground font-medium">Publié</span>
           </div>
         </div>
       </div>

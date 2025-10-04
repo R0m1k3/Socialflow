@@ -3,8 +3,9 @@ import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { CloudUpload, Image as ImageIcon, Video, X } from "lucide-react";
+import { CloudUpload, Image as ImageIcon, Video, X, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { SiFacebook, SiInstagram } from "react-icons/si";
 
 export default function MediaUpload() {
   const { toast } = useToast();
@@ -54,7 +55,7 @@ export default function MediaUpload() {
       "image/*": [".png", ".jpg", ".jpeg", ".gif"],
       "video/*": [".mp4", ".mov"],
     },
-    maxSize: 52428800, // 50MB
+    maxSize: 52428800,
   });
 
   const deleteMutation = useMutation({
@@ -68,101 +69,114 @@ export default function MediaUpload() {
   });
 
   return (
-    <div className="bg-card rounded-lg border border-border overflow-hidden">
-      <div className="border-b border-border p-4 flex items-center justify-between">
-        <div>
-          <h3 className="font-semibold text-foreground">Téléchargement et recadrage de médias</h3>
-          <p className="text-sm text-muted-foreground mt-1">
-            Ajoutez des photos ou vidéos, elles seront automatiquement recadrées pour Facebook et Instagram
-          </p>
+    <div className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-lg">
+      <div className="border-b border-border/50 p-6 bg-gradient-to-r from-primary/5 to-secondary/5">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
+              <Upload className="text-white w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-lg font-semibold text-foreground">Médiathèque</h3>
+              <p className="text-sm text-muted-foreground">Téléchargement et recadrage automatique</p>
+            </div>
+          </div>
+          <Button 
+            onClick={open}
+            className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 rounded-xl"
+            data-testid="button-browse"
+          >
+            <CloudUpload className="w-4 h-4 mr-2" />
+            Parcourir
+          </Button>
         </div>
-        <Button 
-          onClick={open}
-          data-testid="button-browse"
-        >
-          <CloudUpload className="w-4 h-4 mr-2" />
-          Parcourir
-        </Button>
       </div>
 
-      <div className="p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Upload Zone */}
-          <div>
+      <div className="p-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="space-y-6">
             <div
               {...getRootProps()}
               className={`
-                border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-all
-                ${isDragActive ? "border-primary bg-accent" : "border-border hover:border-primary hover:bg-accent"}
+                border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all
+                ${isDragActive ? "border-primary bg-primary/5 shadow-lg" : "border-border/50 hover:border-primary hover:bg-accent/30"}
               `}
               data-testid="dropzone-upload"
             >
               <input {...getInputProps()} />
-              <CloudUpload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <p className="text-foreground font-medium mb-2">
-                {isDragActive ? "Déposez vos fichiers ici" : "Glissez-déposez vos fichiers ici"}
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center mx-auto mb-6">
+                <CloudUpload className="w-8 h-8 text-primary" />
+              </div>
+              <p className="text-foreground font-semibold text-lg mb-2">
+                {isDragActive ? "Déposez vos fichiers ici" : "Glissez-déposez vos fichiers"}
               </p>
               <p className="text-sm text-muted-foreground mb-4">ou cliquez pour parcourir</p>
-              <p className="text-xs text-muted-foreground">PNG, JPG, MP4 jusqu'à 50MB</p>
+              <p className="text-xs text-muted-foreground font-medium">PNG, JPG, MP4 jusqu'à 50MB</p>
             </div>
 
-            {/* Uploaded Files */}
-            <div className="mt-6 space-y-3">
-              <h4 className="text-sm font-semibold text-foreground mb-3">
-                Fichiers téléchargés ({(mediaList as any[])?.length || 0})
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold text-foreground flex items-center justify-between">
+                <span>Fichiers téléchargés</span>
+                <span className="text-xs font-medium text-muted-foreground bg-muted/30 px-3 py-1 rounded-full">
+                  {(mediaList as any[])?.length || 0} média(s)
+                </span>
               </h4>
 
-              {(mediaList as any[])?.slice(0, 3).map((media: any) => (
-                <div
-                  key={media.id}
-                  onClick={() => setSelectedFile(media)}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-accent border border-border cursor-pointer hover:bg-accent/80 transition-colors"
-                  data-testid={`media-item-${media.id}`}
-                >
-                  <div className="w-12 h-12 rounded bg-muted flex items-center justify-center flex-shrink-0">
-                    {media.type === "video" ? (
-                      <Video className="w-6 h-6 text-muted-foreground" />
-                    ) : (
-                      <ImageIcon className="w-6 h-6 text-muted-foreground" />
-                    )}
+              <div className="space-y-3">
+                {(mediaList as any[])?.slice(0, 5).map((media: any) => (
+                  <div
+                    key={media.id}
+                    onClick={() => setSelectedFile(media)}
+                    className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border border-border/50 cursor-pointer hover:bg-muted hover:shadow-md transition-all"
+                    data-testid={`media-item-${media.id}`}
+                  >
+                    <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center flex-shrink-0">
+                      {media.type === "video" ? (
+                        <Video className="w-7 h-7 text-secondary" />
+                      ) : (
+                        <ImageIcon className="w-7 h-7 text-primary" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-foreground truncate">{media.fileName}</p>
+                      <p className="text-xs text-muted-foreground font-medium mt-1">
+                        {(media.fileSize / 1024 / 1024).toFixed(1)} MB
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-success/20 text-success">
+                        Prêt
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteMutation.mutate(media.id);
+                        }}
+                        className="text-muted-foreground hover:text-destructive transition-all p-1 rounded-lg hover:bg-destructive/10"
+                        data-testid={`button-delete-${media.id}`}
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-foreground truncate">{media.fileName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {(media.fileSize / 1024 / 1024).toFixed(1)} MB
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-chart-2 text-white">
-                      Prêt
-                    </span>
-                    <button
-                      onClick={() => deleteMutation.mutate(media.id)}
-                      className="text-muted-foreground hover:text-destructive transition-all"
-                      data-testid={`button-delete-${media.id}`}
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Preview and Crop */}
-          <div>
-            <h4 className="text-sm font-semibold text-foreground mb-3">Aperçu et recadrage automatique</h4>
-            <div className="space-y-4">
-              {/* Facebook Feed Preview */}
-              <div className="border border-border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
+          <div className="space-y-6">
+            <h4 className="text-sm font-semibold text-foreground">Aperçu et recadrage automatique</h4>
+            
+            <div className="space-y-5">
+              <div className="border border-border/50 rounded-xl p-5 bg-card shadow-sm">
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <i className="fab fa-facebook text-chart-1"></i>
-                    <span className="text-sm font-medium text-foreground">Facebook - Feed</span>
+                    <SiFacebook className="text-[#1877F2] text-lg" />
+                    <span className="text-sm font-semibold text-foreground">Facebook Feed</span>
                   </div>
-                  <span className="text-xs text-muted-foreground">1200x630</span>
+                  <span className="text-xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md font-medium">1200×630</span>
                 </div>
-                <div className="aspect-[1.91/1] bg-muted rounded-lg overflow-hidden">
+                <div className="aspect-[1.91/1] bg-muted/30 rounded-lg overflow-hidden border border-border/50">
                   {selectedFile?.facebookFeedUrl ? (
                     <img
                       src={selectedFile.facebookFeedUrl}
@@ -171,22 +185,21 @@ export default function MediaUpload() {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <ImageIcon className="w-12 h-12 text-muted-foreground" />
+                      <ImageIcon className="w-12 h-12 text-muted-foreground opacity-50" />
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Instagram Feed Preview */}
-              <div className="border border-border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
+              <div className="border border-border/50 rounded-xl p-5 bg-card shadow-sm">
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <i className="fab fa-instagram text-chart-5"></i>
-                    <span className="text-sm font-medium text-foreground">Instagram - Feed</span>
+                    <SiInstagram className="text-[#E4405F] text-lg" />
+                    <span className="text-sm font-semibold text-foreground">Instagram Feed</span>
                   </div>
-                  <span className="text-xs text-muted-foreground">1080x1080</span>
+                  <span className="text-xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md font-medium">1080×1080</span>
                 </div>
-                <div className="aspect-square bg-muted rounded-lg overflow-hidden">
+                <div className="aspect-square bg-muted/30 rounded-lg overflow-hidden border border-border/50">
                   {selectedFile?.instagramFeedUrl ? (
                     <img
                       src={selectedFile.instagramFeedUrl}
@@ -195,22 +208,21 @@ export default function MediaUpload() {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <ImageIcon className="w-12 h-12 text-muted-foreground" />
+                      <ImageIcon className="w-12 h-12 text-muted-foreground opacity-50" />
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Instagram Story Preview */}
-              <div className="border border-border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
+              <div className="border border-border/50 rounded-xl p-5 bg-card shadow-sm">
+                <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <i className="fab fa-instagram text-chart-5"></i>
-                    <span className="text-sm font-medium text-foreground">Instagram - Story</span>
+                    <SiInstagram className="text-[#E4405F] text-lg" />
+                    <span className="text-sm font-semibold text-foreground">Instagram Story</span>
                   </div>
-                  <span className="text-xs text-muted-foreground">1080x1920</span>
+                  <span className="text-xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md font-medium">1080×1920</span>
                 </div>
-                <div className="aspect-[9/16] bg-muted rounded-lg overflow-hidden max-w-[200px]">
+                <div className="aspect-[9/16] bg-muted/30 rounded-lg overflow-hidden max-w-[220px] border border-border/50">
                   {selectedFile?.instagramStoryUrl ? (
                     <img
                       src={selectedFile.instagramStoryUrl}
@@ -219,7 +231,7 @@ export default function MediaUpload() {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                      <ImageIcon className="w-10 h-10 text-muted-foreground opacity-50" />
                     </div>
                   )}
                 </div>

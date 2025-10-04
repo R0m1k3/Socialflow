@@ -25,17 +25,15 @@ export default function AI() {
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
-        <div className="p-6">
-          <div className="mb-6">
+        <div className="p-8 max-w-5xl mx-auto">
+          <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Assistant IA</h1>
             <p className="text-muted-foreground mt-2">
               Générez du contenu personnalisé avec l'intelligence artificielle
             </p>
           </div>
 
-          <div className="max-w-4xl mx-auto">
-            <AiChat />
-          </div>
+          <AiChat />
         </div>
       </main>
     </div>

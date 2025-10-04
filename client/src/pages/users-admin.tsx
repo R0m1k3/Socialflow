@@ -210,7 +210,7 @@ export default function UsersAdmin() {
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
-        <div className="p-6 space-y-6">
+        <div className="p-8 max-w-[1600px] mx-auto space-y-8">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <Users className="w-8 h-8" />
@@ -221,11 +221,11 @@ export default function UsersAdmin() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Liste des utilisateurs */}
             <div className="lg:col-span-2">
-              <Card>
-                <CardHeader>
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
                   <CardTitle>Liste des utilisateurs</CardTitle>
                   <CardDescription>
                     {users?.length || 0} utilisateur(s) enregistré(s)
@@ -297,8 +297,8 @@ export default function UsersAdmin() {
 
             {/* Formulaire de création */}
             <div>
-              <Card>
-                <CardHeader>
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
                   <CardTitle className="flex items-center gap-2">
                     <UserPlus className="w-5 h-5" />
                     Créer un utilisateur
