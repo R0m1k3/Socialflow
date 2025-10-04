@@ -101,6 +101,9 @@ VERSION 3 - ÉMOTIONNELLE:
     // Normaliser les retours à la ligne (CRLF -> LF)
     const normalizedContent = content.replace(/\r\n/g, '\n');
     
+    console.log('🔍 AI Response to parse (first 800 chars):\n', normalizedContent.substring(0, 800));
+    console.log('🔍 AI Response length:', normalizedContent.length);
+    
     // Regex ultra-flexibles acceptant:
     // - markdown (** optionnel)
     // - tirets variés (-, –, —)
@@ -110,6 +113,8 @@ VERSION 3 - ÉMOTIONNELLE:
     const version1Match = normalizedContent.match(/\*{0,2}\s*VERSION\s+1\s*[-–—]\s*DYNAMIQUE\s*\*{0,2}:?\s*[\r\n]+([\s\S]*?)(?=\s*[-*]{3,}\s*[\r\n]+|\*{0,2}\s*VERSION\s+2|$)/i);
     const version2Match = normalizedContent.match(/\*{0,2}\s*VERSION\s+2\s*[-–—]\s*INFORMATIVE?\s*\*{0,2}:?\s*[\r\n]+([\s\S]*?)(?=\s*[-*]{3,}\s*[\r\n]+|\*{0,2}\s*VERSION\s+3|$)/i);
     const version3Match = normalizedContent.match(/\*{0,2}\s*VERSION\s+3\s*[-–—]\s*[ÉE]MOTIONNELLE?\s*\*{0,2}:?\s*[\r\n]+([\s\S]*?)$/i);
+    
+    console.log('🔍 Matches found:', { v1: !!version1Match, v2: !!version2Match, v3: !!version3Match });
 
     if (version1Match) {
       const text = version1Match[1].trim();
