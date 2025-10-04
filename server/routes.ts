@@ -8,7 +8,7 @@ import passport from "./auth";
 import { z } from "zod";
 import { openRouterService } from "./services/openrouter";
 import { cloudinaryService } from "./services/cloudinary";
-import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia } from "@shared/schema";
+import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia } from "@shared/schema";
 import type { User, InsertUser } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -618,18 +618,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       
-      const configData = insertCloudinaryConfigSchema.parse({
-        ...req.body,
-        userId,
-      });
-
       // Check if config already exists
       const existingConfig = await storage.getCloudinaryConfig(userId);
       
       let config;
       if (existingConfig) {
-        config = await storage.updateCloudinaryConfig(userId, configData);
+        // Pour les mises à jour, utiliser le schéma qui rend les secrets optionnels
+        const updateData = updateCloudinaryConfigSchema.parse({
+          ...req.body,
+          userId,
+        });
+        
+        // Si apiKey/apiSecret ne sont pas fournis, garder les anciens
+        const finalData = {
+          ...updateData,
+          apiKey: updateData.apiKey || existingConfig.apiKey,
+          apiSecret: updateData.apiSecret || existingConfig.apiSecret,
+        };
+        
+        config = await storage.updateCloudinaryConfig(userId, finalData);
       } else {
+        // Pour les créations, exiger tous les champs
+        const configData = insertCloudinaryConfigSchema.parse({
+          ...req.body,
+          userId,
+        });
         config = await storage.createCloudinaryConfig(configData);
       }
 

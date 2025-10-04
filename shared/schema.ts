@@ -230,6 +230,11 @@ export const updateOpenrouterConfigSchema = insertOpenrouterConfigSchema.partial
   apiKey: true,
 });
 
+export const updateCloudinaryConfigSchema = insertCloudinaryConfigSchema.partial({
+  apiKey: true,
+  apiSecret: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -251,8 +256,10 @@ export type InsertAiGeneration = z.infer<typeof insertAiGenerationSchema>;
 
 export type CloudinaryConfig = typeof cloudinaryConfig.$inferSelect;
 export type InsertCloudinaryConfig = z.infer<typeof insertCloudinaryConfigSchema>;
+export type UpdateCloudinaryConfig = z.infer<typeof updateCloudinaryConfigSchema>;
 
 export type OpenrouterConfig = typeof openrouterConfig.$inferSelect;
 export type InsertOpenrouterConfig = z.infer<typeof insertOpenrouterConfigSchema>;
+export type UpdateOpenrouterConfig = z.infer<typeof updateOpenrouterConfigSchema>;
 
 export type PostMedia = typeof postMedia.$inferSelect;
