@@ -128,17 +128,17 @@ export default function Settings() {
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
-        <div className="p-6 max-w-4xl mx-auto">
-          <div className="mb-6">
+        <div className="p-8 max-w-4xl mx-auto">
+          <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Paramètres</h1>
             <p className="text-muted-foreground mt-2">
               Configurez votre application
             </p>
           </div>
 
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
+          <div className="space-y-8">
+            <Card className="rounded-2xl border-border/50 shadow-lg">
+              <CardHeader className="p-6">
                 <CardTitle className="flex items-center gap-2">
                   <Bell className="w-5 h-5" />
                   Notifications
@@ -179,8 +179,8 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
+            <Card className="rounded-2xl border-border/50 shadow-lg">
+              <CardHeader className="p-6">
                 <CardTitle className="flex items-center gap-2">
                   <Brain className="w-5 h-5" />
                   Configuration OpenRouter (IA)
@@ -263,8 +263,8 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
+            <Card className="rounded-2xl border-border/50 shadow-lg">
+              <CardHeader className="p-6">
                 <CardTitle className="flex items-center gap-2">
                   <Cloud className="w-5 h-5" />
                   Configuration Cloudinary
@@ -324,8 +324,8 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
+            <Card className="rounded-2xl border-border/50 shadow-lg">
+              <CardHeader className="p-6">
                 <CardTitle className="flex items-center gap-2">
                   <Shield className="w-5 h-5" />
                   Sécurité

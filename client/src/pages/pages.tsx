@@ -61,8 +61,8 @@ export default function PagesManagement() {
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
-        <div className="p-6">
-          <div className="flex justify-between items-center mb-6">
+        <div className="p-8 max-w-[1600px] mx-auto">
+          <div className="flex justify-between items-center mb-8">
             <div>
               <h1 className="text-3xl font-bold text-foreground">Pages gérées</h1>
               <p className="text-muted-foreground mt-2">
@@ -74,16 +74,14 @@ export default function PagesManagement() {
           </div>
 
           {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {[1, 2, 3].map((i) => (
-                <Card key={i} className="animate-pulse">
-                  <CardHeader className="h-32 bg-muted"></CardHeader>
-                </Card>
+                <div key={i} className="h-48 bg-card rounded-2xl border border-border/50 animate-pulse" />
               ))}
             </div>
           ) : pages.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-12">
+            <Card className="border-dashed rounded-2xl border-border/50 shadow-lg">
+              <CardContent className="flex flex-col items-center justify-center py-16">
                 <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
                   <Plus className="w-8 h-8 text-muted-foreground" />
                 </div>
@@ -98,9 +96,9 @@ export default function PagesManagement() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {pages.map((page) => (
-                <Card key={page.id} data-testid={`card-page-${page.id}`}>
+                <Card key={page.id} className="rounded-2xl border-border/50 shadow-lg" data-testid={`card-page-${page.id}`}>
                   <CardHeader>
                     <div className="flex items-start justify-between">
                       <div className="flex items-center gap-3">

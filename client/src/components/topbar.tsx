@@ -1,4 +1,5 @@
-import { Bell, Menu } from "lucide-react";
+import { Bell, Menu, Search } from "lucide-react";
+import { Input } from "@/components/ui/input";
 
 interface TopBarProps {
   onMenuClick: () => void;
@@ -6,35 +7,31 @@ interface TopBarProps {
 
 export default function TopBar({ onMenuClick }: TopBarProps) {
   return (
-    <header className="bg-card border-b border-border sticky top-0 z-10">
-      <div className="flex items-center justify-between px-6 py-4">
-        <div className="flex items-center gap-4">
+    <header className="bg-card/50 backdrop-blur-xl border-b border-border/50 sticky top-0 z-10">
+      <div className="flex items-center justify-between px-6 lg:px-8 py-5">
+        <div className="flex items-center gap-6 flex-1">
           <button 
-            className="lg:hidden text-foreground"
+            className="lg:hidden text-foreground hover:text-primary transition-colors"
             onClick={onMenuClick}
             data-testid="button-menu"
           >
             <Menu className="w-6 h-6" />
           </button>
-          <div>
-            <h2 className="text-2xl font-bold text-foreground">Tableau de bord</h2>
-            <p className="text-sm text-muted-foreground">Gérez vos publications sur tous vos réseaux</p>
+          <div className="flex-1 max-w-md hidden md:block">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input 
+                placeholder="Rechercher des publications, pages, médias..." 
+                className="pl-10 bg-muted/30 border-muted focus:border-primary/50 rounded-xl"
+              />
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-4">
-          <button className="relative p-2 text-muted-foreground hover:text-foreground transition-all" data-testid="button-notifications">
+          <button className="relative p-2.5 text-muted-foreground hover:text-primary hover:bg-muted/30 rounded-xl transition-all" data-testid="button-notifications">
             <Bell className="w-5 h-5" />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full"></span>
+            <span className="absolute top-2 right-2 w-2 h-2 bg-destructive rounded-full ring-2 ring-card"></span>
           </button>
-          <div className="flex items-center gap-3 pl-4 border-l border-border">
-            <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center">
-              <span className="text-primary-foreground font-semibold">SF</span>
-            </div>
-            <div className="hidden md:block">
-              <p className="text-sm font-medium text-foreground">Social Flow</p>
-              <p className="text-xs text-muted-foreground">admin@socialflow.app</p>
-            </div>
-          </div>
         </div>
       </div>
     </header>

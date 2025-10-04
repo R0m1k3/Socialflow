@@ -93,7 +93,7 @@ export default function SqlAdmin() {
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
-        <div className="p-6 space-y-6">
+        <div className="p-8 max-w-[1600px] mx-auto space-y-8">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <Database className="w-8 h-8" />
@@ -104,10 +104,10 @@ export default function SqlAdmin() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
             {/* Liste des tables */}
-            <Card>
-              <CardHeader>
+            <Card className="rounded-2xl border-border/50 shadow-lg">
+              <CardHeader className="p-6">
                 <CardTitle>Tables disponibles</CardTitle>
                 <CardDescription>
                   Cliquez pour insérer dans la requête
@@ -132,9 +132,9 @@ export default function SqlAdmin() {
             </Card>
 
             {/* Éditeur SQL et résultats */}
-            <div className="lg:col-span-3 space-y-6">
-              <Card>
-                <CardHeader>
+            <div className="lg:col-span-3 space-y-8">
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
                   <CardTitle>Éditeur SQL</CardTitle>
                   <CardDescription>
                     Entrez votre requête SQL ci-dessous
@@ -172,8 +172,8 @@ export default function SqlAdmin() {
 
               {/* Résultats */}
               {queryResult && (
-                <Card>
-                  <CardHeader>
+                <Card className="rounded-2xl border-border/50 shadow-lg">
+                  <CardHeader className="p-6">
                     <div className="flex justify-between items-center">
                       <div>
                         <CardTitle>Résultats</CardTitle>

@@ -151,18 +151,18 @@ export default function NewPost() {
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
-        <div className="p-6 max-w-5xl mx-auto">
-          <div className="mb-6">
+        <div className="p-8 max-w-6xl mx-auto">
+          <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Nouvelle publication</h1>
             <p className="text-muted-foreground mt-2">
               Créez et planifiez une nouvelle publication
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="space-y-8">
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
                   <CardTitle>Contenu</CardTitle>
                   <CardDescription>Informations du produit ou message</CardDescription>
                 </CardHeader>
@@ -190,8 +190,8 @@ export default function NewPost() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
                   <CardTitle>Texte de la publication</CardTitle>
                   <CardDescription>Écrivez ou générez le texte de votre publication</CardDescription>
                 </CardHeader>
@@ -207,8 +207,8 @@ export default function NewPost() {
               </Card>
 
               {generatedVariants.length > 0 && (
-                <Card>
-                  <CardHeader>
+                <Card className="rounded-2xl border-border/50 shadow-lg">
+                  <CardHeader className="p-6">
                     <CardTitle>Variations générées par l'IA</CardTitle>
                     <CardDescription>Cliquez sur "Utiliser" pour remplir le texte ci-dessus</CardDescription>
                   </CardHeader>
@@ -241,8 +241,8 @@ export default function NewPost() {
                 </Card>
               )}
 
-              <Card>
-                <CardHeader>
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
                   <CardTitle>Média</CardTitle>
                   <CardDescription>Sélectionnez une image ou vidéo</CardDescription>
                 </CardHeader>
@@ -285,9 +285,9 @@ export default function NewPost() {
               </Card>
             </div>
 
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
+            <div className="space-y-8">
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
                   <CardTitle>Pages cibles</CardTitle>
                   <CardDescription>Sélectionnez les pages où publier</CardDescription>
                 </CardHeader>
@@ -332,8 +332,8 @@ export default function NewPost() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
                   <CardTitle>Planification</CardTitle>
                   <CardDescription>Programmez la publication (optionnel)</CardDescription>
                 </CardHeader>
@@ -357,7 +357,7 @@ export default function NewPost() {
               <Button 
                 onClick={handleCreatePost}
                 disabled={createPostMutation.isPending}
-                className="w-full"
+                className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 shadow-lg"
                 size="lg"
                 data-testid="button-create-post"
               >

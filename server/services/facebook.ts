@@ -121,7 +121,7 @@ export class FacebookService {
     const params = new URLSearchParams({
       access_token: page.accessToken!,
       message: post.content,
-      published: 'false',
+      published: '0',
       scheduled_publish_time: scheduledTimestamp.toString(),
     });
 
@@ -147,7 +147,7 @@ export class FacebookService {
       access_token: page.accessToken!,
       message: post.content,
       url: photoUrl,
-      published: 'false',
+      published: '0',
       scheduled_publish_time: scheduledTimestamp.toString(),
     });
 

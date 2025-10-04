@@ -25,8 +25,8 @@ export default function Media() {
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
-        <div className="p-6">
-          <div className="mb-6">
+        <div className="p-8 max-w-[1600px] mx-auto">
+          <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Médiathèque</h1>
             <p className="text-muted-foreground mt-2">
               Gérez vos images et vidéos pour vos publications
