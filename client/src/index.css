@@ -3,87 +3,105 @@
 @tailwind utilities;
 
 :root {
-  --card: 300 4.35% 6.67%;
-  --ring: 221.74 13.14% 34.31%;
-  --input: 0 0% 16.86%;
-  --muted: 0 0% 25.1%;
-  --accent: 0 0% 92.16%;
-  --border: 0 0% 16.86%;
-  --radius: 0.4rem;
-  --chart-1: 203.8863 88.2845% 53.1373%;
-  --chart-2: 159.7826 100% 36.0784%;
-  --chart-3: 42.0290 92.8251% 56.2745%;
-  --chart-4: 147.1429 78.5047% 41.9608%;
-  --chart-5: 341.4894 75.2000% 50.9804%;
-  --popover: 45 25% 97%;
-  --primary: 0 0% 96.08%;
-  --sidebar: 45 25% 97%;
-  --spacing: 0.25rem;
-  --font-mono: Menlo, monospace;
-  --font-sans: 'Inter', sans-serif;
-  --secondary: 0 0% 92.16%;
-  --background: 0 0% 3.53%;
-  --font-serif: 'Inter', sans-serif;
-  --foreground: 0 0% 92.16%;
-  --destructive: 356.3033 90.5579% 54.3137%;
-  --sidebar-ring: 9 75% 61%;
-  --sidebar-accent: 25 45% 80%;
-  --sidebar-border: 45 15% 80%;
-  --card-foreground: 0 0% 100%;
-  --sidebar-primary: 9 75% 61%;
-  --muted-foreground: 0 0% 67.06%;
-  --accent-foreground: 0 0% 0%;
-  --popover-foreground: 0 0% 100%;
-  --primary-foreground: 0 0% 5.1%;
-  --sidebar-foreground: 20 14% 17%;
-  --secondary-foreground: 0 0% 5.1%;
+  --background: 222 20% 8%;
+  --foreground: 0 0% 95%;
+  
+  --card: 222 16% 15%;
+  --card-foreground: 0 0% 95%;
+  
+  --popover: 222 18% 12%;
+  --popover-foreground: 0 0% 95%;
+  
+  --primary: 215 85% 58%;
+  --primary-foreground: 0 0% 100%;
+  
+  --secondary: 265 75% 62%;
+  --secondary-foreground: 0 0% 100%;
+  
+  --muted: 222 12% 20%;
+  --muted-foreground: 222 10% 65%;
+  
+  --accent: 222 18% 12%;
+  --accent-foreground: 0 0% 95%;
+  
+  --destructive: 0 85% 62%;
   --destructive-foreground: 0 0% 100%;
-  --sidebar-accent-foreground: 20 14% 17%;
+  
+  --border: 222 12% 20%;
+  --input: 222 12% 20%;
+  --ring: 215 85% 58%;
+  
+  --success: 142 76% 48%;
+  --warning: 35 95% 58%;
+  --info: 195 85% 55%;
+  
+  --chart-1: 215 85% 58%;
+  --chart-2: 265 75% 62%;
+  --chart-3: 142 76% 48%;
+  --chart-4: 195 85% 55%;
+  --chart-5: 35 95% 58%;
+  
+  --sidebar: 222 20% 8%;
+  --sidebar-foreground: 0 0% 95%;
+  --sidebar-primary: 215 85% 58%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --shadow: 0px 2px 0px 0px hsl(9, 75%, 61% / 0.00), 0px 1px 2px -1px hsl(9, 75%, 61% / 0.00);
-  --shadow-lg: 0px 2px 0px 0px hsl(9, 75%, 61% / 0.00), 0px 4px 6px -1px hsl(9, 75%, 61% / 0.00);
-  --shadow-md: 0px 2px 0px 0px hsl(9, 75%, 61% / 0.00), 0px 2px 4px -1px hsl(9, 75%, 61% / 0.00);
-  --shadow-sm: 0px 2px 0px 0px hsl(9, 75%, 61% / 0.00), 0px 1px 2px -1px hsl(9, 75%, 61% / 0.00);
-  --shadow-xl: 0px 2px 0px 0px hsl(9, 75%, 61% / 0.00), 0px 8px 10px -1px hsl(9, 75%, 61% / 0.00);
-  --shadow-xs: 0px 2px 0px 0px hsl(9, 75%, 61% / 0.00);
-  --shadow-2xl: 0px 2px 0px 0px hsl(9, 75%, 61% / 0.00);
-  --shadow-2xs: 0px 2px 0px 0px hsl(9, 75%, 61% / 0.00);
-  --tracking-normal: 0em;
+  --sidebar-accent: 222 18% 12%;
+  --sidebar-accent-foreground: 0 0% 95%;
+  --sidebar-border: 222 12% 20%;
+  --sidebar-ring: 215 85% 58%;
+  
+  --radius: 0.75rem;
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Menlo, monospace;
 }
 
 .dark {
-  --card: 20 14% 8%;
-  --ring: 9 75% 61%;
-  --input: 20 14% 18%;
-  --muted: 20 14% 15%;
-  --accent: 25 45% 20%;
-  --border: 20 14% 15%;
-  --chart-1: 203.8863 88.2845% 53.1373%;
-  --chart-2: 159.7826 100% 36.0784%;
-  --chart-3: 42.0290 92.8251% 56.2745%;
-  --chart-4: 147.1429 78.5047% 41.9608%;
-  --chart-5: 341.4894 75.2000% 50.9804%;
-  --popover: 20 14% 4%;
-  --primary: 9 75% 61%;
-  --sidebar: 20 14% 8%;
-  --secondary: 30 15% 52%;
-  --background: 20 14% 4%;
-  --foreground: 45 25% 91%;
-  --destructive: 356.3033 90.5579% 54.3137%;
-  --sidebar-ring: 9 75% 61%;
-  --sidebar-accent: 25 45% 20%;
-  --sidebar-border: 20 14% 15%;
-  --card-foreground: 45 25% 85%;
-  --sidebar-primary: 9 75% 61%;
-  --muted-foreground: 45 15% 46%;
-  --accent-foreground: 45 25% 85%;
-  --popover-foreground: 45 25% 91%;
+  --background: 222 20% 8%;
+  --foreground: 0 0% 95%;
+  
+  --card: 222 16% 15%;
+  --card-foreground: 0 0% 95%;
+  
+  --popover: 222 18% 12%;
+  --popover-foreground: 0 0% 95%;
+  
+  --primary: 215 85% 58%;
   --primary-foreground: 0 0% 100%;
-  --sidebar-foreground: 45 25% 85%;
+  
+  --secondary: 265 75% 62%;
   --secondary-foreground: 0 0% 100%;
+  
+  --muted: 222 12% 20%;
+  --muted-foreground: 222 10% 65%;
+  
+  --accent: 222 18% 12%;
+  --accent-foreground: 0 0% 95%;
+  
+  --destructive: 0 85% 62%;
   --destructive-foreground: 0 0% 100%;
-  --sidebar-accent-foreground: 45 25% 85%;
+  
+  --border: 222 12% 20%;
+  --input: 222 12% 20%;
+  --ring: 215 85% 58%;
+  
+  --success: 142 76% 48%;
+  --warning: 35 95% 58%;
+  --info: 195 85% 55%;
+  
+  --chart-1: 215 85% 58%;
+  --chart-2: 265 75% 62%;
+  --chart-3: 142 76% 48%;
+  --chart-4: 195 85% 55%;
+  --chart-5: 35 95% 58%;
+  
+  --sidebar: 222 20% 8%;
+  --sidebar-foreground: 0 0% 95%;
+  --sidebar-primary: 215 85% 58%;
   --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 222 18% 12%;
+  --sidebar-accent-foreground: 0 0% 95%;
+  --sidebar-border: 222 12% 20%;
+  --sidebar-ring: 215 85% 58%;
 }
 
 @layer base {
@@ -94,41 +112,108 @@
   body {
     @apply font-sans antialiased bg-background text-foreground;
   }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold;
+  }
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(var(--muted));
+  background: hsl(var(--muted) / 0.3);
+  border-radius: 5px;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: hsl(var(--primary));
-  border-radius: 4px;
+  background: linear-gradient(180deg, hsl(var(--primary)), hsl(var(--secondary)));
+  border-radius: 5px;
+  border: 2px solid hsl(var(--background));
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--primary) / 0.8);
+  background: linear-gradient(180deg, hsl(var(--primary) / 0.9), hsl(var(--secondary) / 0.9));
 }
 
-/* Animation for chat messages */
-@keyframes slideInRight {
+/* Smooth transitions */
+* {
+  transition: background-color 200ms, border-color 200ms, color 200ms;
+}
+
+button, a {
+  transition: all 200ms;
+}
+
+/* Animation for cards */
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateX(20px);
+    transform: translateY(10px);
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(0);
   }
 }
 
-.chat-message {
-  animation: slideInRight 0.3s ease-out;
+.fade-in {
+  animation: fadeIn 150ms ease-out;
+}
+
+/* Gradient utilities */
+.gradient-primary {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Card hover effect */
+.card-hover {
+  transition: transform 200ms, box-shadow 200ms;
+}
+
+.card-hover:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px hsl(var(--primary) / 0.1);
+}
+
+/* Platform badges */
+.badge-facebook {
+  background: hsl(var(--primary) / 0.15);
+  color: hsl(var(--primary));
+  border: 1px solid hsl(var(--primary) / 0.3);
+}
+
+.badge-instagram {
+  background: hsl(var(--secondary) / 0.15);
+  color: hsl(var(--secondary));
+  border: 1px solid hsl(var(--secondary) / 0.3);
+}
+
+/* Status indicators */
+.status-scheduled {
+  color: hsl(var(--primary));
+}
+
+.status-published {
+  color: hsl(var(--success));
+}
+
+.status-failed {
+  color: hsl(var(--destructive));
+}
+
+.status-draft {
+  color: hsl(var(--muted-foreground));
 }
 
 /* Skeleton loader */
