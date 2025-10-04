@@ -50,10 +50,19 @@ export class OpenRouterService {
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('OpenRouter API Error Response:', errorText);
         throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
       }
 
       const data = await response.json();
+      console.log('OpenRouter API Response:', JSON.stringify(data, null, 2));
+      
+      if (!data.choices || !data.choices[0]) {
+        console.error('Invalid OpenRouter response structure:', data);
+        throw new Error('Réponse invalide de l\'API OpenRouter. Vérifiez votre clé API et votre modèle.');
+      }
+      
       const content = data.choices[0]?.message?.content || "";
 
       return this.parseGeneratedText(content);
