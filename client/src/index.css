@@ -3,14 +3,14 @@
 @tailwind utilities;
 
 :root {
-  --background: 222 20% 8%;
-  --foreground: 0 0% 95%;
+  --background: 0 0% 98%;
+  --foreground: 222 47% 11%;
   
-  --card: 222 16% 15%;
-  --card-foreground: 0 0% 95%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
   
-  --popover: 222 18% 12%;
-  --popover-foreground: 0 0% 95%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222 47% 11%;
   
   --primary: 215 85% 58%;
   --primary-foreground: 0 0% 100%;
@@ -18,17 +18,17 @@
   --secondary: 265 75% 62%;
   --secondary-foreground: 0 0% 100%;
   
-  --muted: 222 12% 20%;
-  --muted-foreground: 222 10% 65%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
   
-  --accent: 222 18% 12%;
-  --accent-foreground: 0 0% 95%;
+  --accent: 210 40% 96%;
+  --accent-foreground: 222 47% 11%;
   
   --destructive: 0 85% 62%;
   --destructive-foreground: 0 0% 100%;
   
-  --border: 222 12% 20%;
-  --input: 222 12% 20%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
   --ring: 215 85% 58%;
   
   --success: 142 76% 48%;
@@ -41,13 +41,13 @@
   --chart-4: 195 85% 55%;
   --chart-5: 35 95% 58%;
   
-  --sidebar: 222 20% 8%;
-  --sidebar-foreground: 0 0% 95%;
+  --sidebar: 0 0% 100%;
+  --sidebar-foreground: 222 47% 11%;
   --sidebar-primary: 215 85% 58%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 222 18% 12%;
-  --sidebar-accent-foreground: 0 0% 95%;
-  --sidebar-border: 222 12% 20%;
+  --sidebar-accent: 210 40% 96%;
+  --sidebar-accent-foreground: 222 47% 11%;
+  --sidebar-border: 214 32% 91%;
   --sidebar-ring: 215 85% 58%;
   
   --radius: 0.75rem;
@@ -125,7 +125,7 @@
 }
 
 ::-webkit-scrollbar-track {
-  background: hsl(var(--muted) / 0.3);
+  background: hsl(var(--muted) / 0.5);
   border-radius: 5px;
 }
 
@@ -183,20 +183,20 @@ button, a {
 
 .card-hover:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 16px hsl(var(--primary) / 0.1);
+  box-shadow: 0 12px 24px hsl(var(--primary) / 0.12);
 }
 
 /* Platform badges */
 .badge-facebook {
-  background: hsl(var(--primary) / 0.15);
+  background: hsl(var(--primary) / 0.1);
   color: hsl(var(--primary));
-  border: 1px solid hsl(var(--primary) / 0.3);
+  border: 1px solid hsl(var(--primary) / 0.25);
 }
 
 .badge-instagram {
-  background: hsl(var(--secondary) / 0.15);
+  background: hsl(var(--secondary) / 0.1);
   color: hsl(var(--secondary));
-  border: 1px solid hsl(var(--secondary) / 0.3);
+  border: 1px solid hsl(var(--secondary) / 0.25);
 }
 
 /* Status indicators */
