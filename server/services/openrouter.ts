@@ -90,9 +90,27 @@ VERSION 3 - ÉMOTIONNELLE:
   private parseGeneratedText(content: string): GeneratedText[] {
     const variants: GeneratedText[] = [];
     
-    const version1Match = content.match(/VERSION 1 - DYNAMIQUE:\s*\n([\s\S]*?)(?=VERSION 2|$)/i);
-    const version2Match = content.match(/VERSION 2 - INFORMATIVE:\s*\n([\s\S]*?)(?=VERSION 3|$)/i);
-    const version3Match = content.match(/VERSION 3 - ÉMOTIONNELLE:\s*\n([\s\S]*?)$/i);
+    // Normaliser les retours à la ligne (CRLF -> LF)
+    const normalizedContent = content.replace(/\r\n/g, '\n');
+    
+    // Debug: Logger le contenu pour diagnostiquer les échecs de parsing
+    console.log('📝 AI Generated Content (first 500 chars):', normalizedContent.substring(0, 500));
+    
+    // Regex ultra-flexibles acceptant:
+    // - markdown (** optionnel)
+    // - tirets variés (-, –, —)
+    // - espaces variables
+    // - deux-points optionnel
+    // - séparateurs (---, ***, etc.)
+    const version1Match = normalizedContent.match(/\*{0,2}\s*VERSION\s+1\s*[-–—]\s*DYNAMIQUE\s*\*{0,2}:?\s*[\r\n]+([\s\S]*?)(?=\s*[-*]{3,}\s*[\r\n]+|\*{0,2}\s*VERSION\s+2|$)/i);
+    const version2Match = normalizedContent.match(/\*{0,2}\s*VERSION\s+2\s*[-–—]\s*INFORMATIVE?\s*\*{0,2}:?\s*[\r\n]+([\s\S]*?)(?=\s*[-*]{3,}\s*[\r\n]+|\*{0,2}\s*VERSION\s+3|$)/i);
+    const version3Match = normalizedContent.match(/\*{0,2}\s*VERSION\s+3\s*[-–—]\s*[ÉE]MOTIONNELLE?\s*\*{0,2}:?\s*[\r\n]+([\s\S]*?)$/i);
+    
+    console.log('🔍 Regex matches:', {
+      version1: !!version1Match,
+      version2: !!version2Match,
+      version3: !!version3Match
+    });
 
     if (version1Match) {
       const text = version1Match[1].trim();
