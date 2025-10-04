@@ -96,63 +96,111 @@ VERSION 3 - ÉMOTIONNELLE:
   }
 
   private parseGeneratedText(content: string): GeneratedText[] {
+    // Normaliser les retours à la ligne
+    const normalizedContent = content.replace(/\r\n/g, '\n').trim();
+    
+    console.log('🔍 Parsing AI response (length:', normalizedContent.length, ')');
+    
+    // Stratégie 1: Détection des headers VERSION avec parsing intelligent
+    const variants = this.tryMultipleParsingStrategies(normalizedContent);
+    
+    if (variants.length > 0) {
+      console.log('✅ Parsed successfully:', variants.length, 'variants');
+      return variants;
+    }
+    
+    // Fallback: retourner le texte complet
+    console.log('⚠️ Parsing failed, using fallback');
+    return [{
+      variant: "Généré par IA",
+      text: normalizedContent,
+      characterCount: normalizedContent.length
+    }];
+  }
+
+  private tryMultipleParsingStrategies(content: string): GeneratedText[] {
+    // Stratégie 1: Split par headers de VERSION (le plus flexible)
+    const strategy1 = this.parseByVersionHeaders(content);
+    if (strategy1.length >= 3) return strategy1;
+    
+    // Stratégie 2: Regex avec markdown **VERSION N:**
+    const strategy2 = this.parseWithMarkdownHeaders(content);
+    if (strategy2.length >= 3) return strategy2;
+    
+    // Stratégie 3: Regex simple sans markdown
+    const strategy3 = this.parseWithSimpleHeaders(content);
+    if (strategy3.length >= 3) return strategy3;
+    
+    // Retourner le meilleur résultat obtenu
+    return strategy1.length > 0 ? strategy1 : (strategy2.length > 0 ? strategy2 : strategy3);
+  }
+
+  private parseByVersionHeaders(content: string): GeneratedText[] {
     const variants: GeneratedText[] = [];
     
-    // Normaliser les retours à la ligne (CRLF -> LF)
-    const normalizedContent = content.replace(/\r\n/g, '\n');
+    // Chercher tous les patterns VERSION N (très flexible)
+    const versionPattern = /(?:\*{2})?VERSION\s+(\d+)\s*[-–—]\s*([A-ZÀÂÄÉÈÊËÏÎÔÙÛÜ]+)(?:\*{2})?:?/gi;
+    const matches = Array.from(content.matchAll(versionPattern));
     
-    console.log('🔍 AI Response to parse (first 800 chars):\n', normalizedContent.substring(0, 800));
-    console.log('🔍 AI Response length:', normalizedContent.length);
+    if (matches.length < 3) return variants;
     
-    // Regex ultra-flexibles acceptant:
-    // - markdown (** optionnel)
-    // - tirets variés (-, –, —)
-    // - espaces variables
-    // - deux-points optionnel
-    // - séparateurs (---, ***, etc.)
-    const version1Match = normalizedContent.match(/\*{0,2}\s*VERSION\s+1\s*[-–—]\s*DYNAMIQUE\s*\*{0,2}:?\s*[\r\n]+([\s\S]*?)(?=\s*[-*]{3,}\s*[\r\n]+|\*{0,2}\s*VERSION\s+2|$)/i);
-    const version2Match = normalizedContent.match(/\*{0,2}\s*VERSION\s+2\s*[-–—]\s*INFORMATIVE?\s*\*{0,2}:?\s*[\r\n]+([\s\S]*?)(?=\s*[-*]{3,}\s*[\r\n]+|\*{0,2}\s*VERSION\s+3|$)/i);
-    const version3Match = normalizedContent.match(/\*{0,2}\s*VERSION\s+3\s*[-–—]\s*[ÉE]MOTIONNELLE?\s*\*{0,2}:?\s*[\r\n]+([\s\S]*?)$/i);
+    // Extraire le texte entre chaque header
+    for (let i = 0; i < matches.length; i++) {
+      const match = matches[i];
+      const versionNum = match[1];
+      const style = match[2];
+      const startPos = match.index! + match[0].length;
+      const endPos = i < matches.length - 1 ? matches[i + 1].index! : content.length;
+      
+      let text = content.substring(startPos, endPos).trim();
+      
+      // Nettoyer le texte (enlever les séparateurs, notes entre parenthèses au début, etc.)
+      text = text.replace(/^[-*]{3,}\s*/gm, ''); // Enlever les séparateurs
+      text = text.replace(/^\([^)]+\)\s*/gm, ''); // Enlever les notes entre parenthèses
+      text = text.trim();
+      
+      if (text.length > 0) {
+        variants.push({
+          variant: `Version ${versionNum} - ${this.capitalizeFirst(style.toLowerCase())}`,
+          text,
+          characterCount: text.length
+        });
+      }
+    }
     
-    console.log('🔍 Matches found:', { v1: !!version1Match, v2: !!version2Match, v3: !!version3Match });
-
-    if (version1Match) {
-      const text = version1Match[1].trim();
-      variants.push({
-        variant: "Version 1 - Dynamique",
-        text,
-        characterCount: text.length
-      });
-    }
-
-    if (version2Match) {
-      const text = version2Match[1].trim();
-      variants.push({
-        variant: "Version 2 - Informative",
-        text,
-        characterCount: text.length
-      });
-    }
-
-    if (version3Match) {
-      const text = version3Match[1].trim();
-      variants.push({
-        variant: "Version 3 - Émotionnelle",
-        text,
-        characterCount: text.length
-      });
-    }
-
-    // Fallback if parsing fails
-    if (variants.length === 0) {
-      variants.push({
-        variant: "Généré par IA",
-        text: content.trim(),
-        characterCount: content.trim().length
-      });
-    }
-
     return variants;
+  }
+
+  private parseWithMarkdownHeaders(content: string): GeneratedText[] {
+    const variants: GeneratedText[] = [];
+    
+    const v1 = content.match(/\*{2}VERSION\s+1\s*[-–—]\s*DYNAMIQUE:?\*{2}\s*\n([\s\S]*?)(?=\*{2}VERSION\s+2|$)/i);
+    const v2 = content.match(/\*{2}VERSION\s+2\s*[-–—]\s*INFORMATIVE?:?\*{2}\s*\n([\s\S]*?)(?=\*{2}VERSION\s+3|$)/i);
+    const v3 = content.match(/\*{2}VERSION\s+3\s*[-–—]\s*[ÉE]MOTIONNELLE?:?\*{2}\s*\n([\s\S]*?)$/i);
+    
+    if (v1) variants.push({ variant: "Version 1 - Dynamique", text: v1[1].trim(), characterCount: v1[1].trim().length });
+    if (v2) variants.push({ variant: "Version 2 - Informative", text: v2[1].trim(), characterCount: v2[1].trim().length });
+    if (v3) variants.push({ variant: "Version 3 - Émotionnelle", text: v3[1].trim(), characterCount: v3[1].trim().length });
+    
+    return variants;
+  }
+
+  private parseWithSimpleHeaders(content: string): GeneratedText[] {
+    const variants: GeneratedText[] = [];
+    
+    const v1 = content.match(/VERSION\s+1\s*[-–—]\s*DYNAMIQUE:?\s*\n([\s\S]*?)(?=VERSION\s+2|$)/i);
+    const v2 = content.match(/VERSION\s+2\s*[-–—]\s*INFORMATIVE?:?\s*\n([\s\S]*?)(?=VERSION\s+3|$)/i);
+    const v3 = content.match(/VERSION\s+3\s*[-–—]\s*[ÉE]MOTIONNELLE?:?\s*\n([\s\S]*?)$/i);
+    
+    if (v1) variants.push({ variant: "Version 1 - Dynamique", text: v1[1].trim(), characterCount: v1[1].trim().length });
+    if (v2) variants.push({ variant: "Version 2 - Informative", text: v2[1].trim(), characterCount: v2[1].trim().length });
+    if (v3) variants.push({ variant: "Version 3 - Émotionnelle", text: v3[1].trim(), characterCount: v3[1].trim().length });
+    
+    return variants;
+  }
+
+  private capitalizeFirst(text: string): string {
+    return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
   }
 }
 
