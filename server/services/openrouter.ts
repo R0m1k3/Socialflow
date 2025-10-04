@@ -56,10 +56,9 @@ export class OpenRouterService {
       }
 
       const data = await response.json();
-      console.log('OpenRouter API Response:', JSON.stringify(data, null, 2));
       
       if (!data.choices || !data.choices[0]) {
-        console.error('Invalid OpenRouter response structure:', data);
+        console.error('Invalid OpenRouter response - no choices:', { hasChoices: !!data.choices, model: config.model });
         throw new Error('Réponse invalide de l\'API OpenRouter. Vérifiez votre clé API et votre modèle.');
       }
       
@@ -102,9 +101,6 @@ VERSION 3 - ÉMOTIONNELLE:
     // Normaliser les retours à la ligne (CRLF -> LF)
     const normalizedContent = content.replace(/\r\n/g, '\n');
     
-    // Debug: Logger le contenu pour diagnostiquer les échecs de parsing
-    console.log('📝 AI Generated Content (first 500 chars):', normalizedContent.substring(0, 500));
-    
     // Regex ultra-flexibles acceptant:
     // - markdown (** optionnel)
     // - tirets variés (-, –, —)
@@ -114,12 +110,6 @@ VERSION 3 - ÉMOTIONNELLE:
     const version1Match = normalizedContent.match(/\*{0,2}\s*VERSION\s+1\s*[-–—]\s*DYNAMIQUE\s*\*{0,2}:?\s*[\r\n]+([\s\S]*?)(?=\s*[-*]{3,}\s*[\r\n]+|\*{0,2}\s*VERSION\s+2|$)/i);
     const version2Match = normalizedContent.match(/\*{0,2}\s*VERSION\s+2\s*[-–—]\s*INFORMATIVE?\s*\*{0,2}:?\s*[\r\n]+([\s\S]*?)(?=\s*[-*]{3,}\s*[\r\n]+|\*{0,2}\s*VERSION\s+3|$)/i);
     const version3Match = normalizedContent.match(/\*{0,2}\s*VERSION\s+3\s*[-–—]\s*[ÉE]MOTIONNELLE?\s*\*{0,2}:?\s*[\r\n]+([\s\S]*?)$/i);
-    
-    console.log('🔍 Regex matches:', {
-      version1: !!version1Match,
-      version2: !!version2Match,
-      version3: !!version3Match
-    });
 
     if (version1Match) {
       const text = version1Match[1].trim();
