@@ -1,8 +1,19 @@
 import { CalendarCheck, Users, Bot, Images, TrendingUp, TrendingDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
+interface StatsResponse {
+  scheduledPosts: number;
+  scheduledPostsChange?: string;
+  scheduledPostsTrending?: "up" | "down";
+  connectedPages: number;
+  aiTextsGenerated: number;
+  aiTextsChange?: string;
+  aiTextsTrending?: "up" | "down";
+  mediaStored: number;
+}
+
 export default function StatsCards() {
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading } = useQuery<StatsResponse>({
     queryKey: ["/api/stats"],
   });
 
@@ -10,32 +21,32 @@ export default function StatsCards() {
     {
       icon: CalendarCheck,
       iconColor: "from-blue-500 to-blue-600",
-      title: (stats as any)?.scheduledPosts ?? 0,
+      title: stats?.scheduledPosts ?? 0,
       subtitle: "Publications planifiées",
-      change: "+12%",
-      trending: "up",
+      change: stats?.scheduledPostsChange,
+      trending: stats?.scheduledPostsTrending,
       changeLabel: "vs mois dernier",
     },
     {
       icon: Users,
       iconColor: "from-purple-500 to-purple-600",
-      title: (stats as any)?.connectedPages ?? 0,
+      title: stats?.connectedPages ?? 0,
       subtitle: "Pages connectées",
       info: "Facebook • Instagram",
     },
     {
       icon: Bot,
       iconColor: "from-green-500 to-green-600",
-      title: (stats as any)?.aiTextsGenerated ?? 0,
+      title: stats?.aiTextsGenerated ?? 0,
       subtitle: "Textes générés par IA",
-      change: "+8%",
-      trending: "up",
+      change: stats?.aiTextsChange,
+      trending: stats?.aiTextsTrending,
       changeLabel: "vs hier",
     },
     {
       icon: Images,
       iconColor: "from-cyan-500 to-cyan-600",
-      title: (stats as any)?.mediaStored ?? 0,
+      title: stats?.mediaStored ?? 0,
       subtitle: "Médias stockés",
       info: "Images • Vidéos",
     },

@@ -369,12 +369,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const media = await storage.getMedia(userId);
       const aiGenerations = await storage.getAiGenerations(userId);
 
+      // Statistiques actuelles
       const scheduledPosts = posts.filter(p => p.status === "scheduled").length;
+      const currentAiTexts = aiGenerations.length;
+      const currentMedia = media.length;
+
+      // Calculer les statistiques de la période précédente (hier pour les textes IA, mois dernier pour les posts)
+      const now = new Date();
+      const yesterday = new Date(now);
+      yesterday.setDate(yesterday.getDate() - 1);
+      yesterday.setHours(0, 0, 0, 0);
+      
+      const lastMonth = new Date(now);
+      lastMonth.setMonth(lastMonth.getMonth() - 1);
+
+      // Textes IA générés hier
+      const aiTextsYesterday = aiGenerations.filter(gen => {
+        if (!gen.createdAt) return false;
+        const genDate = new Date(gen.createdAt);
+        genDate.setHours(0, 0, 0, 0);
+        return genDate.getTime() === yesterday.getTime();
+      }).length;
+
+      // Posts planifiés le mois dernier
+      const scheduledPostsLastMonth = posts.filter(p => {
+        if (!p.createdAt) return false;
+        const createdDate = new Date(p.createdAt);
+        return p.status === "scheduled" && createdDate < lastMonth;
+      }).length;
+
+      // Calculer les variations en pourcentage
+      const aiTextChange = aiTextsYesterday > 0 
+        ? Math.round(((currentAiTexts - aiTextsYesterday) / aiTextsYesterday) * 100)
+        : currentAiTexts > 0 ? 100 : 0;
+
+      const scheduledPostsChange = scheduledPostsLastMonth > 0
+        ? Math.round(((scheduledPosts - scheduledPostsLastMonth) / scheduledPostsLastMonth) * 100)
+        : scheduledPosts > 0 ? 100 : 0;
 
       res.json({
         scheduledPosts,
+        scheduledPostsChange: scheduledPostsChange > 0 ? `+${scheduledPostsChange}%` : `${scheduledPostsChange}%`,
+        scheduledPostsTrending: scheduledPostsChange >= 0 ? "up" : "down",
         connectedPages: pages.length,
-        aiTextsGenerated: aiGenerations.length,
+        aiTextsGenerated: currentAiTexts,
+        aiTextsChange: aiTextChange > 0 ? `+${aiTextChange}%` : `${aiTextChange}%`,
+        aiTextsTrending: aiTextChange >= 0 ? "up" : "down",
         mediaStored: media.length,
       });
     } catch (error) {
