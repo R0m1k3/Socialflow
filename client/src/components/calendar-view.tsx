@@ -1,15 +1,44 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trash2 } from "lucide-react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { ScheduledPost } from "@shared/schema";
 
 export default function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const { toast } = useToast();
 
   const { data: scheduledPosts = [] } = useQuery<ScheduledPost[]>({
     queryKey: ["/api/scheduled-posts"],
   });
+
+  const deletePostMutation = useMutation({
+    mutationFn: (postId: string) => 
+      apiRequest('DELETE', `/api/scheduled-posts/${postId}`, {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/scheduled-posts'] });
+      toast({
+        title: "Publication supprimée",
+        description: "La publication programmée a été supprimée avec succès",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer la publication",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeletePost = (postId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm("Êtes-vous sûr de vouloir supprimer cette publication programmée ?")) {
+      deletePostMutation.mutate(postId);
+    }
+  };
 
   const getPostsForDate = (date: Date) => {
     return (scheduledPosts || []).filter(post => {
@@ -161,14 +190,28 @@ export default function CalendarView() {
                         <div 
                           key={idx}
                           className={`
-                            px-3 py-2 rounded-lg text-xs cursor-pointer transition-all font-medium shadow-sm
-                            ${isPending ? 'bg-warning/20 text-warning hover:bg-warning/30' : ''}
-                            ${isPublished ? 'bg-success/20 text-success hover:bg-success/30' : ''}
+                            px-3 py-2 rounded-lg text-xs transition-all font-medium shadow-sm group relative
+                            ${isPending ? 'bg-blue-500/20 text-blue-600 hover:bg-blue-500/30' : ''}
+                            ${isPublished ? 'bg-green-500/20 text-green-600 hover:bg-green-500/30' : ''}
                           `}
                           data-testid={`calendar-post-${post.id}`}
                         >
-                          <div className="font-semibold">{time}</div>
-                          <div className="truncate opacity-90">{post.postType || 'Post'}</div>
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold">{time}</div>
+                              <div className="truncate opacity-90">{post.postType || 'Post'}</div>
+                            </div>
+                            {isPending && (
+                              <button
+                                onClick={(e) => handleDeletePost(post.id, e)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded"
+                                data-testid={`button-delete-post-${post.id}`}
+                                title="Supprimer"
+                              >
+                                <Trash2 className="w-3 h-3 text-red-500" />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -186,11 +229,11 @@ export default function CalendarView() {
 
         <div className="mt-8 flex items-center justify-center gap-8 flex-wrap">
           <div className="flex items-center gap-3">
-            <div className="w-4 h-4 rounded-md bg-warning/20 border-2 border-warning"></div>
+            <div className="w-4 h-4 rounded-md bg-blue-500/20 border-2 border-blue-500"></div>
             <span className="text-sm text-muted-foreground font-medium">Programmé</span>
           </div>
           <div className="flex items-center gap-3">
-            <div className="w-4 h-4 rounded-md bg-success/20 border-2 border-success"></div>
+            <div className="w-4 h-4 rounded-md bg-green-500/20 border-2 border-green-500"></div>
             <span className="text-sm text-muted-foreground font-medium">Publié</span>
           </div>
         </div>

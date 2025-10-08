@@ -30,11 +30,26 @@ export class FacebookService {
       throw new Error('No access token found for this page');
     }
 
-    // If there's media, publish as photo post, otherwise as text post
-    if (media) {
-      return await this.publishPhotoPost(post, page, media);
+    // Handle different post types
+    // Note: "both" type should never reach here - new posts are split at creation
+    // If it does reach here (legacy data), throw an error
+    if (postType === 'both') {
+      throw new Error('postType "both" is not supported. Posts should be split into separate feed and story entries at creation.');
+    }
+    
+    if (postType === 'story') {
+      // Publish as story only
+      if (!media) {
+        throw new Error('Stories require media (photo or video)');
+      }
+      return await this.publishStory(post, page, media);
     } else {
-      return await this.publishTextPost(post, page);
+      // Default to feed
+      if (media) {
+        return await this.publishPhotoPost(post, page, media);
+      } else {
+        return await this.publishTextPost(post, page);
+      }
     }
   }
 
@@ -164,6 +179,30 @@ export class FacebookService {
 
     const data = await response.json() as FacebookPhotoResponse;
     return data.post_id || data.id;
+  }
+
+  private async publishStory(post: Post, page: SocialPage, media: Media): Promise<string> {
+    // Use vertical format for stories (Instagram Story URL 1080x1920)
+    const photoUrl = media.instagramStoryUrl || media.originalUrl;
+
+    const params = new URLSearchParams({
+      access_token: page.accessToken!,
+      url: photoUrl,
+    });
+
+    const url = `${this.baseUrl}/${page.pageId}/photo_stories?${params.toString()}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+    });
+
+    if (!response.ok) {
+      const error = await response.json() as FacebookError;
+      throw new Error(`Facebook API error: ${error.error.message} (code: ${error.error.code})`);
+    }
+
+    const data = await response.json() as FacebookPhotoResponse;
+    return data.id;
   }
 }
 

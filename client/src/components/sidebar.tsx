@@ -38,7 +38,6 @@ export default function Sidebar() {
     { icon: PlusCircle, label: "Nouvelle publication", href: "/new", badge: null },
     { icon: Calendar, label: "Calendrier", href: "/calendar", badge: null },
     { icon: Images, label: "Médiathèque", href: "/media", badge: null },
-    { icon: Users, label: "Pages gérées", href: "/pages", badge: null },
     { icon: Bot, label: "Assistant IA", href: "/ai", badge: null },
   ];
 
@@ -141,6 +140,23 @@ export default function Sidebar() {
             <div className="mb-2">
               <p className="text-xs font-semibold text-muted-foreground mb-2 px-4 uppercase tracking-wider">Administration</p>
             </div>
+            <Link 
+              href="/pages"
+              className={`
+                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative
+                ${location === "/pages"
+                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
+                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+                }
+              `}
+              data-testid="link-pages-gérées"
+            >
+              {location === "/pages" && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 gradient-primary rounded-r-full" />
+              )}
+              <Users className="w-5 h-5" />
+              <span>Pages gérées</span>
+            </Link>
             <Link 
               href="/users"
               className={`

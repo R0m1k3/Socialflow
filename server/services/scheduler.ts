@@ -27,6 +27,23 @@ export class SchedulerService {
 
       for (const scheduledPost of pendingPosts) {
         try {
+          // Reject legacy "both" posts - they should have been split at creation
+          // New posts are automatically split in /api/posts
+          if (scheduledPost.postType === 'both') {
+            const errorMsg = 'Legacy postType "both" is no longer supported. Deleting this scheduled entry. Please recreate this post - it will automatically be split into separate feed and story posts.';
+            console.error(`Rejecting and deleting legacy "both" post ${scheduledPost.id}: ${errorMsg}`);
+            
+            // Delete the legacy post entirely (don't mark as published - that's misleading)
+            await storage.deleteScheduledPost(scheduledPost.id);
+            
+            // Update parent post status to draft so user can reschedule
+            await storage.updatePost(scheduledPost.postId, {
+              status: "draft",
+            });
+            
+            continue;
+          }
+          
           await this.publishPost(scheduledPost);
         } catch (error) {
           console.error(`Error publishing post ${scheduledPost.id}:`, error);
@@ -53,6 +70,22 @@ export class SchedulerService {
     // Get media if post has media
     const postMediaList = await storage.getPostMedia(post.id);
     const media = postMediaList.length > 0 ? await storage.getMediaById(postMediaList[0].mediaId) : undefined;
+
+    // Validate that story posts have media
+    // Note: "both" should never reach here since they're split at creation
+    if (scheduledPost.postType === 'story' && !media) {
+      const errorMsg = 'Les stories nécessitent un média. Ce post ne peut pas être publié.';
+      console.error(`Deleting invalid story post ${scheduledPost.id} without media: ${errorMsg}`);
+      
+      // Delete the invalid scheduled post (don't mark as published - that's misleading)
+      await storage.deleteScheduledPost(scheduledPost.id);
+      
+      // Set post to draft so user can fix and reschedule
+      await storage.updatePost(post.id, {
+        status: "draft",
+      });
+      return;
+    }
 
     // Publish to Facebook/Instagram
     let externalPostId: string;

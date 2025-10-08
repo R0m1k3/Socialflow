@@ -1,6 +1,10 @@
 -- Script d'initialisation de la base de données Social Flow
 -- Ce fichier contient les commandes SQL pour créer les tables et l'utilisateur admin par défaut
 
+-- IMPORTANT: Pour les serveurs privés existants, ajouter la valeur 'both' à l'enum post_type
+-- Commande à exécuter manuellement sur votre serveur privé :
+-- ALTER TYPE post_type ADD VALUE IF NOT EXISTS 'both';
+
 -- Créer l'enum pour les rôles utilisateur (si pas déjà créé par drizzle-kit push)
 DO $$ BEGIN
   CREATE TYPE user_role AS ENUM ('admin', 'user');

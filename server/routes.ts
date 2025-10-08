@@ -445,6 +445,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = user.id;
       const { pageIds, postType, mediaId, ...postFields } = req.body;
       
+      // Validate that stories require media
+      if ((postType === 'story' || postType === 'both') && !mediaId) {
+        return res.status(400).json({ error: "Les stories nécessitent un média (image ou vidéo)" });
+      }
+      
       // Convert scheduledFor string to Date if provided
       if (postFields.scheduledFor && typeof postFields.scheduledFor === 'string') {
         postFields.scheduledFor = new Date(postFields.scheduledFor);
@@ -468,13 +473,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? new Date(postFields.scheduledFor) 
           : new Date(); // Publish immediately if no date specified
         
+        const finalPostType = postType || 'feed';
+        
         for (const pageId of pageIds) {
-          await storage.createScheduledPost({
-            postId: post.id,
-            pageId,
-            postType: postType || 'feed',
-            scheduledAt,
-          });
+          // If postType is "both", create two separate scheduled posts (story + feed)
+          if (finalPostType === 'both') {
+            await storage.createScheduledPost({
+              postId: post.id,
+              pageId,
+              postType: 'story',
+              scheduledAt,
+            });
+            await storage.createScheduledPost({
+              postId: post.id,
+              pageId,
+              postType: 'feed',
+              scheduledAt,
+            });
+          } else {
+            await storage.createScheduledPost({
+              postId: post.id,
+              pageId,
+              postType: finalPostType,
+              scheduledAt,
+            });
+          }
         }
       }
       
@@ -504,11 +527,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/scheduled-posts/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const userId = user.id;
+      const { id } = req.params;
+      
+      // Verify the scheduled post belongs to the user before deleting
+      const scheduledPost = await storage.getScheduledPost(id);
+      if (!scheduledPost) {
+        return res.status(404).json({ error: "Scheduled post not found" });
+      }
+      
+      const post = await storage.getPost(scheduledPost.postId);
+      if (!post || post.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      await storage.deleteScheduledPost(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting scheduled post:", error);
+      res.status(500).json({ error: "Failed to delete scheduled post" });
+    }
+  });
+
   app.post("/api/scheduled-posts", requireAuth, async (req, res) => {
     try {
       const scheduledPostData = insertScheduledPostSchema.parse(req.body);
-      const scheduledPost = await storage.createScheduledPost(scheduledPostData);
-      res.json(scheduledPost);
+      
+      // If postType is "both", create two separate scheduled posts (story + feed)
+      // This prevents retry loops - each post type is independent
+      if (scheduledPostData.postType === 'both') {
+        const [storyPost, feedPost] = await Promise.all([
+          storage.createScheduledPost({
+            ...scheduledPostData,
+            postType: 'story' as const,
+          }),
+          storage.createScheduledPost({
+            ...scheduledPostData,
+            postType: 'feed' as const,
+          }),
+        ]);
+        // Return array so frontend knows it's a split operation
+        res.json([storyPost, feedPost]);
+      } else {
+        const scheduledPost = await storage.createScheduledPost(scheduledPostData);
+        res.json(scheduledPost);
+      }
     } catch (error) {
       console.error("Error creating scheduled post:", error);
       res.status(500).json({ error: "Failed to create scheduled post" });
