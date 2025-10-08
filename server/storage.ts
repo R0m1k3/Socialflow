@@ -185,11 +185,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Scheduled Posts
-  async getScheduledPosts(userId: string, startDate?: Date, endDate?: Date): Promise<ScheduledPost[]> {
+  async getScheduledPosts(userId: string, startDate?: Date, endDate?: Date): Promise<any[]> {
     let query = db
       .select()
       .from(scheduledPosts)
       .innerJoin(posts, eq(scheduledPosts.postId, posts.id))
+      .leftJoin(socialPages, eq(scheduledPosts.pageId, socialPages.id))
       .where(eq(posts.userId, userId));
 
     if (startDate && endDate) {
@@ -199,11 +200,19 @@ export class DatabaseStorage implements IStorage {
           const scheduledAt = new Date(r.scheduled_posts.scheduledAt);
           return scheduledAt >= startDate && scheduledAt <= endDate;
         })
-        .map(r => r.scheduled_posts);
+        .map(r => ({
+          ...r.scheduled_posts,
+          post: r.posts,
+          page: r.social_pages,
+        }));
     }
 
     const results = await query;
-    return results.map(r => r.scheduled_posts);
+    return results.map(r => ({
+      ...r.scheduled_posts,
+      post: r.posts,
+      page: r.social_pages,
+    }));
   }
 
   async getScheduledPost(id: string): Promise<ScheduledPost | undefined> {
