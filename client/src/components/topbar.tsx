@@ -1,4 +1,4 @@
-import { Bell, Menu, Search } from "lucide-react";
+import { Menu, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
 interface TopBarProps {
@@ -26,12 +26,6 @@ export default function TopBar({ onMenuClick }: TopBarProps) {
               />
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <button className="relative p-2.5 text-muted-foreground hover:text-primary hover:bg-muted/30 rounded-xl transition-all" data-testid="button-notifications">
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-destructive rounded-full ring-2 ring-card"></span>
-          </button>
         </div>
       </div>
     </header>
