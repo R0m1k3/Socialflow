@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
@@ -25,6 +26,7 @@ export default function NewPost() {
   const [scheduledDate, setScheduledDate] = useState('');
   const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
   const [postText, setPostText] = useState('');
+  const [postType, setPostType] = useState<'feed' | 'story' | 'both'>('feed');
 
   const { data: pages = [] } = useQuery<SocialPage[]>({
     queryKey: ['/api/pages'],
@@ -115,12 +117,21 @@ export default function NewPost() {
       return;
     }
 
+    if ((postType === 'story' || postType === 'both') && !selectedMedia) {
+      toast({
+        title: "Média requis",
+        description: "Les stories nécessitent une image ou vidéo",
+        variant: "destructive",
+      });
+      return;
+    }
+
     createPostMutation.mutate({
       content: postText,
       scheduledFor: scheduledDate || undefined,
       mediaId: selectedMedia || undefined,
       pageIds: selectedPages,
-      postType: 'feed', // Default to feed post
+      postType,
     });
   };
 
@@ -329,6 +340,33 @@ export default function NewPost() {
                       ))}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
+                  <CardTitle>Type de publication</CardTitle>
+                  <CardDescription>Choisissez où publier</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    <Label htmlFor="postType">Format</Label>
+                    <Select value={postType} onValueChange={(value: 'feed' | 'story' | 'both') => setPostType(value)}>
+                      <SelectTrigger id="postType" data-testid="select-post-type">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="feed" data-testid="option-feed">Feed uniquement</SelectItem>
+                        <SelectItem value="story" data-testid="option-story">Story uniquement</SelectItem>
+                        <SelectItem value="both" data-testid="option-both">Feed + Story</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {postType === 'feed' && 'Publication classique dans le fil d\'actualité'}
+                      {postType === 'story' && 'Story éphémère (24h) - Nécessite un média'}
+                      {postType === 'both' && 'Publie à la fois dans le feed et en story - Nécessite un média'}
+                    </p>
+                  </div>
                 </CardContent>
               </Card>
 

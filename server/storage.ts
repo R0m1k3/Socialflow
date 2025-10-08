@@ -62,6 +62,7 @@ export interface IStorage {
   // Scheduled Posts
   getScheduledPosts(userId: string, startDate?: Date, endDate?: Date): Promise<ScheduledPost[]>;
   getScheduledPost(id: string): Promise<ScheduledPost | undefined>;
+  getScheduledPostsByPost(postId: string): Promise<ScheduledPost[]>;
   createScheduledPost(scheduledPost: InsertScheduledPost): Promise<ScheduledPost>;
   updateScheduledPost(id: string, scheduledPost: Partial<ScheduledPost>): Promise<ScheduledPost>;
   deleteScheduledPost(id: string): Promise<void>;
@@ -208,6 +209,10 @@ export class DatabaseStorage implements IStorage {
   async getScheduledPost(id: string): Promise<ScheduledPost | undefined> {
     const [scheduledPost] = await db.select().from(scheduledPosts).where(eq(scheduledPosts.id, id));
     return scheduledPost || undefined;
+  }
+
+  async getScheduledPostsByPost(postId: string): Promise<ScheduledPost[]> {
+    return await db.select().from(scheduledPosts).where(eq(scheduledPosts.postId, postId));
   }
 
   async createScheduledPost(scheduledPost: InsertScheduledPost): Promise<ScheduledPost> {
