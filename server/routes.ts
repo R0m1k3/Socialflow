@@ -252,6 +252,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Route pour migrer les permissions existantes (réservée aux admins)
+  app.post("/api/admin/migrate-permissions", requireAdmin, async (req, res) => {
+    try {
+      // Récupérer tous les utilisateurs
+      const allUsers = await storage.getAllUsers();
+      let migratedCount = 0;
+
+      for (const user of allUsers) {
+        // Récupérer toutes les pages créées par cet utilisateur
+        const userPages = await storage.getSocialPages(user.id);
+
+        for (const page of userPages) {
+          // Vérifier si une permission existe déjà
+          const existingPermissions = await storage.getUserPagePermissions(user.id);
+          const hasPermission = existingPermissions.some(p => p.pageId === page.id);
+
+          if (!hasPermission) {
+            // Créer la permission
+            await storage.createPagePermission({ userId: user.id, pageId: page.id });
+            migratedCount++;
+          }
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        message: `${migratedCount} permissions migrées avec succès`,
+        migratedCount 
+      });
+    } catch (error) {
+      console.error("Error migrating permissions:", error);
+      res.status(500).json({ error: "Erreur lors de la migration des permissions" });
+    }
+  });
+
   // Route pour vérifier si le mot de passe admin par défaut a été changé
   app.get("/api/auth/default-password-status", async (req, res) => {
     try {
