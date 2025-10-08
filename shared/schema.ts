@@ -101,12 +101,20 @@ export const aiGenerations = pgTable("ai_generations", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const userPagePermissions = pgTable("user_page_permissions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  pageId: varchar("page_id").notNull().references(() => socialPages.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   socialPages: many(socialPages),
   media: many(media),
   posts: many(posts),
   aiGenerations: many(aiGenerations),
+  pagePermissions: many(userPagePermissions),
   cloudinaryConfig: one(cloudinaryConfig),
   openrouterConfig: one(openrouterConfig),
 }));
@@ -131,6 +139,7 @@ export const socialPagesRelations = relations(socialPages, ({ one, many }) => ({
     references: [users.id],
   }),
   scheduledPosts: many(scheduledPosts),
+  userPermissions: many(userPagePermissions),
 }));
 
 export const mediaRelations = relations(media, ({ one, many }) => ({
@@ -176,6 +185,17 @@ export const aiGenerationsRelations = relations(aiGenerations, ({ one }) => ({
   user: one(users, {
     fields: [aiGenerations.userId],
     references: [users.id],
+  }),
+}));
+
+export const userPagePermissionsRelations = relations(userPagePermissions, ({ one }) => ({
+  user: one(users, {
+    fields: [userPagePermissions.userId],
+    references: [users.id],
+  }),
+  page: one(socialPages, {
+    fields: [userPagePermissions.pageId],
+    references: [socialPages.id],
   }),
 }));
 
@@ -235,6 +255,11 @@ export const updateCloudinaryConfigSchema = insertCloudinaryConfigSchema.partial
   apiSecret: true,
 });
 
+export const insertUserPagePermissionSchema = createInsertSchema(userPagePermissions).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -263,3 +288,6 @@ export type InsertOpenrouterConfig = z.infer<typeof insertOpenrouterConfigSchema
 export type UpdateOpenrouterConfig = z.infer<typeof updateOpenrouterConfigSchema>;
 
 export type PostMedia = typeof postMedia.$inferSelect;
+
+export type UserPagePermission = typeof userPagePermissions.$inferSelect;
+export type InsertUserPagePermission = z.infer<typeof insertUserPagePermissionSchema>;
