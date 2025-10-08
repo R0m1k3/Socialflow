@@ -79,6 +79,7 @@ export const postMedia = pgTable("post_media", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   postId: varchar("post_id").notNull().references(() => posts.id, { onDelete: "cascade" }),
   mediaId: varchar("media_id").notNull().references(() => media.id, { onDelete: "cascade" }),
+  displayOrder: integer("display_order").notNull().default(0),
 });
 
 export const scheduledPosts = pgTable("scheduled_posts", {
@@ -260,6 +261,10 @@ export const insertUserPagePermissionSchema = createInsertSchema(userPagePermiss
   createdAt: true,
 });
 
+export const insertPostMediaSchema = createInsertSchema(postMedia).omit({
+  id: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -288,6 +293,7 @@ export type InsertOpenrouterConfig = z.infer<typeof insertOpenrouterConfigSchema
 export type UpdateOpenrouterConfig = z.infer<typeof updateOpenrouterConfigSchema>;
 
 export type PostMedia = typeof postMedia.$inferSelect;
+export type InsertPostMedia = z.infer<typeof insertPostMediaSchema>;
 
 export type UserPagePermission = typeof userPagePermissions.$inferSelect;
 export type InsertUserPagePermission = z.infer<typeof insertUserPagePermissionSchema>;
