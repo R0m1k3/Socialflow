@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Calendar, Images, Users, Bot, BarChart3, Clock, Settings, Database, UserCog, LogOut } from "lucide-react";
+import { Home, PlusCircle, Calendar, Images, Users, Bot, Clock, Settings, Database, UserCog, LogOut } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -42,7 +42,6 @@ export default function Sidebar() {
   ];
 
   const statsItems = [
-    { icon: BarChart3, label: "Analyses", href: "/analytics" },
     { icon: Clock, label: "Historique", href: "/history" },
   ];
 

@@ -12,7 +12,6 @@ import Calendar from "@/pages/calendar";
 import Media from "@/pages/media";
 import PagesManagement from "@/pages/pages";
 import AI from "@/pages/ai";
-import Analytics from "@/pages/analytics";
 import History from "@/pages/history";
 import Settings from "@/pages/settings";
 import SqlAdmin from "@/pages/sql";
@@ -71,7 +70,6 @@ function Router() {
       <Route path="/media">{() => <ProtectedRoute component={Media} />}</Route>
       <Route path="/pages">{() => <ProtectedRoute component={PagesManagement} />}</Route>
       <Route path="/ai">{() => <ProtectedRoute component={AI} />}</Route>
-      <Route path="/analytics">{() => <ProtectedRoute component={Analytics} />}</Route>
       <Route path="/history">{() => <ProtectedRoute component={History} />}</Route>
       <Route path="/settings">{() => <ProtectedRoute component={Settings} adminOnly />}</Route>
       <Route path="/sql">{() => <ProtectedRoute component={SqlAdmin} adminOnly />}</Route>
