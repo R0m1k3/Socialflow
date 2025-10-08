@@ -32,6 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
+import { PreviewModal } from "@/components/preview-modal";
 
 function SortableMediaItem({ 
   media, 
@@ -109,6 +110,7 @@ export default function NewPost() {
   const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
   const [postText, setPostText] = useState('');
   const [postType, setPostType] = useState<'feed' | 'story' | 'both'>('feed');
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
   const { data: pages = [] } = useQuery<SocialPage[]>({
     queryKey: ['/api/pages'],
@@ -675,19 +677,29 @@ export default function NewPost() {
               </Card>
 
               <Button 
-                onClick={handleCreatePost}
+                onClick={() => setPreviewModalOpen(true)}
                 disabled={createPostMutation.isPending}
                 className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 shadow-lg"
                 size="lg"
-                data-testid="button-create-post"
+                data-testid="button-preview-post"
               >
                 <Send className="w-4 h-4 mr-2" />
-                {createPostMutation.isPending ? 'Création...' : 'Créer la publication'}
+                Prévisualiser et publier
               </Button>
             </div>
           </div>
         </div>
       </main>
+      
+      <PreviewModal
+        open={previewModalOpen}
+        onOpenChange={setPreviewModalOpen}
+        postText={postText}
+        selectedMedia={selectedMedia}
+        mediaList={mediaList}
+        onPublish={handleCreatePost}
+        isPublishing={createPostMutation.isPending}
+      />
     </div>
   );
 }
