@@ -557,11 +557,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const userId = user.id;
-      const { pageIds, postType, mediaId, ...postFields } = req.body;
+      const { pageIds, postType, mediaId, mediaIds, ...postFields } = req.body;
+      
+      // Convert mediaIds to standardized format: array of { mediaId, displayOrder }
+      let finalMediaItems: Array<{ mediaId: string; displayOrder: number }> = [];
+      
+      if (mediaIds && Array.isArray(mediaIds)) {
+        // New format: array of objects or strings
+        finalMediaItems = mediaIds.map((item: any, index: number) => {
+          if (typeof item === 'string') {
+            // Legacy array of strings: use index as displayOrder
+            return { mediaId: item, displayOrder: index };
+          } else if (item.mediaId) {
+            // New format: object with mediaId and displayOrder
+            return {
+              mediaId: item.mediaId,
+              displayOrder: item.displayOrder ?? index,
+            };
+          }
+          throw new Error("Invalid media format");
+        });
+      } else if (mediaId) {
+        // Legacy single mediaId
+        finalMediaItems = [{ mediaId, displayOrder: 0 }];
+      }
+      
+      // Validate max 10 photos
+      if (finalMediaItems.length > 10) {
+        return res.status(400).json({ error: "Maximum 10 photos autorisées par publication" });
+      }
       
       // Validate that stories require media
-      if ((postType === 'story' || postType === 'both') && !mediaId) {
-        return res.status(400).json({ error: "Les stories nécessitent un média (image ou vidéo)" });
+      if ((postType === 'story' || postType === 'both') && finalMediaItems.length === 0) {
+        return res.status(400).json({ error: "Les stories nécessitent au moins un média (image ou vidéo)" });
       }
       
       // Convert scheduledFor string to Date if provided
@@ -573,12 +601,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const postData = insertPostSchema.parse({ ...postFields, userId });
       const post = await storage.createPost(postData);
       
-      // Link media to post if provided
-      if (mediaId) {
-        await db.insert(postMedia).values({
+      // Link media to post if provided (with display order)
+      if (finalMediaItems.length > 0) {
+        const postMediaValues = finalMediaItems.map(item => ({
           postId: post.id,
-          mediaId: mediaId,
-        });
+          mediaId: item.mediaId,
+          displayOrder: item.displayOrder,
+        }));
+        await db.insert(postMedia).values(postMediaValues);
       }
       
       // Create scheduled posts for each selected page
