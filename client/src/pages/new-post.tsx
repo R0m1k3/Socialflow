@@ -23,7 +23,7 @@ export default function NewPost() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   
   const [productInfo, setProductInfo] = useState('');
-  const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [scheduledDate, setScheduledDate] = useState('');
   const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
@@ -51,7 +51,18 @@ export default function NewPost() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/media"] });
-      setSelectedMedia(data.id);
+      // Add to selected media array if not already at max (10)
+      setSelectedMedia(prev => {
+        if (prev.length >= 10) {
+          toast({
+            title: "Limite atteinte",
+            description: "Maximum 10 photos par publication",
+            variant: "destructive",
+          });
+          return prev;
+        }
+        return [...prev, data.id];
+      });
       toast({
         title: "Succès",
         description: "Photo téléchargée avec succès",
@@ -164,10 +175,10 @@ export default function NewPost() {
       return;
     }
 
-    if ((postType === 'story' || postType === 'both') && !selectedMedia) {
+    if ((postType === 'story' || postType === 'both') && selectedMedia.length === 0) {
       toast({
         title: "Média requis",
-        description: "Les stories nécessitent une image ou vidéo",
+        description: "Les stories nécessitent au moins une image ou vidéo",
         variant: "destructive",
       });
       return;
@@ -176,7 +187,7 @@ export default function NewPost() {
     createPostMutation.mutate({
       content: postText,
       scheduledFor: scheduledDate || undefined,
-      mediaId: selectedMedia || undefined,
+      mediaIds: selectedMedia.length > 0 ? selectedMedia : undefined,
       pageIds: selectedPages,
       postType,
     });
@@ -299,24 +310,48 @@ export default function NewPost() {
                       </div>
                     ) : (
                       <div className="grid grid-cols-3 gap-2">
-                        {mediaList.map((media) => (
-                          <button
-                            key={media.id}
-                            onClick={() => setSelectedMedia(media.id)}
-                            className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                              selectedMedia === media.id
-                                ? 'border-primary ring-2 ring-primary'
-                                : 'border-transparent hover:border-muted-foreground'
-                            }`}
-                            data-testid={`button-select-media-${media.id}`}
-                          >
-                            <img 
-                              src={media.originalUrl} 
-                              alt={media.fileName}
-                              className="w-full h-full object-cover"
-                            />
-                          </button>
-                        ))}
+                        {mediaList.map((media) => {
+                          const isSelected = selectedMedia.includes(media.id);
+                          const selectionIndex = selectedMedia.indexOf(media.id);
+                          
+                          return (
+                            <button
+                              key={media.id}
+                              onClick={() => {
+                                if (isSelected) {
+                                  // Remove from selection
+                                  setSelectedMedia(prev => prev.filter(id => id !== media.id));
+                                } else if (selectedMedia.length < 10) {
+                                  // Add to selection (max 10)
+                                  setSelectedMedia(prev => [...prev, media.id]);
+                                } else {
+                                  toast({
+                                    title: "Limite atteinte",
+                                    description: "Maximum 10 photos par publication",
+                                    variant: "destructive",
+                                  });
+                                }
+                              }}
+                              className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                                isSelected
+                                  ? 'border-primary ring-2 ring-primary'
+                                  : 'border-transparent hover:border-muted-foreground'
+                              }`}
+                              data-testid={`button-select-media-${media.id}`}
+                            >
+                              <img 
+                                src={media.originalUrl} 
+                                alt={media.fileName}
+                                className="w-full h-full object-cover"
+                              />
+                              {isSelected && (
+                                <div className="absolute top-1 right-1 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
+                                  {selectionIndex + 1}
+                                </div>
+                              )}
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
