@@ -8,12 +8,13 @@ interface TopBarProps {
 export default function TopBar({ onMenuClick }: TopBarProps) {
   return (
     <header className="bg-card/50 backdrop-blur-xl border-b border-border/50 sticky top-0 z-10">
-      <div className="flex items-center justify-between px-6 lg:px-8 py-5">
-        <div className="flex items-center gap-6 flex-1">
+      <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4 sm:py-5">
+        <div className="flex items-center gap-3 sm:gap-6 flex-1">
           <button 
-            className="lg:hidden text-foreground hover:text-primary transition-colors"
+            className="lg:hidden text-foreground hover:text-primary transition-all hover:scale-110 active:scale-95 p-2 hover:bg-primary/10 rounded-xl"
             onClick={onMenuClick}
             data-testid="button-menu"
+            aria-label="Toggle menu"
           >
             <Menu className="w-6 h-6" />
           </button>
