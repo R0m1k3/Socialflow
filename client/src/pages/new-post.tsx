@@ -1,8 +1,25 @@
 import { useState, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Send, Sparkles, Image as ImageIcon, Calendar, Upload, Camera } from "lucide-react";
+import { Send, Sparkles, Image as ImageIcon, Calendar, Upload, Camera, GripVertical } from "lucide-react";
 import { useDropzone } from "react-dropzone";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import { Button } from "@/components/ui/button";
@@ -15,6 +32,70 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
+import { PreviewModal } from "@/components/preview-modal";
+
+function SortableMediaItem({ 
+  media, 
+  index, 
+  isSelected, 
+  onToggle 
+}: { 
+  media: Media; 
+  index: number; 
+  isSelected: boolean; 
+  onToggle: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: media.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+        isSelected
+          ? 'border-primary ring-2 ring-primary'
+          : 'border-transparent hover:border-muted-foreground'
+      }`}
+    >
+      <button
+        onClick={onToggle}
+        className="w-full h-full"
+        data-testid={`button-select-media-${media.id}`}
+      >
+        <img 
+          src={media.originalUrl} 
+          alt={media.fileName}
+          className="w-full h-full object-cover"
+        />
+      </button>
+      {isSelected && (
+        <>
+          <div className="absolute top-1 right-1 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
+            {index + 1}
+          </div>
+          <div 
+            {...attributes}
+            {...listeners}
+            className="absolute top-1 left-1 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center cursor-move hover:bg-black/70 transition-colors"
+          >
+            <GripVertical className="w-4 h-4 text-white" />
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function NewPost() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -23,12 +104,13 @@ export default function NewPost() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   
   const [productInfo, setProductInfo] = useState('');
-  const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [scheduledDate, setScheduledDate] = useState('');
   const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
   const [postText, setPostText] = useState('');
   const [postType, setPostType] = useState<'feed' | 'story' | 'both'>('feed');
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
   const { data: pages = [] } = useQuery<SocialPage[]>({
     queryKey: ['/api/pages'],
@@ -51,7 +133,18 @@ export default function NewPost() {
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/media"] });
-      setSelectedMedia(data.id);
+      // Add to selected media array if not already at max (10)
+      setSelectedMedia(prev => {
+        if (prev.length >= 10) {
+          toast({
+            title: "Limite atteinte",
+            description: "Maximum 10 photos par publication",
+            variant: "destructive",
+          });
+          return prev;
+        }
+        return [...prev, data.id];
+      });
       toast({
         title: "Succès",
         description: "Photo téléchargée avec succès",
@@ -164,10 +257,10 @@ export default function NewPost() {
       return;
     }
 
-    if ((postType === 'story' || postType === 'both') && !selectedMedia) {
+    if ((postType === 'story' || postType === 'both') && selectedMedia.length === 0) {
       toast({
         title: "Média requis",
-        description: "Les stories nécessitent une image ou vidéo",
+        description: "Les stories nécessitent au moins une image ou vidéo",
         variant: "destructive",
       });
       return;
@@ -176,7 +269,7 @@ export default function NewPost() {
     createPostMutation.mutate({
       content: postText,
       scheduledFor: scheduledDate || undefined,
-      mediaId: selectedMedia || undefined,
+      mediaIds: selectedMedia.length > 0 ? selectedMedia : undefined,
       pageIds: selectedPages,
       postType,
     });
@@ -194,6 +287,25 @@ export default function NewPost() {
     const file = e.target.files?.[0];
     if (file) {
       uploadMutation.mutate(file);
+    }
+  };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setSelectedMedia((items) => {
+        const oldIndex = items.indexOf(active.id as string);
+        const newIndex = items.indexOf(over.id as string);
+        return arrayMove(items, oldIndex, newIndex);
+      });
     }
   };
 
@@ -298,26 +410,90 @@ export default function NewPost() {
                         </div>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-3 gap-2">
-                        {mediaList.map((media) => (
-                          <button
-                            key={media.id}
-                            onClick={() => setSelectedMedia(media.id)}
-                            className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                              selectedMedia === media.id
-                                ? 'border-primary ring-2 ring-primary'
-                                : 'border-transparent hover:border-muted-foreground'
-                            }`}
-                            data-testid={`button-select-media-${media.id}`}
-                          >
-                            <img 
-                              src={media.originalUrl} 
-                              alt={media.fileName}
-                              className="w-full h-full object-cover"
-                            />
-                          </button>
-                        ))}
-                      </div>
+                      <>
+                        {selectedMedia.length > 0 && (
+                          <div className="mb-4">
+                            <div className="text-sm font-medium text-muted-foreground mb-2">
+                              Photos sélectionnées ({selectedMedia.length}/10)
+                            </div>
+                            <DndContext 
+                              sensors={sensors}
+                              collisionDetection={closestCenter}
+                              onDragEnd={handleDragEnd}
+                            >
+                              <SortableContext 
+                                items={selectedMedia}
+                                strategy={rectSortingStrategy}
+                              >
+                                <div className="grid grid-cols-3 gap-2 p-3 bg-accent/20 rounded-lg border border-accent">
+                                  {selectedMedia.map((mediaId, index) => {
+                                    const media = mediaList.find(m => m.id === mediaId);
+                                    if (!media) return null;
+                                    
+                                    return (
+                                      <SortableMediaItem
+                                        key={media.id}
+                                        media={media}
+                                        index={index}
+                                        isSelected={true}
+                                        onToggle={() => {
+                                          setSelectedMedia(prev => prev.filter(id => id !== media.id));
+                                        }}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              </SortableContext>
+                            </DndContext>
+                          </div>
+                        )}
+                        <div className="text-sm font-medium text-muted-foreground mb-2">
+                          Toutes les photos
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {mediaList.map((media) => {
+                            const isSelected = selectedMedia.includes(media.id);
+                            
+                            return (
+                              <button
+                                key={media.id}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    // Remove from selection
+                                    setSelectedMedia(prev => prev.filter(id => id !== media.id));
+                                  } else if (selectedMedia.length < 10) {
+                                    // Add to selection (max 10)
+                                    setSelectedMedia(prev => [...prev, media.id]);
+                                  } else {
+                                    toast({
+                                      title: "Limite atteinte",
+                                      description: "Maximum 10 photos par publication",
+                                      variant: "destructive",
+                                    });
+                                  }
+                                }}
+                                className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                                  isSelected
+                                    ? 'border-primary ring-2 ring-primary opacity-50'
+                                    : 'border-transparent hover:border-muted-foreground'
+                                }`}
+                                data-testid={`button-select-media-${media.id}`}
+                              >
+                                <img 
+                                  src={media.originalUrl} 
+                                  alt={media.fileName}
+                                  className="w-full h-full object-cover"
+                                />
+                                {isSelected && (
+                                  <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
+                                    <div className="text-xs font-semibold text-primary">Sélectionnée</div>
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
                     )}
                   </div>
                 </CardContent>
@@ -501,19 +677,29 @@ export default function NewPost() {
               </Card>
 
               <Button 
-                onClick={handleCreatePost}
+                onClick={() => setPreviewModalOpen(true)}
                 disabled={createPostMutation.isPending}
                 className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 shadow-lg"
                 size="lg"
-                data-testid="button-create-post"
+                data-testid="button-preview-post"
               >
                 <Send className="w-4 h-4 mr-2" />
-                {createPostMutation.isPending ? 'Création...' : 'Créer la publication'}
+                Prévisualiser et publier
               </Button>
             </div>
           </div>
         </div>
       </main>
+      
+      <PreviewModal
+        open={previewModalOpen}
+        onOpenChange={setPreviewModalOpen}
+        postText={postText}
+        selectedMedia={selectedMedia}
+        mediaList={mediaList}
+        onPublish={handleCreatePost}
+        isPublishing={createPostMutation.isPending}
+      />
     </div>
   );
 }

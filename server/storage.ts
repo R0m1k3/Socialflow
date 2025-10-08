@@ -30,7 +30,7 @@ import {
   type InsertUserPagePermission,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, desc, isNull } from "drizzle-orm";
+import { eq, and, gte, lte, desc, asc, isNull } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -168,7 +168,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getPostMedia(postId: string): Promise<PostMedia[]> {
-    return await db.select().from(postMedia).where(eq(postMedia.postId, postId));
+    return await db.select().from(postMedia).where(eq(postMedia.postId, postId)).orderBy(asc(postMedia.displayOrder));
   }
 
   // Posts

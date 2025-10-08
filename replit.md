@@ -10,6 +10,8 @@ Social Flow is a comprehensive social media automation platform designed to stre
 - Multi-page social media account management (Facebook & Instagram)
 - AI-powered content generation using OpenRouter API
 - Automated media processing and format optimization
+- **Multi-photo carousel posts** (up to 10 photos per post with drag & drop reordering)
+- **Preview modal** with realistic Facebook/Instagram rendering before publishing
 - Post scheduling with automated publication
 - Media library management
 - Dashboard analytics and activity tracking
@@ -121,6 +123,7 @@ Core Tables:
 - `social_pages` - Connected Facebook/Instagram pages with access tokens
 - `media` - Uploaded media files with Cloudinary public IDs and transformation URLs
 - `posts` - Post content with AI generation tracking and status
+- `post_media` - **NEW**: Junction table linking posts to multiple media with `displayOrder` field for carousel ordering
 - `scheduled_posts` - Scheduled publication queue with page assignments
 - `ai_generations` - History of AI-generated content
 
@@ -223,3 +226,48 @@ Core Tables:
 - date-fns: Date manipulation and formatting
 - react-dropzone: Drag-and-drop file uploads
 - Lucide React: Icon library
+- **@dnd-kit**: Drag and drop library for photo carousel reordering
+
+## Recent Changes (October 2025)
+
+### Multi-Photo Carousel Feature
+
+**Overview**: Support for creating posts with up to 10 photos in a carousel format with drag & drop reordering and preview modal.
+
+**Database Changes**:
+- Added `post_media` table with `displayOrder` integer field for ordered media
+- Posts can now have multiple photos via `post_media` junction table
+- API accepts array of media IDs with display order
+
+**Frontend Components**:
+
+**New Post Page** (`/new-post`):
+- **Photo Selection**: "Photos sélectionnées" section shows selected photos with order numbers (1, 2, 3...)
+- **Drag & Drop**: Uses @dnd-kit/sortable for reordering selected photos
+  - Drag handle (GripVertical icon) on each selected photo
+  - Visual order indicators on each photo
+  - Separate section for selected vs. all photos
+- **Limit**: Maximum 10 photos per post
+- **Preview Button**: Opens PreviewModal instead of immediate publish
+
+**PreviewModal Component** (`client/src/components/preview-modal.tsx`):
+- **Realistic Rendering**: Shows post exactly as it will appear on Facebook/Instagram
+- **Format Switching**: Toggle between:
+  - Feed Facebook (1200x630px) - Horizontal carousel
+  - Feed Instagram (1080x1080px) - Square carousel
+  - Story Instagram (1080x1920px) - Vertical carousel
+- **Carousel Navigation**:
+  - Next/Previous buttons (ChevronLeft/ChevronRight)
+  - Clickable photo indicators (dots for Facebook, bars for Instagram)
+  - Shows current photo index
+- **Publish Integration**: Publish button in modal triggers post creation
+
+**API Changes**:
+- `POST /api/posts` accepts `mediaIds` parameter as:
+  - Simple string array (using index as order): `["id1", "id2", "id3"]`
+  - Or array of objects with displayOrder: `[{mediaId: "id1", displayOrder: 0}, ...]`
+- Backwards compatible with single media posts
+
+**Storage Layer**:
+- `createPost` method creates post_media entries with displayOrder
+- Bulk insert of media-post relationships with proper ordering
