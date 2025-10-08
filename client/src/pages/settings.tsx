@@ -138,7 +138,7 @@ export default function Settings() {
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
-        <div className="p-8 max-w-4xl mx-auto">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Paramètres</h1>
             <p className="text-muted-foreground mt-2">

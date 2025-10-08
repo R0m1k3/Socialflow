@@ -296,7 +296,7 @@ export default function UsersAdmin() {
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
-        <div className="p-8 max-w-[1600px] mx-auto space-y-8">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6 sm:space-y-8">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2">
               <Users className="w-8 h-8" />
@@ -307,7 +307,7 @@ export default function UsersAdmin() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
             {/* Liste des utilisateurs */}
             <div className="lg:col-span-2">
               <Card className="rounded-2xl border-border/50 shadow-lg">
