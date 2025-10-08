@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Send, Sparkles, Image as ImageIcon, Calendar } from "lucide-react";
+import { Send, Sparkles, Image as ImageIcon, Calendar, Upload } from "lucide-react";
+import { useDropzone } from "react-dropzone";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import { Button } from "@/components/ui/button";
@@ -34,6 +35,51 @@ export default function NewPost() {
 
   const { data: mediaList = [] } = useQuery<Media[]>({
     queryKey: ['/api/media'],
+  });
+
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/media/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (!response.ok) throw new Error("Upload failed");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/media"] });
+      setSelectedMedia(data.id);
+      toast({
+        title: "Succès",
+        description: "Photo téléchargée avec succès",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de télécharger la photo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    if (acceptedFiles.length > 0) {
+      uploadMutation.mutate(acceptedFiles[0]);
+    }
+  }, []);
+
+  const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
+    onDrop,
+    accept: {
+      "image/*": [".png", ".jpg", ".jpeg", ".gif"],
+      "video/*": [".mp4", ".mov"],
+    },
+    maxSize: 52428800,
+    noClick: true,
+    noKeyboard: true,
   });
 
   const generateTextMutation = useMutation({
@@ -254,44 +300,65 @@ export default function NewPost() {
 
               <Card className="rounded-2xl border-border/50 shadow-lg">
                 <CardHeader className="p-6">
-                  <CardTitle>Média</CardTitle>
-                  <CardDescription>Sélectionnez une image ou vidéo</CardDescription>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Média</CardTitle>
+                      <CardDescription>Sélectionnez ou uploadez une image/vidéo</CardDescription>
+                    </div>
+                    <Button 
+                      onClick={open}
+                      disabled={uploadMutation.isPending}
+                      size="sm"
+                      variant="outline"
+                      data-testid="button-upload-new-media"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      {uploadMutation.isPending ? 'Upload...' : 'Uploader'}
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  {mediaList.length === 0 ? (
-                    <div className="text-center py-8">
-                      <ImageIcon className="w-12 h-12 mx-auto text-muted-foreground mb-2" />
-                      <p className="text-muted-foreground">Aucun média disponible</p>
-                      <Button 
-                        variant="link" 
-                        onClick={() => navigate('/media')}
-                        data-testid="link-upload-media"
-                      >
-                        Télécharger des médias
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-3 gap-2">
-                      {mediaList.map((media) => (
-                        <button
-                          key={media.id}
-                          onClick={() => setSelectedMedia(media.id)}
-                          className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                            selectedMedia === media.id
-                              ? 'border-primary ring-2 ring-primary'
-                              : 'border-transparent hover:border-muted-foreground'
-                          }`}
-                          data-testid={`button-select-media-${media.id}`}
+                  <div {...getRootProps()} className={`${isDragActive ? 'bg-primary/5 border-primary' : ''}`}>
+                    <input {...getInputProps()} />
+                    {mediaList.length === 0 ? (
+                      <div className="text-center py-8 border-2 border-dashed rounded-lg">
+                        <ImageIcon className="w-12 h-12 mx-auto text-muted-foreground mb-2" />
+                        <p className="text-muted-foreground mb-2">
+                          {isDragActive ? "Déposez votre photo ici" : "Aucun média disponible"}
+                        </p>
+                        <Button 
+                          onClick={open}
+                          disabled={uploadMutation.isPending}
+                          size="sm"
+                          data-testid="button-upload-first-media"
                         >
-                          <img 
-                            src={media.originalUrl} 
-                            alt={media.fileName}
-                            className="w-full h-full object-cover"
-                          />
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                          <Upload className="w-4 h-4 mr-2" />
+                          Uploader une photo
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-3 gap-2">
+                        {mediaList.map((media) => (
+                          <button
+                            key={media.id}
+                            onClick={() => setSelectedMedia(media.id)}
+                            className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                              selectedMedia === media.id
+                                ? 'border-primary ring-2 ring-primary'
+                                : 'border-transparent hover:border-muted-foreground'
+                            }`}
+                            data-testid={`button-select-media-${media.id}`}
+                          >
+                            <img 
+                              src={media.originalUrl} 
+                              alt={media.fileName}
+                              className="w-full h-full object-cover"
+                            />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             </div>
