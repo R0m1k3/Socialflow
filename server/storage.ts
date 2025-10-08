@@ -8,6 +8,7 @@ import {
   aiGenerations,
   cloudinaryConfig,
   openrouterConfig,
+  userPagePermissions,
   type User, 
   type InsertUser,
   type SocialPage,
@@ -25,6 +26,8 @@ import {
   type InsertCloudinaryConfig,
   type OpenrouterConfig,
   type InsertOpenrouterConfig,
+  type UserPagePermission,
+  type InsertUserPagePermission,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, isNull } from "drizzle-orm";
@@ -81,6 +84,14 @@ export interface IStorage {
   getOpenrouterConfig(userId: string): Promise<OpenrouterConfig | undefined>;
   createOpenrouterConfig(config: InsertOpenrouterConfig): Promise<OpenrouterConfig>;
   updateOpenrouterConfig(userId: string, config: Partial<InsertOpenrouterConfig>): Promise<OpenrouterConfig>;
+
+  // User Page Permissions
+  getUserPagePermissions(userId: string): Promise<UserPagePermission[]>;
+  getPagePermissions(pageId: string): Promise<UserPagePermission[]>;
+  createPagePermission(permission: InsertUserPagePermission): Promise<UserPagePermission>;
+  deletePagePermission(userId: string, pageId: string): Promise<void>;
+  deleteAllUserPagePermissions(userId: string): Promise<void>;
+  getUserAccessiblePages(userId: string): Promise<SocialPage[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -298,6 +309,43 @@ export class DatabaseStorage implements IStorage {
       .where(eq(openrouterConfig.userId, userId))
       .returning();
     return updated;
+  }
+
+  // User Page Permissions
+  async getUserPagePermissions(userId: string): Promise<UserPagePermission[]> {
+    return await db.select().from(userPagePermissions).where(eq(userPagePermissions.userId, userId));
+  }
+
+  async getPagePermissions(pageId: string): Promise<UserPagePermission[]> {
+    return await db.select().from(userPagePermissions).where(eq(userPagePermissions.pageId, pageId));
+  }
+
+  async createPagePermission(permission: InsertUserPagePermission): Promise<UserPagePermission> {
+    const [newPermission] = await db.insert(userPagePermissions).values(permission).returning();
+    return newPermission;
+  }
+
+  async deletePagePermission(userId: string, pageId: string): Promise<void> {
+    await db.delete(userPagePermissions).where(
+      and(
+        eq(userPagePermissions.userId, userId),
+        eq(userPagePermissions.pageId, pageId)
+      )
+    );
+  }
+
+  async deleteAllUserPagePermissions(userId: string): Promise<void> {
+    await db.delete(userPagePermissions).where(eq(userPagePermissions.userId, userId));
+  }
+
+  async getUserAccessiblePages(userId: string): Promise<SocialPage[]> {
+    const permissions = await db
+      .select()
+      .from(userPagePermissions)
+      .innerJoin(socialPages, eq(userPagePermissions.pageId, socialPages.id))
+      .where(eq(userPagePermissions.userId, userId));
+    
+    return permissions.map(p => p.social_pages);
   }
 }
 

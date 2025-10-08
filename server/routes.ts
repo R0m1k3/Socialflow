@@ -8,7 +8,7 @@ import passport from "./auth";
 import { z } from "zod";
 import { openRouterService } from "./services/openrouter";
 import { cloudinaryService } from "./services/cloudinary";
-import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia } from "@shared/schema";
+import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
 import type { User, InsertUser } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -210,6 +210,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error deleting user:", error);
       res.status(500).json({ error: "Erreur lors de la suppression de l'utilisateur" });
+    }
+  });
+
+  // Route pour obtenir les permissions d'un utilisateur (réservée aux admins)
+  app.get("/api/users/:id/page-permissions", requireAdmin, async (req, res) => {
+    try {
+      const userId = req.params.id;
+      const permissions = await storage.getUserPagePermissions(userId);
+      res.json(permissions);
+    } catch (error) {
+      console.error("Error fetching user permissions:", error);
+      res.status(500).json({ error: "Erreur lors de la récupération des permissions" });
+    }
+  });
+
+  // Route pour mettre à jour les permissions d'un utilisateur (réservée aux admins)
+  app.post("/api/users/:id/page-permissions", requireAdmin, async (req, res) => {
+    try {
+      const userId = req.params.id;
+      const { pageIds } = req.body as { pageIds: string[] };
+
+      if (!Array.isArray(pageIds)) {
+        return res.status(400).json({ error: "pageIds doit être un tableau" });
+      }
+
+      // Supprimer toutes les permissions existantes de l'utilisateur
+      await storage.deleteAllUserPagePermissions(userId);
+
+      // Créer les nouvelles permissions
+      const permissions = await Promise.all(
+        pageIds.map(pageId => 
+          storage.createPagePermission({ userId, pageId })
+        )
+      );
+
+      res.json(permissions);
+    } catch (error) {
+      console.error("Error updating user permissions:", error);
+      res.status(500).json({ error: "Erreur lors de la mise à jour des permissions" });
+    }
+  });
+
+  // Route pour migrer les permissions existantes (réservée aux admins)
+  app.post("/api/admin/migrate-permissions", requireAdmin, async (req, res) => {
+    try {
+      // Récupérer tous les utilisateurs
+      const allUsers = await storage.getAllUsers();
+      let migratedCount = 0;
+
+      for (const user of allUsers) {
+        // Récupérer toutes les pages créées par cet utilisateur
+        const userPages = await storage.getSocialPages(user.id);
+
+        for (const page of userPages) {
+          // Vérifier si une permission existe déjà
+          const existingPermissions = await storage.getUserPagePermissions(user.id);
+          const hasPermission = existingPermissions.some(p => p.pageId === page.id);
+
+          if (!hasPermission) {
+            // Créer la permission
+            await storage.createPagePermission({ userId: user.id, pageId: page.id });
+            migratedCount++;
+          }
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        message: `${migratedCount} permissions migrées avec succès`,
+        migratedCount 
+      });
+    } catch (error) {
+      console.error("Error migrating permissions:", error);
+      res.status(500).json({ error: "Erreur lors de la migration des permissions" });
     }
   });
 
@@ -586,7 +660,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const userId = user.id;
-      const pages = await storage.getSocialPages(userId);
+      
+      let pages: SocialPage[];
+      
+      if (user.role === 'admin') {
+        // Les admins voient toutes les pages de tous les utilisateurs
+        const allUsers = await storage.getAllUsers();
+        const allPages = await Promise.all(
+          allUsers.map(u => storage.getSocialPages(u.id))
+        );
+        pages = allPages.flat();
+      } else {
+        // Les utilisateurs normaux voient uniquement les pages auxquelles ils ont accès
+        pages = await storage.getUserAccessiblePages(userId);
+      }
+      
       res.json(pages);
     } catch (error) {
       console.error("Error fetching pages:", error);
