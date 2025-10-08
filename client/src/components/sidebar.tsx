@@ -7,7 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useState, useEffect } from "react";
 
-export default function Sidebar() {
+interface SidebarProps {
+  onLinkClick?: () => void;
+}
+
+export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
   const [location] = useLocation();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -26,6 +30,12 @@ export default function Sidebar() {
   });
 
   const isAdmin = session?.role === "admin";
+
+  const handleLinkClick = () => {
+    if (onLinkClick) {
+      onLinkClick();
+    }
+  };
 
   const logoutMutation = useMutation({
     mutationFn: async () => {
@@ -84,6 +94,7 @@ export default function Sidebar() {
               <li key={item.href} className="relative group">
                 <Link 
                   href={item.href}
+                  onClick={handleLinkClick}
                   className={`
                     flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all relative
                     ${isActive 
@@ -133,6 +144,7 @@ export default function Sidebar() {
                 <li key={item.href} className="relative group">
                   <Link 
                     href={item.href}
+                    onClick={handleLinkClick}
                     className={`
                       flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative
                       ${isActive 
@@ -172,6 +184,7 @@ export default function Sidebar() {
             )}
             <Link 
               href="/pages"
+              onClick={handleLinkClick}
               className={`
                 flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group
                 ${location === "/pages"
@@ -195,6 +208,7 @@ export default function Sidebar() {
             </Link>
             <Link 
               href="/users"
+              onClick={handleLinkClick}
               className={`
                 flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group
                 ${location === "/users"
@@ -218,6 +232,7 @@ export default function Sidebar() {
             </Link>
             <Link 
               href="/sql"
+              onClick={handleLinkClick}
               className={`
                 flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group
                 ${location === "/sql"
@@ -241,6 +256,7 @@ export default function Sidebar() {
             </Link>
             <Link 
               href="/settings"
+              onClick={handleLinkClick}
               className={`
                 flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group
                 ${location === "/settings"
