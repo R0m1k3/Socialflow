@@ -31,10 +31,16 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
 
   const isAdmin = session?.role === "admin";
 
-  const handleLinkClick = () => {
+  const handleLinkClick = (href: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    // Always close sidebar on mobile first
     if (onLinkClick) {
       onLinkClick();
     }
+    // Navigate after a small delay to ensure state update completes
+    setTimeout(() => {
+      setLocation(href);
+    }, 10);
   };
 
   const logoutMutation = useMutation({
@@ -92,11 +98,11 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
             
             return (
               <li key={item.href} className="relative group">
-                <Link 
+                <a
                   href={item.href}
-                  onClick={handleLinkClick}
+                  onClick={(e) => handleLinkClick(item.href, e)}
                   className={`
-                    flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all relative
+                    flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all relative cursor-pointer
                     ${isActive 
                       ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
                       : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
@@ -119,7 +125,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
                       )}
                     </>
                   )}
-                </Link>
+                </a>
                 {isCollapsed && (
                   <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
                     {item.label}
@@ -142,11 +148,11 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
               
               return (
                 <li key={item.href} className="relative group">
-                  <Link 
+                  <a
                     href={item.href}
-                    onClick={handleLinkClick}
+                    onClick={(e) => handleLinkClick(item.href, e)}
                     className={`
-                      flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative
+                      flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative cursor-pointer
                       ${isActive 
                         ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
                         : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
@@ -160,7 +166,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
                     )}
                     <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : ''}`} />
                     {!isCollapsed && <span>{item.label}</span>}
-                  </Link>
+                  </a>
                   {isCollapsed && (
                     <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
                       {item.label}
@@ -182,11 +188,11 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
                 <p className="text-xs font-semibold text-muted-foreground mb-2 px-4 uppercase tracking-wider">Administration</p>
               </div>
             )}
-            <Link 
+            <a
               href="/pages"
-              onClick={handleLinkClick}
+              onClick={(e) => handleLinkClick("/pages", e)}
               className={`
-                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group
+                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
                 ${location === "/pages"
                   ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
                   : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
@@ -205,12 +211,12 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
                   Pages gérées
                 </div>
               )}
-            </Link>
-            <Link 
+            </a>
+            <a
               href="/users"
-              onClick={handleLinkClick}
+              onClick={(e) => handleLinkClick("/users", e)}
               className={`
-                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group
+                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
                 ${location === "/users"
                   ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
                   : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
@@ -229,12 +235,12 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
                   Utilisateurs
                 </div>
               )}
-            </Link>
-            <Link 
+            </a>
+            <a
               href="/sql"
-              onClick={handleLinkClick}
+              onClick={(e) => handleLinkClick("/sql", e)}
               className={`
-                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group
+                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
                 ${location === "/sql"
                   ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
                   : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
@@ -253,12 +259,12 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
                   SQL
                 </div>
               )}
-            </Link>
-            <Link 
+            </a>
+            <a
               href="/settings"
-              onClick={handleLinkClick}
+              onClick={(e) => handleLinkClick("/settings", e)}
               className={`
-                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group
+                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
                 ${location === "/settings"
                   ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
                   : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
@@ -277,7 +283,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
                   Paramètres
                 </div>
               )}
-            </Link>
+            </a>
           </>
         )}
         
@@ -318,10 +324,10 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
           </div>
         )}
         
-        {/* Toggle Button */}
+        {/* Toggle Button (Desktop only) */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="mt-2 w-full flex items-center justify-center p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 border-2 border-border hover:border-primary/50 rounded-xl transition-all"
+          className="mt-2 w-full hidden lg:flex items-center justify-center p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 border-2 border-border hover:border-primary/50 rounded-xl transition-all"
           data-testid="button-toggle-sidebar"
         >
           {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
