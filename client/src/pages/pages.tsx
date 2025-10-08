@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Facebook, Instagram, Trash2, RefreshCw, Edit } from "lucide-react";
+import { Plus, Facebook, Instagram, Trash2, RefreshCw, Edit, Bug, Code } from "lucide-react";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import { Button } from "@/components/ui/button";
@@ -71,6 +71,25 @@ export default function PagesManagement() {
             </div>
             <AddPageDialog open={dialogOpen} onOpenChange={setDialogOpen} />
             <EditPageDialog page={editingPage} onOpenChange={(open) => !open && setEditingPage(null)} />
+          </div>
+
+          <div className="flex gap-3 mb-6">
+            <Button
+              variant="outline"
+              onClick={() => window.open('https://developers.facebook.com/tools/debug/accesstoken/', '_blank')}
+              data-testid="button-debug-token"
+            >
+              <Bug className="w-4 h-4 mr-2" />
+              Débogueur de jeton
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => window.open('https://developers.facebook.com/tools/explorer', '_blank')}
+              data-testid="button-graph-explorer"
+            >
+              <Code className="w-4 h-4 mr-2" />
+              Graph Explorer
+            </Button>
           </div>
 
           {isLoading ? (
