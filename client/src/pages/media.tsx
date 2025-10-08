@@ -19,13 +19,13 @@ export default function Media() {
         fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-        <Sidebar />
+        <Sidebar onLinkClick={() => setSidebarOpen(false)} />
       </div>
 
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
-        <div className="p-8 max-w-[1600px] mx-auto">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Médiathèque</h1>
             <p className="text-muted-foreground mt-2">

@@ -202,13 +202,13 @@ export default function NewPost() {
         fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
       `}>
-        <Sidebar />
+        <Sidebar onLinkClick={() => setSidebarOpen(false)} />
       </div>
 
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
         
-        <div className="p-8 max-w-6xl mx-auto">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Nouvelle publication</h1>
             <p className="text-muted-foreground mt-2">
@@ -216,7 +216,7 @@ export default function NewPost() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
             <div className="space-y-8">
               <Card className="rounded-2xl border-border/50 shadow-lg">
                 <CardHeader className="p-6">
