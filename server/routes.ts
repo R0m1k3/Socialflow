@@ -213,6 +213,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Route pour obtenir les permissions d'un utilisateur (réservée aux admins)
+  app.get("/api/users/:id/page-permissions", requireAdmin, async (req, res) => {
+    try {
+      const userId = req.params.id;
+      const permissions = await storage.getUserPagePermissions(userId);
+      res.json(permissions);
+    } catch (error) {
+      console.error("Error fetching user permissions:", error);
+      res.status(500).json({ error: "Erreur lors de la récupération des permissions" });
+    }
+  });
+
+  // Route pour mettre à jour les permissions d'un utilisateur (réservée aux admins)
+  app.post("/api/users/:id/page-permissions", requireAdmin, async (req, res) => {
+    try {
+      const userId = req.params.id;
+      const { pageIds } = req.body as { pageIds: string[] };
+
+      if (!Array.isArray(pageIds)) {
+        return res.status(400).json({ error: "pageIds doit être un tableau" });
+      }
+
+      // Supprimer toutes les permissions existantes de l'utilisateur
+      await storage.deleteAllUserPagePermissions(userId);
+
+      // Créer les nouvelles permissions
+      const permissions = await Promise.all(
+        pageIds.map(pageId => 
+          storage.createPagePermission({ userId, pageId })
+        )
+      );
+
+      res.json(permissions);
+    } catch (error) {
+      console.error("Error updating user permissions:", error);
+      res.status(500).json({ error: "Erreur lors de la mise à jour des permissions" });
+    }
+  });
+
   // Route pour vérifier si le mot de passe admin par défaut a été changé
   app.get("/api/auth/default-password-status", async (req, res) => {
     try {
