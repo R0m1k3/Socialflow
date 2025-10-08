@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
@@ -11,14 +11,28 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Users, UserPlus, Pencil, Trash2, Shield, User as UserIcon } from "lucide-react";
+import { Users, UserPlus, Pencil, Trash2, Shield, User as UserIcon, Settings } from "lucide-react";
 
 type UserData = {
   id: string;
   username: string;
   role: "admin" | "user";
+};
+
+type SocialPage = {
+  id: string;
+  name: string;
+  platform: string;
+  userId: string;
+};
+
+type UserPagePermission = {
+  id: string;
+  userId: string;
+  pageId: string;
 };
 
 export default function UsersAdmin() {
@@ -41,9 +55,25 @@ export default function UsersAdmin() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<UserData | null>(null);
 
+  // Permissions dialog states
+  const [permissionsDialogOpen, setPermissionsDialogOpen] = useState(false);
+  const [permissionsUser, setPermissionsUser] = useState<UserData | null>(null);
+  const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
+
   // Charger la liste des utilisateurs
   const { data: users, isLoading } = useQuery<UserData[]>({
     queryKey: ["/api/users"],
+  });
+
+  // Charger toutes les pages (admin voit toutes les pages)
+  const { data: allPages } = useQuery<SocialPage[]>({
+    queryKey: ["/api/pages"],
+  });
+
+  // Charger les permissions de l'utilisateur sélectionné
+  const { data: userPermissions } = useQuery<UserPagePermission[]>({
+    queryKey: ["/api/users", permissionsUser?.id, "page-permissions"],
+    enabled: !!permissionsUser && permissionsDialogOpen,
   });
 
   // Mutation pour créer un utilisateur
@@ -115,6 +145,31 @@ export default function UsersAdmin() {
         variant: "destructive",
         title: "Erreur",
         description: error.message || "Erreur lors de la suppression de l'utilisateur",
+      });
+    },
+  });
+
+  // Mutation pour mettre à jour les permissions d'un utilisateur
+  const updatePermissionsMutation = useMutation({
+    mutationFn: async ({ userId, pageIds }: { userId: string; pageIds: string[] }) => {
+      const res = await apiRequest("POST", `/api/users/${userId}/page-permissions`, { pageIds });
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Permissions mises à jour",
+        description: "Les permissions de l'utilisateur ont été mises à jour avec succès",
+      });
+      setPermissionsDialogOpen(false);
+      setPermissionsUser(null);
+      setSelectedPageIds([]);
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Erreur",
+        description: error.message || "Erreur lors de la mise à jour des permissions",
       });
     },
   });
@@ -191,6 +246,37 @@ export default function UsersAdmin() {
     }
   };
 
+  const handlePermissionsClick = (user: UserData) => {
+    setPermissionsUser(user);
+    setPermissionsDialogOpen(true);
+  };
+
+  // Mettre à jour selectedPageIds quand les permissions sont chargées
+  useEffect(() => {
+    if (userPermissions) {
+      setSelectedPageIds(userPermissions.map(p => p.pageId));
+    }
+  }, [userPermissions]);
+
+  const handlePermissionsSubmit = () => {
+    if (permissionsUser) {
+      updatePermissionsMutation.mutate({
+        userId: permissionsUser.id,
+        pageIds: selectedPageIds,
+      });
+    }
+  };
+
+  const togglePagePermission = (pageId: string) => {
+    setSelectedPageIds(prev => {
+      if (prev.includes(pageId)) {
+        return prev.filter(id => id !== pageId);
+      } else {
+        return [...prev, pageId];
+      }
+    });
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {sidebarOpen && (
@@ -264,6 +350,16 @@ export default function UsersAdmin() {
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex justify-end gap-2">
+                                {user.role === "user" && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => handlePermissionsClick(user)}
+                                    data-testid={`button-permissions-user-${user.id}`}
+                                  >
+                                    <Settings className="w-4 h-4" />
+                                  </Button>
+                                )}
                                 <Button
                                   variant="outline"
                                   size="sm"
@@ -447,6 +543,59 @@ export default function UsersAdmin() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Dialog de gestion des permissions */}
+      <Dialog open={permissionsDialogOpen} onOpenChange={setPermissionsDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Gérer les permissions</DialogTitle>
+            <DialogDescription>
+              Sélectionnez les pages auxquelles l'utilisateur <strong>{permissionsUser?.username}</strong> peut accéder
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            {allPages && allPages.length > 0 ? (
+              <div className="space-y-3">
+                {allPages.map((page) => (
+                  <div key={page.id} className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-accent">
+                    <Checkbox
+                      id={`page-${page.id}`}
+                      checked={selectedPageIds.includes(page.id)}
+                      onCheckedChange={() => togglePagePermission(page.id)}
+                      data-testid={`checkbox-page-${page.id}`}
+                    />
+                    <Label
+                      htmlFor={`page-${page.id}`}
+                      className="flex-1 cursor-pointer"
+                    >
+                      <div className="font-medium">{page.name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {page.platform === "facebook" ? "Facebook" : "Instagram"}
+                      </div>
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground">
+                Aucune page disponible
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPermissionsDialogOpen(false)}>
+              Annuler
+            </Button>
+            <Button
+              onClick={handlePermissionsSubmit}
+              disabled={updatePermissionsMutation.isPending}
+              data-testid="button-save-permissions"
+            >
+              {updatePermissionsMutation.isPending ? "Enregistrement..." : "Enregistrer"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
