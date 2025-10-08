@@ -1,7 +1,7 @@
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import StatsCards from "@/components/stats-cards";
-import CalendarView from "@/components/calendar-view";
+import RecentPublications from "@/components/recent-publications";
 import ManagedPages from "@/components/managed-pages";
 import { useState } from "react";
 
@@ -30,7 +30,7 @@ export default function Dashboard() {
         <div className="p-8 space-y-8 max-w-[1600px] mx-auto">
           <StatsCards />
           
-          <CalendarView />
+          <RecentPublications />
           
           <ManagedPages />
         </div>
