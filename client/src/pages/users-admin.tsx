@@ -24,7 +24,7 @@ type UserData = {
 
 type SocialPage = {
   id: string;
-  name: string;
+  pageName: string;
   platform: string;
   userId: string;
 };
@@ -568,7 +568,7 @@ export default function UsersAdmin() {
                       htmlFor={`page-${page.id}`}
                       className="flex-1 cursor-pointer"
                     >
-                      <div className="font-medium">{page.name}</div>
+                      <div className="font-medium">{page.pageName}</div>
                       <div className="text-sm text-muted-foreground">
                         {page.platform === "facebook" ? "Facebook" : "Instagram"}
                       </div>
