@@ -1,6 +1,5 @@
-import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Users } from "lucide-react";
+import { Users } from "lucide-react";
 import { SiFacebook, SiInstagram } from "react-icons/si";
 
 export default function ManagedPages() {
@@ -24,25 +23,16 @@ export default function ManagedPages() {
   return (
     <div className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-lg">
       <div className="border-b border-border/50 p-6 bg-gradient-to-r from-primary/5 to-secondary/5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
-              <Users className="text-white w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">Pages gérées</h3>
-              <p className="text-sm text-muted-foreground">
-                {(pages as any[])?.length || 0} page(s) connectée(s)
-              </p>
-            </div>
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
+            <Users className="text-white w-6 h-6" />
           </div>
-          <Button 
-            className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 rounded-xl"
-            data-testid="button-connect-page"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Connecter une page
-          </Button>
+          <div>
+            <h3 className="text-lg font-semibold text-foreground">Pages gérées</h3>
+            <p className="text-sm text-muted-foreground">
+              {(pages as any[])?.length || 0} page(s) connectée(s)
+            </p>
+          </div>
         </div>
       </div>
 
@@ -92,11 +82,7 @@ export default function ManagedPages() {
               <div className="w-20 h-20 rounded-2xl bg-muted/30 flex items-center justify-center mx-auto mb-6">
                 <Users className="w-10 h-10 text-muted-foreground opacity-50" />
               </div>
-              <p className="text-muted-foreground mb-6 text-lg">Aucune page connectée</p>
-              <Button className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 rounded-xl">
-                <Plus className="w-4 h-4 mr-2" />
-                Connecter votre première page
-              </Button>
+              <p className="text-muted-foreground text-lg">Aucune page connectée</p>
             </div>
           )}
         </div>
