@@ -8,7 +8,7 @@ import passport from "./auth";
 import { z } from "zod";
 import { openRouterService } from "./services/openrouter";
 import { cloudinaryService } from "./services/cloudinary";
-import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia } from "@shared/schema";
+import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
 import type { User, InsertUser } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
@@ -625,7 +625,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const userId = user.id;
-      const pages = await storage.getSocialPages(userId);
+      
+      let pages: SocialPage[];
+      
+      if (user.role === 'admin') {
+        // Les admins voient toutes les pages de tous les utilisateurs
+        const allUsers = await storage.getAllUsers();
+        const allPages = await Promise.all(
+          allUsers.map(u => storage.getSocialPages(u.id))
+        );
+        pages = allPages.flat();
+      } else {
+        // Les utilisateurs normaux voient uniquement les pages auxquelles ils ont accès
+        pages = await storage.getUserAccessiblePages(userId);
+      }
+      
       res.json(pages);
     } catch (error) {
       console.error("Error fetching pages:", error);
