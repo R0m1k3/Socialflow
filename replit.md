@@ -37,6 +37,9 @@ Preferred communication style: Simple, everyday language.
 - sameSite: 'lax' pour prévention CSRF
 - Durée de session: 7 jours
 - Secret de session via variable d'environnement `SESSION_SECRET`
+- Store de session:
+  - **Production**: PostgreSQL via connect-pg-simple (table `session` auto-créée)
+  - **Développement**: MemoryStore (par défaut)
 
 **Protection des routes**:
 - Backend: Middleware `requireAuth` pour routes utilisateur, `requireAdmin` pour routes admin
@@ -94,7 +97,9 @@ Preferred communication style: Simple, everyday language.
 - Scheduler service running every minute to check for pending posts
 - Automated post publication to social media platforms
 
-**Session Management**: Stateless authentication with session cookies (connect-pg-simple for PostgreSQL session store)
+**Session Management**: 
+- Développement: MemoryStore (sessions en mémoire)
+- Production: connect-pg-simple (sessions persistées dans PostgreSQL, table `session`)
 
 **Key Architectural Patterns**:
 - Service layer pattern (OpenRouterService, CloudinaryService, SchedulerService)

@@ -1,5 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import pg from "pg";
 import passport from "./auth";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -7,6 +9,7 @@ import { schedulerService } from "./services/scheduler";
 import { ensureAdminUserExists } from "./init-admin";
 
 const app = express();
+const PgSession = connectPgSimple(session);
 
 declare module 'http' {
   interface IncomingMessage {
@@ -28,7 +31,19 @@ if (!process.env.SESSION_SECRET) {
 // Déterminer si on utilise HTTPS basé sur APP_URL
 const isHttps = process.env.APP_URL?.startsWith('https://') || false;
 
+// Configuration du store de session pour production
+const sessionStore = process.env.NODE_ENV === 'production' && process.env.DATABASE_URL
+  ? new PgSession({
+      pool: new pg.Pool({
+        connectionString: process.env.DATABASE_URL,
+      }),
+      tableName: 'session',
+      createTableIfMissing: true,
+    })
+  : undefined; // MemoryStore par défaut en dev
+
 app.use(session({
+  store: sessionStore,
   secret: process.env.SESSION_SECRET || 'your-secret-key-change-me',
   resave: false,
   saveUninitialized: false,
