@@ -305,7 +305,7 @@ export default function Sidebar() {
         {/* Toggle Button */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}
-          className="mt-2 w-full flex items-center justify-center p-2 text-muted-foreground hover:text-primary hover:bg-sidebar-accent rounded-xl transition-all"
+          className="mt-2 w-full flex items-center justify-center p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 border-2 border-border hover:border-primary/50 rounded-xl transition-all"
           data-testid="button-toggle-sidebar"
         >
           {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
