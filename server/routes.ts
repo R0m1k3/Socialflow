@@ -559,13 +559,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = user.id;
       const { pageIds, postType, mediaId, mediaIds, ...postFields } = req.body;
       
-      console.log('[POST /api/posts] Received data:', { 
-        mediaIds, 
-        mediaId, 
-        mediaIdsType: Array.isArray(mediaIds) ? 'array' : typeof mediaIds,
-        mediaIdsLength: Array.isArray(mediaIds) ? mediaIds.length : 'N/A'
-      });
-      
       // Convert mediaIds to standardized format: array of { mediaId, displayOrder }
       let finalMediaItems: Array<{ mediaId: string; displayOrder: number }> = [];
       
@@ -615,7 +608,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           mediaId: item.mediaId,
           displayOrder: item.displayOrder,
         }));
-        console.log('[POST /api/posts] Inserting post_media:', postMediaValues);
         await db.insert(postMedia).values(postMediaValues);
       }
       
