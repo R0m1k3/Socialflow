@@ -46,9 +46,8 @@ The UI is built with **Radix UI** and **shadcn/ui**, leveraging **Tailwind CSS**
 
 ### Social Media APIs
 
-- **Facebook Graph API**: Intended for publishing posts to Facebook pages.
-- **Instagram Graph API**: Intended for publishing posts and stories to Instagram.
-(Both integrations are prepared but not fully implemented in the codebase.)
+- **Facebook Graph API**: Fully implemented for publishing posts to Facebook pages, including multi-photo carousel support (up to 10 photos). Uses a 2-step process: (1) Upload photos as unpublished via POST /{page-id}/photos with published=false to get photo IDs, (2) Create feed post via POST /{page-id}/feed with attached_media parameter containing photo IDs in order.
+- **Instagram Graph API**: Partially implemented. Single photo/video posts work. Carousel posts require a 3-step process (not yet implemented): (1) Create individual media containers with is_carousel_item=true, (2) Create carousel container with media_type=CAROUSEL, (3) Publish the carousel container.
 
 ### Database Service
 
