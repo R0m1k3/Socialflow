@@ -1,9 +1,10 @@
 import { useState, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { CloudUpload, Image as ImageIcon, Video, X, Upload } from "lucide-react";
+import { CloudUpload, Image as ImageIcon, Video, X, Upload, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SiFacebook, SiInstagram } from "react-icons/si";
 
@@ -219,6 +220,24 @@ export default function MediaUpload() {
           </div>
         </div>
       </div>
+
+      <Dialog open={uploadMutation.isPending}>
+        <DialogContent className="sm:max-w-md [&>button]:hidden">
+          <div className="flex flex-col items-center justify-center py-8">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+              <Loader2 className="w-10 h-10 text-primary animate-spin" />
+            </div>
+            <h3 className="text-xl font-semibold text-foreground mb-2">
+              Upload en cours...
+            </h3>
+            <p className="text-sm text-muted-foreground text-center">
+              Votre image est en cours de téléchargement et de traitement.
+              <br />
+              Veuillez patienter.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
