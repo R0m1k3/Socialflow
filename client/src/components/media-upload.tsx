@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
@@ -11,6 +11,8 @@ import { SiFacebook, SiInstagram } from "react-icons/si";
 export default function MediaUpload() {
   const { toast } = useToast();
   const [selectedFile, setSelectedFile] = useState<any>(null);
+  const [visibleCount, setVisibleCount] = useState(5);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const { data: mediaList } = useQuery({
     queryKey: ["/api/media"],
@@ -69,6 +71,28 @@ export default function MediaUpload() {
     },
   });
 
+  // Scroll infini - IntersectionObserver
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && mediaList && visibleCount < (mediaList as any[]).length) {
+          setVisibleCount(prev => Math.min(prev + 5, (mediaList as any[]).length));
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreRef.current) {
+      observer.observe(loadMoreRef.current);
+    }
+
+    return () => {
+      if (loadMoreRef.current) {
+        observer.unobserve(loadMoreRef.current);
+      }
+    };
+  }, [mediaList, visibleCount]);
+
   return (
     <div className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-lg">
       <div className="border-b border-border/50 p-6 bg-gradient-to-r from-primary/5 to-secondary/5">
@@ -123,8 +147,8 @@ export default function MediaUpload() {
                 </span>
               </h4>
 
-              <div className="space-y-3">
-                {(mediaList as any[])?.slice(0, 5).map((media: any) => (
+              <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                {(mediaList as any[])?.slice(0, visibleCount).map((media: any) => (
                   <div
                     key={media.id}
                     onClick={() => setSelectedFile(media)}
@@ -165,6 +189,13 @@ export default function MediaUpload() {
                     </div>
                   </div>
                 ))}
+                
+                {/* Élément sentinelle pour le scroll infini */}
+                {mediaList && visibleCount < (mediaList as any[]).length && (
+                  <div ref={loadMoreRef} className="flex justify-center py-4">
+                    <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                  </div>
+                )}
               </div>
             </div>
           </div>

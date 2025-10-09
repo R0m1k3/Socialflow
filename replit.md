@@ -43,6 +43,12 @@ Authentication uses **Passport.js** with local strategy and `bcrypt` for passwor
 
 The UI is built with **Radix UI** and **shadcn/ui**, leveraging **Tailwind CSS** for styling. The default theme is dark mode. Key design decisions include a component-based architecture for reusability, custom path aliases, and a responsive, mobile-first approach. The platform supports multi-photo carousel posts with drag-and-drop reordering, and a **PreviewModal** offers realistic rendering of posts across Facebook and Instagram formats before publishing. The calendar view is responsive, with a grid layout for desktop and an expandable list view for mobile, allowing editing and deletion of scheduled posts directly from the calendar.
 
+**Infinite Scroll**: Both the media library and new post pages implement infinite scroll using IntersectionObserver for performance optimization:
+- **Media Library**: Loads 5 media items initially, then 5 more when scrolling to bottom (max height: 500px)
+- **New Post Page**: Loads 12 media items initially in a 3-column grid, then 12 more when scrolling (max height: 500px)
+- Visual loading indicator ("Chargement..." with spinner) appears when more content is available
+- Proper cleanup to prevent memory leaks
+
 ## External Dependencies
 
 ### AI Content Generation
