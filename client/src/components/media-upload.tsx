@@ -147,17 +147,19 @@ export default function MediaUpload() {
                 </span>
               </h4>
 
-              <div className="space-y-3 max-h-[500px] overflow-y-auto">
-                {(mediaList as any[])?.slice(0, visibleCount).map((media: any) => (
-                  <div
-                    key={media.id}
-                    onClick={() => setSelectedFile(media)}
-                    className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border border-border/50 cursor-pointer hover:bg-muted hover:shadow-md transition-all"
-                    data-testid={`media-item-${media.id}`}
-                  >
-                    <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center flex-shrink-0 overflow-hidden">
+              <div className="max-h-[500px] overflow-y-auto">
+                <div className="grid grid-cols-3 gap-3">
+                  {(mediaList as any[])?.slice(0, visibleCount).map((media: any) => (
+                    <div
+                      key={media.id}
+                      onClick={() => setSelectedFile(media)}
+                      className="relative aspect-square rounded-lg overflow-hidden border-2 border-border/50 cursor-pointer hover:border-primary hover:shadow-lg transition-all group"
+                      data-testid={`media-item-${media.id}`}
+                    >
                       {media.type === "video" ? (
-                        <Video className="w-7 h-7 text-secondary" />
+                        <div className="w-full h-full bg-muted/30 flex items-center justify-center">
+                          <Video className="w-12 h-12 text-secondary" />
+                        </div>
                       ) : (
                         <img 
                           src={media.originalUrl} 
@@ -165,34 +167,23 @@ export default function MediaUpload() {
                           className="w-full h-full object-cover"
                         />
                       )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-foreground truncate">{media.fileName}</p>
-                      <p className="text-xs text-muted-foreground font-medium mt-1">
-                        {(media.fileSize / 1024 / 1024).toFixed(1)} MB
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-success/20 text-success">
-                        Prêt
-                      </span>
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteMutation.mutate(media.id);
                         }}
-                        className="text-muted-foreground hover:text-destructive transition-all p-1 rounded-lg hover:bg-destructive/10"
+                        className="absolute top-2 right-2 w-8 h-8 bg-black/70 hover:bg-destructive rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                         data-testid={`button-delete-${media.id}`}
                       >
-                        <X className="w-5 h-5" />
+                        <X className="w-4 h-4 text-white" />
                       </button>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
                 
                 {/* Élément sentinelle pour le scroll infini */}
                 {mediaList && visibleCount < (mediaList as any[]).length && (
-                  <div ref={loadMoreRef} className="flex justify-center py-4">
+                  <div ref={loadMoreRef} className="flex justify-center py-4 mt-3">
                     <Loader2 className="w-5 h-5 text-primary animate-spin" />
                   </div>
                 )}
