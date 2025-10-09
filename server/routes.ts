@@ -597,6 +597,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         postFields.scheduledFor = new Date(postFields.scheduledFor);
       }
       
+      // Set status to "scheduled" if scheduledFor is provided, otherwise "draft"
+      if (postFields.scheduledFor) {
+        postFields.status = "scheduled";
+      }
+      
       // Create the post
       const postData = insertPostSchema.parse({ ...postFields, userId });
       const post = await storage.createPost(postData);

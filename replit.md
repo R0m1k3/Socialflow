@@ -8,6 +8,13 @@ Social Flow is a comprehensive social media automation platform designed to stre
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+### October 9, 2025
+- **AI Variants Position**: Repositioned AI-generated text variations to display after "Contenu" card and before "Texte de la publication" card in new-post page for better workflow
+- **Calendar Auto-Refresh**: Fixed calendar not updating after creating a new scheduled post. Added `queryClient.invalidateQueries` with `refetchType: 'all'` in `createPostMutation.onSuccess` to force cache invalidation and immediate refetch
+- **Dashboard Scheduled Posts Count**: Fixed scheduled posts count showing 0 in dashboard. Problem was that posts with `scheduledFor` were created with status "draft" instead of "scheduled". Solution: POST /api/posts now sets `status = "scheduled"` when `scheduledFor` is provided. Legacy posts updated with SQL: `UPDATE posts SET status = 'scheduled' WHERE scheduled_for IS NOT NULL AND status = 'draft'`
+
 ## System Architecture
 
 ### Frontend Architecture

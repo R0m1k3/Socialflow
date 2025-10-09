@@ -213,7 +213,8 @@ export default function NewPost() {
   const createPostMutation = useMutation({
     mutationFn: (data: any) => 
       apiRequest('POST', '/api/posts', data),
-    onSuccess: () => {
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['/api/scheduled-posts'], refetchType: 'all' });
       toast({
         title: "Publication créée",
         description: "La publication a été créée avec succès",
