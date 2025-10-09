@@ -1,6 +1,6 @@
 import { format, isSameDay, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Edit, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { Edit, Trash2, ChevronDown, ChevronUp, Eye } from "lucide-react";
 import { SiFacebook, SiInstagram } from "react-icons/si";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -9,9 +9,10 @@ interface CalendarListViewProps {
   scheduledPosts: any[];
   onEditPost: (post: any) => void;
   onDeletePost: (postId: string) => void;
+  onPreviewPost: (post: any) => void;
 }
 
-export default function CalendarListView({ scheduledPosts, onEditPost, onDeletePost }: CalendarListViewProps) {
+export default function CalendarListView({ scheduledPosts, onEditPost, onDeletePost, onPreviewPost }: CalendarListViewProps) {
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
 
   // Group posts by date
@@ -129,30 +130,42 @@ export default function CalendarListView({ scheduledPosts, onEditPost, onDeleteP
                             </div>
                           </div>
 
-                          {isPending && (
-                            <div className="flex gap-2">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => onEditPost(post)}
-                                className="h-11 w-11 p-0"
-                                data-testid={`button-edit-post-${post.id}`}
-                                title="Modifier"
-                              >
-                                <Edit className="w-5 h-5 text-blue-500" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => onDeletePost(post.id)}
-                                className="h-11 w-11 p-0"
-                                data-testid={`button-delete-post-${post.id}`}
-                                title="Supprimer"
-                              >
-                                <Trash2 className="w-5 h-5 text-red-500" />
-                              </Button>
-                            </div>
-                          )}
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onPreviewPost(post)}
+                              className="h-11 w-11 p-0"
+                              data-testid={`button-preview-post-${post.id}`}
+                              title="Prévisualiser"
+                            >
+                              <Eye className={`w-5 h-5 ${isPending ? 'text-blue-500' : 'text-green-500'}`} />
+                            </Button>
+                            {isPending && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => onEditPost(post)}
+                                  className="h-11 w-11 p-0"
+                                  data-testid={`button-edit-post-${post.id}`}
+                                  title="Modifier"
+                                >
+                                  <Edit className="w-5 h-5 text-blue-500" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => onDeletePost(post.id)}
+                                  className="h-11 w-11 p-0"
+                                  data-testid={`button-delete-post-${post.id}`}
+                                  title="Supprimer"
+                                >
+                                  <Trash2 className="w-5 h-5 text-red-500" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

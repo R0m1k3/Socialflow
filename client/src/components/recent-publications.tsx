@@ -1,9 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Facebook, Instagram, Clock, CheckCircle2, XCircle } from "lucide-react";
+import { Facebook, Instagram, Clock, CheckCircle2, XCircle, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import type { ScheduledPost, SocialPage, Post } from "@shared/schema";
+import type { ScheduledPost, SocialPage, Post, Media } from "@shared/schema";
+import { PreviewModal } from "@/components/preview-modal";
+import { useState } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
 
 type ScheduledPostWithRelations = ScheduledPost & {
   post?: Post;
@@ -11,6 +15,10 @@ type ScheduledPostWithRelations = ScheduledPost & {
 };
 
 export default function RecentPublications() {
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<{ postText: string; mediaIds: string[]; allMedia: Media[] }>({ postText: '', mediaIds: [], allMedia: [] });
+  const { toast } = useToast();
+
   const { data: scheduledPosts = [], isLoading } = useQuery<ScheduledPostWithRelations[]>({
     queryKey: ['/api/scheduled-posts'],
   });
@@ -20,6 +28,36 @@ export default function RecentPublications() {
     .filter(sp => sp.publishedAt)
     .sort((a, b) => new Date(b.publishedAt!).getTime() - new Date(a.publishedAt!).getTime())
     .slice(0, 10);
+
+  const handlePreviewPost = async (scheduledPost: ScheduledPostWithRelations) => {
+    try {
+      const response = await fetch(`/api/posts/${scheduledPost.postId}`, {
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch post");
+      }
+      
+      const postWithMedia = await response.json();
+      const mediaIds = postWithMedia.media?.map((m: Media) => m.id) || [];
+      const allMedia = postWithMedia.media || [];
+      
+      setPreviewData({
+        postText: postWithMedia.post.content || '',
+        mediaIds: mediaIds,
+        allMedia: allMedia,
+      });
+      
+      setPreviewModalOpen(true);
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger la prévisualisation",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <Card className="rounded-2xl border-border/50 shadow-lg" data-testid="card-recent-publications">
@@ -77,7 +115,17 @@ export default function RecentPublications() {
                         )}
                       </p>
                     </div>
-                    <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handlePreviewPost(scheduledPost)}
+                        className="h-8 w-8 p-0"
+                        data-testid={`button-preview-post-${scheduledPost.id}`}
+                        title="Prévisualiser"
+                      >
+                        <Eye className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                      </Button>
                       {scheduledPost.error ? (
                         <XCircle className="w-4 h-4 text-destructive" />
                       ) : (
@@ -108,6 +156,16 @@ export default function RecentPublications() {
           </div>
         )}
       </CardContent>
+
+      <PreviewModal
+        open={previewModalOpen}
+        onOpenChange={setPreviewModalOpen}
+        postText={previewData.postText}
+        selectedMedia={previewData.mediaIds}
+        mediaList={previewData.allMedia}
+        onPublish={() => {}}
+        isPublishing={false}
+      />
     </Card>
   );
 }
