@@ -23,10 +23,11 @@ export default function RecentPublications() {
     queryKey: ['/api/scheduled-posts'],
   });
 
-  // Filter and sort published posts
+  // Filter and sort attempted posts (scheduled in the past)
+  const now = new Date();
   const recentPublished = scheduledPosts
-    .filter(sp => sp.publishedAt)
-    .sort((a, b) => new Date(b.publishedAt!).getTime() - new Date(a.publishedAt!).getTime())
+    .filter(sp => sp.scheduledAt && new Date(sp.scheduledAt) <= now)
+    .sort((a, b) => new Date(b.scheduledAt!).getTime() - new Date(a.scheduledAt!).getTime())
     .slice(0, 10);
 
   const handlePreviewPost = async (scheduledPost: ScheduledPostWithRelations) => {
@@ -141,7 +142,7 @@ export default function RecentPublications() {
                     </span>
                     <span>•</span>
                     <span>
-                      {format(new Date(scheduledPost.publishedAt!), "d MMM yyyy 'à' HH:mm", { locale: fr })}
+                      {format(new Date(scheduledPost.scheduledAt!), "d MMM yyyy 'à' HH:mm", { locale: fr })}
                     </span>
                     {scheduledPost.error && (
                       <>
@@ -165,6 +166,7 @@ export default function RecentPublications() {
         mediaList={previewData.allMedia}
         onPublish={() => {}}
         isPublishing={false}
+        readOnly={true}
       />
     </Card>
   );
