@@ -67,13 +67,19 @@ export class SchedulerService {
 
     console.log(`Publishing post ${post.id} to ${page.platform} page ${page.pageName}`);
 
-    // Get media if post has media
+    // Get all media for the post (for multi-photo carousels)
     const postMediaList = await storage.getPostMedia(post.id);
-    const media = postMediaList.length > 0 ? await storage.getMediaById(postMediaList[0].mediaId) : undefined;
+    const mediaList: any[] = [];
+    for (const pm of postMediaList) {
+      const media = await storage.getMediaById(pm.mediaId);
+      if (media) {
+        mediaList.push(media);
+      }
+    }
 
     // Validate that story posts have media
     // Note: "both" should never reach here since they're split at creation
-    if (scheduledPost.postType === 'story' && !media) {
+    if (scheduledPost.postType === 'story' && mediaList.length === 0) {
       const errorMsg = 'Les stories nécessitent un média. Ce post ne peut pas être publié.';
       console.error(`Deleting invalid story post ${scheduledPost.id} without media: ${errorMsg}`);
       
@@ -91,7 +97,7 @@ export class SchedulerService {
     let externalPostId: string;
     
     if (page.platform === 'facebook') {
-      externalPostId = await facebookService.publishPost(post, page, scheduledPost.postType, media || undefined);
+      externalPostId = await facebookService.publishPost(post, page, scheduledPost.postType, mediaList);
     } else if (page.platform === 'instagram') {
       // Instagram publishing not yet implemented
       console.warn(`Instagram publishing not yet implemented for post ${post.id}`);
