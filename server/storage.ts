@@ -58,9 +58,11 @@ export interface IStorage {
   // Posts
   getPosts(userId: string): Promise<Post[]>;
   getPost(id: string): Promise<Post | undefined>;
+  getPostWithMedia(id: string): Promise<{ post: Post; media: Media[] } | undefined>;
   createPost(post: InsertPost): Promise<Post>;
   updatePost(id: string, post: Partial<InsertPost>): Promise<Post>;
   deletePost(id: string): Promise<void>;
+  updatePostMedia(postId: string, mediaIds: string[]): Promise<void>;
 
   // Scheduled Posts
   getScheduledPosts(userId: string, startDate?: Date, endDate?: Date): Promise<ScheduledPost[]>;
@@ -181,6 +183,23 @@ export class DatabaseStorage implements IStorage {
     return post || undefined;
   }
 
+  async getPostWithMedia(id: string): Promise<{ post: Post; media: Media[] } | undefined> {
+    const post = await this.getPost(id);
+    if (!post) return undefined;
+
+    const postMediaLinks = await this.getPostMedia(id);
+    const mediaItems: Media[] = [];
+
+    for (const link of postMediaLinks) {
+      const mediaItem = await this.getMediaById(link.mediaId);
+      if (mediaItem) {
+        mediaItems.push(mediaItem);
+      }
+    }
+
+    return { post, media: mediaItems };
+  }
+
   async createPost(post: InsertPost): Promise<Post> {
     const [newPost] = await db.insert(posts).values(post).returning();
     return newPost;
@@ -193,6 +212,19 @@ export class DatabaseStorage implements IStorage {
 
   async deletePost(id: string): Promise<void> {
     await db.delete(posts).where(eq(posts.id, id));
+  }
+
+  async updatePostMedia(postId: string, mediaIds: string[]): Promise<void> {
+    await db.delete(postMedia).where(eq(postMedia.postId, postId));
+    
+    if (mediaIds.length > 0) {
+      const postMediaEntries = mediaIds.map((mediaId, index) => ({
+        postId,
+        mediaId,
+        displayOrder: index,
+      }));
+      await db.insert(postMedia).values(postMediaEntries);
+    }
   }
 
   // Scheduled Posts

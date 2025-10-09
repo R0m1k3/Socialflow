@@ -271,3 +271,59 @@ Core Tables:
 **Storage Layer**:
 - `createPost` method creates post_media entries with displayOrder
 - Bulk insert of media-post relationships with proper ordering
+
+### Calendar Responsive Improvements
+
+**Overview**: Enhanced calendar page with mobile-responsive list view, edit functionality for scheduled posts, and improved visual display with page names and platform icons.
+
+**Desktop View (≥768px)**:
+- Grid calendar layout with 7 columns (days of week)
+- Scheduled posts displayed in day cells with:
+  - Time (HH:mm format)
+  - Platform icon (Facebook/Instagram from react-icons/si)
+  - Page name (from social_pages.page_name)
+  - Edit button (blue pencil icon, hover to show)
+  - Delete button (red trash icon, hover to show)
+- Color coding: Blue for pending posts, Green for published posts
+- Legend showing status colors
+
+**Mobile View (<768px)**:
+- **CalendarListView Component**: Chronological list with date grouping
+- **Expandable Sections**: Click to expand/collapse posts by date
+- Each date section displays: "Day Date Month Year" with post count
+- Highlighted "Aujourd'hui" for current date
+- Posts display:
+  - Time in large font (text-lg)
+  - Status badge (Programmé/Publié)
+  - Platform icon + page name
+  - Edit button (44px x 44px touch target)
+  - Delete button (44px x 44px touch target)
+- Responsive breakpoint detection via useMediaQuery hook
+
+**Edit Scheduled Post Feature**:
+- **EditScheduledPostDialog Component**: Modal dialog for editing scheduled posts
+- **Date Picker**: HTML5 date input with YYYY-MM-DD format
+- **Time Picker**: HTML5 time input with HH:mm format
+- **Page Selector**: Dropdown with platform icons and page names
+- Pre-fills current values via useEffect when dialog opens
+- **API**: PATCH /api/scheduled-posts/:id endpoint
+- Updates: scheduledAt timestamp and pageId
+- Cache invalidation after successful update
+- Toast notification: "Programmation modifiée"
+
+**Frontend Components Created**:
+- `client/src/components/calendar-list-view.tsx` - Mobile list view with expandable dates
+- `client/src/components/edit-scheduled-post-dialog.tsx` - Edit dialog for scheduled posts
+- `client/src/hooks/use-media-query.ts` - Responsive breakpoint detection hook
+
+**Backend Changes**:
+- `PATCH /api/scheduled-posts/:id` - Update scheduledAt and pageId for a scheduled post
+- Validates date/time and page existence before update
+- Returns updated scheduled post with joined page data
+
+**Mobile Optimizations**:
+- 44px minimum touch targets for all interactive elements
+- Reduced padding and spacing on mobile devices
+- Large, readable text sizes for time and status
+- Expandable sections to reduce visual clutter
+- Smooth transitions for expand/collapse animations

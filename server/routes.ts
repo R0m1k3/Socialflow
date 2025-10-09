@@ -9,7 +9,7 @@ import { z } from "zod";
 import { openRouterService } from "./services/openrouter";
 import { cloudinaryService } from "./services/cloudinary";
 import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
-import type { User, InsertUser } from "@shared/schema";
+import type { User, InsertUser, ScheduledPost } from "@shared/schema";
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -653,6 +653,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/posts/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const userId = user.id;
+      const { id } = req.params;
+
+      const postWithMedia = await storage.getPostWithMedia(id);
+      if (!postWithMedia) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      if (postWithMedia.post.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      res.json(postWithMedia);
+    } catch (error) {
+      console.error("Error fetching post:", error);
+      res.status(500).json({ error: "Failed to fetch post" });
+    }
+  });
+
+  app.patch("/api/posts/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const userId = user.id;
+      const { id } = req.params;
+      const { content } = req.body;
+
+      const post = await storage.getPost(id);
+      if (!post) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      if (post.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      const updatedPost = await storage.updatePost(id, { content });
+      res.json(updatedPost);
+    } catch (error) {
+      console.error("Error updating post:", error);
+      res.status(500).json({ error: "Failed to update post" });
+    }
+  });
+
+  app.patch("/api/posts/:id/media", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const userId = user.id;
+      const { id } = req.params;
+      const { mediaIds } = req.body;
+
+      const post = await storage.getPost(id);
+      if (!post) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      if (post.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      if (!Array.isArray(mediaIds)) {
+        return res.status(400).json({ error: "mediaIds must be an array" });
+      }
+
+      if (mediaIds.length > 10) {
+        return res.status(400).json({ error: "Maximum 10 photos autorisées par publication" });
+      }
+
+      await storage.updatePostMedia(id, mediaIds);
+      const updatedPostWithMedia = await storage.getPostWithMedia(id);
+      res.json(updatedPostWithMedia);
+    } catch (error) {
+      console.error("Error updating post media:", error);
+      res.status(500).json({ error: "Failed to update post media" });
+    }
+  });
+
   // Scheduled posts
   app.get("/api/scheduled-posts", requireAuth, async (req, res) => {
     try {
@@ -693,6 +772,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting scheduled post:", error);
       res.status(500).json({ error: "Failed to delete scheduled post" });
+    }
+  });
+
+  app.patch("/api/scheduled-posts/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const userId = user.id;
+      const { id } = req.params;
+      
+      // Verify the scheduled post belongs to the user before updating
+      const scheduledPost = await storage.getScheduledPost(id);
+      if (!scheduledPost) {
+        return res.status(404).json({ error: "Scheduled post not found" });
+      }
+      
+      const post = await storage.getPost(scheduledPost.postId);
+      if (!post || post.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+      
+      // Only allow updating scheduledAt and pageId
+      const { scheduledAt, pageId } = req.body;
+      const updateData: Partial<ScheduledPost> = {};
+      
+      if (scheduledAt) {
+        updateData.scheduledAt = new Date(scheduledAt);
+      }
+      
+      if (pageId) {
+        updateData.pageId = pageId;
+      }
+      
+      const updated = await storage.updateScheduledPost(id, updateData);
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating scheduled post:", error);
+      res.status(500).json({ error: "Failed to update scheduled post" });
     }
   });
 
