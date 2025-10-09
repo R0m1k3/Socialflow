@@ -24,7 +24,12 @@ The backend runs on **Node.js** with **Express.js**, fully implemented in **Type
 
 ### Media Processing Pipeline
 
-The platform leverages **Cloudinary** for cloud-based image and video storage and transformation. Original files are uploaded to Cloudinary, which then automatically generates transformation URLs for various platform-specific formats (e.g., Facebook Feed: 1200x630px, Instagram Feed: 1080x1080px, Instagram Story: 1080x1920px). These public IDs and transformation URLs are stored in the database, allowing optimized images to be served via Cloudinary's CDN.
+The platform leverages **Cloudinary** for cloud-based image and video storage and transformation. Original files are uploaded to Cloudinary, which then automatically generates transformation URLs for various platform-specific formats:
+- **Facebook Feed**: 1080x1080px with intelligent center crop (`crop: fill`) - square format, no borders
+- **Instagram Feed**: 1080x1080px with padding (`crop: pad`) - maintains aspect ratio with auto background
+- **Instagram Story**: 1080x1920px with padding (`crop: pad`) - vertical format
+
+These public IDs and transformation URLs are stored in the database, allowing optimized images to be served via Cloudinary's CDN.
 
 ### Authentication & Authorization
 

@@ -33,7 +33,7 @@ class CloudinaryService {
 
     // Define eager transformations for images (generated during upload)
     const eagerTransformations = !isVideo ? [
-      { width: 1200, height: 630, crop: 'pad', gravity: 'center', background: 'auto' },      // Facebook Feed
+      { width: 1080, height: 1080, crop: 'fill', gravity: 'center' },                        // Facebook Feed (square, no borders)
       { width: 1080, height: 1080, crop: 'pad', gravity: 'center', background: 'auto' },     // Instagram Feed
       { width: 1080, height: 1920, crop: 'pad', gravity: 'center', background: 'auto' }      // Instagram Story
     ] : undefined;
