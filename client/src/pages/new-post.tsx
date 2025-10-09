@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Send, Sparkles, Image as ImageIcon, Calendar, Upload, Camera, GripVertical, Loader2 } from "lucide-react";
@@ -112,6 +112,8 @@ export default function NewPost() {
   const [postText, setPostText] = useState('');
   const [postType, setPostType] = useState<'feed' | 'story' | 'both'>('feed');
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [visibleMediaCount, setVisibleMediaCount] = useState(12);
+  const loadMoreMediaRef = useRef<HTMLDivElement>(null);
 
   const { data: pages = [] } = useQuery<SocialPage[]>({
     queryKey: ['/api/pages'],
@@ -310,6 +312,28 @@ export default function NewPost() {
     }
   };
 
+  // Scroll infini - IntersectionObserver pour la grille de médias
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && mediaList && visibleMediaCount < mediaList.length) {
+          setVisibleMediaCount(prev => Math.min(prev + 12, mediaList.length));
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (loadMoreMediaRef.current) {
+      observer.observe(loadMoreMediaRef.current);
+    }
+
+    return () => {
+      if (loadMoreMediaRef.current) {
+        observer.unobserve(loadMoreMediaRef.current);
+      }
+    };
+  }, [mediaList, visibleMediaCount]);
+
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {sidebarOpen && (
@@ -451,48 +475,57 @@ export default function NewPost() {
                         <div className="text-sm font-medium text-muted-foreground mb-2">
                           Toutes les photos
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
-                          {mediaList.map((media) => {
-                            const isSelected = selectedMedia.includes(media.id);
-                            
-                            return (
-                              <button
-                                key={media.id}
-                                onClick={() => {
-                                  if (isSelected) {
-                                    // Remove from selection
-                                    setSelectedMedia(prev => prev.filter(id => id !== media.id));
-                                  } else if (selectedMedia.length < 10) {
-                                    // Add to selection (max 10)
-                                    setSelectedMedia(prev => [...prev, media.id]);
-                                  } else {
-                                    toast({
-                                      title: "Limite atteinte",
-                                      description: "Maximum 10 photos par publication",
-                                      variant: "destructive",
-                                    });
-                                  }
-                                }}
-                                className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                                  isSelected
-                                    ? 'border-primary ring-2 ring-primary opacity-50'
-                                    : 'border-transparent hover:border-muted-foreground'
-                                }`}
-                                data-testid={`button-select-media-${media.id}`}
-                              >
-                                <img 
-                                  src={media.originalUrl} 
-                                  alt={media.fileName}
-                                  className="w-full h-full object-cover"
-                                />
-                                {isSelected && (
-                                  <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
-                                    <div className="text-xs font-semibold text-primary">Sélectionnée</div>
-                                  </div>
-                                )}
-                              </button>
-                            );
-                          })}
+                        <div className="max-h-[500px] overflow-y-auto">
+                          <div className="grid grid-cols-3 gap-2">
+                            {mediaList.slice(0, visibleMediaCount).map((media) => {
+                              const isSelected = selectedMedia.includes(media.id);
+                              
+                              return (
+                                <button
+                                  key={media.id}
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      // Remove from selection
+                                      setSelectedMedia(prev => prev.filter(id => id !== media.id));
+                                    } else if (selectedMedia.length < 10) {
+                                      // Add to selection (max 10)
+                                      setSelectedMedia(prev => [...prev, media.id]);
+                                    } else {
+                                      toast({
+                                        title: "Limite atteinte",
+                                        description: "Maximum 10 photos par publication",
+                                        variant: "destructive",
+                                      });
+                                    }
+                                  }}
+                                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
+                                    isSelected
+                                      ? 'border-primary ring-2 ring-primary opacity-50'
+                                      : 'border-transparent hover:border-muted-foreground'
+                                  }`}
+                                  data-testid={`button-select-media-${media.id}`}
+                                >
+                                  <img 
+                                    src={media.originalUrl} 
+                                    alt={media.fileName}
+                                    className="w-full h-full object-cover"
+                                  />
+                                  {isSelected && (
+                                    <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
+                                      <div className="text-xs font-semibold text-primary">Sélectionnée</div>
+                                    </div>
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          
+                          {/* Élément sentinelle pour le scroll infini */}
+                          {mediaList && visibleMediaCount < mediaList.length && (
+                            <div ref={loadMoreMediaRef} className="flex justify-center py-4 col-span-3">
+                              <Loader2 className="w-5 h-5 text-primary animate-spin" />
+                            </div>
+                          )}
                         </div>
                       </>
                     )}
