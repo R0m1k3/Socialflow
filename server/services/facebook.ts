@@ -88,8 +88,8 @@ export class FacebookService {
   }
 
   private async publishPhotoPost(post: Post, page: SocialPage, media: Media): Promise<string> {
-    // Use the Facebook Feed optimized URL (1200x630)
-    const photoUrl = media.facebookFeedUrl || media.originalUrl;
+    // Use original URL - Facebook handles the cropping
+    const photoUrl = media.originalUrl;
 
     const params = new URLSearchParams({
       access_token: page.accessToken!,
@@ -128,7 +128,8 @@ export class FacebookService {
     const photoIds: string[] = [];
 
     for (const media of imageMedia) {
-      const photoUrl = media.facebookFeedUrl || media.originalUrl;
+      // Use original URL - Facebook handles the cropping for carousel
+      const photoUrl = media.originalUrl;
       
       if (!photoUrl) {
         console.warn(`Skipping media ${media.id} - no valid URL found`);
@@ -242,7 +243,8 @@ export class FacebookService {
   }
 
   private async schedulePhotoPost(post: Post, page: SocialPage, scheduledTimestamp: number, media: Media): Promise<string> {
-    const photoUrl = media.facebookFeedUrl || media.originalUrl;
+    // Use original URL - Facebook handles the cropping
+    const photoUrl = media.originalUrl;
 
     const params = new URLSearchParams({
       access_token: page.accessToken!,
@@ -268,8 +270,8 @@ export class FacebookService {
   }
 
   private async publishStory(post: Post, page: SocialPage, media: Media): Promise<string> {
-    // Use vertical format for stories (Instagram Story URL 1080x1920)
-    const photoUrl = media.instagramStoryUrl || media.originalUrl;
+    // Use original URL - Facebook handles the story cropping
+    const photoUrl = media.originalUrl;
 
     const params = new URLSearchParams({
       access_token: page.accessToken!,
