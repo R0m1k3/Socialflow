@@ -14,6 +14,7 @@ Preferred communication style: Simple, everyday language.
 - **AI Variants Position**: Repositioned AI-generated text variations to display after "Contenu" card and before "Texte de la publication" card in new-post page for better workflow
 - **Calendar Auto-Refresh**: Fixed calendar not updating after creating a new scheduled post. Added `queryClient.invalidateQueries` with `refetchType: 'all'` in `createPostMutation.onSuccess` to force cache invalidation and immediate refetch
 - **Dashboard Scheduled Posts Count**: Fixed scheduled posts count showing 0 in dashboard. Problem was that posts with `scheduledFor` were created with status "draft" instead of "scheduled". Solution: POST /api/posts now sets `status = "scheduled"` when `scheduledFor` is provided. Legacy posts updated with SQL: `UPDATE posts SET status = 'scheduled' WHERE scheduled_for IS NOT NULL AND status = 'draft'`
+- **Preview in Calendar & History**: Added eye icon (👁️) buttons to preview posts across calendar (desktop/mobile) and history sections. Clicking the eye icon fetches full post data via GET /api/posts/:id and opens PreviewModal with post text and all associated media. Desktop calendar shows icon on hover; mobile and history show icon always. Preview available in calendar grid, popover ("voir plus"), list view, and recent publications history.
 
 ## System Architecture
 
