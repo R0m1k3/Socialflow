@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Send, Sparkles, Image as ImageIcon, Calendar, Upload, Camera, GripVertical } from "lucide-react";
+import { Send, Sparkles, Image as ImageIcon, Calendar, Upload, Camera, GripVertical, Loader2 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import {
   DndContext,
@@ -29,6 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
@@ -691,6 +692,24 @@ export default function NewPost() {
         </div>
       </main>
       
+      <Dialog open={uploadMutation.isPending}>
+        <DialogContent className="sm:max-w-md [&>button]:hidden">
+          <div className="flex flex-col items-center justify-center py-8">
+            <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
+              <Loader2 className="w-10 h-10 text-primary animate-spin" />
+            </div>
+            <h3 className="text-xl font-semibold text-foreground mb-2">
+              Upload en cours...
+            </h3>
+            <p className="text-sm text-muted-foreground text-center">
+              Votre image est en cours de téléchargement et de traitement.
+              <br />
+              Veuillez patienter.
+            </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <PreviewModal
         open={previewModalOpen}
         onOpenChange={setPreviewModalOpen}
