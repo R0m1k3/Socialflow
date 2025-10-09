@@ -562,27 +562,11 @@ export default function NewPost() {
                 </CardContent>
               </Card>
 
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
-                  <CardTitle>Texte de la publication</CardTitle>
-                  <CardDescription>Écrivez ou générez le texte de votre publication</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Textarea
-                    value={postText}
-                    onChange={(e) => setPostText(e.target.value)}
-                    placeholder="Écrivez votre texte ici ou générez-le avec l'IA..."
-                    rows={8}
-                    data-testid="textarea-post-text"
-                  />
-                </CardContent>
-              </Card>
-
               {generatedVariants.length > 0 && (
                 <Card className="rounded-2xl border-border/50 shadow-lg">
                   <CardHeader className="p-6">
                     <CardTitle>Variations générées par l'IA</CardTitle>
-                    <CardDescription>Cliquez sur "Utiliser" pour remplir le texte ci-dessus</CardDescription>
+                    <CardDescription>Cliquez sur "Utiliser" pour remplir le texte ci-dessous</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {generatedVariants.map((variant, index) => (
@@ -612,6 +596,22 @@ export default function NewPost() {
                   </CardContent>
                 </Card>
               )}
+
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
+                  <CardTitle>Texte de la publication</CardTitle>
+                  <CardDescription>Écrivez ou générez le texte de votre publication</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Textarea
+                    value={postText}
+                    onChange={(e) => setPostText(e.target.value)}
+                    placeholder="Écrivez votre texte ici ou générez-le avec l'IA..."
+                    rows={8}
+                    data-testid="textarea-post-text"
+                  />
+                </CardContent>
+              </Card>
             </div>
 
             <div className="space-y-8">
