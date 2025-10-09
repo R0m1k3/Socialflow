@@ -1,13 +1,17 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trash2 } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trash2, Edit } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { ScheduledPost } from "@shared/schema";
+import { SiFacebook, SiInstagram } from "react-icons/si";
+import EditScheduledPostDialog from "./edit-scheduled-post-dialog";
 
 export default function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<any>(null);
   const { toast } = useToast();
 
   const { data: scheduledPosts = [] } = useQuery<ScheduledPost[]>({
@@ -38,6 +42,12 @@ export default function CalendarView() {
     if (confirm("Êtes-vous sûr de vouloir supprimer cette publication programmée ?")) {
       deletePostMutation.mutate(postId);
     }
+  };
+
+  const handleEditPost = (post: any, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedPost(post);
+    setEditDialogOpen(true);
   };
 
   const getPostsForDate = (date: Date) => {
@@ -181,10 +191,13 @@ export default function CalendarView() {
                 
                 return (
                   <div className="space-y-2">
-                    {postsForDay.slice(0, 2).map((post, idx) => {
+                    {postsForDay.slice(0, 2).map((post: any, idx) => {
                       const time = post.scheduledAt ? new Date(post.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
                       const isPending = !post.publishedAt;
                       const isPublished = !!post.publishedAt;
+                      const pageName = post.page?.pageName || 'Page inconnue';
+                      const platform = post.page?.platform || 'facebook';
+                      const PlatformIcon = platform === 'instagram' ? SiInstagram : SiFacebook;
                       
                       return (
                         <div 
@@ -199,17 +212,30 @@ export default function CalendarView() {
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
                               <div className="font-semibold">{time}</div>
-                              <div className="truncate opacity-90">{post.postType || 'Post'}</div>
+                              <div className="flex items-center gap-1 truncate opacity-90">
+                                <PlatformIcon className="w-3 h-3 flex-shrink-0" />
+                                <span className="truncate">{pageName}</span>
+                              </div>
                             </div>
                             {isPending && (
-                              <button
-                                onClick={(e) => handleDeletePost(post.id, e)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded"
-                                data-testid={`button-delete-post-${post.id}`}
-                                title="Supprimer"
-                              >
-                                <Trash2 className="w-3 h-3 text-red-500" />
-                              </button>
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={(e) => handleEditPost(post, e)}
+                                  className="p-1 hover:bg-blue-500/20 rounded"
+                                  data-testid={`button-edit-post-${post.id}`}
+                                  title="Modifier"
+                                >
+                                  <Edit className="w-3 h-3 text-blue-500" />
+                                </button>
+                                <button
+                                  onClick={(e) => handleDeletePost(post.id, e)}
+                                  className="p-1 hover:bg-red-500/20 rounded"
+                                  data-testid={`button-delete-post-${post.id}`}
+                                  title="Supprimer"
+                                >
+                                  <Trash2 className="w-3 h-3 text-red-500" />
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -238,6 +264,14 @@ export default function CalendarView() {
           </div>
         </div>
       </div>
+
+      {selectedPost && (
+        <EditScheduledPostDialog
+          open={editDialogOpen}
+          onOpenChange={setEditDialogOpen}
+          scheduledPost={selectedPost}
+        />
+      )}
     </div>
   );
 }
