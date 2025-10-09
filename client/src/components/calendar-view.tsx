@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trash2, Edit } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trash2, Edit, MoreHorizontal } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -57,7 +58,11 @@ export default function CalendarView() {
     return (scheduledPosts || []).filter(post => {
       if (!post.scheduledAt) return false;
       const postDate = new Date(post.scheduledAt);
-      return postDate.toDateString() === date.toDateString();
+      
+      // Compare using local date components to avoid timezone issues
+      return postDate.getFullYear() === date.getFullYear() &&
+             postDate.getMonth() === date.getMonth() &&
+             postDate.getDate() === date.getDate();
     });
   };
 
@@ -246,9 +251,74 @@ export default function CalendarView() {
                       );
                     })}
                     {postsForDay.length > 2 && (
-                      <div className="text-[11px] text-muted-foreground pl-2 font-medium">
-                        +{postsForDay.length - 2} autre(s)
-                      </div>
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <button 
+                            className="w-full text-left text-[11px] text-primary hover:text-primary/80 pl-2 font-medium transition-colors flex items-center gap-1"
+                            data-testid="button-show-more-posts"
+                          >
+                            <MoreHorizontal className="w-3 h-3" />
+                            +{postsForDay.length - 2} autre(s)
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80 p-3" align="start">
+                          <div className="space-y-2">
+                            <h4 className="font-semibold text-sm mb-3">
+                              Tous les posts du {day.date.getDate()} {monthNames[day.date.getMonth()]}
+                            </h4>
+                            {postsForDay.slice(2).map((post: any, idx) => {
+                              const time = post.scheduledAt ? new Date(post.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+                              const isPending = !post.publishedAt;
+                              const isPublished = !!post.publishedAt;
+                              const pageName = post.page?.pageName || 'Page inconnue';
+                              const platform = post.page?.platform || 'facebook';
+                              const PlatformIcon = platform === 'instagram' ? SiInstagram : SiFacebook;
+                              
+                              return (
+                                <div 
+                                  key={idx}
+                                  className={`
+                                    px-3 py-2 rounded-lg text-xs transition-all font-medium shadow-sm group relative
+                                    ${isPending ? 'bg-blue-500/20 text-blue-600 hover:bg-blue-500/30' : ''}
+                                    ${isPublished ? 'bg-green-500/20 text-green-600 hover:bg-green-500/30' : ''}
+                                  `}
+                                  data-testid={`popover-post-${post.id}`}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="font-semibold">{time}</div>
+                                      <div className="flex items-center gap-1 truncate opacity-90">
+                                        <PlatformIcon className="w-3 h-3 flex-shrink-0" />
+                                        <span className="truncate">{pageName}</span>
+                                      </div>
+                                    </div>
+                                    {isPending && (
+                                      <div className="flex gap-1">
+                                        <button
+                                          onClick={(e) => handleEditPost(post, e)}
+                                          className="p-1 hover:bg-blue-500/20 rounded"
+                                          data-testid={`button-edit-popover-post-${post.id}`}
+                                          title="Modifier"
+                                        >
+                                          <Edit className="w-3 h-3 text-blue-500" />
+                                        </button>
+                                        <button
+                                          onClick={(e) => handleDeletePost(post.id, e)}
+                                          className="p-1 hover:bg-red-500/20 rounded"
+                                          data-testid={`button-delete-popover-post-${post.id}`}
+                                          title="Supprimer"
+                                        >
+                                          <Trash2 className="w-3 h-3 text-red-500" />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     )}
                   </div>
                 );
