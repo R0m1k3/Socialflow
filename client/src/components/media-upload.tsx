@@ -170,40 +170,18 @@ export default function MediaUpload() {
             <div className="space-y-5">
               <div className="border border-border/50 rounded-xl p-5 bg-card shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
                     <SiFacebook className="text-[#1877F2] text-lg" />
-                    <span className="text-sm font-semibold text-foreground">Facebook Feed</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md font-medium">1200×630</span>
-                </div>
-                <div className="aspect-[1.91/1] bg-muted/30 rounded-lg overflow-hidden border border-border/50">
-                  {selectedFile?.facebookFeedUrl ? (
-                    <img
-                      src={selectedFile.facebookFeedUrl}
-                      alt="Facebook preview"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <ImageIcon className="w-12 h-12 text-muted-foreground opacity-50" />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="border border-border/50 rounded-xl p-5 bg-card shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
                     <SiInstagram className="text-[#E4405F] text-lg" />
-                    <span className="text-sm font-semibold text-foreground">Instagram Feed</span>
+                    <span className="text-sm font-semibold text-foreground">Feed</span>
                   </div>
                   <span className="text-xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md font-medium">1080×1080</span>
                 </div>
-                <div className="aspect-square bg-muted/30 rounded-lg overflow-hidden border border-border/50">
-                  {selectedFile?.instagramFeedUrl ? (
+                <div className="aspect-square bg-muted/30 rounded-lg overflow-hidden border border-border/50" style={{ width: '250px' }}>
+                  {selectedFile?.facebookFeedUrl || selectedFile?.instagramFeedUrl ? (
                     <img
-                      src={selectedFile.instagramFeedUrl}
-                      alt="Instagram feed preview"
+                      src={selectedFile.facebookFeedUrl || selectedFile.instagramFeedUrl}
+                      alt="Feed preview"
                       className="w-full h-full object-cover"
                     />
                   ) : (
@@ -216,17 +194,18 @@ export default function MediaUpload() {
 
               <div className="border border-border/50 rounded-xl p-5 bg-card shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-3">
+                    <SiFacebook className="text-[#1877F2] text-lg" />
                     <SiInstagram className="text-[#E4405F] text-lg" />
-                    <span className="text-sm font-semibold text-foreground">Instagram Story</span>
+                    <span className="text-sm font-semibold text-foreground">Story</span>
                   </div>
                   <span className="text-xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md font-medium">1080×1920</span>
                 </div>
-                <div className="aspect-[9/16] bg-muted/30 rounded-lg overflow-hidden max-w-[220px] border border-border/50">
+                <div className="aspect-[9/16] bg-muted/30 rounded-lg overflow-hidden border border-border/50" style={{ width: '200px' }}>
                   {selectedFile?.instagramStoryUrl ? (
                     <img
                       src={selectedFile.instagramStoryUrl}
-                      alt="Instagram story preview"
+                      alt="Story preview"
                       className="w-full h-full object-cover"
                     />
                   ) : (
