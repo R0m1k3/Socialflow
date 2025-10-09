@@ -268,7 +268,7 @@ export default function NewPost() {
 
     createPostMutation.mutate({
       content: postText,
-      scheduledFor: scheduledDate || undefined,
+      scheduledFor: scheduledDate ? new Date(scheduledDate).toISOString() : undefined,
       mediaIds: selectedMedia.length > 0 ? selectedMedia : undefined,
       pageIds: selectedPages,
       postType,
