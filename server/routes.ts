@@ -653,6 +653,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.get("/api/posts/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const userId = user.id;
+      const { id } = req.params;
+
+      const postWithMedia = await storage.getPostWithMedia(id);
+      if (!postWithMedia) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      if (postWithMedia.post.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      res.json(postWithMedia);
+    } catch (error) {
+      console.error("Error fetching post:", error);
+      res.status(500).json({ error: "Failed to fetch post" });
+    }
+  });
+
+  app.patch("/api/posts/:id", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const userId = user.id;
+      const { id } = req.params;
+      const { content } = req.body;
+
+      const post = await storage.getPost(id);
+      if (!post) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      if (post.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      const updatedPost = await storage.updatePost(id, { content });
+      res.json(updatedPost);
+    } catch (error) {
+      console.error("Error updating post:", error);
+      res.status(500).json({ error: "Failed to update post" });
+    }
+  });
+
+  app.patch("/api/posts/:id/media", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const userId = user.id;
+      const { id } = req.params;
+      const { mediaIds } = req.body;
+
+      const post = await storage.getPost(id);
+      if (!post) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+
+      if (post.userId !== userId) {
+        return res.status(403).json({ error: "Unauthorized" });
+      }
+
+      if (!Array.isArray(mediaIds)) {
+        return res.status(400).json({ error: "mediaIds must be an array" });
+      }
+
+      if (mediaIds.length > 10) {
+        return res.status(400).json({ error: "Maximum 10 photos autorisées par publication" });
+      }
+
+      await storage.updatePostMedia(id, mediaIds);
+      const updatedPostWithMedia = await storage.getPostWithMedia(id);
+      res.json(updatedPostWithMedia);
+    } catch (error) {
+      console.error("Error updating post media:", error);
+      res.status(500).json({ error: "Failed to update post media" });
+    }
+  });
+
   // Scheduled posts
   app.get("/api/scheduled-posts", requireAuth, async (req, res) => {
     try {
