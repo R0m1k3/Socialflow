@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trash2, Edit, MoreHorizontal } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trash2, Edit, MoreHorizontal, Eye } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -10,11 +10,15 @@ import { SiFacebook, SiInstagram } from "react-icons/si";
 import EditScheduledPostDialog from "./edit-scheduled-post-dialog";
 import CalendarListView from "./calendar-list-view";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { PreviewModal } from "@/components/preview-modal";
+import type { Media } from "@shared/schema";
 
 export default function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any>(null);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<{ postText: string; mediaIds: string[]; allMedia: Media[] }>({ postText: '', mediaIds: [], allMedia: [] });
   const { toast } = useToast();
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
@@ -52,6 +56,38 @@ export default function CalendarView() {
     if (e) e.stopPropagation();
     setSelectedPost(post);
     setEditDialogOpen(true);
+  };
+
+  const handlePreviewPost = async (scheduledPost: any, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    
+    try {
+      const response = await fetch(`/api/posts/${scheduledPost.postId}`, {
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch post");
+      }
+      
+      const postWithMedia = await response.json();
+      const mediaIds = postWithMedia.media?.map((m: Media) => m.id) || [];
+      const allMedia = postWithMedia.media || [];
+      
+      setPreviewData({
+        postText: postWithMedia.post.content || '',
+        mediaIds: mediaIds,
+        allMedia: allMedia,
+      });
+      
+      setPreviewModalOpen(true);
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger la prévisualisation",
+        variant: "destructive",
+      });
+    }
   };
 
   const getPostsForDate = (date: Date) => {
@@ -226,26 +262,36 @@ export default function CalendarView() {
                                 <span className="truncate">{pageName}</span>
                               </div>
                             </div>
-                            {isPending && (
-                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={(e) => handleEditPost(post, e)}
-                                  className="p-1 hover:bg-blue-500/20 rounded"
-                                  data-testid={`button-edit-post-${post.id}`}
-                                  title="Modifier"
-                                >
-                                  <Edit className="w-3 h-3 text-blue-500" />
-                                </button>
-                                <button
-                                  onClick={(e) => handleDeletePost(post.id, e)}
-                                  className="p-1 hover:bg-red-500/20 rounded"
-                                  data-testid={`button-delete-post-${post.id}`}
-                                  title="Supprimer"
-                                >
-                                  <Trash2 className="w-3 h-3 text-red-500" />
-                                </button>
-                              </div>
-                            )}
+                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => handlePreviewPost(post, e)}
+                                className={`p-1 rounded ${isPending ? 'hover:bg-blue-500/20' : 'hover:bg-green-500/20'}`}
+                                data-testid={`button-preview-post-${post.id}`}
+                                title="Prévisualiser"
+                              >
+                                <Eye className={`w-3 h-3 ${isPending ? 'text-blue-500' : 'text-green-500'}`} />
+                              </button>
+                              {isPending && (
+                                <>
+                                  <button
+                                    onClick={(e) => handleEditPost(post, e)}
+                                    className="p-1 hover:bg-blue-500/20 rounded"
+                                    data-testid={`button-edit-post-${post.id}`}
+                                    title="Modifier"
+                                  >
+                                    <Edit className="w-3 h-3 text-blue-500" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => handleDeletePost(post.id, e)}
+                                    className="p-1 hover:bg-red-500/20 rounded"
+                                    data-testid={`button-delete-post-${post.id}`}
+                                    title="Supprimer"
+                                  >
+                                    <Trash2 className="w-3 h-3 text-red-500" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -292,26 +338,36 @@ export default function CalendarView() {
                                         <span className="truncate">{pageName}</span>
                                       </div>
                                     </div>
-                                    {isPending && (
-                                      <div className="flex gap-1">
-                                        <button
-                                          onClick={(e) => handleEditPost(post, e)}
-                                          className="p-1 hover:bg-blue-500/20 rounded"
-                                          data-testid={`button-edit-popover-post-${post.id}`}
-                                          title="Modifier"
-                                        >
-                                          <Edit className="w-3 h-3 text-blue-500" />
-                                        </button>
-                                        <button
-                                          onClick={(e) => handleDeletePost(post.id, e)}
-                                          className="p-1 hover:bg-red-500/20 rounded"
-                                          data-testid={`button-delete-popover-post-${post.id}`}
-                                          title="Supprimer"
-                                        >
-                                          <Trash2 className="w-3 h-3 text-red-500" />
-                                        </button>
-                                      </div>
-                                    )}
+                                    <div className="flex gap-1">
+                                      <button
+                                        onClick={(e) => handlePreviewPost(post, e)}
+                                        className={`p-1 rounded ${isPending ? 'hover:bg-blue-500/20' : 'hover:bg-green-500/20'}`}
+                                        data-testid={`button-preview-popover-post-${post.id}`}
+                                        title="Prévisualiser"
+                                      >
+                                        <Eye className={`w-3 h-3 ${isPending ? 'text-blue-500' : 'text-green-500'}`} />
+                                      </button>
+                                      {isPending && (
+                                        <>
+                                          <button
+                                            onClick={(e) => handleEditPost(post, e)}
+                                            className="p-1 hover:bg-blue-500/20 rounded"
+                                            data-testid={`button-edit-popover-post-${post.id}`}
+                                            title="Modifier"
+                                          >
+                                            <Edit className="w-3 h-3 text-blue-500" />
+                                          </button>
+                                          <button
+                                            onClick={(e) => handleDeletePost(post.id, e)}
+                                            className="p-1 hover:bg-red-500/20 rounded"
+                                            data-testid={`button-delete-popover-post-${post.id}`}
+                                            title="Supprimer"
+                                          >
+                                            <Trash2 className="w-3 h-3 text-red-500" />
+                                          </button>
+                                        </>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               );
@@ -343,6 +399,7 @@ export default function CalendarView() {
           scheduledPosts={scheduledPosts}
           onEditPost={handleEditPost}
           onDeletePost={handleDeletePost}
+          onPreviewPost={handlePreviewPost}
         />
       )}
 
@@ -350,6 +407,16 @@ export default function CalendarView() {
         open={editDialogOpen}
         onOpenChange={setEditDialogOpen}
         scheduledPost={selectedPost || {}}
+      />
+
+      <PreviewModal
+        open={previewModalOpen}
+        onOpenChange={setPreviewModalOpen}
+        postText={previewData.postText}
+        selectedMedia={previewData.mediaIds}
+        mediaList={previewData.allMedia}
+        onPublish={() => {}}
+        isPublishing={false}
       />
     </div>
   );
