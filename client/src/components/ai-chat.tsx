@@ -6,12 +6,29 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Bot, User, Lightbulb, History, Zap, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   variants?: Array<{ variant: string; text: string; characterCount: number }>;
 }
+
+const OPENROUTER_MODELS = [
+  { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet (Recommandé)", category: "Anthropic" },
+  { id: "anthropic/claude-sonnet-3.7", name: "Claude Sonnet 3.7", category: "Anthropic" },
+  { id: "anthropic/claude-opus", name: "Claude Opus", category: "Anthropic" },
+  { id: "openai/gpt-5", name: "GPT-5", category: "OpenAI" },
+  { id: "openai/gpt-4o", name: "GPT-4o", category: "OpenAI" },
+  { id: "openai/gpt-3.5-turbo", name: "GPT-3.5 Turbo", category: "OpenAI" },
+  { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", category: "Google" },
+  { id: "google/gemini-pro", name: "Gemini Pro", category: "Google" },
+  { id: "meta-llama/llama-4-maverick:free", name: "Llama 4 Maverick (Gratuit)", category: "Meta" },
+  { id: "meta-llama/llama-3.1-70b-instruct", name: "Llama 3.1 70B", category: "Meta" },
+  { id: "x-ai/grok-3", name: "Grok 3", category: "xAI" },
+  { id: "mistralai/mistral-small-3.1:free", name: "Mistral Small 3.1 (Gratuit)", category: "Mistral AI" },
+  { id: "qwen/qwen-qwq-32b:free", name: "Qwen QwQ 32B (Gratuit)", category: "Alibaba" },
+];
 
 export default function AiChat() {
   const [messages, setMessages] = useState<Message[]>([
@@ -21,11 +38,15 @@ export default function AiChat() {
     },
   ]);
   const [input, setInput] = useState("");
+  const [selectedModel, setSelectedModel] = useState("anthropic/claude-3.5-sonnet");
   const { toast } = useToast();
 
   const generateMutation = useMutation({
     mutationFn: async (productInfo: any) => {
-      const response = await apiRequest("POST", "/api/ai/generate", productInfo);
+      const response = await apiRequest("POST", "/api/ai/generate", {
+        ...productInfo,
+        model: selectedModel,
+      });
       return response.json();
     },
     onSuccess: (data) => {
@@ -68,7 +89,7 @@ export default function AiChat() {
   return (
     <div className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-lg h-full flex flex-col">
       <div className="border-b border-border/50 p-6 bg-gradient-to-r from-primary/5 to-secondary/5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
               <Sparkles className="text-white w-6 h-6" />
@@ -88,6 +109,25 @@ export default function AiChat() {
             <Sparkles className="w-4 h-4 mr-2" />
             Nouveau chat
           </Button>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-foreground">Modèle IA:</label>
+          <Select value={selectedModel} onValueChange={setSelectedModel}>
+            <SelectTrigger className="w-[300px] rounded-xl" data-testid="select-ai-model">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {OPENROUTER_MODELS.map((model) => (
+                <SelectItem key={model.id} value={model.id} data-testid={`model-option-${model.id}`}>
+                  <div className="flex flex-col">
+                    <span>{model.name}</span>
+                    <span className="text-xs text-muted-foreground">{model.category}</span>
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 
