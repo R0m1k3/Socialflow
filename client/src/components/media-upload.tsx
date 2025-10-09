@@ -131,11 +131,15 @@ export default function MediaUpload() {
                     className="flex items-center gap-4 p-4 rounded-xl bg-muted/30 border border-border/50 cursor-pointer hover:bg-muted hover:shadow-md transition-all"
                     data-testid={`media-item-${media.id}`}
                   >
-                    <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center flex-shrink-0">
+                    <div className="w-14 h-14 rounded-lg bg-gradient-to-br from-muted to-muted/50 flex items-center justify-center flex-shrink-0 overflow-hidden">
                       {media.type === "video" ? (
                         <Video className="w-7 h-7 text-secondary" />
                       ) : (
-                        <ImageIcon className="w-7 h-7 text-primary" />
+                        <img 
+                          src={media.originalUrl} 
+                          alt={media.fileName}
+                          className="w-full h-full object-cover"
+                        />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
