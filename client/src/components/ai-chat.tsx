@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Bot, User, Lightbulb, History, Zap, Sparkles } from "lucide-react";
+import { Bot, User, Lightbulb, History, Zap, Sparkles, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -14,21 +14,15 @@ interface Message {
   variants?: Array<{ variant: string; text: string; characterCount: number }>;
 }
 
-const OPENROUTER_MODELS = [
-  { id: "anthropic/claude-3.5-sonnet", name: "Claude 3.5 Sonnet (Recommandé)", category: "Anthropic" },
-  { id: "anthropic/claude-sonnet-3.7", name: "Claude Sonnet 3.7", category: "Anthropic" },
-  { id: "anthropic/claude-opus", name: "Claude Opus", category: "Anthropic" },
-  { id: "openai/gpt-5", name: "GPT-5", category: "OpenAI" },
-  { id: "openai/gpt-4o", name: "GPT-4o", category: "OpenAI" },
-  { id: "openai/gpt-3.5-turbo", name: "GPT-3.5 Turbo", category: "OpenAI" },
-  { id: "google/gemini-2.5-flash", name: "Gemini 2.5 Flash", category: "Google" },
-  { id: "google/gemini-pro", name: "Gemini Pro", category: "Google" },
-  { id: "meta-llama/llama-4-maverick:free", name: "Llama 4 Maverick (Gratuit)", category: "Meta" },
-  { id: "meta-llama/llama-3.1-70b-instruct", name: "Llama 3.1 70B", category: "Meta" },
-  { id: "x-ai/grok-3", name: "Grok 3", category: "xAI" },
-  { id: "mistralai/mistral-small-3.1:free", name: "Mistral Small 3.1 (Gratuit)", category: "Mistral AI" },
-  { id: "qwen/qwen-qwq-32b:free", name: "Qwen QwQ 32B (Gratuit)", category: "Alibaba" },
-];
+interface OpenRouterModel {
+  id: string;
+  name: string;
+  context_length?: number;
+  pricing?: {
+    prompt: string;
+    completion: string;
+  };
+}
 
 export default function AiChat() {
   const [messages, setMessages] = useState<Message[]>([
@@ -40,6 +34,13 @@ export default function AiChat() {
   const [input, setInput] = useState("");
   const [selectedModel, setSelectedModel] = useState("anthropic/claude-3.5-sonnet");
   const { toast } = useToast();
+
+  // Fetch available models from OpenRouter
+  const { data: modelsData, isLoading: modelsLoading } = useQuery<{ models: OpenRouterModel[] }>({
+    queryKey: ['/api/ai/models'],
+  });
+
+  const availableModels = modelsData?.models || [];
 
   const generateMutation = useMutation({
     mutationFn: async (productInfo: any) => {
@@ -113,16 +114,27 @@ export default function AiChat() {
         
         <div className="flex items-center gap-3">
           <label className="text-sm font-medium text-foreground">Modèle IA:</label>
-          <Select value={selectedModel} onValueChange={setSelectedModel}>
+          <Select value={selectedModel} onValueChange={setSelectedModel} disabled={modelsLoading}>
             <SelectTrigger className="w-[300px] rounded-xl" data-testid="select-ai-model">
-              <SelectValue />
+              {modelsLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Chargement des modèles...</span>
+                </div>
+              ) : (
+                <SelectValue placeholder="Sélectionner un modèle" />
+              )}
             </SelectTrigger>
-            <SelectContent>
-              {OPENROUTER_MODELS.map((model) => (
+            <SelectContent className="max-h-[300px] overflow-y-auto">
+              {availableModels.map((model: OpenRouterModel) => (
                 <SelectItem key={model.id} value={model.id} data-testid={`model-option-${model.id}`}>
                   <div className="flex flex-col">
-                    <span>{model.name}</span>
-                    <span className="text-xs text-muted-foreground">{model.category}</span>
+                    <span className="font-medium">{model.name}</span>
+                    {model.pricing && (
+                      <span className="text-xs text-muted-foreground">
+                        ${model.pricing.prompt} / ${model.pricing.completion}
+                      </span>
+                    )}
                   </div>
                 </SelectItem>
               ))}
