@@ -55,6 +55,7 @@ export const media = pgTable("media", {
   type: mediaTypeEnum("type").notNull(),
   cloudinaryPublicId: text("cloudinary_public_id"),
   originalUrl: text("original_url").notNull(),
+  facebookLandscapeUrl: text("facebook_landscape_url"),
   facebookFeedUrl: text("facebook_feed_url"),
   instagramFeedUrl: text("instagram_feed_url"),
   instagramStoryUrl: text("instagram_story_url"),
