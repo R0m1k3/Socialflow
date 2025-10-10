@@ -11,6 +11,9 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes
 
 ### October 10, 2025
+- **Calendar Permissions System**: Implemented comprehensive page-based permissions for calendar access. Admin users see all scheduled posts with full edit/delete rights. Standard users see only posts from their assigned pages via `user_page_permissions` table, but can only edit/delete their own posts (ownership check via `post.userId`). GET /api/scheduled-posts filters posts by accessible pages (admin bypass). DELETE and PATCH /api/scheduled-posts enforce ownership validation (admin can modify any post, users limited to own posts).
+- **Scheduled Posts Data Sync Fix**: Fixed critical bug where editing scheduled post time via PATCH /api/scheduled-posts/:id updated `scheduled_posts.scheduledAt` but not `posts.scheduledFor`, causing calendar/database inconsistency. Now both tables are synchronized: updating scheduledAt automatically updates scheduledFor via `storage.updatePost()`.
+- **Scheduled Posts Validation**: Added validation to POST /api/posts requiring `pageIds` when `scheduledFor` is provided. Prevents orphaned scheduled posts that would be invisible in calendar. Returns 400 error: "Les posts programmés nécessitent au moins une page cible".
 - **AI Assistant Admin-Only Access**: Restricted access to AI Assistant to administrators only. Route `/ai` now requires admin role with `adminOnly` prop. Sidebar moved "Assistant IA" link to Administration section (visible only to admins). Backend endpoints (`/api/ai/models`, `/api/ai/generate`, `/api/ai/generations`) protected with `requireAdmin` middleware. Standard users attempting to access AI features see "Accès refusé" message and receive 403 responses.
 
 ### October 9, 2025
