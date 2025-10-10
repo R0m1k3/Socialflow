@@ -1,16 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Bot, User, Lightbulb, History, Zap, Sparkles } from "lucide-react";
+import { Bot, User, Lightbulb, History, Zap, Sparkles, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
   variants?: Array<{ variant: string; text: string; characterCount: number }>;
+}
+
+interface OpenRouterModel {
+  id: string;
+  name: string;
+  context_length?: number;
+  pricing?: {
+    prompt: string;
+    completion: string;
+  };
 }
 
 export default function AiChat() {
@@ -21,11 +32,22 @@ export default function AiChat() {
     },
   ]);
   const [input, setInput] = useState("");
+  const [selectedModel, setSelectedModel] = useState("anthropic/claude-3.5-sonnet");
   const { toast } = useToast();
+
+  // Fetch available models from OpenRouter
+  const { data: modelsData, isLoading: modelsLoading } = useQuery<{ models: OpenRouterModel[] }>({
+    queryKey: ['/api/ai/models'],
+  });
+
+  const availableModels = modelsData?.models || [];
 
   const generateMutation = useMutation({
     mutationFn: async (productInfo: any) => {
-      const response = await apiRequest("POST", "/api/ai/generate", productInfo);
+      const response = await apiRequest("POST", "/api/ai/generate", {
+        ...productInfo,
+        model: selectedModel,
+      });
       return response.json();
     },
     onSuccess: (data) => {
@@ -68,7 +90,7 @@ export default function AiChat() {
   return (
     <div className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-lg h-full flex flex-col">
       <div className="border-b border-border/50 p-6 bg-gradient-to-r from-primary/5 to-secondary/5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
               <Sparkles className="text-white w-6 h-6" />
@@ -88,6 +110,36 @@ export default function AiChat() {
             <Sparkles className="w-4 h-4 mr-2" />
             Nouveau chat
           </Button>
+        </div>
+        
+        <div className="flex items-center gap-3">
+          <label className="text-sm font-medium text-foreground">Modèle IA:</label>
+          <Select value={selectedModel} onValueChange={setSelectedModel} disabled={modelsLoading}>
+            <SelectTrigger className="w-[300px] rounded-xl" data-testid="select-ai-model">
+              {modelsLoading ? (
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Chargement des modèles...</span>
+                </div>
+              ) : (
+                <SelectValue placeholder="Sélectionner un modèle" />
+              )}
+            </SelectTrigger>
+            <SelectContent className="max-h-[300px] overflow-y-auto">
+              {availableModels.map((model: OpenRouterModel) => (
+                <SelectItem key={model.id} value={model.id} data-testid={`model-option-${model.id}`}>
+                  <div className="flex flex-col">
+                    <span className="font-medium">{model.name}</span>
+                    {model.pricing && (
+                      <span className="text-xs text-muted-foreground">
+                        ${model.pricing.prompt} / ${model.pricing.completion}
+                      </span>
+                    )}
+                  </div>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

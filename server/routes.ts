@@ -423,14 +423,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get available AI models from OpenRouter
+  app.get("/api/ai/models", requireAuth, async (req, res) => {
+    try {
+      const models = await openRouterService.getAvailableModels();
+      res.json({ models });
+    } catch (error) {
+      console.error("Error fetching models:", error);
+      res.status(500).json({ error: "Failed to fetch models" });
+    }
+  });
+
   // AI text generation
   app.post("/api/ai/generate", requireAuth, async (req, res) => {
     try {
       const user = req.user as User;
       const userId = user.id;
-      const productInfo = req.body;
+      const { model, ...productInfo } = req.body;
 
-      const generatedTexts = await openRouterService.generatePostText(productInfo, userId);
+      const generatedTexts = await openRouterService.generatePostText(productInfo, userId, model);
 
       // Save to database
       await storage.createAiGeneration({

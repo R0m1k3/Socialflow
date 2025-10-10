@@ -13,6 +13,7 @@ interface PreviewModalProps {
   mediaList: Media[];
   onPublish: () => void;
   isPublishing: boolean;
+  readOnly?: boolean;
 }
 
 type PreviewFormat = 'facebook-feed' | 'instagram-feed' | 'instagram-story';
@@ -24,7 +25,8 @@ export function PreviewModal({
   selectedMedia,
   mediaList,
   onPublish,
-  isPublishing
+  isPublishing,
+  readOnly = false
 }: PreviewModalProps) {
   const [previewFormat, setPreviewFormat] = useState<PreviewFormat>('facebook-feed');
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
@@ -311,22 +313,33 @@ export function PreviewModal({
 
           {/* Actions */}
           <div className="flex justify-end gap-3">
-            <Button
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              data-testid="button-cancel-preview"
-            >
-              Annuler
-            </Button>
-            <Button
-              onClick={onPublish}
-              disabled={isPublishing}
-              className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
-              data-testid="button-publish-from-preview"
-            >
-              <Send className="w-4 h-4 mr-2" />
-              {isPublishing ? 'Publication...' : 'Publier'}
-            </Button>
+            {readOnly ? (
+              <Button
+                onClick={() => onOpenChange(false)}
+                data-testid="button-close-preview"
+              >
+                Fermer
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  data-testid="button-cancel-preview"
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={onPublish}
+                  disabled={isPublishing}
+                  className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
+                  data-testid="button-publish-from-preview"
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  {isPublishing ? 'Publication...' : 'Publier'}
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </DialogContent>

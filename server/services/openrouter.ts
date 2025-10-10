@@ -17,7 +17,7 @@ import { storage } from '../storage';
 export class OpenRouterService {
   private baseUrl = "https://openrouter.ai/api/v1/chat/completions";
 
-  async generatePostText(productInfo: ProductInfo, userId: string): Promise<GeneratedText[]> {
+  async generatePostText(productInfo: ProductInfo, userId: string, modelOverride?: string): Promise<GeneratedText[]> {
     // Get user's OpenRouter configuration
     const config = await storage.getOpenrouterConfig(userId);
     
@@ -26,6 +26,9 @@ export class OpenRouterService {
     }
 
     const prompt = this.buildPrompt(productInfo, config.systemPrompt);
+    
+    // Use provided model or fall back to config model
+    const modelToUse = modelOverride || config.model;
 
     try {
       const response = await fetch(this.baseUrl, {
@@ -37,7 +40,7 @@ export class OpenRouterService {
           "X-Title": "Social Flow"
         },
         body: JSON.stringify({
-          model: config.model,
+          model: modelToUse,
           messages: [
             {
               role: "user",
@@ -58,7 +61,7 @@ export class OpenRouterService {
       const data = await response.json();
       
       if (!data.choices || !data.choices[0]) {
-        console.error('Invalid OpenRouter response - no choices:', { hasChoices: !!data.choices, model: config.model });
+        console.error('Invalid OpenRouter response - no choices:', { hasChoices: !!data.choices, model: modelToUse });
         throw new Error('Réponse invalide de l\'API OpenRouter. Vérifiez votre clé API et votre modèle.');
       }
       
@@ -201,6 +204,27 @@ VERSION 3 - ÉMOTIONNELLE:
 
   private capitalizeFirst(text: string): string {
     return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
+  }
+
+  async getAvailableModels(): Promise<any[]> {
+    try {
+      const response = await fetch("https://openrouter.ai/api/v1/models", {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      return data.data || [];
+    } catch (error) {
+      console.error("Error fetching OpenRouter models:", error);
+      throw error;
+    }
   }
 }
 

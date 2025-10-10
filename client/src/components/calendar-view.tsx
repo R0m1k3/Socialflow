@@ -417,6 +417,7 @@ export default function CalendarView() {
         mediaList={previewData.allMedia}
         onPublish={() => {}}
         isPublishing={false}
+        readOnly={true}
       />
     </div>
   );
