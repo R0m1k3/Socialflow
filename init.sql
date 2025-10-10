@@ -31,6 +31,19 @@ VALUES (
   'user'
 ) ON CONFLICT (username) DO NOTHING;
 
+-- Créer la table user_page_permissions (permissions d'accès aux pages par utilisateur)
+CREATE TABLE IF NOT EXISTS user_page_permissions (
+  id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id VARCHAR NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  page_id VARCHAR NOT NULL REFERENCES social_pages(id) ON DELETE CASCADE,
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(user_id, page_id)
+);
+
+-- Index pour optimiser les requêtes de permissions
+CREATE INDEX IF NOT EXISTS idx_user_page_permissions_user_id ON user_page_permissions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_page_permissions_page_id ON user_page_permissions(page_id);
+
 -- Liste des tables créées automatiquement par Drizzle ORM :
 -- - users (utilisateurs avec rôles)
 -- - social_pages (pages Facebook/Instagram connectées)
@@ -41,3 +54,4 @@ VALUES (
 -- - scheduled_posts (publications programmées)
 -- - ai_generations (historique des générations IA)
 -- - post_media (relation many-to-many entre posts et media)
+-- - user_page_permissions (permissions d'accès aux pages par utilisateur)
