@@ -772,12 +772,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const allPostsArrays = await Promise.all(allPostsPromises);
         scheduledPosts = allPostsArrays.flat();
       } else {
-        // User voit uniquement les posts des pages qui lui sont attribuées
+        // User voit tous les posts programmés sur les pages qui lui sont attribuées (peu importe qui les a créés)
         const accessiblePages = await storage.getUserAccessiblePages(userId);
         const accessiblePageIds = accessiblePages.map(p => p.id);
         
-        const userScheduledPosts = await storage.getScheduledPosts(userId, start, end);
-        scheduledPosts = userScheduledPosts.filter(sp => accessiblePageIds.includes(sp.pageId));
+        // Récupérer tous les posts programmés de tous les utilisateurs
+        const allUsers = await storage.getAllUsers();
+        const allPostsPromises = allUsers.map(u => storage.getScheduledPosts(u.id, start, end));
+        const allPostsArrays = await Promise.all(allPostsPromises);
+        const allScheduledPosts = allPostsArrays.flat();
+        
+        // Filtrer uniquement les posts des pages accessibles
+        scheduledPosts = allScheduledPosts.filter(sp => accessiblePageIds.includes(sp.pageId));
       }
       
       res.json(scheduledPosts);
