@@ -69,7 +69,7 @@ function Router() {
       <Route path="/calendar">{() => <ProtectedRoute component={Calendar} />}</Route>
       <Route path="/media">{() => <ProtectedRoute component={Media} />}</Route>
       <Route path="/pages">{() => <ProtectedRoute component={PagesManagement} />}</Route>
-      <Route path="/ai">{() => <ProtectedRoute component={AI} />}</Route>
+      <Route path="/ai">{() => <ProtectedRoute component={AI} adminOnly />}</Route>
       <Route path="/history">{() => <ProtectedRoute component={History} />}</Route>
       <Route path="/settings">{() => <ProtectedRoute component={Settings} adminOnly />}</Route>
       <Route path="/sql">{() => <ProtectedRoute component={SqlAdmin} adminOnly />}</Route>
