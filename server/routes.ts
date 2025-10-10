@@ -611,6 +611,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set status to "scheduled" if scheduledFor is provided, otherwise "draft"
       if (postFields.scheduledFor) {
         postFields.status = "scheduled";
+        
+        // Validate that scheduled posts require at least one page
+        if (!pageIds || !Array.isArray(pageIds) || pageIds.length === 0) {
+          return res.status(400).json({ error: "Les posts programmés nécessitent au moins une page cible" });
+        }
       }
       
       // Create the post
@@ -758,7 +763,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const start = startDate ? new Date(startDate as string) : undefined;
       const end = endDate ? new Date(endDate as string) : undefined;
       
-      const scheduledPosts = await storage.getScheduledPosts(userId, start, end);
+      let scheduledPosts;
+      
+      if (user.role === 'admin') {
+        // Admin voit tous les posts programmés
+        const allUsers = await storage.getAllUsers();
+        const allPostsPromises = allUsers.map(u => storage.getScheduledPosts(u.id, start, end));
+        const allPostsArrays = await Promise.all(allPostsPromises);
+        scheduledPosts = allPostsArrays.flat();
+      } else {
+        // User voit uniquement les posts des pages qui lui sont attribuées
+        const accessiblePages = await storage.getUserAccessiblePages(userId);
+        const accessiblePageIds = accessiblePages.map(p => p.id);
+        
+        const userScheduledPosts = await storage.getScheduledPosts(userId, start, end);
+        scheduledPosts = userScheduledPosts.filter(sp => accessiblePageIds.includes(sp.pageId));
+      }
+      
       res.json(scheduledPosts);
     } catch (error) {
       console.error("Error fetching scheduled posts:", error);
@@ -772,14 +793,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = user.id;
       const { id } = req.params;
       
-      // Verify the scheduled post belongs to the user before deleting
+      // Verify the scheduled post exists
       const scheduledPost = await storage.getScheduledPost(id);
       if (!scheduledPost) {
         return res.status(404).json({ error: "Scheduled post not found" });
       }
       
       const post = await storage.getPost(scheduledPost.postId);
-      if (!post || post.userId !== userId) {
+      if (!post) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+      
+      // Admin peut tout supprimer, user peut supprimer uniquement ses propres posts
+      if (user.role !== 'admin' && post.userId !== userId) {
         return res.status(403).json({ error: "Unauthorized" });
       }
       
@@ -797,14 +823,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = user.id;
       const { id } = req.params;
       
-      // Verify the scheduled post belongs to the user before updating
+      // Verify the scheduled post exists
       const scheduledPost = await storage.getScheduledPost(id);
       if (!scheduledPost) {
         return res.status(404).json({ error: "Scheduled post not found" });
       }
       
       const post = await storage.getPost(scheduledPost.postId);
-      if (!post || post.userId !== userId) {
+      if (!post) {
+        return res.status(404).json({ error: "Post not found" });
+      }
+      
+      // Admin peut tout modifier, user peut modifier uniquement ses propres posts
+      if (user.role !== 'admin' && post.userId !== userId) {
         return res.status(403).json({ error: "Unauthorized" });
       }
       
@@ -814,6 +845,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (scheduledAt) {
         updateData.scheduledAt = new Date(scheduledAt);
+        // Synchroniser avec la table posts
+        await storage.updatePost(scheduledPost.postId, { scheduledFor: new Date(scheduledAt) });
       }
       
       if (pageId) {
