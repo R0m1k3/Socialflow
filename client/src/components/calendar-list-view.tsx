@@ -1,6 +1,6 @@
 import { format, isSameDay, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Edit, Trash2, ChevronDown, ChevronUp, Eye } from "lucide-react";
+import { Edit, Trash2, ChevronDown, ChevronUp, Eye, Image, Smartphone } from "lucide-react";
 import { SiFacebook, SiInstagram } from "react-icons/si";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
@@ -14,6 +14,22 @@ interface CalendarListViewProps {
 
 export default function CalendarListView({ scheduledPosts, onEditPost, onDeletePost, onPreviewPost }: CalendarListViewProps) {
   const [expandedDates, setExpandedDates] = useState<Set<string>>(new Set());
+
+  const getPostTypeIcon = (postType: string) => {
+    if (postType === 'feed') {
+      return <Image className="w-4 h-4" />;
+    } else if (postType === 'story') {
+      return <Smartphone className="w-4 h-4" />;
+    } else if (postType === 'both') {
+      return (
+        <div className="flex gap-0.5">
+          <Image className="w-3 h-3" />
+          <Smartphone className="w-3 h-3" />
+        </div>
+      );
+    }
+    return null;
+  };
 
   // Group posts by date
   const groupedPosts = scheduledPosts.reduce((acc: { [key: string]: any[] }, post) => {
@@ -115,6 +131,7 @@ export default function CalendarListView({ scheduledPosts, onEditPost, onDeleteP
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-1">
+                              {getPostTypeIcon(post.postType)}
                               <span className="font-semibold text-lg text-foreground">{time}</span>
                               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                                 isPending 

@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trash2, Edit, MoreHorizontal, Eye } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trash2, Edit, MoreHorizontal, Eye, Image, Smartphone } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -24,6 +24,7 @@ export default function CalendarView() {
 
   const { data: scheduledPosts = [] } = useQuery<ScheduledPost[]>({
     queryKey: ["/api/scheduled-posts"],
+    refetchInterval: 30000, // Auto-refresh every 30 seconds
   });
 
   const deletePostMutation = useMutation({
@@ -88,6 +89,22 @@ export default function CalendarView() {
         variant: "destructive",
       });
     }
+  };
+
+  const getPostTypeIcon = (postType: string) => {
+    if (postType === 'feed') {
+      return <Image className="w-3 h-3" />;
+    } else if (postType === 'story') {
+      return <Smartphone className="w-3 h-3" />;
+    } else if (postType === 'both') {
+      return (
+        <div className="flex gap-0.5">
+          <Image className="w-2.5 h-2.5" />
+          <Smartphone className="w-2.5 h-2.5" />
+        </div>
+      );
+    }
+    return null;
   };
 
   const getPostsForDate = (date: Date) => {
@@ -256,7 +273,10 @@ export default function CalendarView() {
                         >
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex-1 min-w-0">
-                              <div className="font-semibold">{time}</div>
+                              <div className="flex items-center gap-1 font-semibold">
+                                {getPostTypeIcon(post.postType)}
+                                <span>{time}</span>
+                              </div>
                               <div className="flex items-center gap-1 truncate opacity-90">
                                 <PlatformIcon className="w-3 h-3 flex-shrink-0" />
                                 <span className="truncate">{pageName}</span>
@@ -332,7 +352,10 @@ export default function CalendarView() {
                                 >
                                   <div className="flex items-start justify-between gap-2">
                                     <div className="flex-1 min-w-0">
-                                      <div className="font-semibold">{time}</div>
+                                      <div className="flex items-center gap-1 font-semibold">
+                                        {getPostTypeIcon(post.postType)}
+                                        <span>{time}</span>
+                                      </div>
                                       <div className="flex items-center gap-1 truncate opacity-90">
                                         <PlatformIcon className="w-3 h-3 flex-shrink-0" />
                                         <span className="truncate">{pageName}</span>
