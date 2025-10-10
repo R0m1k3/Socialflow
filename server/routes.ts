@@ -840,6 +840,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (scheduledAt) {
         updateData.scheduledAt = new Date(scheduledAt);
+        // Synchroniser avec la table posts
+        await storage.updatePost(scheduledPost.postId, { scheduledFor: new Date(scheduledAt) });
       }
       
       if (pageId) {
