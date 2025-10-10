@@ -138,12 +138,12 @@ export default function History() {
                           <div className="flex items-center gap-3 mb-3">
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md ${
                               hasError ? 'bg-gradient-to-br from-destructive to-destructive/80' :
-                              'bg-gradient-to-br from-success to-success/80'
+                              'bg-gradient-to-br from-green-500 to-green-600'
                             }`}>
                               {hasError ? (
                                 <XCircle className="w-5 h-5 text-white" />
                               ) : (
-                                <CheckCircle className="w-5 h-5 text-white" />
+                                <CheckCircle className="w-5 h-5 text-white fill-white" />
                               )}
                             </div>
                             <CardTitle className="text-lg">
