@@ -10,6 +10,9 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### October 10, 2025
+- **AI Assistant Admin-Only Access**: Restricted access to AI Assistant to administrators only. Route `/ai` now requires admin role with `adminOnly` prop. Sidebar moved "Assistant IA" link to Administration section (visible only to admins). Backend endpoints (`/api/ai/models`, `/api/ai/generate`, `/api/ai/generations`) protected with `requireAdmin` middleware. Standard users attempting to access AI features see "Accès refusé" message and receive 403 responses.
+
 ### October 9, 2025
 - **AI Variants Position**: Repositioned AI-generated text variations to display after "Contenu" card and before "Texte de la publication" card in new-post page for better workflow
 - **Calendar Auto-Refresh**: Fixed calendar not updating after creating a new scheduled post. Added `queryClient.invalidateQueries` with `refetchType: 'all'` in `createPostMutation.onSuccess` to force cache invalidation and immediate refetch
@@ -47,7 +50,7 @@ These transformation URLs are stored in the database (`facebookLandscapeUrl`, `f
 
 ### Authentication & Authorization
 
-Authentication uses **Passport.js** with local strategy and `bcrypt` for password hashing. User roles (`admin`, `user`) control access, with `admin` having full access and `user` limited to publishing features. Session management is via `express-session` with HTTP-only cookies, `sameSite: 'lax'`, and a 7-day duration, secured by a `SESSION_SECRET` environment variable. Routes are protected on both the backend (middleware `requireAuth`, `requireAdmin`) and frontend (`ProtectedRoute` component).
+Authentication uses **Passport.js** with local strategy and `bcrypt` for password hashing. User roles (`admin`, `user`) control access, with `admin` having full access and `user` limited to publishing features (posts, calendar, media, history). The **AI Assistant** is restricted to administrators only. Session management is via `express-session` with HTTP-only cookies, `sameSite: 'lax'`, and a 7-day duration, secured by a `SESSION_SECRET` environment variable. Routes are protected on both the backend (middleware `requireAuth`, `requireAdmin`) and frontend (`ProtectedRoute` component with optional `adminOnly` prop).
 
 ### UI/UX Decisions
 
