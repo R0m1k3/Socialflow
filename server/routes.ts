@@ -685,11 +685,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Post not found" });
       }
 
-      if (postWithMedia.post.userId !== userId) {
-        return res.status(403).json({ error: "Unauthorized" });
+      // Admin peut voir tous les posts
+      if (user.role === 'admin') {
+        return res.json(postWithMedia);
       }
 
-      res.json(postWithMedia);
+      // Propriétaire peut voir son propre post
+      if (postWithMedia.post.userId === userId) {
+        return res.json(postWithMedia);
+      }
+
+      // Utilisateur standard peut voir les posts des pages qui lui sont assignées
+      const scheduledPostsForPost = await storage.getScheduledPostsByPost(id);
+      if (scheduledPostsForPost.length > 0) {
+        const accessiblePages = await storage.getUserAccessiblePages(userId);
+        const accessiblePageIds = accessiblePages.map(p => p.id);
+        
+        // Vérifier si au moins une page du post est accessible
+        const hasAccess = scheduledPostsForPost.some(sp => accessiblePageIds.includes(sp.pageId));
+        if (hasAccess) {
+          return res.json(postWithMedia);
+        }
+      }
+
+      return res.status(403).json({ error: "Unauthorized" });
     } catch (error) {
       console.error("Error fetching post:", error);
       res.status(500).json({ error: "Failed to fetch post" });
