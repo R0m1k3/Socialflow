@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Facebook, Instagram, Clock, CheckCircle2, XCircle, Eye } from "lucide-react";
+import { Facebook, Instagram, Clock, CheckCircle2, XCircle, Eye, Image as ImageIcon, Smartphone } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { ScheduledPost, SocialPage, Post, Media } from "@shared/schema";
@@ -58,6 +58,22 @@ export default function RecentPublications() {
         variant: "destructive",
       });
     }
+  };
+
+  const getPostTypeIcon = (postType: string) => {
+    if (postType === 'feed') {
+      return <ImageIcon className="w-3.5 h-3.5" />;
+    } else if (postType === 'story') {
+      return <Smartphone className="w-3.5 h-3.5" />;
+    } else if (postType === 'both') {
+      return (
+        <div className="flex gap-0.5">
+          <ImageIcon className="w-3 h-3" />
+          <Smartphone className="w-3 h-3" />
+        </div>
+      );
+    }
+    return null;
   };
 
   return (
@@ -136,9 +152,10 @@ export default function RecentPublications() {
                   </div>
                   
                   <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                    <span className="capitalize">
-                      {scheduledPost.postType === 'feed' ? 'Publication' : 
-                       scheduledPost.postType === 'story' ? 'Story' : scheduledPost.postType}
+                    <span className="flex items-center gap-1 capitalize">
+                      {getPostTypeIcon(scheduledPost.postType)}
+                      {scheduledPost.postType === 'feed' ? 'Feed' : 
+                       scheduledPost.postType === 'story' ? 'Story' : 'Feed & Story'}
                     </span>
                     <span>•</span>
                     <span>

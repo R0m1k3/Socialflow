@@ -1,22 +1,83 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, CheckCircle, XCircle, Calendar, History as HistoryIcon } from "lucide-react";
+import { Clock, CheckCircle, XCircle, Calendar, History as HistoryIcon, Eye, Image as ImageIcon, Smartphone } from "lucide-react";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import type { Post } from "@shared/schema";
+import { Button } from "@/components/ui/button";
+import type { ScheduledPost, SocialPage, Post, Media } from "@shared/schema";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { PreviewModal } from "@/components/preview-modal";
+import { useToast } from "@/hooks/use-toast";
+
+type ScheduledPostWithRelations = ScheduledPost & {
+  post?: Post;
+  page?: SocialPage;
+};
 
 export default function History() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [previewData, setPreviewData] = useState<{ postText: string; mediaIds: string[]; allMedia: Media[] }>({ postText: '', mediaIds: [], allMedia: [] });
+  const { toast } = useToast();
 
-  const { data: posts = [], isLoading } = useQuery<Post[]>({
-    queryKey: ['/api/posts'],
+  const { data: scheduledPosts = [], isLoading } = useQuery<ScheduledPostWithRelations[]>({
+    queryKey: ['/api/scheduled-posts'],
   });
 
-  const publishedPosts = posts.filter(p => p.status === 'published');
+  // Filter attempted posts (scheduled in the past)
+  const now = new Date();
+  const publishedPosts = scheduledPosts
+    .filter(sp => sp.scheduledAt && new Date(sp.scheduledAt) <= now)
+    .sort((a, b) => new Date(b.scheduledAt!).getTime() - new Date(a.scheduledAt!).getTime());
+
+  const handlePreviewPost = async (scheduledPost: ScheduledPostWithRelations) => {
+    try {
+      const response = await fetch(`/api/posts/${scheduledPost.postId}`, {
+        credentials: "include",
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to fetch post");
+      }
+      
+      const postWithMedia = await response.json();
+      const mediaIds = postWithMedia.media?.map((m: Media) => m.id) || [];
+      const allMedia = postWithMedia.media || [];
+      
+      setPreviewData({
+        postText: postWithMedia.post.content || '',
+        mediaIds: mediaIds,
+        allMedia: allMedia,
+      });
+      
+      setPreviewModalOpen(true);
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger la prévisualisation",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getPostTypeIcon = (postType: string) => {
+    if (postType === 'feed') {
+      return <ImageIcon className="w-4 h-4" />;
+    } else if (postType === 'story') {
+      return <Smartphone className="w-4 h-4" />;
+    } else if (postType === 'both') {
+      return (
+        <div className="flex gap-0.5">
+          <ImageIcon className="w-3 h-3" />
+          <Smartphone className="w-3 h-3" />
+        </div>
+      );
+    }
+    return null;
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -65,60 +126,110 @@ export default function History() {
             </Card>
           ) : (
             <div className="space-y-6">
-              {publishedPosts.map((post) => (
-                <Card key={post.id} className="rounded-2xl border-border/50 shadow-lg overflow-hidden" data-testid={`card-post-${post.id}`}>
-                  <CardHeader className="border-b border-border/50 bg-gradient-to-r from-muted/20 to-muted/10 p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-success to-success/80 flex items-center justify-center shadow-md">
-                            <CheckCircle className="w-5 h-5 text-white" />
+              {publishedPosts.map((scheduledPost) => {
+                const isPending = !scheduledPost.publishedAt;
+                const hasError = !!scheduledPost.error;
+                
+                return (
+                  <Card key={scheduledPost.id} className="rounded-2xl border-border/50 shadow-lg overflow-hidden" data-testid={`card-post-${scheduledPost.id}`}>
+                    <CardHeader className="border-b border-border/50 bg-gradient-to-r from-muted/20 to-muted/10 p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-3">
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md ${
+                              hasError ? 'bg-gradient-to-br from-destructive to-destructive/80' :
+                              'bg-gradient-to-br from-success to-success/80'
+                            }`}>
+                              {hasError ? (
+                                <XCircle className="w-5 h-5 text-white" />
+                              ) : (
+                                <CheckCircle className="w-5 h-5 text-white" />
+                              )}
+                            </div>
+                            <CardTitle className="text-lg">
+                              {scheduledPost.page?.pageName || 'Page inconnue'}
+                            </CardTitle>
                           </div>
-                          <CardTitle className="text-lg">
-                            Publication #{post.id.substring(0, 8)}
-                          </CardTitle>
+                          <p className="text-sm text-foreground leading-relaxed line-clamp-3">
+                            {scheduledPost.post?.content || 'Aucun texte'}
+                          </p>
                         </div>
-                        <p className="text-sm text-foreground leading-relaxed line-clamp-3">
-                          {post.content}
-                        </p>
+                        <div className="flex items-center gap-2 ml-4">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handlePreviewPost(scheduledPost)}
+                            className="h-9 w-9 p-0"
+                            data-testid={`button-preview-post-${scheduledPost.id}`}
+                            title="Prévisualiser"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                          <Badge 
+                            className={`${
+                              hasError 
+                                ? 'bg-destructive/20 text-destructive hover:bg-destructive/30' 
+                                : 'bg-success/20 text-success hover:bg-success/30'
+                            }`}
+                          >
+                            {hasError ? (
+                              <>
+                                <XCircle className="w-3 h-3 mr-1" />
+                                Échoué
+                              </>
+                            ) : (
+                              <>
+                                <CheckCircle className="w-3 h-3 mr-1" />
+                                Publié
+                              </>
+                            )}
+                          </Badge>
+                        </div>
                       </div>
-                      <Badge 
-                        className={`ml-4 ${
-                          post.status === 'published' 
-                            ? 'bg-success/20 text-success hover:bg-success/30' 
-                            : 'bg-destructive/20 text-destructive hover:bg-destructive/30'
-                        }`}
-                      >
-                        {post.status === 'published' && <CheckCircle className="w-3 h-3 mr-1" />}
-                        {post.status === 'failed' && <XCircle className="w-3 h-3 mr-1" />}
-                        {post.status === 'published' ? 'Publié' : 'Échoué'}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-6 text-sm text-muted-foreground flex-wrap">
-                      <div className="flex items-center gap-2">
-                        <Calendar className="w-4 h-4" />
-                        <span className="font-medium">
-                          {post.updatedAt 
-                            ? format(new Date(post.updatedAt), "d MMM yyyy 'à' HH:mm", { locale: fr })
-                            : 'Date inconnue'
-                          }
-                        </span>
+                    </CardHeader>
+                    <CardContent className="p-6">
+                      <div className="flex items-center gap-6 text-sm text-muted-foreground flex-wrap">
+                        <div className="flex items-center gap-2">
+                          {getPostTypeIcon(scheduledPost.postType)}
+                          <span className="font-medium capitalize">
+                            {scheduledPost.postType === 'feed' ? 'Feed' : 
+                             scheduledPost.postType === 'story' ? 'Story' : 'Feed & Story'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="w-4 h-4" />
+                          <span className="font-medium">
+                            {scheduledPost.scheduledAt 
+                              ? format(new Date(scheduledPost.scheduledAt), "d MMM yyyy 'à' HH:mm", { locale: fr })
+                              : 'Date inconnue'
+                            }
+                          </span>
+                        </div>
+                        {scheduledPost.post?.aiGenerated && (
+                          <Badge variant="outline" className="text-xs bg-gradient-to-r from-primary/5 to-secondary/5 border-primary/20">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Généré par IA
+                          </Badge>
+                        )}
                       </div>
-                      {post.aiGenerated && (
-                        <Badge variant="outline" className="text-xs bg-gradient-to-r from-primary/5 to-secondary/5 border-primary/20">
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Généré par IA
-                        </Badge>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </div>
+
+        <PreviewModal
+          open={previewModalOpen}
+          onOpenChange={setPreviewModalOpen}
+          postText={previewData.postText}
+          selectedMedia={previewData.mediaIds}
+          mediaList={previewData.allMedia}
+          onPublish={() => {}}
+          isPublishing={false}
+          readOnly={true}
+        />
       </main>
     </div>
   );
