@@ -63,7 +63,6 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
     { icon: PlusCircle, label: "Nouvelle publication", href: "/new", badge: null },
     { icon: Calendar, label: "Calendrier", href: "/calendar", badge: null },
     { icon: Images, label: "Médiathèque", href: "/media", badge: null },
-    { icon: Bot, label: "Assistant IA", href: "/ai", badge: null },
   ];
 
   const statsItems = [
@@ -209,6 +208,30 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
               {isCollapsed && (
                 <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
                   Pages gérées
+                </div>
+              )}
+            </a>
+            <a
+              href="/ai"
+              onClick={(e) => handleLinkClick("/ai", e)}
+              className={`
+                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
+                ${location === "/ai"
+                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
+                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+                }
+                ${isCollapsed ? 'justify-center' : ''}
+              `}
+              data-testid="link-assistant-ia"
+            >
+              {location === "/ai" && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 gradient-primary rounded-r-full" />
+              )}
+              <Bot className="w-5 h-5" />
+              {!isCollapsed && <span>Assistant IA</span>}
+              {isCollapsed && (
+                <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
+                  Assistant IA
                 </div>
               )}
             </a>

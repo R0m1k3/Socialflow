@@ -424,7 +424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get available AI models from OpenRouter
-  app.get("/api/ai/models", requireAuth, async (req, res) => {
+  app.get("/api/ai/models", requireAdmin, async (req, res) => {
     try {
       const models = await openRouterService.getAvailableModels();
       res.json({ models });
@@ -435,7 +435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI text generation
-  app.post("/api/ai/generate", requireAuth, async (req, res) => {
+  app.post("/api/ai/generate", requireAdmin, async (req, res) => {
     try {
       const user = req.user as User;
       const userId = user.id;
@@ -937,7 +937,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Generations
-  app.get("/api/ai/generations", requireAuth, async (req, res) => {
+  app.get("/api/ai/generations", requireAdmin, async (req, res) => {
     try {
       const user = req.user as User;
       const userId = user.id;
