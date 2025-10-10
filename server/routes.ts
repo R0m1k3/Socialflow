@@ -611,6 +611,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Set status to "scheduled" if scheduledFor is provided, otherwise "draft"
       if (postFields.scheduledFor) {
         postFields.status = "scheduled";
+        
+        // Validate that scheduled posts require at least one page
+        if (!pageIds || !Array.isArray(pageIds) || pageIds.length === 0) {
+          return res.status(400).json({ error: "Les posts programmés nécessitent au moins une page cible" });
+        }
       }
       
       // Create the post
