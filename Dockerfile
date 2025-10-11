@@ -1,9 +1,9 @@
-# Étape 1: Build de l'application
-FROM node:20-alpine AS builder
+# Utiliser Node.js 20 Alpine pour une image légère
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Installer les outils de compilation pour bcrypt et canvas
+# Installer les dépendances système nécessaires pour bcrypt, canvas et sharp
 RUN apk add --no-cache \
     python3 \
     make \
@@ -12,47 +12,27 @@ RUN apk add --no-cache \
     jpeg-dev \
     pango-dev \
     giflib-dev \
-    pixman-dev
-
-# Copier les fichiers de dépendances
-COPY package*.json ./
-
-# Installer toutes les dépendances (dev + prod)
-# Utiliser --legacy-peer-deps si problèmes de dépendances
-RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
-
-# Copier le reste du code source
-COPY . .
-
-# Build du frontend et backend
-RUN npm run build
-
-# Étape 2: Image de production
-FROM node:20-alpine
-
-WORKDIR /app
-
-# Installer les runtime dependencies pour bcrypt et canvas
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++ \
+    pixman-dev \
     cairo \
     jpeg \
     pango \
     giflib \
     pixman
 
-# Installer toutes les dépendances (drizzle-kit est nécessaire pour push)
-# IMPORTANT: Ne pas utiliser --omit=dev car drizzle-kit est dans devDependencies
+# Copier les fichiers de configuration
 COPY package*.json ./
-RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
-# Copier les fichiers buildés et le code serveur
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/server ./server
-COPY --from=builder /app/shared ./shared
-COPY --from=builder /app/drizzle.config.ts ./
+# Installer les dépendances avec npm install (plus permissif que npm ci)
+RUN npm install --legacy-peer-deps
+
+# Copier tout le code source
+COPY . .
+
+# Build du frontend et backend
+RUN npm run build
+
+# Nettoyer les fichiers inutiles pour réduire la taille
+RUN rm -rf client node_modules/.cache
 
 # Exposer le port 5555
 EXPOSE 5555
