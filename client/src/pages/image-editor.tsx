@@ -130,44 +130,33 @@ export default function ImageEditor() {
       transformations.push(`e_${filters.effect}`);
     }
 
-    // Ribbon overlay (corner banner/triangle like in the example image)
+    // Ribbon overlay (simple rectangle in corner - NO rotation)
     if (ribbon.enabled) {
       const ribbonColor = ribbon.color === "red" ? "FF0000" : "FFC107";
       // URL encode the text to handle accents and special characters
       const ribbonText = encodeURIComponent(ribbon.text);
       
-      // Create corner banner effect
-      // Position determines rotation and offset
-      const isTopLeft = ribbon.position === "north_west";
-      const rotation = isTopLeft ? "-45" : "45";
-      const offsetX = isTopLeft ? "60" : "-60";
-      const offsetY = isTopLeft ? "60" : "-60";
-      
       transformations.push(
-        // Long rectangle banner with padding, rotated 45 degrees
-        `l_text:Arial_32_bold:       ${ribbonText}       ,co_white,b_rgb:${ribbonColor}`,
-        `a_${rotation}`,
-        `fl_layer_apply,g_${ribbon.position},x_${offsetX},y_${offsetY}`
+        // Simple rectangle with padding, positioned in corner
+        `l_text:Arial_50_bold:  ${ribbonText}  ,co_white,b_rgb:${ribbonColor}`,
+        `fl_layer_apply,g_${ribbon.position},x_0,y_0`
       );
     }
 
-    // Price badge overlay (burst/starburst effect with large background)
+    // Price badge overlay (starburst/éclaté effect with centered price)
     if (priceBadge.enabled && priceBadge.price) {
       const badgeColor = priceBadge.color === "red" ? "DC2626" : "FFC107";
       // URL encode the price text
       const priceText = encodeURIComponent(`€${priceBadge.price}`);
       
-      // Create burst/starburst badge effect with layered circles
+      // Create burst/éclaté effect using starburst character
       transformations.push(
-        // Outer burst circle (largest)
-        `l_text:Arial_120_bold:★,co_rgb:${badgeColor}`,
-        `fl_layer_apply,g_${priceBadge.position},x_40,y_40`,
-        // Inner circle for depth
-        `l_text:Arial_90_bold:●,co_rgb:${badgeColor}`,
-        `fl_layer_apply,g_${priceBadge.position},x_40,y_40`,
-        // Price text on top (smaller)
-        `l_text:Arial_32_bold:${priceText},co_white`,
-        `fl_layer_apply,g_${priceBadge.position},x_40,y_40`
+        // Large starburst background (éclaté shape)
+        `l_text:Arial_180_bold:✦,co_rgb:${badgeColor}`,
+        `fl_layer_apply,g_${priceBadge.position},x_30,y_30`,
+        // Price text centered on top
+        `l_text:Arial_44_bold:${priceText},co_white`,
+        `fl_layer_apply,g_${priceBadge.position},x_30,y_30`
       );
     }
 
