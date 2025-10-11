@@ -556,24 +556,54 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Add ribbon overlay
       if (ribbon) {
         const ribbonSize = 150;
-        const positions: Record<string, { x: number; y: number; rotation: number }> = {
-          top_left: { x: 0, y: 0, rotation: -45 },
-          top_right: { x: width - ribbonSize, y: 0, rotation: 45 },
-          bottom_left: { x: 0, y: height - ribbonSize, rotation: -135 },
-          bottom_right: { x: width - ribbonSize, y: height - ribbonSize, rotation: 135 }
-        };
-
-        const pos = positions[ribbon.position] || positions.top_left;
         const color = ribbon.color === 'red' ? '#dc2626' : '#eab308';
         const fontSize = ribbon.text.length <= 5 ? 22 : ribbon.text.length <= 8 ? 18 : ribbon.text.length <= 11 ? 15 : 12;
 
+        // Position mapping for each corner
+        const positions: Record<string, { x: number; y: number; polygon: string; textX: number; textY: number; textRotation: number }> = {
+          north_west: { 
+            x: 0, 
+            y: 0, 
+            polygon: `0,0 ${ribbonSize},0 0,${ribbonSize}`,  // Top-left triangle
+            textX: ribbonSize * 0.3,
+            textY: ribbonSize * 0.3,
+            textRotation: -45
+          },
+          north_east: { 
+            x: width - ribbonSize, 
+            y: 0, 
+            polygon: `0,0 ${ribbonSize},0 ${ribbonSize},${ribbonSize}`,  // Top-right triangle
+            textX: ribbonSize * 0.7,
+            textY: ribbonSize * 0.3,
+            textRotation: 45
+          },
+          south_west: { 
+            x: 0, 
+            y: height - ribbonSize, 
+            polygon: `0,0 0,${ribbonSize} ${ribbonSize},${ribbonSize}`,  // Bottom-left triangle
+            textX: ribbonSize * 0.3,
+            textY: ribbonSize * 0.7,
+            textRotation: -135
+          },
+          south_east: { 
+            x: width - ribbonSize, 
+            y: height - ribbonSize, 
+            polygon: `${ribbonSize},0 0,${ribbonSize} ${ribbonSize},${ribbonSize}`,  // Bottom-right triangle
+            textX: ribbonSize * 0.7,
+            textY: ribbonSize * 0.7,
+            textRotation: 135
+          }
+        };
+
+        const pos = positions[ribbon.position] || positions.north_west;
+
         const ribbonSvg = `
-          <svg width="${ribbonSize}" height="${ribbonSize}">
-            <polygon points="0,0 ${ribbonSize},${ribbonSize} 0,${ribbonSize}" fill="${color}"/>
-            <text x="${ribbonSize/2}" y="${ribbonSize/2}" 
+          <svg width="${ribbonSize}" height="${ribbonSize}" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="${pos.polygon}" fill="${color}"/>
+            <text x="${pos.textX}" y="${pos.textY}" 
                   font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" 
                   fill="white" text-anchor="middle" dominant-baseline="middle"
-                  transform="rotate(${pos.rotation} ${ribbonSize/2} ${ribbonSize/2})">
+                  transform="rotate(${pos.textRotation}, ${pos.textX}, ${pos.textY})">
               ${ribbon.text}
             </text>
           </svg>
