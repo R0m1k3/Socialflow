@@ -43,7 +43,11 @@ interface Filters {
   saturation: number;
   blur: number;
   sharpen: number;
-  effect: "none" | "grayscale" | "sepia" | "vintage";
+  vibrance: number;
+  hue: number;
+  gamma: number;
+  vignette: number;
+  effect: "none" | "grayscale" | "sepia" | "vintage" | "incognito" | "athena" | "audrey";
 }
 
 export default function ImageEditor() {
@@ -77,6 +81,10 @@ export default function ImageEditor() {
     saturation: 0,
     blur: 0,
     sharpen: 0,
+    vibrance: 0,
+    hue: 0,
+    gamma: 0,
+    vignette: 0,
     effect: "none"
   });
 
@@ -200,8 +208,43 @@ export default function ImageEditor() {
     if (filters.sharpen > 0) {
       transformations.push(`e_sharpen:${filters.sharpen * 100}`);
     }
+    if (filters.vibrance !== 0) {
+      transformations.push(`e_vibrance:${filters.vibrance}`);
+    }
+    if (filters.hue !== 0) {
+      transformations.push(`e_hue:${filters.hue}`);
+    }
+    if (filters.gamma !== 0) {
+      transformations.push(`e_gamma:${filters.gamma}`);
+    }
+    if (filters.vignette > 0) {
+      transformations.push(`e_vignette:${filters.vignette}`);
+    }
     if (filters.effect !== "none") {
-      transformations.push(`e_${filters.effect}`);
+      // Map effects to proper Cloudinary transformations
+      switch(filters.effect) {
+        case "grayscale":
+          transformations.push("e_grayscale");
+          break;
+        case "sepia":
+          transformations.push("e_sepia");
+          break;
+        case "vintage":
+          // Vintage effect: combine sepia + vignette + reduced saturation
+          transformations.push("e_sepia:50");
+          transformations.push("e_vignette:30");
+          transformations.push("e_saturation:-20");
+          break;
+        case "incognito":
+          transformations.push("e_art:incognito");
+          break;
+        case "athena":
+          transformations.push("e_art:athena");
+          break;
+        case "audrey":
+          transformations.push("e_art:audrey");
+          break;
+      }
     }
 
     // Note: Ribbon and price badge overlays are rendered as CSS elements in preview
@@ -603,7 +646,67 @@ export default function ImageEditor() {
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Effet</Label>
+                    <div className="flex justify-between">
+                      <Label>Vibrance</Label>
+                      <span className="text-sm text-muted-foreground">{filters.vibrance}</span>
+                    </div>
+                    <Slider
+                      value={[filters.vibrance]}
+                      onValueChange={([value]) => setFilters({ ...filters, vibrance: value })}
+                      min={-100}
+                      max={100}
+                      step={10}
+                      data-testid="slider-vibrance"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <Label>Teinte</Label>
+                      <span className="text-sm text-muted-foreground">{filters.hue}°</span>
+                    </div>
+                    <Slider
+                      value={[filters.hue]}
+                      onValueChange={([value]) => setFilters({ ...filters, hue: value })}
+                      min={-180}
+                      max={180}
+                      step={10}
+                      data-testid="slider-hue"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <Label>Gamma</Label>
+                      <span className="text-sm text-muted-foreground">{filters.gamma}</span>
+                    </div>
+                    <Slider
+                      value={[filters.gamma]}
+                      onValueChange={([value]) => setFilters({ ...filters, gamma: value })}
+                      min={-50}
+                      max={150}
+                      step={10}
+                      data-testid="slider-gamma"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <Label>Vignette</Label>
+                      <span className="text-sm text-muted-foreground">{filters.vignette}</span>
+                    </div>
+                    <Slider
+                      value={[filters.vignette]}
+                      onValueChange={([value]) => setFilters({ ...filters, vignette: value })}
+                      min={0}
+                      max={100}
+                      step={10}
+                      data-testid="slider-vignette"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Effet artistique</Label>
                     <Select value={filters.effect} onValueChange={(value) => setFilters({ ...filters, effect: value as any })}>
                       <SelectTrigger data-testid="select-effect">
                         <SelectValue />
@@ -613,6 +716,9 @@ export default function ImageEditor() {
                         <SelectItem value="grayscale">Noir et blanc</SelectItem>
                         <SelectItem value="sepia">Sépia</SelectItem>
                         <SelectItem value="vintage">Vintage</SelectItem>
+                        <SelectItem value="incognito">Incognito</SelectItem>
+                        <SelectItem value="athena">Athena</SelectItem>
+                        <SelectItem value="audrey">Audrey</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -684,22 +790,16 @@ export default function ImageEditor() {
                         </button>
                       </div>
 
-                      <div className="flex gap-3">
-                        <Button 
-                          className="flex-1" 
-                          variant="outline" 
-                          data-testid="button-save"
-                          onClick={() => saveImageMutation.mutate()}
-                          disabled={saveImageMutation.isPending}
-                        >
-                          <Save className="w-4 h-4 mr-2" />
-                          {saveImageMutation.isPending ? "Enregistrement..." : "Enregistrer"}
-                        </Button>
-                        <Button className="flex-1" data-testid="button-use-in-post">
-                          <ArrowRight className="w-4 h-4 mr-2" />
-                          Utiliser dans un post
-                        </Button>
-                      </div>
+                      <Button 
+                        className="w-full" 
+                        variant="outline" 
+                        data-testid="button-save"
+                        onClick={() => saveImageMutation.mutate()}
+                        disabled={saveImageMutation.isPending}
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        {saveImageMutation.isPending ? "Enregistrement..." : "Enregistrer"}
+                      </Button>
                     </div>
                   ) : (
                     <div className="aspect-square flex items-center justify-center bg-muted rounded-lg">
