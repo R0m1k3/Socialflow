@@ -1171,6 +1171,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upload edited image with overlays
+  app.post("/api/media/upload-edited", requireAuth, upload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const user = req.user as User;
+      const userId = user.id;
+
+      // Check if Cloudinary is configured
+      const cloudinaryConfig = await storage.getCloudinaryConfig(userId);
+      
+      if (!cloudinaryConfig) {
+        return res.status(400).json({ 
+          error: "Cloudinary not configured. Please configure Cloudinary in Settings first." 
+        });
+      }
+
+      // Upload edited image to Cloudinary
+      const uploadResult = await cloudinaryService.uploadMedia(
+        req.file.buffer,
+        `edited_${Date.now()}.jpg`,
+        userId,
+        req.file.mimetype
+      );
+
+      const mediaItem = await storage.createMedia({
+        userId,
+        type: "image",
+        cloudinaryPublicId: uploadResult.publicId,
+        originalUrl: uploadResult.originalUrl,
+        facebookFeedUrl: uploadResult.facebookFeedUrl,
+        instagramFeedUrl: uploadResult.instagramFeedUrl,
+        instagramStoryUrl: uploadResult.instagramStoryUrl,
+        fileName: `edited_${Date.now()}.jpg`,
+        fileSize: req.file.size,
+      });
+
+      res.json(mediaItem);
+    } catch (error) {
+      console.error("Error uploading edited image:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload edited image";
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

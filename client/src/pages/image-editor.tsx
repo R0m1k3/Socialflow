@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { useState, useEffect, useRef } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import html2canvas from "html2canvas";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Wand2, Save, ArrowRight, Image as ImageIcon, X } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface Ribbon {
   enabled: boolean;
@@ -84,9 +86,64 @@ export default function ImageEditor() {
     queryKey: ["/api/media"],
   });
 
+  const previewRef = useRef<HTMLDivElement>(null);
+  const { toast } = useToast();
+
   // State for generated ribbon overlay
   const [ribbonPublicId, setRibbonPublicId] = useState<string | null>(null);
   const [isGeneratingRibbon, setIsGeneratingRibbon] = useState(false);
+
+  // Save edited image mutation
+  const saveImageMutation = useMutation({
+    mutationFn: async () => {
+      if (!previewRef.current || !selectedMedia) {
+        throw new Error("Aucune image sélectionnée");
+      }
+
+      // Capture the preview container as canvas (including CSS overlays)
+      const canvas = await html2canvas(previewRef.current, {
+        backgroundColor: null,
+        scale: 2, // Higher quality
+        useCORS: true,
+        allowTaint: true
+      });
+
+      // Convert canvas to blob
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.95);
+      });
+
+      // Upload to server
+      const formData = new FormData();
+      formData.append('file', blob, `edited_${Date.now()}.jpg`);
+      
+      const response = await fetch('/api/media/upload-edited', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error("Erreur lors de l'upload");
+      }
+
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/media"] });
+      toast({
+        title: "Image enregistrée !",
+        description: "L'image éditée a été ajoutée à votre médiathèque.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible d'enregistrer l'image.",
+        variant: "destructive"
+      });
+    }
+  });
 
   // Generate ribbon when settings change
   useEffect(() => {
@@ -591,7 +648,7 @@ export default function ImageEditor() {
                   {selectedMedia ? (
                     <div className="space-y-4">
                       <div className="rounded-lg overflow-hidden bg-muted aspect-square flex items-center justify-center">
-                        <div className="relative w-full h-full">
+                        <div ref={previewRef} className="relative w-full h-full">
                           <img
                             src={previewUrl || selectedMedia.originalUrl}
                             alt="Aperçu"
@@ -645,9 +702,15 @@ export default function ImageEditor() {
                       </div>
 
                       <div className="flex gap-3">
-                        <Button className="flex-1" variant="outline" data-testid="button-save">
+                        <Button 
+                          className="flex-1" 
+                          variant="outline" 
+                          data-testid="button-save"
+                          onClick={() => saveImageMutation.mutate()}
+                          disabled={saveImageMutation.isPending}
+                        >
                           <Save className="w-4 h-4 mr-2" />
-                          Enregistrer
+                          {saveImageMutation.isPending ? "Enregistrement..." : "Enregistrer"}
                         </Button>
                         <Button className="flex-1" data-testid="button-use-in-post">
                           <ArrowRight className="w-4 h-4 mr-2" />
