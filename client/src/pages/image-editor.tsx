@@ -248,30 +248,46 @@ export default function ImageEditor() {
         }
         
         .ribbon-text.north_west {
-          top: 30px;
-          left: 5px;
+          top: 22px;
+          left: 22px;
           transform: rotate(-45deg);
-          transform-origin: left center;
+          transform-origin: center center;
         }
         
         .ribbon-text.north_east {
-          top: 30px;
-          right: 5px;
+          top: 22px;
+          right: 22px;
           transform: rotate(45deg);
-          transform-origin: right center;
+          transform-origin: center center;
         }
         
         /* Adaptive text sizes for ribbon */
         .ribbon-text.small {
-          font-size: 10px;
+          font-size: 11px;
+          top: 28px;
+          left: 18px;
+        }
+        
+        .ribbon-text.small.north_east {
+          top: 28px;
+          right: 18px;
+          left: auto;
         }
         
         .ribbon-text.medium {
-          font-size: 14px;
+          font-size: 13px;
+          top: 25px;
+          left: 20px;
+        }
+        
+        .ribbon-text.medium.north_east {
+          top: 25px;
+          right: 20px;
+          left: auto;
         }
         
         .ribbon-text.large {
-          font-size: 16px;
+          font-size: 15px;
         }
       `}</style>
       
