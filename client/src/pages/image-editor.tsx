@@ -93,41 +93,162 @@ export default function ImageEditor() {
   const [ribbonPublicId, setRibbonPublicId] = useState<string | null>(null);
   const [isGeneratingRibbon, setIsGeneratingRibbon] = useState(false);
 
-  // Save edited image mutation - Server-side processing with Sharp
+  // Save edited image mutation - Client-side capture matching preview
   const saveImageMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedMedia) {
+      if (!selectedMedia || !previewRef.current) {
         throw new Error("Aucune image sélectionnée");
       }
 
-      // Send overlay configuration to server - let server handle image processing
-      // IMPORTANT: Always use originalUrl (not previewUrl) to preserve full image dimensions
-      const overlayConfig = {
-        mediaId: selectedMedia.id,
-        imageUrl: selectedMedia.originalUrl, // Use original for full quality
-        ribbon: ribbon.enabled ? {
-          text: ribbon.text,
-          color: ribbon.color,
-          position: ribbon.position
-        } : null,
-        priceBadge: priceBadge.enabled ? {
-          price: priceBadge.price,
-          color: priceBadge.color,
-          position: priceBadge.position,
-          size: priceBadge.size
-        } : null
-      };
+      // Load original image to get real dimensions
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = selectedMedia.originalUrl;
+      
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
 
-      const response = await fetch('/api/media/apply-overlays', {
+      const width = img.naturalWidth;
+      const height = img.naturalHeight;
+
+      // Create canvas at exact image size
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d')!;
+
+      // Draw base image
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Draw ribbon if enabled (matching CSS preview)
+      if (ribbon.enabled && ribbon.text) {
+        const ribbonSize = 150;
+        
+        // Calculate position based on corner
+        let x = 0;
+        let y = 0;
+        if (ribbon.position === 'north_east') {
+          x = width - ribbonSize;
+        } else if (ribbon.position === 'south_west') {
+          y = height - ribbonSize;
+        } else if (ribbon.position === 'south_east') {
+          x = width - ribbonSize;
+          y = height - ribbonSize;
+        }
+
+        // Draw triangle
+        ctx.save();
+        ctx.beginPath();
+        if (ribbon.position === 'north_west') {
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + ribbonSize, y);
+          ctx.lineTo(x, y + ribbonSize);
+        } else if (ribbon.position === 'north_east') {
+          ctx.moveTo(x, y);
+          ctx.lineTo(x + ribbonSize, y);
+          ctx.lineTo(x + ribbonSize, y + ribbonSize);
+        } else if (ribbon.position === 'south_west') {
+          ctx.moveTo(x, y);
+          ctx.lineTo(x, y + ribbonSize);
+          ctx.lineTo(x + ribbonSize, y + ribbonSize);
+        } else { // south_east
+          ctx.moveTo(x + ribbonSize, y);
+          ctx.lineTo(x, y + ribbonSize);
+          ctx.lineTo(x + ribbonSize, y + ribbonSize);
+        }
+        ctx.closePath();
+        ctx.fillStyle = ribbon.color === 'red' ? '#dc2626' : '#eab308';
+        ctx.fill();
+
+        // Draw text (rotated to match CSS)
+        const fontSize = ribbon.text.length <= 5 ? 22 : ribbon.text.length <= 8 ? 18 : ribbon.text.length <= 11 ? 15 : 12;
+        ctx.font = `bold ${fontSize}px sans-serif`;
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        const centerX = x + ribbonSize / 2;
+        const centerY = y + ribbonSize / 2;
+        const textOffset = ribbonSize * 0.2;
+        
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        if (ribbon.position === 'north_west') {
+          ctx.rotate(-45 * Math.PI / 180);
+          ctx.fillText(ribbon.text, -textOffset, 0);
+        } else if (ribbon.position === 'north_east') {
+          ctx.rotate(45 * Math.PI / 180);
+          ctx.fillText(ribbon.text, textOffset, 0);
+        } else if (ribbon.position === 'south_west') {
+          ctx.rotate(-135 * Math.PI / 180);
+          ctx.fillText(ribbon.text, -textOffset, 0);
+        } else { // south_east
+          ctx.rotate(135 * Math.PI / 180);
+          ctx.fillText(ribbon.text, textOffset, 0);
+        }
+        ctx.restore();
+        ctx.restore();
+      }
+
+      // Draw price badge if enabled (matching CSS preview)
+      if (priceBadge.enabled && priceBadge.price) {
+        const padding = 16;
+        const badgeText = `€${priceBadge.price}`;
+        ctx.font = `bold ${priceBadge.size}px sans-serif`;
+        const textWidth = ctx.measureText(badgeText).width;
+        const badgeWidth = textWidth + padding * 2;
+        const badgeHeight = priceBadge.size + padding;
+        
+        let x = padding;
+        let y = padding;
+        
+        if (priceBadge.position === 'north_east') {
+          x = width - badgeWidth - padding;
+        } else if (priceBadge.position === 'south_west') {
+          y = height - badgeHeight - padding;
+        } else if (priceBadge.position === 'south_east') {
+          x = width - badgeWidth - padding;
+          y = height - badgeHeight - padding;
+        }
+        
+        // Draw rounded rectangle
+        const radius = badgeHeight / 2;
+        ctx.fillStyle = priceBadge.color === 'red' ? '#dc2626' : '#eab308';
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + badgeWidth - radius, y);
+        ctx.arc(x + badgeWidth - radius, y + radius, radius, -Math.PI / 2, Math.PI / 2);
+        ctx.lineTo(x + radius, y + badgeHeight);
+        ctx.arc(x + radius, y + radius, radius, Math.PI / 2, -Math.PI / 2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Draw text
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(badgeText, x + badgeWidth / 2, y + badgeHeight / 2);
+      }
+
+      // Convert to blob
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.95);
+      });
+
+      // Upload
+      const formData = new FormData();
+      formData.append('file', blob, `edited_${Date.now()}.jpg`);
+      
+      const response = await fetch('/api/media/upload', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(overlayConfig),
+        body: formData,
         credentials: 'include'
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || "Erreur lors de l'application des overlays");
+        throw new Error("Erreur lors de l'upload");
       }
 
       return response.json();
