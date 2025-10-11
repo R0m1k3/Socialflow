@@ -100,60 +100,30 @@ export default function ImageEditor() {
         throw new Error("Aucune image sélectionnée");
       }
 
-      // Get the preview image element to capture its dimensions
-      const previewImg = previewRef.current.querySelector('img');
-      if (!previewImg) {
-        throw new Error("Image de preview non trouvée");
-      }
-
-      // Load original image to get natural dimensions
-      const originalImg = new Image();
-      originalImg.crossOrigin = 'anonymous';
-      originalImg.src = selectedMedia.originalUrl;
-      
-      await new Promise((resolve, reject) => {
-        originalImg.onload = resolve;
-        originalImg.onerror = reject;
-      });
-
-      const naturalWidth = originalImg.naturalWidth;
-      const naturalHeight = originalImg.naturalHeight;
-      const displayWidth = previewImg.clientWidth;
-      const displayHeight = previewImg.clientHeight;
-
-      // Calculate scale factor (limit to max 2048px width to avoid file size issues)
-      const maxWidth = 2048;
-      const scale = Math.min(naturalWidth / displayWidth, maxWidth / displayWidth);
-      const outputWidth = Math.round(displayWidth * scale);
-      const outputHeight = Math.round(displayHeight * scale);
-
-      // Capture preview as data URL using html-to-image
+      // Capture preview exactly as displayed (no scaling)
       const dataUrl = await toPng(previewRef.current, {
-        quality: 0.92,
-        pixelRatio: scale,
-        canvasWidth: outputWidth,
-        canvasHeight: outputHeight,
-        skipAutoScale: true
+        quality: 0.95,
+        pixelRatio: 1, // Keep 1:1 - no zoom
       });
 
-      // Convert data URL to blob and compress if needed
+      // Convert data URL to blob
       const response = await fetch(dataUrl);
       let blob = await response.blob();
       
-      // If still too large (>8MB), re-encode with lower quality
+      // Compress if needed to stay under Cloudinary limit
       if (blob.size > 8 * 1024 * 1024) {
         const img = new Image();
         img.src = dataUrl;
         await new Promise((resolve) => { img.onload = resolve; });
         
         const canvas = document.createElement('canvas');
-        canvas.width = outputWidth;
-        canvas.height = outputHeight;
+        canvas.width = img.width;
+        canvas.height = img.height;
         const ctx = canvas.getContext('2d')!;
         ctx.drawImage(img, 0, 0);
         
         blob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.85);
+          canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.8);
         });
       }
 
