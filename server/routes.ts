@@ -517,6 +517,164 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Apply overlays to image using Sharp (server-side processing)
+  // IMPORTANT: This must be BEFORE /api/media/:id to avoid being intercepted by :id parameter
+  app.post("/api/media/apply-overlays", requireAuth, async (req, res) => {
+    try {
+      const { imageUrl, ribbon, priceBadge } = req.body;
+      const user = req.user as User;
+      const userId = user.id;
+
+      if (!imageUrl) {
+        return res.status(400).json({ error: "Image URL required" });
+      }
+
+      console.log("🎨 Applying overlays server-side with Sharp...");
+      console.log("📥 Image URL:", imageUrl);
+      console.log("🎀 Ribbon:", ribbon);
+      console.log("💰 Price Badge:", priceBadge);
+
+      // Download image from URL
+      const imageResponse = await fetch(imageUrl);
+      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+      console.log("✅ Image downloaded:", imageBuffer.length, "bytes");
+
+      // Load with Sharp to process
+      const sharp = (await import("sharp")).default;
+      let image = sharp(imageBuffer);
+      
+      // Get image metadata for dimensions
+      const metadata = await image.metadata();
+      const width = metadata.width!;
+      const height = metadata.height!;
+
+      console.log(`📐 Image dimensions: ${width}x${height}`);
+
+      // Create SVG overlays
+      const overlays: any[] = [];
+
+      // Add ribbon overlay
+      if (ribbon) {
+        const ribbonSize = 150;
+        const positions: Record<string, { x: number; y: number; rotation: number }> = {
+          top_left: { x: 0, y: 0, rotation: -45 },
+          top_right: { x: width - ribbonSize, y: 0, rotation: 45 },
+          bottom_left: { x: 0, y: height - ribbonSize, rotation: -135 },
+          bottom_right: { x: width - ribbonSize, y: height - ribbonSize, rotation: 135 }
+        };
+
+        const pos = positions[ribbon.position] || positions.top_left;
+        const color = ribbon.color === 'red' ? '#dc2626' : '#eab308';
+        const fontSize = ribbon.text.length <= 5 ? 22 : ribbon.text.length <= 8 ? 18 : ribbon.text.length <= 11 ? 15 : 12;
+
+        const ribbonSvg = `
+          <svg width="${ribbonSize}" height="${ribbonSize}">
+            <polygon points="0,0 ${ribbonSize},${ribbonSize} 0,${ribbonSize}" fill="${color}"/>
+            <text x="${ribbonSize/2}" y="${ribbonSize/2}" 
+                  font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" 
+                  fill="white" text-anchor="middle" dominant-baseline="middle"
+                  transform="rotate(${pos.rotation} ${ribbonSize/2} ${ribbonSize/2})">
+              ${ribbon.text}
+            </text>
+          </svg>
+        `;
+
+        overlays.push({
+          input: Buffer.from(ribbonSvg),
+          top: pos.y,
+          left: pos.x
+        });
+      }
+
+      // Add price badge overlay
+      if (priceBadge) {
+        const padding = 16;
+        const badgeText = `€${priceBadge.price}`;
+        const fontSize = priceBadge.size;
+        const textWidth = badgeText.length * fontSize * 0.6; // Approximate
+        const badgeWidth = textWidth + padding * 2;
+        const badgeHeight = fontSize + padding;
+        const color = priceBadge.color === 'red' ? '#dc2626' : '#eab308';
+
+        let x = padding;
+        let y = padding;
+
+        if (priceBadge.position === 'north_east') {
+          x = width - badgeWidth - padding;
+        } else if (priceBadge.position === 'south_west') {
+          y = height - badgeHeight - padding;
+        } else if (priceBadge.position === 'south_east') {
+          x = width - badgeWidth - padding;
+          y = height - badgeHeight - padding;
+        }
+
+        const badgeSvg = `
+          <svg width="${badgeWidth}" height="${badgeHeight}">
+            <rect x="0" y="0" width="${badgeWidth}" height="${badgeHeight}" 
+                  rx="${badgeHeight/2}" ry="${badgeHeight/2}" fill="${color}"/>
+            <text x="${badgeWidth/2}" y="${badgeHeight/2}" 
+                  font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" 
+                  fill="white" text-anchor="middle" dominant-baseline="middle">
+              ${badgeText}
+            </text>
+          </svg>
+        `;
+
+        overlays.push({
+          input: Buffer.from(badgeSvg),
+          top: y,
+          left: x
+        });
+      }
+
+      // Apply all overlays
+      if (overlays.length > 0) {
+        image = image.composite(overlays);
+      }
+
+      // Convert to buffer
+      const outputBuffer = await image.jpeg({ quality: 95 }).toBuffer();
+
+      console.log("✅ Overlays applied, uploading to Cloudinary...");
+
+      // Check if Cloudinary is configured
+      const cloudinaryConfig = await storage.getCloudinaryConfig(userId);
+      if (!cloudinaryConfig) {
+        return res.status(400).json({ 
+          error: "Cloudinary not configured. Please configure Cloudinary in Settings first." 
+        });
+      }
+
+      // Upload to Cloudinary
+      const uploadResult = await cloudinaryService.uploadMedia(
+        outputBuffer,
+        `edited_${Date.now()}.jpg`,
+        userId,
+        'image/jpeg'
+      );
+
+      // Save to database
+      const mediaItem = await storage.createMedia({
+        userId,
+        type: "image",
+        cloudinaryPublicId: uploadResult.publicId,
+        originalUrl: uploadResult.originalUrl,
+        facebookFeedUrl: uploadResult.facebookFeedUrl,
+        instagramFeedUrl: uploadResult.instagramFeedUrl,
+        instagramStoryUrl: uploadResult.instagramStoryUrl,
+        fileName: `edited_${Date.now()}.jpg`,
+        fileSize: outputBuffer.length,
+      });
+
+      console.log("✅ Image saved with ID:", mediaItem.id);
+      res.json(mediaItem);
+    } catch (error) {
+      console.error("💥 Error applying overlays:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to apply overlays";
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
   // Delete media
   app.delete("/api/media/:id", requireAuth, async (req, res) => {
     try {
@@ -1168,163 +1326,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error generating ribbon:", error);
       res.status(500).json({ error: "Failed to generate ribbon overlay" });
-    }
-  });
-
-  // Apply overlays to image using Sharp (server-side processing)
-  app.post("/api/media/apply-overlays", requireAuth, async (req, res) => {
-    try {
-      const { imageUrl, ribbon, priceBadge } = req.body;
-      const user = req.user as User;
-      const userId = user.id;
-
-      if (!imageUrl) {
-        return res.status(400).json({ error: "Image URL required" });
-      }
-
-      console.log("🎨 Applying overlays server-side with Sharp...");
-      console.log("📥 Image URL:", imageUrl);
-      console.log("🎀 Ribbon:", ribbon);
-      console.log("💰 Price Badge:", priceBadge);
-
-      // Download image from URL
-      const imageResponse = await fetch(imageUrl);
-      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-      console.log("✅ Image downloaded:", imageBuffer.length, "bytes");
-
-      // Load with Sharp to process
-      const sharp = (await import("sharp")).default;
-      let image = sharp(imageBuffer);
-      
-      // Get image metadata for dimensions
-      const metadata = await image.metadata();
-      const width = metadata.width!;
-      const height = metadata.height!;
-
-      console.log(`📐 Image dimensions: ${width}x${height}`);
-
-      // Create SVG overlays
-      const overlays: any[] = [];
-
-      // Add ribbon overlay
-      if (ribbon) {
-        const ribbonSize = 150;
-        const positions: Record<string, { x: number; y: number; rotation: number }> = {
-          top_left: { x: 0, y: 0, rotation: -45 },
-          top_right: { x: width - ribbonSize, y: 0, rotation: 45 },
-          bottom_left: { x: 0, y: height - ribbonSize, rotation: -135 },
-          bottom_right: { x: width - ribbonSize, y: height - ribbonSize, rotation: 135 }
-        };
-
-        const pos = positions[ribbon.position] || positions.top_left;
-        const color = ribbon.color === 'red' ? '#dc2626' : '#eab308';
-        const fontSize = ribbon.text.length <= 5 ? 22 : ribbon.text.length <= 8 ? 18 : ribbon.text.length <= 11 ? 15 : 12;
-
-        const ribbonSvg = `
-          <svg width="${ribbonSize}" height="${ribbonSize}">
-            <polygon points="0,0 ${ribbonSize},${ribbonSize} 0,${ribbonSize}" fill="${color}"/>
-            <text x="${ribbonSize/2}" y="${ribbonSize/2}" 
-                  font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" 
-                  fill="white" text-anchor="middle" dominant-baseline="middle"
-                  transform="rotate(${pos.rotation} ${ribbonSize/2} ${ribbonSize/2})">
-              ${ribbon.text}
-            </text>
-          </svg>
-        `;
-
-        overlays.push({
-          input: Buffer.from(ribbonSvg),
-          top: pos.y,
-          left: pos.x
-        });
-      }
-
-      // Add price badge overlay
-      if (priceBadge) {
-        const padding = 16;
-        const badgeText = `€${priceBadge.price}`;
-        const fontSize = priceBadge.size;
-        const textWidth = badgeText.length * fontSize * 0.6; // Approximate
-        const badgeWidth = textWidth + padding * 2;
-        const badgeHeight = fontSize + padding;
-        const color = priceBadge.color === 'red' ? '#dc2626' : '#eab308';
-
-        let x = padding;
-        let y = padding;
-
-        if (priceBadge.position === 'north_east') {
-          x = width - badgeWidth - padding;
-        } else if (priceBadge.position === 'south_west') {
-          y = height - badgeHeight - padding;
-        } else if (priceBadge.position === 'south_east') {
-          x = width - badgeWidth - padding;
-          y = height - badgeHeight - padding;
-        }
-
-        const badgeSvg = `
-          <svg width="${badgeWidth}" height="${badgeHeight}">
-            <rect x="0" y="0" width="${badgeWidth}" height="${badgeHeight}" 
-                  rx="${badgeHeight/2}" ry="${badgeHeight/2}" fill="${color}"/>
-            <text x="${badgeWidth/2}" y="${badgeHeight/2}" 
-                  font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" 
-                  fill="white" text-anchor="middle" dominant-baseline="middle">
-              ${badgeText}
-            </text>
-          </svg>
-        `;
-
-        overlays.push({
-          input: Buffer.from(badgeSvg),
-          top: y,
-          left: x
-        });
-      }
-
-      // Apply all overlays
-      if (overlays.length > 0) {
-        image = image.composite(overlays);
-      }
-
-      // Convert to buffer
-      const outputBuffer = await image.jpeg({ quality: 95 }).toBuffer();
-
-      console.log("✅ Overlays applied, uploading to Cloudinary...");
-
-      // Check if Cloudinary is configured
-      const cloudinaryConfig = await storage.getCloudinaryConfig(userId);
-      if (!cloudinaryConfig) {
-        return res.status(400).json({ 
-          error: "Cloudinary not configured. Please configure Cloudinary in Settings first." 
-        });
-      }
-
-      // Upload to Cloudinary
-      const uploadResult = await cloudinaryService.uploadMedia(
-        outputBuffer,
-        `edited_${Date.now()}.jpg`,
-        userId,
-        'image/jpeg'
-      );
-
-      // Save to database
-      const mediaItem = await storage.createMedia({
-        userId,
-        type: "image",
-        cloudinaryPublicId: uploadResult.publicId,
-        originalUrl: uploadResult.originalUrl,
-        facebookFeedUrl: uploadResult.facebookFeedUrl,
-        instagramFeedUrl: uploadResult.instagramFeedUrl,
-        instagramStoryUrl: uploadResult.instagramStoryUrl,
-        fileName: `edited_${Date.now()}.jpg`,
-        fileSize: outputBuffer.length,
-      });
-
-      console.log("✅ Image saved with ID:", mediaItem.id);
-      res.json(mediaItem);
-    } catch (error) {
-      console.error("💥 Error applying overlays:", error);
-      const errorMessage = error instanceof Error ? error.message : "Failed to apply overlays";
-      res.status(500).json({ error: errorMessage });
     }
   });
 
