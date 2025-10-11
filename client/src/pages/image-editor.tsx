@@ -739,11 +739,11 @@ export default function ImageEditor() {
                   {selectedMedia ? (
                     <div className="space-y-4">
                       <div className="rounded-lg overflow-hidden bg-muted aspect-square flex items-center justify-center">
-                        <div ref={previewRef} className="relative w-full h-full">
+                        <div ref={previewRef} className="relative">
                           <img
                             src={previewUrl || selectedMedia.originalUrl}
                             alt="Aperçu"
-                            className="w-full h-full object-contain"
+                            className="max-w-full max-h-[706px] w-auto h-auto"
                             data-testid="preview-image"
                           />
                           
