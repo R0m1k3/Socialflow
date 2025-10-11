@@ -163,28 +163,9 @@ export default function ImageEditor() {
       transformations.push(`e_${filters.effect}`);
     }
 
-    // Ribbon overlay using generated triangular image
-    if (ribbon.enabled && ribbonPublicId) {
-      // Use the generated triangular ribbon as an overlay
-      const ribbonResource = ribbonPublicId.replace(/\//g, ":");
-      transformations.push(
-        `l_${ribbonResource}`,
-        `fl_layer_apply,g_${ribbon.position},x_0,y_0`
-      );
-    }
-
-    // Price badge overlay (Cloudinary text with circular background)
-    if (priceBadge.enabled && priceBadge.price) {
-      const badgeColor = priceBadge.color === "red" ? "DC2626" : "FFC107";
-      const priceText = encodeURIComponent(`€${priceBadge.price}`);
-      
-      // Create circular badge with text
-      transformations.push(
-        `l_text:Arial_38_bold:  ${priceText}  ,co_white,b_rgb:${badgeColor}`,
-        `r_max`,
-        `fl_layer_apply,g_${priceBadge.position},x_30,y_30`
-      );
-    }
+    // Note: Ribbon and price badge overlays are rendered as CSS elements in preview
+    // They are NOT added to Cloudinary transformation URL
+    // This allows for better visual control and positioning
 
     // Logo overlay - using uploaded logo if available
     if (logo.enabled) {
@@ -211,56 +192,71 @@ export default function ImageEditor() {
           height: 0;
           border-style: solid;
           z-index: 10;
+          pointer-events: none;
         }
         
-        .ribbon-triangle.north-west {
+        .ribbon-triangle.north_west {
           top: 0;
           left: 0;
-          border-width: 100px 100px 0 0;
-          border-color: transparent transparent transparent transparent;
+          border-width: 120px 120px 0 0;
         }
         
-        .ribbon-triangle.north-west.red {
+        .ribbon-triangle.north_west.red {
           border-top-color: #FF0000;
+          border-right-color: transparent;
+          border-bottom-color: transparent;
+          border-left-color: transparent;
         }
         
-        .ribbon-triangle.north-west.yellow {
+        .ribbon-triangle.north_west.yellow {
           border-top-color: #FFC107;
+          border-right-color: transparent;
+          border-bottom-color: transparent;
+          border-left-color: transparent;
         }
         
-        .ribbon-triangle.north-east {
+        .ribbon-triangle.north_east {
           top: 0;
           right: 0;
-          border-width: 0 100px 100px 0;
-          border-color: transparent transparent transparent transparent;
+          border-width: 0 120px 120px 0;
         }
         
-        .ribbon-triangle.north-east.red {
+        .ribbon-triangle.north_east.red {
+          border-top-color: transparent;
           border-right-color: #FF0000;
+          border-bottom-color: transparent;
+          border-left-color: transparent;
         }
         
-        .ribbon-triangle.north-east.yellow {
+        .ribbon-triangle.north_east.yellow {
+          border-top-color: transparent;
           border-right-color: #FFC107;
+          border-bottom-color: transparent;
+          border-left-color: transparent;
         }
         
         .ribbon-text {
           position: absolute;
           color: white;
           font-weight: bold;
-          font-size: 18px;
+          font-size: 16px;
+          z-index: 11;
+          pointer-events: none;
+          text-transform: uppercase;
+        }
+        
+        .ribbon-text.north_west {
+          top: 20px;
+          left: 8px;
           transform: rotate(-45deg);
           transform-origin: center;
         }
         
-        .ribbon-text.north-west {
-          top: 25px;
-          left: 10px;
-        }
-        
-        .ribbon-text.north-east {
-          top: 25px;
-          right: 10px;
+        .ribbon-text.north_east {
+          top: 20px;
+          right: 8px;
           transform: rotate(45deg);
+          transform-origin: center;
         }
       `}</style>
       
@@ -558,39 +554,41 @@ export default function ImageEditor() {
                 <CardContent>
                   {selectedMedia ? (
                     <div className="space-y-4">
-                      <div className="relative rounded-lg overflow-hidden bg-muted aspect-square">
-                        <img
-                          src={previewUrl || selectedMedia.originalUrl}
-                          alt="Aperçu"
-                          className="w-full h-full object-contain"
-                          data-testid="preview-image"
-                        />
-                        
-                        {/* CSS Triangle Ribbon Overlay */}
-                        {ribbon.enabled && ribbon.text && (
-                          <>
-                            <div className={`ribbon-triangle ${ribbon.position} ${ribbon.color}`} />
-                            <div className={`ribbon-text ${ribbon.position}`}>
-                              {ribbon.text}
+                      <div className="rounded-lg overflow-hidden bg-muted aspect-square flex items-center justify-center">
+                        <div className="relative w-full h-full">
+                          <img
+                            src={previewUrl || selectedMedia.originalUrl}
+                            alt="Aperçu"
+                            className="w-full h-full object-contain"
+                            data-testid="preview-image"
+                          />
+                          
+                          {/* CSS Triangle Ribbon Overlay */}
+                          {ribbon.enabled && ribbon.text && (
+                            <>
+                              <div className={`ribbon-triangle ${ribbon.position} ${ribbon.color}`} />
+                              <div className={`ribbon-text ${ribbon.position}`}>
+                                {ribbon.text}
+                              </div>
+                            </>
+                          )}
+                          
+                          {/* Price Badge Overlay (CSS) */}
+                          {priceBadge.enabled && priceBadge.price && (
+                            <div 
+                              className={`absolute ${
+                                priceBadge.position === "north_east" ? "top-4 right-4" :
+                                priceBadge.position === "south_east" ? "bottom-4 right-4" :
+                                priceBadge.position === "south_west" ? "bottom-4 left-4" :
+                                "top-4 left-4"
+                              } px-4 py-2 rounded-full text-white font-bold text-lg z-10 ${
+                                priceBadge.color === "red" ? "bg-red-600" : "bg-yellow-500"
+                              }`}
+                            >
+                              €{priceBadge.price}
                             </div>
-                          </>
-                        )}
-                        
-                        {/* Price Badge Overlay (CSS) */}
-                        {priceBadge.enabled && priceBadge.price && (
-                          <div 
-                            className={`absolute ${
-                              priceBadge.position === "north_east" ? "top-4 right-4" :
-                              priceBadge.position === "south_east" ? "bottom-4 right-4" :
-                              priceBadge.position === "south_west" ? "bottom-4 left-4" :
-                              "top-4 left-4"
-                            } px-4 py-2 rounded-full text-white font-bold text-lg ${
-                              priceBadge.color === "red" ? "bg-red-600" : "bg-yellow-500"
-                            }`}
-                          >
-                            €{priceBadge.price}
-                          </div>
-                        )}
+                          )}
+                        </div>
                         
                         <button
                           onClick={() => setSelectedMedia(null)}
