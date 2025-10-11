@@ -8,10 +8,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { ModelCombobox } from "@/components/model-combobox";
 
 export default function Settings() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -33,7 +33,7 @@ export default function Settings() {
     queryKey: ['/api/openrouter/config'],
   });
 
-  const { data: openrouterModels } = useQuery({
+  const { data: openrouterModels, isLoading: modelsLoading } = useQuery({
     queryKey: ['/api/openrouter/models'],
   });
 
@@ -227,18 +227,15 @@ export default function Settings() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="openrouterModel">Modèle d'IA</Label>
-                  <Select value={openrouterModel} onValueChange={setOpenrouterModel}>
-                    <SelectTrigger id="openrouterModel" data-testid="select-openrouter-model">
-                      <SelectValue placeholder="Sélectionner un modèle" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(openrouterModels as any)?.data?.map((model: any) => (
-                        <SelectItem key={model.id} value={model.id}>
-                          {model.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ModelCombobox
+                    models={(openrouterModels as any)?.data || []}
+                    value={openrouterModel}
+                    onValueChange={setOpenrouterModel}
+                    placeholder="Sélectionner un modèle"
+                    isLoading={modelsLoading}
+                    className="w-full"
+                    testId="select-openrouter-model"
+                  />
                   <p className="text-xs text-muted-foreground">
                     Choisissez le modèle d'IA pour générer vos publications
                   </p>

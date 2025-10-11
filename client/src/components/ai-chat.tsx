@@ -6,7 +6,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Bot, User, Lightbulb, History, Zap, Sparkles, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ModelCombobox } from "@/components/model-combobox";
 
 interface Message {
   role: "user" | "assistant";
@@ -114,32 +114,16 @@ export default function AiChat() {
         
         <div className="flex items-center gap-3">
           <label className="text-sm font-medium text-foreground">Modèle IA:</label>
-          <Select value={selectedModel} onValueChange={setSelectedModel} disabled={modelsLoading}>
-            <SelectTrigger className="w-[300px] rounded-xl" data-testid="select-ai-model">
-              {modelsLoading ? (
-                <div className="flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Chargement des modèles...</span>
-                </div>
-              ) : (
-                <SelectValue placeholder="Sélectionner un modèle" />
-              )}
-            </SelectTrigger>
-            <SelectContent className="max-h-[300px] overflow-y-auto">
-              {availableModels.map((model: OpenRouterModel) => (
-                <SelectItem key={model.id} value={model.id} data-testid={`model-option-${model.id}`}>
-                  <div className="flex flex-col">
-                    <span className="font-medium">{model.name}</span>
-                    {model.pricing && (
-                      <span className="text-xs text-muted-foreground">
-                        ${model.pricing.prompt} / ${model.pricing.completion}
-                      </span>
-                    )}
-                  </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <ModelCombobox
+            models={availableModels}
+            value={selectedModel}
+            onValueChange={setSelectedModel}
+            placeholder="Sélectionner un modèle"
+            isLoading={modelsLoading}
+            disabled={modelsLoading}
+            className="w-[300px] rounded-xl"
+            testId="select-ai-model"
+          />
         </div>
       </div>
 
