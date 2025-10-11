@@ -125,14 +125,14 @@ export default function ImageEditor() {
       // Draw ribbon if enabled
       if (ribbon.enabled && ribbon.text) {
         const ribbonSize = 150;
-        const positions = {
+        const positions: Record<string, { x: number; y: number; rotation: number }> = {
           top_left: { x: 0, y: 0, rotation: 0 },
           top_right: { x: width - ribbonSize, y: 0, rotation: 90 },
           bottom_left: { x: 0, y: height - ribbonSize, rotation: -90 },
           bottom_right: { x: width - ribbonSize, y: height - ribbonSize, rotation: 180 }
         };
         
-        const pos = positions[ribbon.position as keyof typeof positions];
+        const pos = positions[ribbon.position] || positions.top_left;
         
         ctx.save();
         ctx.translate(pos.x + ribbonSize / 2, pos.y + ribbonSize / 2);
