@@ -517,6 +517,196 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Apply overlays to image using Sharp (server-side processing)
+  // IMPORTANT: This must be BEFORE /api/media/:id to avoid being intercepted by :id parameter
+  app.post("/api/media/apply-overlays", requireAuth, async (req, res) => {
+    try {
+      const { imageUrl, ribbon, priceBadge } = req.body;
+      const user = req.user as User;
+      const userId = user.id;
+
+      if (!imageUrl) {
+        return res.status(400).json({ error: "Image URL required" });
+      }
+
+      console.log("🎨 Applying overlays server-side with Sharp...");
+      console.log("📥 Image URL:", imageUrl);
+      console.log("🎀 Ribbon:", ribbon);
+      console.log("💰 Price Badge:", priceBadge);
+
+      // Download image from URL
+      const imageResponse = await fetch(imageUrl);
+      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+      console.log("✅ Image downloaded:", imageBuffer.length, "bytes");
+
+      // Load with Sharp to process
+      const sharp = (await import("sharp")).default;
+      let image = sharp(imageBuffer);
+      
+      // Get image metadata for dimensions
+      const metadata = await image.metadata();
+      const width = metadata.width!;
+      const height = metadata.height!;
+
+      console.log(`📐 Image dimensions: ${width}x${height}`);
+
+      // Create SVG overlays
+      const overlays: any[] = [];
+
+      // Add ribbon overlay
+      if (ribbon) {
+        const ribbonSize = 150;
+        const color = ribbon.color === 'red' ? '#dc2626' : '#eab308';
+        const fontSize = ribbon.text.length <= 5 ? 22 : ribbon.text.length <= 8 ? 18 : ribbon.text.length <= 11 ? 15 : 12;
+
+        // Position mapping for each corner
+        const positions: Record<string, { x: number; y: number; polygon: string; textX: number; textY: number; textRotation: number }> = {
+          north_west: { 
+            x: 0, 
+            y: 0, 
+            polygon: `0,0 ${ribbonSize},0 0,${ribbonSize}`,  // Top-left triangle
+            textX: ribbonSize * 0.3,
+            textY: ribbonSize * 0.3,
+            textRotation: -45
+          },
+          north_east: { 
+            x: width - ribbonSize, 
+            y: 0, 
+            polygon: `0,0 ${ribbonSize},0 ${ribbonSize},${ribbonSize}`,  // Top-right triangle
+            textX: ribbonSize * 0.7,
+            textY: ribbonSize * 0.3,
+            textRotation: 45
+          },
+          south_west: { 
+            x: 0, 
+            y: height - ribbonSize, 
+            polygon: `0,0 0,${ribbonSize} ${ribbonSize},${ribbonSize}`,  // Bottom-left triangle
+            textX: ribbonSize * 0.3,
+            textY: ribbonSize * 0.7,
+            textRotation: -135
+          },
+          south_east: { 
+            x: width - ribbonSize, 
+            y: height - ribbonSize, 
+            polygon: `${ribbonSize},0 0,${ribbonSize} ${ribbonSize},${ribbonSize}`,  // Bottom-right triangle
+            textX: ribbonSize * 0.7,
+            textY: ribbonSize * 0.7,
+            textRotation: 135
+          }
+        };
+
+        const pos = positions[ribbon.position] || positions.north_west;
+
+        const ribbonSvg = `
+          <svg width="${ribbonSize}" height="${ribbonSize}" xmlns="http://www.w3.org/2000/svg">
+            <polygon points="${pos.polygon}" fill="${color}"/>
+            <text x="${pos.textX}" y="${pos.textY}" 
+                  font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" 
+                  fill="white" text-anchor="middle" dominant-baseline="middle"
+                  transform="rotate(${pos.textRotation}, ${pos.textX}, ${pos.textY})">
+              ${ribbon.text}
+            </text>
+          </svg>
+        `;
+
+        overlays.push({
+          input: Buffer.from(ribbonSvg),
+          top: pos.y,
+          left: pos.x
+        });
+      }
+
+      // Add price badge overlay
+      if (priceBadge) {
+        const padding = 16;
+        const badgeText = `€${priceBadge.price}`;
+        const fontSize = priceBadge.size;
+        const textWidth = badgeText.length * fontSize * 0.6; // Approximate
+        const badgeWidth = textWidth + padding * 2;
+        const badgeHeight = fontSize + padding;
+        const color = priceBadge.color === 'red' ? '#dc2626' : '#eab308';
+
+        let x = padding;
+        let y = padding;
+
+        if (priceBadge.position === 'north_east') {
+          x = width - badgeWidth - padding;
+        } else if (priceBadge.position === 'south_west') {
+          y = height - badgeHeight - padding;
+        } else if (priceBadge.position === 'south_east') {
+          x = width - badgeWidth - padding;
+          y = height - badgeHeight - padding;
+        }
+
+        const badgeSvg = `
+          <svg width="${badgeWidth}" height="${badgeHeight}">
+            <rect x="0" y="0" width="${badgeWidth}" height="${badgeHeight}" 
+                  rx="${badgeHeight/2}" ry="${badgeHeight/2}" fill="${color}"/>
+            <text x="${badgeWidth/2}" y="${badgeHeight/2}" 
+                  font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" 
+                  fill="white" text-anchor="middle" dominant-baseline="middle">
+              ${badgeText}
+            </text>
+          </svg>
+        `;
+
+        overlays.push({
+          input: Buffer.from(badgeSvg),
+          top: y,
+          left: x
+        });
+      }
+
+      // Apply all overlays
+      if (overlays.length > 0) {
+        image = image.composite(overlays);
+      }
+
+      // Convert to buffer
+      const outputBuffer = await image.jpeg({ quality: 95 }).toBuffer();
+
+      console.log("✅ Overlays applied, uploading to Cloudinary...");
+
+      // Check if Cloudinary is configured
+      const cloudinaryConfig = await storage.getCloudinaryConfig(userId);
+      if (!cloudinaryConfig) {
+        return res.status(400).json({ 
+          error: "Cloudinary not configured. Please configure Cloudinary in Settings first." 
+        });
+      }
+
+      // Upload to Cloudinary
+      const uploadResult = await cloudinaryService.uploadMedia(
+        outputBuffer,
+        `edited_${Date.now()}.jpg`,
+        userId,
+        'image/jpeg'
+      );
+
+      // Save to database
+      // IMPORTANT: For edited images with overlays, use originalUrl for ALL formats
+      // because Cloudinary transformations would recreate versions WITHOUT the overlays
+      const mediaItem = await storage.createMedia({
+        userId,
+        type: "image",
+        cloudinaryPublicId: uploadResult.publicId,
+        originalUrl: uploadResult.originalUrl,
+        facebookFeedUrl: uploadResult.originalUrl,  // Use original with overlays
+        instagramFeedUrl: uploadResult.originalUrl,  // Use original with overlays  
+        instagramStoryUrl: uploadResult.originalUrl,  // Use original with overlays
+        fileName: `edited_${Date.now()}.jpg`,
+        fileSize: outputBuffer.length,
+      });
+
+      console.log("✅ Image saved with ID:", mediaItem.id);
+      res.json(mediaItem);
+    } catch (error) {
+      console.error("💥 Error applying overlays:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to apply overlays";
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
   // Delete media
   app.delete("/api/media/:id", requireAuth, async (req, res) => {
     try {
@@ -1148,6 +1338,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error saving OpenRouter config:", error);
       res.status(500).json({ error: "Failed to save OpenRouter config" });
+    }
+  });
+
+  // Generate ribbon overlay
+  app.post("/api/media/generate-ribbon", requireAuth, async (req, res) => {
+    const { text, color, position } = req.body;
+    
+    if (!text || !color || !position) {
+      return res.status(400).json({ error: "Text, color and position are required" });
+    }
+    
+    try {
+      const { RibbonGenerator } = await import("./services/ribbonGenerator");
+      const generator = RibbonGenerator.getInstance();
+      
+      const publicId = await generator.generateTriangularRibbon(text, color, position);
+      res.json({ publicId });
+    } catch (error) {
+      console.error("Error generating ribbon:", error);
+      res.status(500).json({ error: "Failed to generate ribbon overlay" });
     }
   });
 
