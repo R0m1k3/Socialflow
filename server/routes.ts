@@ -1341,26 +1341,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate ribbon overlay
-  app.post("/api/media/generate-ribbon", requireAuth, async (req, res) => {
-    const { text, color, position } = req.body;
-    
-    if (!text || !color || !position) {
-      return res.status(400).json({ error: "Text, color and position are required" });
-    }
-    
-    try {
-      const { RibbonGenerator } = await import("./services/ribbonGenerator");
-      const generator = RibbonGenerator.getInstance();
-      
-      const publicId = await generator.generateTriangularRibbon(text, color, position);
-      res.json({ publicId });
-    } catch (error) {
-      console.error("Error generating ribbon:", error);
-      res.status(500).json({ error: "Failed to generate ribbon overlay" });
-    }
-  });
-
   const httpServer = createServer(app);
 
   return httpServer;

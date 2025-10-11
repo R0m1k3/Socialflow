@@ -89,10 +89,6 @@ export default function ImageEditor() {
   const previewRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // State for generated ribbon overlay
-  const [ribbonPublicId, setRibbonPublicId] = useState<string | null>(null);
-  const [isGeneratingRibbon, setIsGeneratingRibbon] = useState(false);
-
   // Save edited image mutation - DOM capture with html-to-image
   const saveImageMutation = useMutation({
     mutationFn: async () => {
@@ -159,34 +155,6 @@ export default function ImageEditor() {
     }
   });
 
-  // Generate ribbon when settings change
-  useEffect(() => {
-    if (!ribbon.enabled || !ribbon.text) {
-      setRibbonPublicId(null);
-      return;
-    }
-    
-    const generateRibbon = async () => {
-      setIsGeneratingRibbon(true);
-      try {
-        const response = await apiRequest("POST", "/api/media/generate-ribbon", {
-          text: ribbon.text,
-          color: ribbon.color,
-          position: ribbon.position
-        });
-        const data = await response.json();
-        setRibbonPublicId(data.publicId);
-      } catch (error) {
-        console.error("Error generating ribbon:", error);
-      } finally {
-        setIsGeneratingRibbon(false);
-      }
-    };
-    
-    // Debounce to avoid too many requests
-    const timer = setTimeout(generateRibbon, 500);
-    return () => clearTimeout(timer);
-  }, [ribbon.enabled, ribbon.text, ribbon.color, ribbon.position]);
 
   // Generate Cloudinary transformation URL
   useEffect(() => {
@@ -537,13 +505,13 @@ export default function ImageEditor() {
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="red" id="price-red" data-testid="radio-price-red" />
                             <Label htmlFor="price-red" className="flex items-center gap-2">
-                              Rouge <Badge className="bg-red-600">€19.99</Badge>
+                              Rouge <Badge className="bg-red-600">19.99€</Badge>
                             </Label>
                           </div>
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="yellow" id="price-yellow" data-testid="radio-price-yellow" />
                             <Label htmlFor="price-yellow" className="flex items-center gap-2">
-                              Jaune <Badge className="bg-yellow-500">€19.99</Badge>
+                              Jaune <Badge className="bg-yellow-500">19.99€</Badge>
                             </Label>
                           </div>
                         </RadioGroup>
@@ -701,7 +669,7 @@ export default function ImageEditor() {
                               }`}
                               style={{ fontSize: `${priceBadge.size}px` }}
                             >
-                              €{priceBadge.price}
+                              {priceBadge.price}€
                             </div>
                           )}
                         </div>
