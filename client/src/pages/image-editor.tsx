@@ -130,33 +130,36 @@ export default function ImageEditor() {
       transformations.push(`e_${filters.effect}`);
     }
 
-    // Ribbon overlay (simple rectangle in corner - NO rotation)
+    // Ribbon overlay (small diagonal banner in corner)
     if (ribbon.enabled) {
       const ribbonColor = ribbon.color === "red" ? "FF0000" : "FFC107";
       // URL encode the text to handle accents and special characters
       const ribbonText = encodeURIComponent(ribbon.text);
       
+      // Diagonal banner - minimal size
+      const isNorthWest = ribbon.position === "north_west";
+      const rotation = isNorthWest ? "-45" : "45";
+      
       transformations.push(
-        // Simple rectangle with padding, positioned in corner
-        `l_text:Arial_50_bold:  ${ribbonText}  ,co_white,b_rgb:${ribbonColor}`,
-        `fl_layer_apply,g_${ribbon.position},x_0,y_0`
+        // Minimal padding - just text with small background
+        `l_text:Arial_28_bold: ${ribbonText} ,co_white,b_rgb:${ribbonColor}`,
+        `a_${rotation}`,
+        `fl_layer_apply,g_${ribbon.position},x_10,y_10`
       );
     }
 
-    // Price badge overlay (starburst/éclaté effect with centered price)
+    // Price badge overlay (circular background with centered price)
     if (priceBadge.enabled && priceBadge.price) {
       const badgeColor = priceBadge.color === "red" ? "DC2626" : "FFC107";
       // URL encode the price text
       const priceText = encodeURIComponent(`€${priceBadge.price}`);
       
-      // Create burst/éclaté effect using starburst character
+      // Create circular badge with equal padding to ensure circle shape
       transformations.push(
-        // Large starburst background (éclaté shape)
-        `l_text:Arial_180_bold:✦,co_rgb:${badgeColor}`,
-        `fl_layer_apply,g_${priceBadge.position},x_30,y_30`,
-        // Price text centered on top
-        `l_text:Arial_44_bold:${priceText},co_white`,
-        `fl_layer_apply,g_${priceBadge.position},x_30,y_30`
+        // Price with equal padding on all sides for perfect circle
+        `l_text:Arial_38_bold:    ${priceText}    ,co_white,b_rgb:${badgeColor}`,
+        `r_max`,  // Maximum rounding for circular effect
+        `fl_layer_apply,g_${priceBadge.position},x_20,y_20`
       );
     }
 
