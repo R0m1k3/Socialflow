@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { CloudUpload, Image as ImageIcon, Video, X, Upload, Loader2 } from "lucide-react";
+import { CloudUpload, Image as ImageIcon, Video, X, Upload, Loader2, ZoomIn } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SiFacebook, SiInstagram } from "react-icons/si";
 
@@ -12,6 +12,7 @@ export default function MediaUpload() {
   const { toast } = useToast();
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [visibleCount, setVisibleCount] = useState(5);
+  const [zoomImage, setZoomImage] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
 
   const { data: mediaList } = useQuery({
@@ -167,18 +168,32 @@ export default function MediaUpload() {
                           className="w-full h-full object-cover"
                         />
                       )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteMutation.mutate(media.id);
-                        }}
-                        className="absolute top-2 right-2 w-8 h-8 bg-black/70 hover:bg-destructive rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                        data-testid={`button-delete-${media.id}`}
-                      >
-                        <X className="w-4 h-4 text-white" />
-                      </button>
+                      <div className="absolute top-2 right-2 flex gap-2">
+                        {media.type === "image" && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setZoomImage(media.originalUrl);
+                            }}
+                            className="w-8 h-8 bg-black/70 hover:bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            data-testid={`button-zoom-${media.id}`}
+                          >
+                            <ZoomIn className="w-4 h-4 text-white" />
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteMutation.mutate(media.id);
+                          }}
+                          className="w-8 h-8 bg-black/70 hover:bg-destructive rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          data-testid={`button-delete-${media.id}`}
+                        >
+                          <X className="w-4 h-4 text-white" />
+                        </button>
+                      </div>
                     </div>
-                  ))}
+                  ) as any)}
                 </div>
                 
                 {/* Élément sentinelle pour le scroll infini */}
@@ -261,6 +276,25 @@ export default function MediaUpload() {
               <br />
               Veuillez patienter.
             </p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal pour voir l'image originale en plein écran */}
+      <Dialog open={!!zoomImage} onOpenChange={() => setZoomImage(null)}>
+        <DialogContent className="max-w-7xl w-[95vw] h-[95vh] p-0 bg-black/95">
+          <div className="relative w-full h-full flex items-center justify-center">
+            <img
+              src={zoomImage || ""}
+              alt="Image originale"
+              className="max-w-full max-h-full object-contain"
+            />
+            <button
+              onClick={() => setZoomImage(null)}
+              className="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center backdrop-blur-sm"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
           </div>
         </DialogContent>
       </Dialog>

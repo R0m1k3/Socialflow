@@ -573,7 +573,7 @@ export default function ImageEditor() {
                           value={[priceBadge.size]}
                           onValueChange={(value) => setPriceBadge({ ...priceBadge, size: value[0] })}
                           min={12}
-                          max={40}
+                          max={70}
                           step={1}
                           data-testid="slider-price-size"
                         />
