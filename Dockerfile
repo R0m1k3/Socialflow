@@ -3,11 +3,23 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Installer les outils de compilation pour bcrypt et canvas
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    cairo-dev \
+    jpeg-dev \
+    pango-dev \
+    giflib-dev \
+    pixman-dev
+
 # Copier les fichiers de dépendances
 COPY package*.json ./
 
 # Installer toutes les dépendances (dev + prod)
-RUN npm ci
+# Utiliser --legacy-peer-deps si problèmes de dépendances
+RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
 # Copier le reste du code source
 COPY . .
@@ -20,9 +32,20 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# Installer les runtime dependencies pour bcrypt et canvas
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    cairo \
+    jpeg \
+    pango \
+    giflib \
+    pixman
+
 # Installer toutes les dépendances (drizzle-kit est nécessaire pour push)
 COPY package*.json ./
-RUN npm ci
+RUN npm ci --legacy-peer-deps --omit=dev || npm install --legacy-peer-deps --omit=dev
 
 # Copier les fichiers buildés et le code serveur
 COPY --from=builder /app/dist ./dist
