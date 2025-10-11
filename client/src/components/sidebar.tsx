@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Calendar, Images, Users, Bot, Clock, Settings, Database, UserCog, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { Home, PlusCircle, Calendar, Images, Users, Bot, Clock, Settings, Database, UserCog, LogOut, ChevronLeft, ChevronRight, Wand2 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -63,6 +63,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
     { icon: PlusCircle, label: "Nouvelle publication", href: "/new", badge: null },
     { icon: Calendar, label: "Calendrier", href: "/calendar", badge: null },
     { icon: Images, label: "Médiathèque", href: "/media", badge: null },
+    { icon: Wand2, label: "Éditeur d'images", href: "/image-editor", badge: null },
   ];
 
   const statsItems = [

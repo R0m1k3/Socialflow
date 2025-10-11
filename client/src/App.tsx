@@ -10,6 +10,7 @@ import Dashboard from "@/pages/dashboard";
 import NewPost from "@/pages/new-post";
 import Calendar from "@/pages/calendar";
 import Media from "@/pages/media";
+import ImageEditor from "@/pages/image-editor";
 import PagesManagement from "@/pages/pages";
 import AI from "@/pages/ai";
 import History from "@/pages/history";
@@ -68,6 +69,7 @@ function Router() {
       <Route path="/new">{() => <ProtectedRoute component={NewPost} />}</Route>
       <Route path="/calendar">{() => <ProtectedRoute component={Calendar} />}</Route>
       <Route path="/media">{() => <ProtectedRoute component={Media} />}</Route>
+      <Route path="/image-editor">{() => <ProtectedRoute component={ImageEditor} />}</Route>
       <Route path="/pages">{() => <ProtectedRoute component={PagesManagement} />}</Route>
       <Route path="/ai">{() => <ProtectedRoute component={AI} adminOnly />}</Route>
       <Route path="/history">{() => <ProtectedRoute component={History} />}</Route>
