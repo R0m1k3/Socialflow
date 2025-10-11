@@ -121,21 +121,41 @@ export default function ImageEditor() {
       const displayWidth = previewImg.clientWidth;
       const displayHeight = previewImg.clientHeight;
 
-      // Calculate scale factor
-      const scale = naturalWidth / displayWidth;
+      // Calculate scale factor (limit to max 2048px width to avoid file size issues)
+      const maxWidth = 2048;
+      const scale = Math.min(naturalWidth / displayWidth, maxWidth / displayWidth);
+      const outputWidth = Math.round(displayWidth * scale);
+      const outputHeight = Math.round(displayHeight * scale);
 
-      // Capture preview as data URL using html-to-image at high resolution
+      // Capture preview as data URL using html-to-image
       const dataUrl = await toPng(previewRef.current, {
-        quality: 1,
-        pixelRatio: scale, // Render at natural image resolution
-        canvasWidth: naturalWidth,
-        canvasHeight: naturalHeight,
+        quality: 0.92,
+        pixelRatio: scale,
+        canvasWidth: outputWidth,
+        canvasHeight: outputHeight,
         skipAutoScale: true
       });
 
-      // Convert data URL to blob
+      // Convert data URL to blob and compress if needed
       const response = await fetch(dataUrl);
-      const blob = await response.blob();
+      let blob = await response.blob();
+      
+      // If still too large (>8MB), re-encode with lower quality
+      if (blob.size > 8 * 1024 * 1024) {
+        const img = new Image();
+        img.src = dataUrl;
+        await new Promise((resolve) => { img.onload = resolve; });
+        
+        const canvas = document.createElement('canvas');
+        canvas.width = outputWidth;
+        canvas.height = outputHeight;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0);
+        
+        blob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.85);
+        });
+      }
 
       // Upload
       const formData = new FormData();
