@@ -101,9 +101,10 @@ export default function ImageEditor() {
       }
 
       // Send overlay configuration to server - let server handle image processing
+      // IMPORTANT: Always use originalUrl (not previewUrl) to preserve full image dimensions
       const overlayConfig = {
         mediaId: selectedMedia.id,
-        imageUrl: previewUrl || selectedMedia.originalUrl,
+        imageUrl: selectedMedia.originalUrl, // Use original for full quality
         ribbon: ribbon.enabled ? {
           text: ribbon.text,
           color: ribbon.color,
