@@ -1183,10 +1183,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       console.log("🎨 Applying overlays server-side with Sharp...");
+      console.log("📥 Image URL:", imageUrl);
+      console.log("🎀 Ribbon:", ribbon);
+      console.log("💰 Price Badge:", priceBadge);
 
       // Download image from URL
       const imageResponse = await fetch(imageUrl);
       const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+      console.log("✅ Image downloaded:", imageBuffer.length, "bytes");
 
       // Load with Sharp to process
       const sharp = (await import("sharp")).default;
