@@ -100,49 +100,87 @@ export default function ImageEditor() {
         throw new Error("Aucune image sélectionnée");
       }
 
-      // Wait for fonts and styles to load
-      await document.fonts.ready;
+      // Load the image to get its natural dimensions
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.src = previewUrl || selectedMedia.originalUrl;
       
-      // Capture the preview container as canvas (including CSS overlays)
-      const canvas = await html2canvas(previewRef.current, {
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = reject;
+      });
+
+      const naturalWidth = img.naturalWidth;
+      const naturalHeight = img.naturalHeight;
+
+      // Create a temporary container at natural image size
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.top = '-10000px';
+      tempContainer.style.left = '-10000px';
+      tempContainer.style.width = `${naturalWidth}px`;
+      tempContainer.style.height = `${naturalHeight}px`;
+      document.body.appendChild(tempContainer);
+
+      // Clone and append image
+      const imgClone = img.cloneNode() as HTMLImageElement;
+      imgClone.style.width = '100%';
+      imgClone.style.height = '100%';
+      imgClone.style.objectFit = 'contain';
+      tempContainer.appendChild(imgClone);
+
+      // Add ribbon if enabled
+      if (ribbon.enabled && ribbon.text) {
+        const ribbonContainer = document.createElement('div');
+        ribbonContainer.className = `ribbon-container ${ribbon.position}`;
+        
+        const ribbonTriangle = document.createElement('div');
+        ribbonTriangle.className = `ribbon-triangle ${ribbon.color}`;
+        ribbonContainer.appendChild(ribbonTriangle);
+        
+        const ribbonTextElem = document.createElement('div');
+        ribbonTextElem.className = 'ribbon-text';
+        ribbonTextElem.textContent = ribbon.text;
+        ribbonTextElem.style.fontSize = ribbon.text.length <= 5 ? '22px' : 
+                                        ribbon.text.length <= 8 ? '18px' : 
+                                        ribbon.text.length <= 11 ? '15px' : '12px';
+        ribbonContainer.appendChild(ribbonTextElem);
+        
+        tempContainer.appendChild(ribbonContainer);
+      }
+
+      // Add price badge if enabled
+      if (priceBadge.enabled && priceBadge.price) {
+        const badge = document.createElement('div');
+        badge.className = `absolute ${
+          priceBadge.position === "north_east" ? "top-4 right-4" :
+          priceBadge.position === "south_east" ? "bottom-4 right-4" :
+          priceBadge.position === "south_west" ? "bottom-4 left-4" :
+          "top-4 left-4"
+        } px-4 py-2 rounded-full text-white font-bold z-10 flex items-center justify-center ${
+          priceBadge.color === "red" ? "bg-red-600" : "bg-yellow-500"
+        }`;
+        badge.style.fontSize = `${priceBadge.size}px`;
+        badge.textContent = `€${priceBadge.price}`;
+        tempContainer.appendChild(badge);
+      }
+
+      // Wait for styles to apply
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Capture the temporary container
+      const canvas = await html2canvas(tempContainer, {
         backgroundColor: null,
-        scale: 2, // Higher quality
+        scale: 1,
         useCORS: true,
         allowTaint: true,
         logging: false,
-        width: previewRef.current.offsetWidth,
-        height: previewRef.current.offsetHeight,
-        x: 0,
-        y: 0,
-        onclone: (clonedDoc) => {
-          // Fix ribbon text positioning in cloned document
-          const ribbonText = clonedDoc.querySelector('.ribbon-text');
-          if (ribbonText instanceof HTMLElement) {
-            const parent = ribbonText.parentElement;
-            if (parent) {
-              const parentRect = parent.getBoundingClientRect();
-              // Calculate center position for ribbon text
-              ribbonText.style.transform = 'rotate(-45deg)';
-              ribbonText.style.position = 'absolute';
-              ribbonText.style.top = '50%';
-              ribbonText.style.left = '50%';
-              ribbonText.style.transformOrigin = 'center';
-              ribbonText.style.marginTop = '-0.6em';
-              ribbonText.style.marginLeft = `${-ribbonText.offsetWidth / 2}px`;
-            }
-          }
-          
-          // Ensure price badge text is properly positioned
-          const priceBadges = clonedDoc.querySelectorAll('[data-badge-price]');
-          priceBadges.forEach(badge => {
-            if (badge instanceof HTMLElement) {
-              badge.style.display = 'flex';
-              badge.style.alignItems = 'center';
-              badge.style.justifyContent = 'center';
-            }
-          });
-        }
+        width: naturalWidth,
+        height: naturalHeight
       });
+
+      // Clean up
+      document.body.removeChild(tempContainer);
 
       // Convert canvas to blob
       const blob = await new Promise<Blob>((resolve) => {
