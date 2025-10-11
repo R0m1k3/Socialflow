@@ -93,129 +93,40 @@ export default function ImageEditor() {
   const [ribbonPublicId, setRibbonPublicId] = useState<string | null>(null);
   const [isGeneratingRibbon, setIsGeneratingRibbon] = useState(false);
 
-  // Save edited image mutation
+  // Save edited image mutation - Server-side processing with Sharp
   const saveImageMutation = useMutation({
     mutationFn: async () => {
       if (!selectedMedia) {
         throw new Error("Aucune image sélectionnée");
       }
 
-      // IMPORTANT: Always load the ORIGINAL image to preserve exact dimensions
-      // Do NOT use previewUrl as it may have filters that change dimensions
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.src = selectedMedia.originalUrl;
-      
-      await new Promise((resolve, reject) => {
-        img.onload = resolve;
-        img.onerror = reject;
-      });
+      // Send overlay configuration to server - let server handle image processing
+      const overlayConfig = {
+        mediaId: selectedMedia.id,
+        imageUrl: previewUrl || selectedMedia.originalUrl,
+        ribbon: ribbon.enabled ? {
+          text: ribbon.text,
+          color: ribbon.color,
+          position: ribbon.position
+        } : null,
+        priceBadge: priceBadge.enabled ? {
+          price: priceBadge.price,
+          color: priceBadge.color,
+          position: priceBadge.position,
+          size: priceBadge.size
+        } : null
+      };
 
-      const width = img.naturalWidth;
-      const height = img.naturalHeight;
-
-      // Create canvas at exact image size
-      const canvas = document.createElement('canvas');
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext('2d')!;
-
-      // Draw the base image
-      ctx.drawImage(img, 0, 0, width, height);
-
-      // Draw ribbon if enabled
-      if (ribbon.enabled && ribbon.text) {
-        const ribbonSize = 150;
-        const positions: Record<string, { x: number; y: number; rotation: number }> = {
-          top_left: { x: 0, y: 0, rotation: 0 },
-          top_right: { x: width - ribbonSize, y: 0, rotation: 90 },
-          bottom_left: { x: 0, y: height - ribbonSize, rotation: -90 },
-          bottom_right: { x: width - ribbonSize, y: height - ribbonSize, rotation: 180 }
-        };
-        
-        const pos = positions[ribbon.position] || positions.top_left;
-        
-        ctx.save();
-        ctx.translate(pos.x + ribbonSize / 2, pos.y + ribbonSize / 2);
-        ctx.rotate((pos.rotation * Math.PI) / 180);
-        
-        // Draw triangle
-        ctx.beginPath();
-        ctx.moveTo(-ribbonSize / 2, -ribbonSize / 2);
-        ctx.lineTo(ribbonSize / 2, ribbonSize / 2);
-        ctx.lineTo(-ribbonSize / 2, ribbonSize / 2);
-        ctx.closePath();
-        ctx.fillStyle = ribbon.color === 'red' ? '#dc2626' : '#eab308';
-        ctx.fill();
-        
-        // Draw text
-        ctx.rotate(-45 * Math.PI / 180);
-        ctx.fillStyle = 'white';
-        ctx.font = `bold ${ribbon.text.length <= 5 ? 22 : ribbon.text.length <= 8 ? 18 : ribbon.text.length <= 11 ? 15 : 12}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(ribbon.text, 0, 0);
-        
-        ctx.restore();
-      }
-
-      // Draw price badge if enabled
-      if (priceBadge.enabled && priceBadge.price) {
-        const padding = 16;
-        const badgeText = `€${priceBadge.price}`;
-        ctx.font = `bold ${priceBadge.size}px sans-serif`;
-        const textWidth = ctx.measureText(badgeText).width;
-        const badgeWidth = textWidth + padding * 2;
-        const badgeHeight = priceBadge.size + padding;
-        
-        let x = padding;
-        let y = padding;
-        
-        if (priceBadge.position === 'north_east') {
-          x = width - badgeWidth - padding;
-        } else if (priceBadge.position === 'south_west') {
-          y = height - badgeHeight - padding;
-        } else if (priceBadge.position === 'south_east') {
-          x = width - badgeWidth - padding;
-          y = height - badgeHeight - padding;
-        }
-        
-        // Draw rounded rectangle background
-        const radius = badgeHeight / 2;
-        ctx.fillStyle = priceBadge.color === 'red' ? '#dc2626' : '#eab308';
-        ctx.beginPath();
-        ctx.moveTo(x + radius, y);
-        ctx.lineTo(x + badgeWidth - radius, y);
-        ctx.arc(x + badgeWidth - radius, y + radius, radius, -Math.PI / 2, Math.PI / 2);
-        ctx.lineTo(x + radius, y + badgeHeight);
-        ctx.arc(x + radius, y + radius, radius, Math.PI / 2, -Math.PI / 2);
-        ctx.closePath();
-        ctx.fill();
-        
-        // Draw text
-        ctx.fillStyle = 'white';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(badgeText, x + badgeWidth / 2, y + badgeHeight / 2);
-      }
-
-      // Convert canvas to blob
-      const blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.95);
-      });
-
-      // Upload to server
-      const formData = new FormData();
-      formData.append('file', blob, `edited_${Date.now()}.jpg`);
-      
-      const response = await fetch('/api/media/upload-edited', {
+      const response = await fetch('/api/media/apply-overlays', {
         method: 'POST',
-        body: formData,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(overlayConfig),
         credentials: 'include'
       });
 
       if (!response.ok) {
-        throw new Error("Erreur lors de l'upload");
+        const error = await response.json();
+        throw new Error(error.error || "Erreur lors de l'application des overlays");
       }
 
       return response.json();
