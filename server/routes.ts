@@ -684,14 +684,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       );
 
       // Save to database
+      // IMPORTANT: For edited images with overlays, use originalUrl for ALL formats
+      // because Cloudinary transformations would recreate versions WITHOUT the overlays
       const mediaItem = await storage.createMedia({
         userId,
         type: "image",
         cloudinaryPublicId: uploadResult.publicId,
         originalUrl: uploadResult.originalUrl,
-        facebookFeedUrl: uploadResult.facebookFeedUrl,
-        instagramFeedUrl: uploadResult.instagramFeedUrl,
-        instagramStoryUrl: uploadResult.instagramStoryUrl,
+        facebookFeedUrl: uploadResult.originalUrl,  // Use original with overlays
+        instagramFeedUrl: uploadResult.originalUrl,  // Use original with overlays  
+        instagramStoryUrl: uploadResult.originalUrl,  // Use original with overlays
         fileName: `edited_${Date.now()}.jpg`,
         fileSize: outputBuffer.length,
       });
