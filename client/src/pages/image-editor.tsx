@@ -100,10 +100,11 @@ export default function ImageEditor() {
         throw new Error("Aucune image sélectionnée");
       }
 
-      // Load the image to get its natural dimensions
+      // IMPORTANT: Always load the ORIGINAL image to preserve exact dimensions
+      // Do NOT use previewUrl as it may have filters that change dimensions
       const img = new Image();
       img.crossOrigin = 'anonymous';
-      img.src = previewUrl || selectedMedia.originalUrl;
+      img.src = selectedMedia.originalUrl;
       
       await new Promise((resolve, reject) => {
         img.onload = resolve;
