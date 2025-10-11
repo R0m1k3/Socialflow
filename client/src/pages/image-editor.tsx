@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -81,6 +82,38 @@ export default function ImageEditor() {
     queryKey: ["/api/media"],
   });
 
+  // State for generated ribbon overlay
+  const [ribbonPublicId, setRibbonPublicId] = useState<string | null>(null);
+  const [isGeneratingRibbon, setIsGeneratingRibbon] = useState(false);
+
+  // Generate ribbon when settings change
+  useEffect(() => {
+    if (!ribbon.enabled || !ribbon.text) {
+      setRibbonPublicId(null);
+      return;
+    }
+    
+    const generateRibbon = async () => {
+      setIsGeneratingRibbon(true);
+      try {
+        const response = await apiRequest("POST", "/api/media/generate-ribbon", {
+          text: ribbon.text,
+          color: ribbon.color,
+          position: ribbon.position
+        });
+        const data = await response.json();
+        setRibbonPublicId(data.publicId);
+      } catch (error) {
+        console.error("Error generating ribbon:", error);
+      } finally {
+        setIsGeneratingRibbon(false);
+      }
+    };
+    
+    // Debounce to avoid too many requests
+    const timer = setTimeout(generateRibbon, 500);
+    return () => clearTimeout(timer);
+  }, [ribbon.enabled, ribbon.text, ribbon.color, ribbon.position]);
 
   // Generate Cloudinary transformation URL
   useEffect(() => {
@@ -130,36 +163,26 @@ export default function ImageEditor() {
       transformations.push(`e_${filters.effect}`);
     }
 
-    // Ribbon overlay (small diagonal banner in corner)
-    if (ribbon.enabled) {
-      const ribbonColor = ribbon.color === "red" ? "FF0000" : "FFC107";
-      // URL encode the text to handle accents and special characters
-      const ribbonText = encodeURIComponent(ribbon.text);
-      
-      // Diagonal banner - minimal size
-      const isNorthWest = ribbon.position === "north_west";
-      const rotation = isNorthWest ? "-45" : "45";
-      
+    // Ribbon overlay using generated triangular image
+    if (ribbon.enabled && ribbonPublicId) {
+      // Use the generated triangular ribbon as an overlay
+      const ribbonResource = ribbonPublicId.replace(/\//g, ":");
       transformations.push(
-        // Minimal padding - just text with small background
-        `l_text:Arial_28_bold: ${ribbonText} ,co_white,b_rgb:${ribbonColor}`,
-        `a_${rotation}`,
-        `fl_layer_apply,g_${ribbon.position},x_10,y_10`
+        `l_${ribbonResource}`,
+        `fl_layer_apply,g_${ribbon.position},x_0,y_0`
       );
     }
 
-    // Price badge overlay (circular background with centered price)
+    // Price badge overlay (Cloudinary text with circular background)
     if (priceBadge.enabled && priceBadge.price) {
       const badgeColor = priceBadge.color === "red" ? "DC2626" : "FFC107";
-      // URL encode the price text
       const priceText = encodeURIComponent(`€${priceBadge.price}`);
       
-      // Create circular badge with equal padding to ensure circle shape
+      // Create circular badge with text
       transformations.push(
-        // Price with equal padding on all sides for perfect circle
-        `l_text:Arial_38_bold:    ${priceText}    ,co_white,b_rgb:${badgeColor}`,
-        `r_max`,  // Maximum rounding for circular effect
-        `fl_layer_apply,g_${priceBadge.position},x_20,y_20`
+        `l_text:Arial_38_bold:  ${priceText}  ,co_white,b_rgb:${badgeColor}`,
+        `r_max`,
+        `fl_layer_apply,g_${priceBadge.position},x_30,y_30`
       );
     }
 
@@ -181,6 +204,66 @@ export default function ImageEditor() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
+      <style>{`
+        .ribbon-triangle {
+          position: absolute;
+          width: 0;
+          height: 0;
+          border-style: solid;
+          z-index: 10;
+        }
+        
+        .ribbon-triangle.north-west {
+          top: 0;
+          left: 0;
+          border-width: 100px 100px 0 0;
+          border-color: transparent transparent transparent transparent;
+        }
+        
+        .ribbon-triangle.north-west.red {
+          border-top-color: #FF0000;
+        }
+        
+        .ribbon-triangle.north-west.yellow {
+          border-top-color: #FFC107;
+        }
+        
+        .ribbon-triangle.north-east {
+          top: 0;
+          right: 0;
+          border-width: 0 100px 100px 0;
+          border-color: transparent transparent transparent transparent;
+        }
+        
+        .ribbon-triangle.north-east.red {
+          border-right-color: #FF0000;
+        }
+        
+        .ribbon-triangle.north-east.yellow {
+          border-right-color: #FFC107;
+        }
+        
+        .ribbon-text {
+          position: absolute;
+          color: white;
+          font-weight: bold;
+          font-size: 18px;
+          transform: rotate(-45deg);
+          transform-origin: center;
+        }
+        
+        .ribbon-text.north-west {
+          top: 25px;
+          left: 10px;
+        }
+        
+        .ribbon-text.north-east {
+          top: 25px;
+          right: 10px;
+          transform: rotate(45deg);
+        }
+      `}</style>
+      
       {sidebarOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -482,9 +565,36 @@ export default function ImageEditor() {
                           className="w-full h-full object-contain"
                           data-testid="preview-image"
                         />
+                        
+                        {/* CSS Triangle Ribbon Overlay */}
+                        {ribbon.enabled && ribbon.text && (
+                          <>
+                            <div className={`ribbon-triangle ${ribbon.position} ${ribbon.color}`} />
+                            <div className={`ribbon-text ${ribbon.position}`}>
+                              {ribbon.text}
+                            </div>
+                          </>
+                        )}
+                        
+                        {/* Price Badge Overlay (CSS) */}
+                        {priceBadge.enabled && priceBadge.price && (
+                          <div 
+                            className={`absolute ${
+                              priceBadge.position === "north_east" ? "top-4 right-4" :
+                              priceBadge.position === "south_east" ? "bottom-4 right-4" :
+                              priceBadge.position === "south_west" ? "bottom-4 left-4" :
+                              "top-4 left-4"
+                            } px-4 py-2 rounded-full text-white font-bold text-lg ${
+                              priceBadge.color === "red" ? "bg-red-600" : "bg-yellow-500"
+                            }`}
+                          >
+                            €{priceBadge.price}
+                          </div>
+                        )}
+                        
                         <button
                           onClick={() => setSelectedMedia(null)}
-                          className="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors"
+                          className="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors z-20"
                           data-testid="button-clear-selection"
                           title="Désélectionner l'image"
                         >
