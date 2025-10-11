@@ -10,6 +10,9 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### October 11, 2025
+- **Model Selector Improvement**: Replaced basic Select dropdowns with advanced ModelCombobox component featuring search and scroll functionality. The new combobox allows users to search models by name across 326+ OpenRouter models, displays pricing information (prompt/completion costs), and provides smooth scrolling through a max-height limited list. Implemented in both Settings page (OpenRouter configuration) and AI Assistant page. The combobox prevents accidental deselection and includes loading states with spinner for better UX.
+
 ### October 10, 2025
 - **Post Type Visual Indicators**: Added visual icons throughout the app to distinguish post types at a glance. Feed posts display Image icon (🖼️), Story posts display Smartphone icon (📱), and posts configured for both show both icons side-by-side. Icons appear consistently across calendar view (desktop grid and mobile list), dashboard "Historique des publications" section, and history page for improved visual clarity.
 - **Calendar Auto-Refresh**: Implemented automatic calendar data refresh every 30 seconds using TanStack Query's `refetchInterval` option. Calendar continuously fetches updated scheduled posts without requiring page reload or manual refresh, ensuring users see the latest schedule data in real-time.
