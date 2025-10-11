@@ -684,22 +684,16 @@ export default function ImageEditor() {
                         </button>
                       </div>
 
-                      <div className="flex gap-3">
-                        <Button 
-                          className="flex-1" 
-                          variant="outline" 
-                          data-testid="button-save"
-                          onClick={() => saveImageMutation.mutate()}
-                          disabled={saveImageMutation.isPending}
-                        >
-                          <Save className="w-4 h-4 mr-2" />
-                          {saveImageMutation.isPending ? "Enregistrement..." : "Enregistrer"}
-                        </Button>
-                        <Button className="flex-1" data-testid="button-use-in-post">
-                          <ArrowRight className="w-4 h-4 mr-2" />
-                          Utiliser dans un post
-                        </Button>
-                      </div>
+                      <Button 
+                        className="w-full" 
+                        variant="outline" 
+                        data-testid="button-save"
+                        onClick={() => saveImageMutation.mutate()}
+                        disabled={saveImageMutation.isPending}
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        {saveImageMutation.isPending ? "Enregistrement..." : "Enregistrer"}
+                      </Button>
                     </div>
                   ) : (
                     <div className="aspect-square flex items-center justify-center bg-muted rounded-lg">
