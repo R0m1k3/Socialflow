@@ -100,6 +100,9 @@ export default function ImageEditor() {
         throw new Error("Aucune image sélectionnée");
       }
 
+      // Wait for fonts and styles to load
+      await document.fonts.ready;
+      
       // Capture the preview container as canvas (including CSS overlays)
       const canvas = await html2canvas(previewRef.current, {
         backgroundColor: null,
@@ -110,7 +113,35 @@ export default function ImageEditor() {
         width: previewRef.current.offsetWidth,
         height: previewRef.current.offsetHeight,
         x: 0,
-        y: 0
+        y: 0,
+        onclone: (clonedDoc) => {
+          // Fix ribbon text positioning in cloned document
+          const ribbonText = clonedDoc.querySelector('.ribbon-text');
+          if (ribbonText instanceof HTMLElement) {
+            const parent = ribbonText.parentElement;
+            if (parent) {
+              const parentRect = parent.getBoundingClientRect();
+              // Calculate center position for ribbon text
+              ribbonText.style.transform = 'rotate(-45deg)';
+              ribbonText.style.position = 'absolute';
+              ribbonText.style.top = '50%';
+              ribbonText.style.left = '50%';
+              ribbonText.style.transformOrigin = 'center';
+              ribbonText.style.marginTop = '-0.6em';
+              ribbonText.style.marginLeft = `${-ribbonText.offsetWidth / 2}px`;
+            }
+          }
+          
+          // Ensure price badge text is properly positioned
+          const priceBadges = clonedDoc.querySelectorAll('[data-badge-price]');
+          priceBadges.forEach(badge => {
+            if (badge instanceof HTMLElement) {
+              badge.style.display = 'flex';
+              badge.style.alignItems = 'center';
+              badge.style.justifyContent = 'center';
+            }
+          });
+        }
       });
 
       // Convert canvas to blob
@@ -681,12 +712,13 @@ export default function ImageEditor() {
                           {/* Price Badge Overlay (CSS) */}
                           {priceBadge.enabled && priceBadge.price && (
                             <div 
+                              data-badge-price="true"
                               className={`absolute ${
                                 priceBadge.position === "north_east" ? "top-4 right-4" :
                                 priceBadge.position === "south_east" ? "bottom-4 right-4" :
                                 priceBadge.position === "south_west" ? "bottom-4 left-4" :
                                 "top-4 left-4"
-                              } px-4 py-2 rounded-full text-white font-bold z-10 ${
+                              } px-4 py-2 rounded-full text-white font-bold z-10 flex items-center justify-center ${
                                 priceBadge.color === "red" ? "bg-red-600" : "bg-yellow-500"
                               }`}
                               style={{ fontSize: `${priceBadge.size}px` }}
