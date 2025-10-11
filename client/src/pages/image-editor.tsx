@@ -130,16 +130,24 @@ export default function ImageEditor() {
       transformations.push(`e_${filters.effect}`);
     }
 
-    // Ribbon overlay (rectangle in corner)
+    // Ribbon overlay (corner banner/triangle like in the example image)
     if (ribbon.enabled) {
       const ribbonColor = ribbon.color === "red" ? "FF0000" : "FFC107";
       // URL encode the text to handle accents and special characters
       const ribbonText = encodeURIComponent(ribbon.text);
       
+      // Create corner banner effect
+      // Position determines rotation and offset
+      const isTopLeft = ribbon.position === "north_west";
+      const rotation = isTopLeft ? "-45" : "45";
+      const offsetX = isTopLeft ? "60" : "-60";
+      const offsetY = isTopLeft ? "60" : "-60";
+      
       transformations.push(
-        // Create rectangle ribbon with padding, positioned in corner
-        `l_text:Arial_40_bold:  ${ribbonText}  ,co_white,b_rgb:${ribbonColor}`,
-        `fl_layer_apply,g_${ribbon.position},x_10,y_10`
+        // Long rectangle banner with padding, rotated 45 degrees
+        `l_text:Arial_32_bold:       ${ribbonText}       ,co_white,b_rgb:${ribbonColor}`,
+        `a_${rotation}`,
+        `fl_layer_apply,g_${ribbon.position},x_${offsetX},y_${offsetY}`
       );
     }
 
