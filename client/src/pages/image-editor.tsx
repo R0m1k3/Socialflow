@@ -105,7 +105,12 @@ export default function ImageEditor() {
         backgroundColor: null,
         scale: 2, // Higher quality
         useCORS: true,
-        allowTaint: true
+        allowTaint: true,
+        logging: false,
+        width: previewRef.current.offsetWidth,
+        height: previewRef.current.offsetHeight,
+        x: 0,
+        y: 0
       });
 
       // Convert canvas to blob
