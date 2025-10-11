@@ -1,0 +1,90 @@
+ublishing post 7e27d1f3-3e85-4d19-b35d-9b4134fce2ce to facebook page Frouard
+
+Error publishing post 54eabfab-437b-4d84-92aa-b24b9da84f8e: Error: Facebook API error: An unknown error has occurred. (code: 1)
+
+    at FacebookService.publishStory (file:///app/dist/index.js:1997:13)
+
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+
+    at async FacebookService.publishPost (file:///app/dist/index.js:1824:14)
+
+    at async SchedulerService.publishPost (file:///app/dist/index.js:2072:24)
+
+    at async SchedulerService.processPendingPosts (file:///app/dist/index.js:2034:11)
+
+    at async file:///app/dist/index.js:2010:7
+
+    at async Timeout._onTimeout (/app/node_modules/node-cron/dist/esm/scheduler/runner.js:70:44)
+
+Publishing post 7e27d1f3-3e85-4d19-b35d-9b4134fce2ce to facebook page Houdemont
+
+Error publishing post 1be182d0-00e3-440f-a98c-dadfd45f0304: Error: Facebook API error: An unknown error has occurred. (code: 1)
+
+    at FacebookService.publishStory (file:///app/dist/index.js:1997:13)
+
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+
+    at async FacebookService.publishPost (file:///app/dist/index.js:1824:14)
+
+    at async SchedulerService.publishPost (file:///app/dist/index.js:2072:24)
+
+    at async SchedulerService.processPendingPosts (file:///app/dist/index.js:2034:11)
+
+    at async file:///app/dist/index.js:2010:7
+
+    at async Timeout._onTimeout (/app/node_modules/node-cron/dist/esm/scheduler/runner.js:70:44)
+
+6:40:50 AM [express] GET /api/scheduled-posts 200 in 48ms :: [{"id":"9128ce3e-88b5-4afe-9834-e79e2da…
+
+6:40:51 AM [express] GET /api/auth/session 304 in 1ms :: {"id":"417b5410-1184-46d7-ac96-e85f731b0c98…
+
+6:40:51 AM [express] GET /api/scheduled-posts 304 in 35ms :: [{"id":"9128ce3e-88b5-4afe-9834-e79e2da…
+
+6:40:51 AM [express] GET /api/pages 304 in 40ms :: [{"id":"1abe2ba5-fd7b-423a-b82d-da953c340db2","us…
+
+6:40:57 AM [express] GET /api/posts/7e27d1f3-3e85-4d19-b35d-9b4134fce2ce 304 in 6ms :: {"post":{"id"…
+
+Publishing post 7e27d1f3-3e85-4d19-b35d-9b4134fce2ce to facebook page Frouard
+
+Error publishing post 54eabfab-437b-4d84-92aa-b24b9da84f8e: Error: Facebook API error: An unknown error has occurred. (code: 1)
+
+    at FacebookService.publishStory (file:///app/dist/index.js:1997:13)
+
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+
+    at async FacebookService.publishPost (file:///app/dist/index.js:1824:14)
+
+    at async SchedulerService.publishPost (file:///app/dist/index.js:2072:24)
+
+    at async SchedulerService.processPendingPosts (file:///app/dist/index.js:2034:11)
+
+    at async file:///app/dist/index.js:2010:7
+
+    at async Timeout._onTimeout (/app/node_modules/node-cron/dist/esm/scheduler/runner.js:70:44)
+
+Publishing post 7e27d1f3-3e85-4d19-b35d-9b4134fce2ce to facebook page Houdemont
+
+Error publishing post 1be182d0-00e3-440f-a98c-dadfd45f0304: Error: Facebook API error: An unknown error has occurred. (code: 1)
+
+    at FacebookService.publishStory (file:///app/dist/index.js:1997:13)
+
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+
+    at async FacebookService.publishPost (file:///app/dist/index.js:1824:14)
+
+    at async SchedulerService.publishPost (file:///app/dist/index.js:2072:24)
+
+    at async SchedulerService.processPendingPosts (file:///app/dist/index.js:2034:11)
+
+    at async file:///app/dist/index.js:2010:7
+
+    at async Timeout._onTimeout (/app/node_modules/node-cron/dist/esm/scheduler/runner.js:70:44)
+
+6:41:03 AM [express] GET /api/auth/session 304 in 1ms :: {"id":"417b5410-1184-46d7-ac96-e85f731b0c98…
+
+6:41:03 AM [express] GET /api/scheduled-posts 304 in 42ms :: [{"id":"9128ce3e-88b5-4afe-9834-e79e2da…
+
+6:41:03 AM [express] GET /api/pages 304 in 24ms :: [{"id":"1abe2ba5-fd7b-423a-b82d-da953c340db2","us…
+
+6:41:07 AM [express] GET /api/stats 200 in 22ms :: {"scheduledPosts":2,"scheduledPostsChange":"+100%…
+

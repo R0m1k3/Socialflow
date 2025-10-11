@@ -270,27 +270,52 @@ export class FacebookService {
   }
 
   private async publishStory(post: Post, page: SocialPage, media: Media): Promise<string> {
-    // Use original URL - Facebook handles the story cropping
+    // Stories require a 2-step process:
+    // Step 1: Upload photo as unpublished to get photo_id
+    // Step 2: Publish the photo as a story using the photo_id
+
     const photoUrl = media.originalUrl;
 
-    const params = new URLSearchParams({
+    // Step 1: Upload photo as unpublished
+    const uploadParams = new URLSearchParams({
       access_token: page.accessToken!,
       url: photoUrl,
+      published: 'false', // Important: must be unpublished first
     });
 
-    const url = `${this.baseUrl}/${page.pageId}/photo_stories?${params.toString()}`;
-
-    const response = await fetch(url, {
+    const uploadUrl = `${this.baseUrl}/${page.pageId}/photos?${uploadParams.toString()}`;
+    
+    const uploadResponse = await fetch(uploadUrl, {
       method: 'POST',
     });
 
-    if (!response.ok) {
-      const error = await response.json() as FacebookError;
-      throw new Error(`Facebook API error: ${error.error.message} (code: ${error.error.code})`);
+    if (!uploadResponse.ok) {
+      const error = await uploadResponse.json() as FacebookError;
+      throw new Error(`Facebook API error uploading photo for story: ${error.error.message} (code: ${error.error.code})`);
     }
 
-    const data = await response.json() as FacebookPhotoResponse;
-    return data.id;
+    const uploadData = await uploadResponse.json() as FacebookPhotoResponse;
+    const photoId = uploadData.id;
+
+    // Step 2: Publish the photo as a story
+    const storyParams = new URLSearchParams({
+      access_token: page.accessToken!,
+      photo_id: photoId,
+    });
+
+    const storyUrl = `${this.baseUrl}/${page.pageId}/photo_stories?${storyParams.toString()}`;
+
+    const storyResponse = await fetch(storyUrl, {
+      method: 'POST',
+    });
+
+    if (!storyResponse.ok) {
+      const error = await storyResponse.json() as FacebookError;
+      throw new Error(`Facebook API error publishing story: ${error.error.message} (code: ${error.error.code})`);
+    }
+
+    const storyData = await storyResponse.json() as { success: boolean; post_id: string };
+    return storyData.post_id;
   }
 }
 
