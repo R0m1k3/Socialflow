@@ -606,9 +606,9 @@ export default function ImageEditor() {
                               <div 
                                 className="ribbon-text"
                                 style={{ 
-                                  fontSize: ribbon.text.length <= 5 ? '20px' : 
-                                           ribbon.text.length <= 7 ? '16px' : 
-                                           ribbon.text.length <= 10 ? '13px' : '11px' 
+                                  fontSize: ribbon.text.length <= 5 ? '22px' : 
+                                           ribbon.text.length <= 8 ? '18px' : 
+                                           ribbon.text.length <= 11 ? '15px' : '12px' 
                                 }}
                               >
                                 {ribbon.text}
