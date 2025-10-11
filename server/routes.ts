@@ -1174,9 +1174,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Upload edited image with overlays
   app.post("/api/media/upload-edited", requireAuth, upload.single("file"), async (req, res) => {
     try {
+      console.log("📸 Receiving edited image upload...");
+      
       if (!req.file) {
+        console.log("❌ No file in request");
         return res.status(400).json({ error: "No file uploaded" });
       }
+
+      console.log("📁 File received:", req.file.originalname, req.file.size, "bytes");
 
       const user = req.user as User;
       const userId = user.id;
@@ -1185,11 +1190,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const cloudinaryConfig = await storage.getCloudinaryConfig(userId);
       
       if (!cloudinaryConfig) {
+        console.log("❌ Cloudinary not configured for user:", userId);
         return res.status(400).json({ 
           error: "Cloudinary not configured. Please configure Cloudinary in Settings first." 
         });
       }
 
+      console.log("☁️ Uploading to Cloudinary...");
       // Upload edited image to Cloudinary
       const uploadResult = await cloudinaryService.uploadMedia(
         req.file.buffer,
@@ -1197,6 +1204,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId,
         req.file.mimetype
       );
+
+      console.log("✅ Cloudinary upload success:", uploadResult.publicId);
+      console.log("💾 Saving to database...");
 
       const mediaItem = await storage.createMedia({
         userId,
@@ -1210,9 +1220,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fileSize: req.file.size,
       });
 
+      console.log("✅ Media saved to DB with ID:", mediaItem.id);
       res.json(mediaItem);
     } catch (error) {
-      console.error("Error uploading edited image:", error);
+      console.error("💥 Error uploading edited image:", error);
       const errorMessage = error instanceof Error ? error.message : "Failed to upload edited image";
       res.status(500).json({ error: errorMessage });
     }
