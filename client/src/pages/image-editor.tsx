@@ -96,7 +96,7 @@ export default function ImageEditor() {
   // Save edited image mutation
   const saveImageMutation = useMutation({
     mutationFn: async () => {
-      if (!previewRef.current || !selectedMedia) {
+      if (!selectedMedia) {
         throw new Error("Aucune image sélectionnée");
       }
 
@@ -110,77 +110,93 @@ export default function ImageEditor() {
         img.onerror = reject;
       });
 
-      const naturalWidth = img.naturalWidth;
-      const naturalHeight = img.naturalHeight;
+      const width = img.naturalWidth;
+      const height = img.naturalHeight;
 
-      // Create a temporary container at natural image size
-      const tempContainer = document.createElement('div');
-      tempContainer.style.position = 'absolute';
-      tempContainer.style.top = '-10000px';
-      tempContainer.style.left = '-10000px';
-      tempContainer.style.width = `${naturalWidth}px`;
-      tempContainer.style.height = `${naturalHeight}px`;
-      document.body.appendChild(tempContainer);
+      // Create canvas at exact image size
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d')!;
 
-      // Clone and append image
-      const imgClone = img.cloneNode() as HTMLImageElement;
-      imgClone.style.width = '100%';
-      imgClone.style.height = '100%';
-      imgClone.style.objectFit = 'contain';
-      tempContainer.appendChild(imgClone);
+      // Draw the base image
+      ctx.drawImage(img, 0, 0, width, height);
 
-      // Add ribbon if enabled
+      // Draw ribbon if enabled
       if (ribbon.enabled && ribbon.text) {
-        const ribbonContainer = document.createElement('div');
-        ribbonContainer.className = `ribbon-container ${ribbon.position}`;
+        const ribbonSize = 150;
+        const positions = {
+          top_left: { x: 0, y: 0, rotation: 0 },
+          top_right: { x: width - ribbonSize, y: 0, rotation: 90 },
+          bottom_left: { x: 0, y: height - ribbonSize, rotation: -90 },
+          bottom_right: { x: width - ribbonSize, y: height - ribbonSize, rotation: 180 }
+        };
         
-        const ribbonTriangle = document.createElement('div');
-        ribbonTriangle.className = `ribbon-triangle ${ribbon.color}`;
-        ribbonContainer.appendChild(ribbonTriangle);
+        const pos = positions[ribbon.position as keyof typeof positions];
         
-        const ribbonTextElem = document.createElement('div');
-        ribbonTextElem.className = 'ribbon-text';
-        ribbonTextElem.textContent = ribbon.text;
-        ribbonTextElem.style.fontSize = ribbon.text.length <= 5 ? '22px' : 
-                                        ribbon.text.length <= 8 ? '18px' : 
-                                        ribbon.text.length <= 11 ? '15px' : '12px';
-        ribbonContainer.appendChild(ribbonTextElem);
+        ctx.save();
+        ctx.translate(pos.x + ribbonSize / 2, pos.y + ribbonSize / 2);
+        ctx.rotate((pos.rotation * Math.PI) / 180);
         
-        tempContainer.appendChild(ribbonContainer);
+        // Draw triangle
+        ctx.beginPath();
+        ctx.moveTo(-ribbonSize / 2, -ribbonSize / 2);
+        ctx.lineTo(ribbonSize / 2, ribbonSize / 2);
+        ctx.lineTo(-ribbonSize / 2, ribbonSize / 2);
+        ctx.closePath();
+        ctx.fillStyle = ribbon.color === 'red' ? '#dc2626' : '#eab308';
+        ctx.fill();
+        
+        // Draw text
+        ctx.rotate(-45 * Math.PI / 180);
+        ctx.fillStyle = 'white';
+        ctx.font = `bold ${ribbon.text.length <= 5 ? 22 : ribbon.text.length <= 8 ? 18 : ribbon.text.length <= 11 ? 15 : 12}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(ribbon.text, 0, 0);
+        
+        ctx.restore();
       }
 
-      // Add price badge if enabled
+      // Draw price badge if enabled
       if (priceBadge.enabled && priceBadge.price) {
-        const badge = document.createElement('div');
-        badge.className = `absolute ${
-          priceBadge.position === "north_east" ? "top-4 right-4" :
-          priceBadge.position === "south_east" ? "bottom-4 right-4" :
-          priceBadge.position === "south_west" ? "bottom-4 left-4" :
-          "top-4 left-4"
-        } px-4 py-2 rounded-full text-white font-bold z-10 flex items-center justify-center ${
-          priceBadge.color === "red" ? "bg-red-600" : "bg-yellow-500"
-        }`;
-        badge.style.fontSize = `${priceBadge.size}px`;
-        badge.textContent = `€${priceBadge.price}`;
-        tempContainer.appendChild(badge);
+        const padding = 16;
+        const badgeText = `€${priceBadge.price}`;
+        ctx.font = `bold ${priceBadge.size}px sans-serif`;
+        const textWidth = ctx.measureText(badgeText).width;
+        const badgeWidth = textWidth + padding * 2;
+        const badgeHeight = priceBadge.size + padding;
+        
+        let x = padding;
+        let y = padding;
+        
+        if (priceBadge.position === 'north_east') {
+          x = width - badgeWidth - padding;
+        } else if (priceBadge.position === 'south_west') {
+          y = height - badgeHeight - padding;
+        } else if (priceBadge.position === 'south_east') {
+          x = width - badgeWidth - padding;
+          y = height - badgeHeight - padding;
+        }
+        
+        // Draw rounded rectangle background
+        const radius = badgeHeight / 2;
+        ctx.fillStyle = priceBadge.color === 'red' ? '#dc2626' : '#eab308';
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + badgeWidth - radius, y);
+        ctx.arc(x + badgeWidth - radius, y + radius, radius, -Math.PI / 2, Math.PI / 2);
+        ctx.lineTo(x + radius, y + badgeHeight);
+        ctx.arc(x + radius, y + radius, radius, Math.PI / 2, -Math.PI / 2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Draw text
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(badgeText, x + badgeWidth / 2, y + badgeHeight / 2);
       }
-
-      // Wait for styles to apply
-      await new Promise(resolve => setTimeout(resolve, 100));
-
-      // Capture the temporary container
-      const canvas = await html2canvas(tempContainer, {
-        backgroundColor: null,
-        scale: 1,
-        useCORS: true,
-        allowTaint: true,
-        logging: false,
-        width: naturalWidth,
-        height: naturalHeight
-      });
-
-      // Clean up
-      document.body.removeChild(tempContainer);
 
       // Convert canvas to blob
       const blob = await new Promise<Blob>((resolve) => {
