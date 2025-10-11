@@ -260,7 +260,6 @@ export default function ImageEditor() {
           position: absolute;
           color: white;
           font-weight: bold;
-          font-size: 16px;
           z-index: 11;
           text-transform: uppercase;
           white-space: nowrap;
@@ -604,7 +603,14 @@ export default function ImageEditor() {
                           {ribbon.enabled && ribbon.text && (
                             <div className={`ribbon-container ${ribbon.position}`}>
                               <div className={`ribbon-triangle ${ribbon.color}`} />
-                              <div className="ribbon-text">
+                              <div 
+                                className="ribbon-text"
+                                style={{ 
+                                  fontSize: ribbon.text.length <= 5 ? '20px' : 
+                                           ribbon.text.length <= 7 ? '16px' : 
+                                           ribbon.text.length <= 10 ? '13px' : '11px' 
+                                }}
+                              >
                                 {ribbon.text}
                               </div>
                             </div>
