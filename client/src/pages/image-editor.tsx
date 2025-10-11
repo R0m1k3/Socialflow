@@ -188,49 +188,68 @@ export default function ImageEditor() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <style>{`
+        /* Triangle ribbon - auto-centered text */
+        .ribbon-container {
+          position: absolute;
+          z-index: 10;
+          pointer-events: none;
+        }
+        
+        .ribbon-container.north_west {
+          top: 0;
+          left: 0;
+          width: 140px;
+          height: 140px;
+        }
+        
+        .ribbon-container.north_east {
+          top: 0;
+          right: 0;
+          width: 140px;
+          height: 140px;
+        }
+        
         .ribbon-triangle {
           position: absolute;
           width: 0;
           height: 0;
           border-style: solid;
-          z-index: 10;
-          pointer-events: none;
         }
         
-        .ribbon-triangle.north_west {
+        .ribbon-container.north_west .ribbon-triangle {
           top: 0;
           left: 0;
-          border-width: 120px 120px 0 0;
+          border-width: 140px 140px 0 0;
         }
         
-        .ribbon-triangle.north_west.red {
+        .ribbon-container.north_west .ribbon-triangle.red {
           border-top-color: #FF0000;
           border-right-color: transparent;
           border-bottom-color: transparent;
           border-left-color: transparent;
         }
         
-        .ribbon-triangle.north_west.yellow {
+        .ribbon-container.north_west .ribbon-triangle.yellow {
           border-top-color: #FFC107;
           border-right-color: transparent;
           border-bottom-color: transparent;
           border-left-color: transparent;
         }
         
-        .ribbon-triangle.north_east {
+        .ribbon-container.north_east .ribbon-triangle {
           top: 0;
           right: 0;
-          border-width: 0 120px 120px 0;
+          border-width: 0 140px 140px 0;
         }
         
-        .ribbon-triangle.north_east.red {
+        .ribbon-container.north_east .ribbon-triangle.red {
           border-top-color: transparent;
           border-right-color: #FF0000;
           border-bottom-color: transparent;
           border-left-color: transparent;
         }
         
-        .ribbon-triangle.north_east.yellow {
+        .ribbon-container.north_east .ribbon-triangle.yellow {
           border-top-color: transparent;
           border-right-color: #FFC107;
           border-bottom-color: transparent;
@@ -241,53 +260,25 @@ export default function ImageEditor() {
           position: absolute;
           color: white;
           font-weight: bold;
+          font-size: 16px;
           z-index: 11;
-          pointer-events: none;
           text-transform: uppercase;
           white-space: nowrap;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
         
-        .ribbon-text.north_west {
-          top: 38px;
-          left: 15px;
-          transform: rotate(-45deg);
-          transform-origin: center center;
+        .ribbon-container.north_west .ribbon-text {
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%) rotate(-45deg) translateY(-15px);
         }
         
-        .ribbon-text.north_east {
-          top: 38px;
-          right: 15px;
-          transform: rotate(45deg);
-          transform-origin: center center;
-        }
-        
-        /* Adaptive text sizes for ribbon */
-        .ribbon-text.small {
-          font-size: 11px;
-          top: 42px;
-          left: 12px;
-        }
-        
-        .ribbon-text.small.north_east {
-          top: 42px;
-          right: 12px;
-          left: auto;
-        }
-        
-        .ribbon-text.medium {
-          font-size: 13px;
-          top: 40px;
-          left: 14px;
-        }
-        
-        .ribbon-text.medium.north_east {
-          top: 40px;
-          right: 14px;
-          left: auto;
-        }
-        
-        .ribbon-text.large {
-          font-size: 15px;
+        .ribbon-container.north_east .ribbon-text {
+          top: 50%;
+          right: 50%;
+          transform: translate(50%, -50%) rotate(45deg) translateY(-15px);
         }
       `}</style>
       
@@ -609,16 +600,14 @@ export default function ImageEditor() {
                             data-testid="preview-image"
                           />
                           
-                          {/* CSS Triangle Ribbon Overlay */}
+                          {/* CSS Triangle Ribbon Overlay - Auto-centered */}
                           {ribbon.enabled && ribbon.text && (
-                            <>
-                              <div className={`ribbon-triangle ${ribbon.position} ${ribbon.color}`} />
-                              <div className={`ribbon-text ${ribbon.position} ${
-                                ribbon.text.length > 8 ? 'small' : ribbon.text.length > 5 ? 'medium' : 'large'
-                              }`}>
+                            <div className={`ribbon-container ${ribbon.position}`}>
+                              <div className={`ribbon-triangle ${ribbon.color}`} />
+                              <div className="ribbon-text">
                                 {ribbon.text}
                               </div>
-                            </>
+                            </div>
                           )}
                           
                           {/* Price Badge Overlay (CSS) */}
