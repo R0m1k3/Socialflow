@@ -44,8 +44,9 @@ RUN apk add --no-cache \
     pixman
 
 # Installer toutes les dépendances (drizzle-kit est nécessaire pour push)
+# IMPORTANT: Ne pas utiliser --omit=dev car drizzle-kit est dans devDependencies
 COPY package*.json ./
-RUN npm ci --legacy-peer-deps --omit=dev || npm install --legacy-peer-deps --omit=dev
+RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
 
 # Copier les fichiers buildés et le code serveur
 COPY --from=builder /app/dist ./dist
