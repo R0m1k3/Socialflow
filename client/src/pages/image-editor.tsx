@@ -26,6 +26,7 @@ interface PriceBadge {
   price: string;
   color: "red" | "yellow";
   position: "north_east" | "south_east" | "north_west" | "south_west";
+  size: number; // Font size in pixels
 }
 
 interface Logo {
@@ -58,7 +59,8 @@ export default function ImageEditor() {
     enabled: false,
     price: "",
     color: "red",
-    position: "north_east"
+    position: "north_east",
+    size: 20 // Default font size
   });
   
   const [logo, setLogo] = useState<Logo>({
@@ -239,24 +241,37 @@ export default function ImageEditor() {
           position: absolute;
           color: white;
           font-weight: bold;
-          font-size: 16px;
           z-index: 11;
           pointer-events: none;
           text-transform: uppercase;
+          white-space: nowrap;
         }
         
         .ribbon-text.north_west {
-          top: 20px;
-          left: 8px;
+          top: 30px;
+          left: 5px;
           transform: rotate(-45deg);
-          transform-origin: center;
+          transform-origin: left center;
         }
         
         .ribbon-text.north_east {
-          top: 20px;
-          right: 8px;
+          top: 30px;
+          right: 5px;
           transform: rotate(45deg);
-          transform-origin: center;
+          transform-origin: right center;
+        }
+        
+        /* Adaptive text sizes for ribbon */
+        .ribbon-text.small {
+          font-size: 10px;
+        }
+        
+        .ribbon-text.medium {
+          font-size: 14px;
+        }
+        
+        .ribbon-text.large {
+          font-size: 16px;
         }
       `}</style>
       
@@ -471,6 +486,21 @@ export default function ImageEditor() {
                           </SelectContent>
                         </Select>
                       </div>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <Label>Taille du texte</Label>
+                          <span className="text-sm text-muted-foreground">{priceBadge.size}px</span>
+                        </div>
+                        <Slider
+                          value={[priceBadge.size]}
+                          onValueChange={(value) => setPriceBadge({ ...priceBadge, size: value[0] })}
+                          min={12}
+                          max={40}
+                          step={1}
+                          data-testid="slider-price-size"
+                        />
+                      </div>
                     </>
                   )}
                 </CardContent>
@@ -567,7 +597,9 @@ export default function ImageEditor() {
                           {ribbon.enabled && ribbon.text && (
                             <>
                               <div className={`ribbon-triangle ${ribbon.position} ${ribbon.color}`} />
-                              <div className={`ribbon-text ${ribbon.position}`}>
+                              <div className={`ribbon-text ${ribbon.position} ${
+                                ribbon.text.length > 8 ? 'small' : ribbon.text.length > 5 ? 'medium' : 'large'
+                              }`}>
                                 {ribbon.text}
                               </div>
                             </>
@@ -581,9 +613,10 @@ export default function ImageEditor() {
                                 priceBadge.position === "south_east" ? "bottom-4 right-4" :
                                 priceBadge.position === "south_west" ? "bottom-4 left-4" :
                                 "top-4 left-4"
-                              } px-4 py-2 rounded-full text-white font-bold text-lg z-10 ${
+                              } px-4 py-2 rounded-full text-white font-bold z-10 ${
                                 priceBadge.color === "red" ? "bg-red-600" : "bg-yellow-500"
                               }`}
+                              style={{ fontSize: `${priceBadge.size}px` }}
                             >
                               €{priceBadge.price}
                             </div>
