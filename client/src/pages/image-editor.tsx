@@ -759,7 +759,11 @@ export default function ImageEditor() {
                                            ribbon.text.length <= 11 ? '20px' : '16px',
                                   lineHeight: ribbon.text === "Stock limité" ? '1.2' : 'normal',
                                   whiteSpace: ribbon.text === "Stock limité" ? 'normal' : 'nowrap',
-                                  padding: ribbon.text === "Stock limité" ? '0 10px' : '0'
+                                  transform: ribbon.text === "Stock limité" 
+                                    ? (ribbon.position === "north_west" 
+                                       ? 'translate(-50%, -50%) rotate(-45deg) translateY(-20px) translateX(-8px)'
+                                       : 'translate(50%, -50%) rotate(45deg) translateY(-20px) translateX(8px)')
+                                    : undefined
                                 }}
                               >
                                 {ribbon.text === "Stock limité" ? (
