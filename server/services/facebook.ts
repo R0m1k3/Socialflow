@@ -10,6 +10,11 @@ interface FacebookFeedResponse {
   id: string;
 }
 
+interface FacebookVideoResponse {
+  id: string;
+  post_id?: string;
+}
+
 interface FacebookError {
   error: {
     message: string;
@@ -54,8 +59,8 @@ export class FacebookService {
       return storyIds.join(',');
     } else {
       // Default to feed
-      // Count images only (videos not supported in multi-photo carousel)
       const imageMedia = mediaList.filter(m => m.type === 'image');
+      const videoMedia = mediaList.filter(m => m.type === 'video');
       
       if (imageMedia.length > 1) {
         // Multi-photo carousel (images only)
@@ -63,11 +68,9 @@ export class FacebookService {
       } else if (imageMedia.length === 1) {
         // Single image (even if mixed with videos, prioritize the image)
         return await this.publishPhotoPost(post, page, imageMedia[0]);
-      } else if (mediaList.length >= 1) {
-        // No images, but has media (likely video) - publish first media
-        // Note: Facebook /photos endpoint doesn't support videos well, this may fail
-        console.warn(`Publishing non-image media to Facebook feed - this may fail`);
-        return await this.publishPhotoPost(post, page, mediaList[0]);
+      } else if (videoMedia.length >= 1) {
+        // Video post - use video endpoint
+        return await this.publishVideoPost(post, page, videoMedia[0]);
       } else {
         // Text only
         return await this.publishTextPost(post, page);
@@ -119,6 +122,32 @@ export class FacebookService {
 
     const data = await response.json() as FacebookPhotoResponse;
     // Return the post_id which is the full post identifier
+    return data.post_id || data.id;
+  }
+
+  private async publishVideoPost(post: Post, page: SocialPage, media: Media): Promise<string> {
+    // Use original URL for video
+    const videoUrl = media.originalUrl;
+
+    const params = new URLSearchParams({
+      access_token: page.accessToken!,
+      description: post.content,
+      file_url: videoUrl,
+    });
+
+    const url = `${this.baseUrl}/${page.pageId}/videos?${params.toString()}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+    });
+
+    if (!response.ok) {
+      const error = await response.json() as FacebookError;
+      throw new Error(`Facebook API error publishing video: ${error.error.message} (code: ${error.error.code})`);
+    }
+
+    const data = await response.json() as FacebookVideoResponse;
+    // Return the post_id or id
     return data.post_id || data.id;
   }
 
@@ -279,6 +308,10 @@ export class FacebookService {
   }
 
   private async publishStory(post: Post, page: SocialPage, media: Media): Promise<string> {
+    if (media.type === 'video') {
+      return this.publishVideoStory(post, page, media);
+    }
+    
     // Stories require a 2-step process:
     // Step 1: Upload photo as unpublished to get photo_id
     // Step 2: Publish the photo as a story using the photo_id
@@ -325,6 +358,30 @@ export class FacebookService {
 
     const storyData = await storyResponse.json() as { success: boolean; post_id: string };
     return storyData.post_id;
+  }
+
+  private async publishVideoStory(post: Post, page: SocialPage, media: Media): Promise<string> {
+    // Video stories can be published directly to the video_stories endpoint
+    const videoUrl = media.originalUrl;
+
+    const params = new URLSearchParams({
+      access_token: page.accessToken!,
+      file_url: videoUrl,
+    });
+
+    const url = `${this.baseUrl}/${page.pageId}/video_stories?${params.toString()}`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+    });
+
+    if (!response.ok) {
+      const error = await response.json() as FacebookError;
+      throw new Error(`Facebook API error publishing video story: ${error.error.message} (code: ${error.error.code})`);
+    }
+
+    const data = await response.json() as { success: boolean; post_id: string };
+    return data.post_id;
   }
 }
 
