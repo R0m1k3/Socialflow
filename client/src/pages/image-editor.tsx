@@ -761,8 +761,8 @@ export default function ImageEditor() {
                                   whiteSpace: ribbon.text === "Stock limité" ? 'normal' : 'nowrap',
                                   transform: ribbon.text === "Stock limité" 
                                     ? (ribbon.position === "north_west" 
-                                       ? 'translate(-50%, -50%) rotate(-45deg) translateY(-35px) translateX(-8px)'
-                                       : 'translate(50%, -50%) rotate(45deg) translateY(-35px) translateX(8px)')
+                                       ? 'translate(-50%, -50%) rotate(-45deg) translateY(-35px) translateX(5px)'
+                                       : 'translate(50%, -50%) rotate(45deg) translateY(-35px) translateX(-5px)')
                                     : undefined
                                 }}
                               >
