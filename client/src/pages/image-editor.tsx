@@ -18,7 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface Ribbon {
   enabled: boolean;
-  text: "Promo" | "Nouveauté" | "Arrivage";
+  text: "Promo" | "Nouveauté" | "Arrivage" | "Stock limité";
   color: "red" | "yellow";
   position: "north_west" | "north_east";
 }
@@ -467,6 +467,10 @@ export default function ImageEditor() {
                           <div className="flex items-center space-x-2">
                             <RadioGroupItem value="Arrivage" id="ribbon-arrivage" data-testid="radio-ribbon-arrivage" />
                             <Label htmlFor="ribbon-arrivage">Arrivage</Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="Stock limité" id="ribbon-stock" data-testid="radio-ribbon-stock" />
+                            <Label htmlFor="ribbon-stock">Stock limité</Label>
                           </div>
                         </RadioGroup>
                       </div>
