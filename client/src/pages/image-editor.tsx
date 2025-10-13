@@ -344,22 +344,20 @@ export default function ImageEditor() {
           font-weight: bold;
           z-index: 11;
           text-transform: uppercase;
+          text-align: center;
           white-space: nowrap;
-          display: flex;
-          align-items: center;
-          justify-content: center;
         }
         
         .ribbon-container.north_west .ribbon-text {
           top: 50%;
           left: 50%;
-          transform: translate(-50%, -50%) rotate(-45deg) translateY(-15px);
+          transform: translate(-50%, -50%) rotate(-45deg) translateY(-20px);
         }
         
         .ribbon-container.north_east .ribbon-text {
           top: 50%;
           right: 50%;
-          transform: translate(50%, -50%) rotate(45deg) translateY(-15px);
+          transform: translate(50%, -50%) rotate(45deg) translateY(-20px);
         }
       `}</style>
       
@@ -755,12 +753,26 @@ export default function ImageEditor() {
                               <div 
                                 className="ribbon-text"
                                 style={{ 
-                                  fontSize: ribbon.text.length <= 5 ? '28px' : 
+                                  fontSize: ribbon.text === "Stock limité" ? '20px' :
+                                           ribbon.text.length <= 5 ? '28px' : 
                                            ribbon.text.length <= 8 ? '24px' : 
-                                           ribbon.text.length <= 11 ? '20px' : '16px' 
+                                           ribbon.text.length <= 11 ? '20px' : '16px',
+                                  lineHeight: ribbon.text === "Stock limité" ? '1.2' : 'normal',
+                                  whiteSpace: ribbon.text === "Stock limité" ? 'normal' : 'nowrap',
+                                  transform: ribbon.text === "Stock limité" 
+                                    ? (ribbon.position === "north_west" 
+                                       ? 'translate(-50%, -50%) rotate(-45deg) translateY(-35px) translateX(2px)'
+                                       : 'translate(50%, -50%) rotate(45deg) translateY(-35px) translateX(-2px)')
+                                    : undefined
                                 }}
                               >
-                                {ribbon.text}
+                                {ribbon.text === "Stock limité" ? (
+                                  <>
+                                    Stock
+                                    <br />
+                                    limité
+                                  </>
+                                ) : ribbon.text}
                               </div>
                             </div>
                           )}
