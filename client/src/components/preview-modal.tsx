@@ -64,6 +64,30 @@ export function PreviewModal({
     }
   };
 
+  const renderMedia = (media: Media, className: string = "w-full h-auto") => {
+    const url = getMediaUrl(media);
+    
+    if (media.type === 'video') {
+      return (
+        <video
+          src={url}
+          className={className}
+          controls
+          playsInline
+          data-testid="video-preview"
+        />
+      );
+    }
+    
+    return (
+      <img
+        src={url}
+        alt={`Photo ${currentPhotoIndex + 1}`}
+        className={className}
+      />
+    );
+  };
+
   const renderFacebookFeed = () => (
     <div className="bg-white rounded-lg overflow-hidden border border-gray-200 max-w-lg mx-auto">
       {/* Header */}
@@ -87,11 +111,7 @@ export function PreviewModal({
       {/* Media Carousel */}
       {orderedMedia.length > 0 && (
         <div className="relative bg-black">
-          <img
-            src={getMediaUrl(orderedMedia[currentPhotoIndex])}
-            alt={`Photo ${currentPhotoIndex + 1}`}
-            className="w-full h-auto"
-          />
+          {renderMedia(orderedMedia[currentPhotoIndex], "w-full h-auto")}
           {orderedMedia.length > 1 && (
             <>
               <button
@@ -149,11 +169,7 @@ export function PreviewModal({
       {/* Media Carousel */}
       {orderedMedia.length > 0 && (
         <div className="relative bg-black aspect-square">
-          <img
-            src={getMediaUrl(orderedMedia[currentPhotoIndex])}
-            alt={`Photo ${currentPhotoIndex + 1}`}
-            className="w-full h-full object-cover"
-          />
+          {renderMedia(orderedMedia[currentPhotoIndex], "w-full h-full object-cover")}
           {orderedMedia.length > 1 && (
             <>
               <button
@@ -221,11 +237,7 @@ export function PreviewModal({
       {/* Media */}
       {orderedMedia.length > 0 && (
         <div className="relative h-full">
-          <img
-            src={getMediaUrl(orderedMedia[currentPhotoIndex])}
-            alt={`Story ${currentPhotoIndex + 1}`}
-            className="w-full h-full object-cover"
-          />
+          {renderMedia(orderedMedia[currentPhotoIndex], "w-full h-full object-cover")}
           {orderedMedia.length > 1 && (
             <>
               <div className="absolute top-3 left-3 right-3 flex gap-1">

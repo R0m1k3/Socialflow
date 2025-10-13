@@ -1,0 +1,72 @@
+    at async Timeout._onTimeout (/app/node_modules/node-cron/dist/esm/scheduler/runner.js:70:44)
+
+Publishing post 6439b99f-d5eb-4774-b7ea-97c9be8bb3bf to facebook page Frouard
+
+Publishing non-image media to Facebook feed - this may fail
+
+Error publishing post aea0ba94-8e1a-4923-9942-6940029f6be5: Error: Facebook API error: Invalid parameter (code: 100)
+
+    at FacebookService.publishPhotoPost (file:///app/dist/index.js:2029:13)
+
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+
+    at async FacebookService.publishPost (file:///app/dist/index.js:1994:16)
+
+    at async SchedulerService.publishPost (file:///app/dist/index.js:2249:24)
+
+    at async SchedulerService.processPendingPosts (file:///app/dist/index.js:2211:11)
+
+    at async file:///app/dist/index.js:2187:7
+
+    at async Timeout._onTimeout (/app/node_modules/node-cron/dist/esm/scheduler/runner.js:70:44)
+
+12:52:05 PM [express] GET /api/stats 304 in 29ms :: {"scheduledPosts":9,"scheduledPostsChange":"+100%…
+
+12:52:05 PM [express] GET /api/scheduled-posts 200 in 33ms :: [{"id":"9128ce3e-88b5-4afe-9834-e79e2da…
+
+12:52:06 PM [express] GET /api/media 304 in 11ms :: [{"id":"d501254d-4892-4d63-8900-e790ab3794e8","us…
+
+Publishing post 6439b99f-d5eb-4774-b7ea-97c9be8bb3bf to facebook page Houdemont
+
+Publishing non-image media to Facebook feed - this may fail
+
+Error publishing post 23173c8a-7843-48e7-876f-3353988b82a0: Error: Facebook API error: (#200) The permission(s) publish_actions are not available. It has been deprecated. If you want to provide a way for your app users to share content to Facebook, we encourage you to use our Sharing products instead. (code: 200)
+
+    at FacebookService.publishPhotoPost (file:///app/dist/index.js:2029:13)
+
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+
+    at async FacebookService.publishPost (file:///app/dist/index.js:1994:16)
+
+    at async SchedulerService.publishPost (file:///app/dist/index.js:2249:24)
+
+    at async SchedulerService.processPendingPosts (file:///app/dist/index.js:2211:11)
+
+    at async file:///app/dist/index.js:2187:7
+
+    at async Timeout._onTimeout (/app/node_modules/node-cron/dist/esm/scheduler/runner.js:70:44)
+
+Publishing post 6439b99f-d5eb-4774-b7ea-97c9be8bb3bf to facebook page Frouard
+
+Publishing non-image media to Facebook feed - this may fail
+
+Error publishing post aea0ba94-8e1a-4923-9942-6940029f6be5: Error: Facebook API error: Invalid parameter (code: 100)
+
+    at FacebookService.publishPhotoPost (file:///app/dist/index.js:2029:13)
+
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+
+    at async FacebookService.publishPost (file:///app/dist/index.js:1994:16)
+
+    at async SchedulerService.publishPost (file:///app/dist/index.js:2249:24)
+
+    at async SchedulerService.processPendingPosts (file:///app/dist/index.js:2211:11)
+
+    at async file:///app/dist/index.js:2187:7
+
+    at async Timeout._onTimeout (/app/node_modules/node-cron/dist/esm/scheduler/runner.js:70:44)
+
+
+      
+      
+    
