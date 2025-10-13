@@ -338,28 +338,32 @@ export default function ImageEditor() {
           border-left-color: transparent;
         }
         
-        .ribbon-text {
+        .ribbon-label {
           position: absolute;
-          color: white;
-          font-weight: bold;
-          z-index: 11;
-          text-transform: uppercase;
-          white-space: nowrap;
+          top: 0;
+          left: 0;
+          width: 140px;
+          height: 140px;
           display: flex;
           align-items: center;
           justify-content: center;
+          z-index: 11;
+          padding: 15px;
         }
         
-        .ribbon-container.north_west .ribbon-text {
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%) rotate(-45deg) translateY(-15px);
+        .ribbon-container.north_west .ribbon-label {
+          transform: rotate(-45deg) translate(-25px, -25px);
         }
         
-        .ribbon-container.north_east .ribbon-text {
-          top: 50%;
-          right: 50%;
-          transform: translate(50%, -50%) rotate(45deg) translateY(-15px);
+        .ribbon-container.north_east .ribbon-label {
+          transform: rotate(45deg) translate(25px, -25px);
+        }
+        
+        .ribbon-text {
+          color: white;
+          font-weight: bold;
+          text-transform: uppercase;
+          text-align: center;
         }
       `}</style>
       
@@ -752,24 +756,25 @@ export default function ImageEditor() {
                           {ribbon.enabled && ribbon.text && (
                             <div className={`ribbon-container ${ribbon.position}`}>
                               <div className={`ribbon-triangle ${ribbon.color}`} />
-                              <div 
-                                className="ribbon-text"
-                                style={{ 
-                                  fontSize: ribbon.text === "Stock limité" ? '20px' :
-                                           ribbon.text.length <= 5 ? '28px' : 
-                                           ribbon.text.length <= 8 ? '24px' : 
-                                           ribbon.text.length <= 11 ? '20px' : '16px',
-                                  lineHeight: ribbon.text === "Stock limité" ? '1.2' : 'normal',
-                                  textAlign: ribbon.text === "Stock limité" ? 'center' : 'inherit'
-                                }}
-                              >
-                                {ribbon.text === "Stock limité" ? (
-                                  <>
-                                    Stock
-                                    <br />
-                                    limité
-                                  </>
-                                ) : ribbon.text}
+                              <div className="ribbon-label">
+                                <div 
+                                  className="ribbon-text"
+                                  style={{ 
+                                    fontSize: ribbon.text === "Stock limité" ? '20px' :
+                                             ribbon.text.length <= 5 ? '28px' : 
+                                             ribbon.text.length <= 8 ? '24px' : 
+                                             ribbon.text.length <= 11 ? '20px' : '16px',
+                                    lineHeight: ribbon.text === "Stock limité" ? '1.2' : 'normal'
+                                  }}
+                                >
+                                  {ribbon.text === "Stock limité" ? (
+                                    <>
+                                      Stock
+                                      <br />
+                                      limité
+                                    </>
+                                  ) : ribbon.text}
+                                </div>
                               </div>
                             </div>
                           )}
