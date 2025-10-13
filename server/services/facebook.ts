@@ -38,11 +38,20 @@ export class FacebookService {
     }
     
     if (postType === 'story') {
-      // Publish as story only
+      // Publish as story - one story per media
       if (mediaList.length === 0) {
         throw new Error('Stories require media (photo or video)');
       }
-      return await this.publishStory(post, page, mediaList[0]);
+      
+      // Publish each media as a separate story
+      const storyIds: string[] = [];
+      for (const media of mediaList) {
+        const storyId = await this.publishStory(post, page, media);
+        storyIds.push(storyId);
+      }
+      
+      // Return all story IDs joined together
+      return storyIds.join(',');
     } else {
       // Default to feed
       // Count images only (videos not supported in multi-photo carousel)
