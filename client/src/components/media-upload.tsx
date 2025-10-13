@@ -250,15 +250,15 @@ export default function MediaUpload() {
                         </button>
                       </div>
                     </div>
-                  ) as any)}
+                  ))}
                 </div>
                 
                 {/* Élément sentinelle pour le scroll infini */}
-                {mediaList && visibleCount < (mediaList as any[]).length && (
+                {(mediaList && visibleCount < (mediaList as any[]).length) ? (
                   <div ref={loadMoreRef} className="flex justify-center py-4 mt-3">
                     <Loader2 className="w-5 h-5 text-primary animate-spin" />
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
