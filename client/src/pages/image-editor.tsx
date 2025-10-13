@@ -758,7 +758,8 @@ export default function ImageEditor() {
                                            ribbon.text.length <= 8 ? '24px' : 
                                            ribbon.text.length <= 11 ? '20px' : '16px',
                                   lineHeight: ribbon.text === "Stock limité" ? '1.2' : 'normal',
-                                  whiteSpace: ribbon.text === "Stock limité" ? 'normal' : 'nowrap'
+                                  whiteSpace: ribbon.text === "Stock limité" ? 'normal' : 'nowrap',
+                                  padding: ribbon.text === "Stock limité" ? '0 10px' : '0'
                                 }}
                               >
                                 {ribbon.text === "Stock limité" ? (
