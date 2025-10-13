@@ -757,10 +757,17 @@ export default function ImageEditor() {
                                 style={{ 
                                   fontSize: ribbon.text.length <= 5 ? '28px' : 
                                            ribbon.text.length <= 8 ? '24px' : 
-                                           ribbon.text.length <= 11 ? '20px' : '16px' 
+                                           ribbon.text.length <= 11 ? '20px' : '16px',
+                                  lineHeight: ribbon.text === "Stock limité" ? '1.1' : 'normal'
                                 }}
                               >
-                                {ribbon.text}
+                                {ribbon.text === "Stock limité" ? (
+                                  <>
+                                    Stock
+                                    <br />
+                                    limité
+                                  </>
+                                ) : ribbon.text}
                               </div>
                             </div>
                           )}
