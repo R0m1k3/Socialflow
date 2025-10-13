@@ -19,6 +19,8 @@ export default function MediaUpload() {
     queryKey: ["/api/media"],
   });
 
+  const [uploadingCount, setUploadingCount] = useState(0);
+
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
       const formData = new FormData();
@@ -33,25 +35,61 @@ export default function MediaUpload() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/media"] });
       setSelectedFile(data);
-      toast({
-        title: "Succès",
-        description: "Média téléchargé et traité avec succès",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Erreur",
-        description: "Impossible de télécharger le média",
-        variant: "destructive",
-      });
     },
   });
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    if (acceptedFiles.length > 0) {
-      uploadMutation.mutate(acceptedFiles[0]);
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+    if (acceptedFiles.length === 0) return;
+    
+    setUploadingCount(acceptedFiles.length);
+    let successCount = 0;
+    let errorCount = 0;
+
+    // Upload tous les fichiers en parallèle
+    const uploadPromises = acceptedFiles.map(async (file) => {
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const response = await fetch("/api/media/upload", {
+          method: "POST",
+          body: formData,
+        });
+        if (!response.ok) throw new Error("Upload failed");
+        successCount++;
+        return response.json();
+      } catch (error) {
+        errorCount++;
+        throw error;
+      }
+    });
+
+    try {
+      await Promise.all(uploadPromises);
+      queryClient.invalidateQueries({ queryKey: ["/api/media"] });
+      
+      toast({
+        title: "Succès",
+        description: `${successCount} média(s) téléchargé(s) avec succès`,
+      });
+    } catch (error) {
+      if (successCount > 0) {
+        queryClient.invalidateQueries({ queryKey: ["/api/media"] });
+        toast({
+          title: "Partiellement réussi",
+          description: `${successCount} média(s) téléchargé(s), ${errorCount} échec(s)`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Erreur",
+          description: "Impossible de télécharger les médias",
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setUploadingCount(0);
     }
-  }, []);
+  }, [toast]);
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
@@ -60,6 +98,7 @@ export default function MediaUpload() {
       "video/*": [".mp4", ".mov"],
     },
     maxSize: 52428800,
+    multiple: true,
   });
 
   const deleteMutation = useMutation({
@@ -126,18 +165,36 @@ export default function MediaUpload() {
               className={`
                 border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all
                 ${isDragActive ? "border-primary bg-primary/5 shadow-lg" : "border-border/50 hover:border-primary hover:bg-accent/30"}
+                ${uploadingCount > 0 ? "pointer-events-none opacity-50" : ""}
               `}
               data-testid="dropzone-upload"
             >
               <input {...getInputProps()} />
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center mx-auto mb-6">
-                <CloudUpload className="w-8 h-8 text-primary" />
+                {uploadingCount > 0 ? (
+                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
+                ) : (
+                  <CloudUpload className="w-8 h-8 text-primary" />
+                )}
               </div>
-              <p className="text-foreground font-semibold text-lg mb-2">
-                {isDragActive ? "Déposez vos fichiers ici" : "Glissez-déposez vos fichiers"}
-              </p>
-              <p className="text-sm text-muted-foreground mb-4">ou cliquez pour parcourir</p>
-              <p className="text-xs text-muted-foreground font-medium">PNG, JPG, MP4 jusqu'à 50MB</p>
+              {uploadingCount > 0 ? (
+                <>
+                  <p className="text-foreground font-semibold text-lg mb-2">
+                    Téléchargement en cours...
+                  </p>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    {uploadingCount} fichier(s) en cours de traitement
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-foreground font-semibold text-lg mb-2">
+                    {isDragActive ? "Déposez vos fichiers ici" : "Glissez-déposez vos fichiers"}
+                  </p>
+                  <p className="text-sm text-muted-foreground mb-4">ou cliquez pour parcourir</p>
+                  <p className="text-xs text-muted-foreground font-medium">PNG, JPG, MP4 jusqu'à 50MB</p>
+                </>
+              )}
             </div>
 
             <div className="space-y-4">
