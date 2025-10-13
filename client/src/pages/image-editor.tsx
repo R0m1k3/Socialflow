@@ -352,11 +352,11 @@ export default function ImageEditor() {
         }
         
         .ribbon-container.north_west .ribbon-label {
-          transform: rotate(-45deg) translate(-25px, -25px);
+          transform: rotate(-45deg) translate(-25px, -40px);
         }
         
         .ribbon-container.north_east .ribbon-label {
-          transform: rotate(45deg) translate(25px, -25px);
+          transform: rotate(45deg) translate(25px, -40px);
         }
         
         .ribbon-text {
