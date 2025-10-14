@@ -223,6 +223,7 @@ export default function MediaUpload() {
                           src={media.facebookFeedUrl || media.originalUrl} 
                           alt={media.fileName}
                           className="w-full h-full object-cover"
+                          loading="lazy"
                         />
                       )}
                       <div className="absolute top-2 right-2 flex gap-2">
