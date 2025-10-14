@@ -793,6 +793,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Les stories nécessitent au moins un média (image ou vidéo)" });
       }
       
+      // Security: Verify user has access to all specified pages (unless admin)
+      if (user.role !== 'admin' && pageIds && Array.isArray(pageIds) && pageIds.length > 0) {
+        const accessiblePages = await storage.getUserAccessiblePages(userId);
+        const accessiblePageIds = accessiblePages.map(p => p.id);
+        
+        const hasAccessToAllPages = pageIds.every(pageId => 
+          accessiblePageIds.includes(pageId)
+        );
+        
+        if (!hasAccessToAllPages) {
+          return res.status(403).json({ 
+            error: "Vous n'avez pas accès à certaines pages sélectionnées" 
+          });
+        }
+      }
+      
       // Convert scheduledFor string to Date if provided
       if (postFields.scheduledFor && typeof postFields.scheduledFor === 'string') {
         postFields.scheduledFor = new Date(postFields.scheduledFor);
