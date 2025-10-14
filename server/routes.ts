@@ -435,7 +435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI text generation
-  app.post("/api/ai/generate", requireAdmin, async (req, res) => {
+  app.post("/api/ai/generate", requireAuth, async (req, res) => {
     try {
       const user = req.user as User;
       const userId = user.id;
@@ -791,6 +791,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate that stories require media
       if ((postType === 'story' || postType === 'both') && finalMediaItems.length === 0) {
         return res.status(400).json({ error: "Les stories nécessitent au moins un média (image ou vidéo)" });
+      }
+      
+      // Security: Verify user has access to all specified pages (unless admin)
+      if (user.role !== 'admin' && pageIds && Array.isArray(pageIds) && pageIds.length > 0) {
+        const accessiblePages = await storage.getUserAccessiblePages(userId);
+        const accessiblePageIds = accessiblePages.map(p => p.id);
+        
+        const hasAccessToAllPages = pageIds.every(pageId => 
+          accessiblePageIds.includes(pageId)
+        );
+        
+        if (!hasAccessToAllPages) {
+          return res.status(403).json({ 
+            error: "Vous n'avez pas accès à certaines pages sélectionnées" 
+          });
+        }
       }
       
       // Convert scheduledFor string to Date if provided

@@ -18,11 +18,11 @@ export class OpenRouterService {
   private baseUrl = "https://openrouter.ai/api/v1/chat/completions";
 
   async generatePostText(productInfo: ProductInfo, userId: string, modelOverride?: string): Promise<GeneratedText[]> {
-    // Get user's OpenRouter configuration
-    const config = await storage.getOpenrouterConfig(userId);
+    // Get any available OpenRouter configuration (shared across all users)
+    const config = await storage.getAnyOpenrouterConfig();
     
     if (!config) {
-      throw new Error('Configuration OpenRouter non trouvée. Veuillez configurer OpenRouter dans les paramètres.');
+      throw new Error('Configuration OpenRouter non trouvée. Veuillez demander à un administrateur de configurer OpenRouter dans les Paramètres.');
     }
 
     const prompt = this.buildPrompt(productInfo, config.systemPrompt);

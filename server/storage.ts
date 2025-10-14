@@ -85,6 +85,7 @@ export interface IStorage {
 
   // OpenRouter Config
   getOpenrouterConfig(userId: string): Promise<OpenrouterConfig | undefined>;
+  getAnyOpenrouterConfig(): Promise<OpenrouterConfig | undefined>;
   createOpenrouterConfig(config: InsertOpenrouterConfig): Promise<OpenrouterConfig>;
   updateOpenrouterConfig(userId: string, config: Partial<InsertOpenrouterConfig>): Promise<OpenrouterConfig>;
 
@@ -333,6 +334,11 @@ export class DatabaseStorage implements IStorage {
   // OpenRouter Config
   async getOpenrouterConfig(userId: string): Promise<OpenrouterConfig | undefined> {
     const [config] = await db.select().from(openrouterConfig).where(eq(openrouterConfig.userId, userId));
+    return config || undefined;
+  }
+
+  async getAnyOpenrouterConfig(): Promise<OpenrouterConfig | undefined> {
+    const [config] = await db.select().from(openrouterConfig).limit(1);
     return config || undefined;
   }
 
