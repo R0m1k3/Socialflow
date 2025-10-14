@@ -294,7 +294,14 @@ export default function NewPost() {
   const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      uploadMutation.mutate(file);
+      // Correction Android : créer un nom valide si le fichier n'a pas de nom
+      let fileToUpload = file;
+      if (!file.name || file.name === 'blob' || file.name === '') {
+        const extension = file.type.split('/')[1] || 'jpg';
+        const newFileName = `camera-${Date.now()}.${extension}`;
+        fileToUpload = new File([file], newFileName, { type: file.type });
+      }
+      uploadMutation.mutate(fileToUpload);
     }
   };
 
