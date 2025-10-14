@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { CloudUpload, Image as ImageIcon, Video, X, Upload, Loader2, ZoomIn } from "lucide-react";
+import { CloudUpload, Image as ImageIcon, Video, X, Upload, Loader2, ZoomIn, Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SiFacebook, SiInstagram } from "react-icons/si";
 
@@ -14,6 +14,7 @@ export default function MediaUpload() {
   const [visibleCount, setVisibleCount] = useState(5);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const { data: mediaList } = useQuery({
     queryKey: ["/api/media"],
@@ -111,6 +112,15 @@ export default function MediaUpload() {
     },
   });
 
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      uploadMutation.mutate(file);
+      // Réinitialiser l'input pour permettre de capturer la même photo à nouveau
+      e.target.value = '';
+    }
+  };
+
   // Scroll infini - IntersectionObserver
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -146,14 +156,25 @@ export default function MediaUpload() {
               <p className="text-sm text-muted-foreground">Téléchargement et recadrage automatique</p>
             </div>
           </div>
-          <Button 
-            onClick={open}
-            className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 rounded-xl"
-            data-testid="button-browse"
-          >
-            <CloudUpload className="w-4 h-4 mr-2" />
-            Parcourir
-          </Button>
+          <div className="flex gap-2">
+            <Button 
+              onClick={() => cameraInputRef.current?.click()}
+              disabled={uploadMutation.isPending}
+              variant="outline"
+              className="lg:hidden"
+              data-testid="button-camera"
+            >
+              <Camera className="w-4 h-4" />
+            </Button>
+            <Button 
+              onClick={open}
+              className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 rounded-xl"
+              data-testid="button-browse"
+            >
+              <CloudUpload className="w-4 h-4 mr-2" />
+              Parcourir
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -170,6 +191,14 @@ export default function MediaUpload() {
               data-testid="dropzone-upload"
             >
               <input {...getInputProps()} />
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="image/*,video/*"
+                capture="environment"
+                onChange={handleCameraCapture}
+                className="hidden"
+              />
               <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center mx-auto mb-6">
                 {uploadingCount > 0 ? (
                   <Loader2 className="w-8 h-8 text-primary animate-spin" />
