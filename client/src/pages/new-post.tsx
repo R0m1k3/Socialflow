@@ -75,7 +75,7 @@ function SortableMediaItem({
         data-testid={`button-select-media-${media.id}`}
       >
         <img 
-          src={media.originalUrl} 
+          src={media.facebookFeedUrl || media.originalUrl} 
           alt={media.fileName}
           className="w-full h-full object-cover"
         />
@@ -510,7 +510,7 @@ export default function NewPost() {
                                   data-testid={`button-select-media-${media.id}`}
                                 >
                                   <img 
-                                    src={media.originalUrl} 
+                                    src={media.facebookFeedUrl || media.originalUrl} 
                                     alt={media.fileName}
                                     className="w-full h-full object-cover"
                                   />
