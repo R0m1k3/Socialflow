@@ -79,6 +79,7 @@ export interface IStorage {
 
   // Cloudinary Config
   getCloudinaryConfig(userId: string): Promise<CloudinaryConfig | undefined>;
+  getAnyCloudinaryConfig(): Promise<CloudinaryConfig | undefined>;
   createCloudinaryConfig(config: InsertCloudinaryConfig): Promise<CloudinaryConfig>;
   updateCloudinaryConfig(userId: string, config: Partial<InsertCloudinaryConfig>): Promise<CloudinaryConfig>;
 
@@ -308,6 +309,11 @@ export class DatabaseStorage implements IStorage {
   // Cloudinary Config
   async getCloudinaryConfig(userId: string): Promise<CloudinaryConfig | undefined> {
     const [config] = await db.select().from(cloudinaryConfig).where(eq(cloudinaryConfig.userId, userId));
+    return config || undefined;
+  }
+
+  async getAnyCloudinaryConfig(): Promise<CloudinaryConfig | undefined> {
+    const [config] = await db.select().from(cloudinaryConfig).limit(1);
     return config || undefined;
   }
 
