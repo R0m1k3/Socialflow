@@ -467,7 +467,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
 
-      // Check if Cloudinary is configured (use any admin config for all users)
+      // Check if Cloudinary is configured (shared config used for all users)
       const cloudinaryConfig = await storage.getAnyCloudinaryConfig();
       
       if (!cloudinaryConfig) {
@@ -476,11 +476,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Upload to Cloudinary using admin config
+      // Upload to Cloudinary (service will use shared config internally)
       const uploadResult = await cloudinaryService.uploadMedia(
         req.file.buffer,
         req.file.originalname,
-        cloudinaryConfig.userId,
+        userId,
         req.file.mimetype
       );
 
@@ -667,7 +667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log("✅ Overlays applied, uploading to Cloudinary...");
 
-      // Check if Cloudinary is configured (use any admin config for all users)
+      // Check if Cloudinary is configured (shared config used for all users)
       const cloudinaryConfig = await storage.getAnyCloudinaryConfig();
       if (!cloudinaryConfig) {
         return res.status(400).json({ 
@@ -675,11 +675,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      // Upload to Cloudinary using admin config
+      // Upload to Cloudinary (service will use shared config internally)
       const uploadResult = await cloudinaryService.uploadMedia(
         outputBuffer,
         `edited_${Date.now()}.jpg`,
-        cloudinaryConfig.userId,
+        userId,
         'image/jpeg'
       );
 
