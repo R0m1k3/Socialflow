@@ -220,7 +220,7 @@ export default function MediaUpload() {
                         </div>
                       ) : (
                         <img 
-                          src={media.originalUrl} 
+                          src={media.facebookFeedUrl || media.originalUrl} 
                           alt={media.fileName}
                           className="w-full h-full object-cover"
                         />
