@@ -481,7 +481,7 @@ export default function NewPost() {
                           Toutes les photos
                         </div>
                         <div className="max-h-[500px] overflow-y-auto">
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             {mediaList.slice(0, visibleMediaCount).map((media) => {
                               const isSelected = selectedMedia.includes(media.id);
                               
