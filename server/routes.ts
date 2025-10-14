@@ -435,7 +435,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI text generation
-  app.post("/api/ai/generate", requireAdmin, async (req, res) => {
+  app.post("/api/ai/generate", requireAuth, async (req, res) => {
     try {
       const user = req.user as User;
       const userId = user.id;
