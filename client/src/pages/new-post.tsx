@@ -75,9 +75,10 @@ function SortableMediaItem({
         data-testid={`button-select-media-${media.id}`}
       >
         <img 
-          src={media.originalUrl} 
+          src={media.facebookFeedUrl || media.originalUrl} 
           alt={media.fileName}
           className="w-full h-full object-cover"
+          loading="lazy"
         />
       </button>
       {isSelected && (
@@ -112,7 +113,10 @@ export default function NewPost() {
   const [postText, setPostText] = useState('');
   const [postType, setPostType] = useState<'feed' | 'story' | 'both'>('feed');
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [visibleMediaCount, setVisibleMediaCount] = useState(12);
+  const [visibleMediaCount, setVisibleMediaCount] = useState(() => {
+    // Chargement initial adapté à la taille d'écran : 6 sur mobile, 12 sur desktop
+    return window.innerWidth < 768 ? 6 : 12;
+  });
   const loadMoreMediaRef = useRef<HTMLDivElement>(null);
 
   const { data: pages = [] } = useQuery<SocialPage[]>({
@@ -477,7 +481,7 @@ export default function NewPost() {
                           Toutes les photos
                         </div>
                         <div className="max-h-[500px] overflow-y-auto">
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                             {mediaList.slice(0, visibleMediaCount).map((media) => {
                               const isSelected = selectedMedia.includes(media.id);
                               
@@ -507,9 +511,10 @@ export default function NewPost() {
                                   data-testid={`button-select-media-${media.id}`}
                                 >
                                   <img 
-                                    src={media.originalUrl} 
+                                    src={media.facebookFeedUrl || media.originalUrl} 
                                     alt={media.fileName}
                                     className="w-full h-full object-cover"
+                                    loading="lazy"
                                   />
                                   {isSelected && (
                                     <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
