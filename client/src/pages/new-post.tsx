@@ -78,6 +78,7 @@ function SortableMediaItem({
           src={media.facebookFeedUrl || media.originalUrl} 
           alt={media.fileName}
           className="w-full h-full object-cover"
+          loading="lazy"
         />
       </button>
       {isSelected && (
@@ -513,6 +514,7 @@ export default function NewPost() {
                                     src={media.facebookFeedUrl || media.originalUrl} 
                                     alt={media.fileName}
                                     className="w-full h-full object-cover"
+                                    loading="lazy"
                                   />
                                   {isSelected && (
                                     <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
