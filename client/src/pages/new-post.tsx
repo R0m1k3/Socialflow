@@ -112,7 +112,10 @@ export default function NewPost() {
   const [postText, setPostText] = useState('');
   const [postType, setPostType] = useState<'feed' | 'story' | 'both'>('feed');
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [visibleMediaCount, setVisibleMediaCount] = useState(12);
+  const [visibleMediaCount, setVisibleMediaCount] = useState(() => {
+    // Chargement initial adapté à la taille d'écran : 6 sur mobile, 12 sur desktop
+    return window.innerWidth < 768 ? 6 : 12;
+  });
   const loadMoreMediaRef = useRef<HTMLDivElement>(null);
 
   const { data: pages = [] } = useQuery<SocialPage[]>({
