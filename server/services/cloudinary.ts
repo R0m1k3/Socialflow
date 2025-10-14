@@ -14,11 +14,11 @@ class CloudinaryService {
     instagramFeedUrl: string | null;
     instagramStoryUrl: string | null;
   }> {
-    // Get user's Cloudinary config
-    const config = await storage.getCloudinaryConfig(userId);
+    // Get any available Cloudinary config (shared across all users)
+    const config = await storage.getAnyCloudinaryConfig();
     
     if (!config) {
-      throw new Error('Cloudinary configuration not found. Please configure Cloudinary in Settings.');
+      throw new Error('Cloudinary configuration not found. Please ask an administrator to configure Cloudinary in Settings first.');
     }
 
     // Configure Cloudinary with user's credentials
@@ -81,10 +81,11 @@ class CloudinaryService {
   }
 
   async deleteMedia(publicId: string, userId: string, mediaType: 'image' | 'video'): Promise<void> {
-    const config = await storage.getCloudinaryConfig(userId);
+    // Get any available Cloudinary config (shared across all users)
+    const config = await storage.getAnyCloudinaryConfig();
     
     if (!config) {
-      throw new Error('Cloudinary configuration not found');
+      throw new Error('Cloudinary configuration not found. Please ask an administrator to configure Cloudinary in Settings first.');
     }
 
     cloudinary.config({
