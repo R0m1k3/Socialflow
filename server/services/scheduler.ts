@@ -112,10 +112,11 @@ export class SchedulerService {
       throw new Error(`Unsupported platform: ${page.platform}`);
     }
 
-    // Update the scheduled post as published
+    // Update the scheduled post as published (clear any previous error)
     await storage.updateScheduledPost(scheduledPost.id, {
       publishedAt: new Date(),
       externalPostId,
+      error: null,
     });
 
     // Update post status
