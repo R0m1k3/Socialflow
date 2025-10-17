@@ -6,6 +6,8 @@ services:
     image: postgres:16-alpine
     container_name: socialflow-db
     restart: unless-stopped
+    ports:
+      - "4523:5432"
     environment:
       POSTGRES_DB: ${PGDATABASE:-socialflow}
       POSTGRES_USER: ${PGUSER:-socialflow}
@@ -15,10 +17,6 @@ services:
     networks:
       - internal
       - nginx_default
-    # Port non exposé sur l'hôte pour plus de sécurité en production
-    # Décommentez la ligne suivante si vous avez besoin d'accéder à la DB localement
-    # ports:
-    #   - "${PGPORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-socialflow}"]
       interval: 10s
@@ -32,15 +30,13 @@ services:
       dockerfile: Dockerfile
     container_name: socialflow-app
     restart: unless-stopped
-    ports:
-      - "4523:4523"
     environment:
       NODE_ENV: production
-      PORT: 4523
+      PORT: 5555
       DATABASE_URL: postgresql://${PGUSER:-socialflow}:${PGPASSWORD:-changeme}@postgres:5432/${PGDATABASE:-socialflow}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       SESSION_SECRET: ${SESSION_SECRET:-your-secret-key-change-me}
-      APP_URL: ${APP_URL:-http://localhost:4523}
+      APP_URL: ${APP_URL:-http://localhost:5555}
     networks:
       - internal
       - nginx_default

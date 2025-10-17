@@ -45,10 +45,10 @@ docker-compose logs -f
 docker-compose down
 ```
 
-## 🌐 Accès à l'application
+## 🌐 Accès
 
-- **Accès direct** : http://localhost:4523
-- **Avec Nginx** (reverse proxy) : Voir section ci-dessous
+- **PostgreSQL** : Accessible sur le port **4523** (mappé vers 5432 interne)
+- **Application** : Accessible via Nginx sur le réseau `nginx_default`
 
 ## 🔧 Architecture réseau
 
@@ -59,6 +59,10 @@ docker-compose down
 - Réseau externe pour le reverse proxy Nginx
 - PostgreSQL et l'application sont sur ce réseau
 - Permet l'accès via Nginx et un domaine personnalisé
+
+### Ports exposés
+- **PostgreSQL** : `4523:5432` (port hôte 4523 → port container 5432)
+- **Application** : Port 5555 interne (non exposé sur l'hôte, accessible via Nginx)
 
 ## 📝 Configuration Nginx
 
@@ -72,11 +76,11 @@ docker network create nginx_default
 
 ### Configuration Nginx
 
-Mettez à jour votre configuration Nginx pour cibler le port **4523** :
+Configurez Nginx pour cibler l'application sur le port **5555** :
 
 ```nginx
 upstream socialflow {
-    server socialflow-app:4523;  # ← Utiliser le port 4523
+    server socialflow-app:5555;  # ← Port interne de l'application
 }
 
 server {

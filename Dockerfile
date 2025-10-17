@@ -34,12 +34,12 @@ RUN npm run build
 # Nettoyer les fichiers inutiles pour réduire la taille
 RUN rm -rf client node_modules/.cache
 
-# Exposer le port de l'application (défini par ENV PORT)
-EXPOSE 4523
+# Exposer le port de l'application
+EXPOSE 5555
 
 # Variables d'environnement par défaut
 ENV NODE_ENV=production
-ENV PORT=4523
+ENV PORT=5555
 
 # Démarrer l'application
 CMD ["npm", "run", "start"]
