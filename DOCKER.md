@@ -54,39 +54,25 @@ docker-compose down
 
 ### Réseau interne (`internal`)
 - PostgreSQL et l'application communiquent sur ce réseau privé
-- La base de données n'est **pas exposée** sur l'hôte pour plus de sécurité
 
-### Réseau nginx (`nginx_default`) - OPTIONNEL
+### Réseau nginx (`nginx_default`)
 - Réseau externe pour le reverse proxy Nginx
-- **Par défaut : désactivé** (commenté dans docker-compose.yml)
-- Décommentez-le uniquement si vous utilisez Nginx
+- PostgreSQL et l'application sont sur ce réseau
+- Permet l'accès via Nginx et un domaine personnalisé
 
-## 📝 Configuration Nginx (optionnelle)
+## 📝 Configuration Nginx
 
-### Activation du réseau Nginx
+### Prérequis : Créer le réseau nginx
 
-Si vous utilisez Nginx comme reverse proxy :
+**Avant de lancer docker-compose**, créez le réseau nginx (une seule fois) :
 
-1. **Créer le réseau Docker nginx** (une seule fois) :
 ```bash
 docker network create nginx_default
 ```
 
-2. **Décommenter dans docker-compose.yml** :
-```yaml
-# Dans la section app > networks :
-networks:
-  - internal
-  - nginx_default  # ← Décommentez cette ligne
+### Configuration Nginx
 
-# Dans la section networks en bas du fichier :
-networks:
-  # ...
-  nginx_default:
-    external: true  # ← Décommentez ces 2 lignes
-```
-
-3. **Mettre à jour votre configuration Nginx** pour cibler le port **4523** :
+Mettez à jour votre configuration Nginx pour cibler le port **4523** :
 
 ```nginx
 upstream socialflow {

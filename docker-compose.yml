@@ -14,6 +14,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - internal
+      - nginx_default
     # Port non exposé sur l'hôte pour plus de sécurité en production
     # Décommentez la ligne suivante si vous avez besoin d'accéder à la DB localement
     # ports:
@@ -42,8 +43,7 @@ services:
       APP_URL: ${APP_URL:-http://localhost:4523}
     networks:
       - internal
-      # Décommentez la ligne suivante si vous utilisez Nginx reverse proxy :
-      # - nginx_default
+      - nginx_default
     depends_on:
       postgres:
         condition: service_healthy
@@ -58,7 +58,6 @@ networks:
   internal:
     driver: bridge
   
-  # Réseau externe pour nginx reverse proxy (optionnel)
-  # Décommentez si vous utilisez Nginx :
-  # nginx_default:
-  #   external: true
+  # Réseau externe pour nginx reverse proxy
+  nginx_default:
+    external: true
