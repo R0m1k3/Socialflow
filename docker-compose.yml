@@ -31,20 +31,19 @@ services:
       dockerfile: Dockerfile
     container_name: socialflow-app
     restart: unless-stopped
-    # Port non exposé publiquement car nginx reverse proxy accède via le réseau Docker
-    # Décommentez si vous avez besoin d'accéder directement sans nginx :
-    # ports:
-    #   - "${PORT:-5555}:5555"
+    ports:
+      - "4523:4523"
     environment:
       NODE_ENV: production
-      PORT: 5555
+      PORT: 4523
       DATABASE_URL: postgresql://${PGUSER:-socialflow}:${PGPASSWORD:-changeme}@postgres:5432/${PGDATABASE:-socialflow}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       SESSION_SECRET: ${SESSION_SECRET:-your-secret-key-change-me}
-      APP_URL: ${APP_URL:-http://localhost:5555}
+      APP_URL: ${APP_URL:-http://localhost:4523}
     networks:
       - internal
-      - nginx_default
+      # Décommentez la ligne suivante si vous utilisez Nginx reverse proxy :
+      # - nginx_default
     depends_on:
       postgres:
         condition: service_healthy
@@ -59,6 +58,7 @@ networks:
   internal:
     driver: bridge
   
-  # Réseau externe pour nginx reverse proxy
-  nginx_default:
-    external: true
+  # Réseau externe pour nginx reverse proxy (optionnel)
+  # Décommentez si vous utilisez Nginx :
+  # nginx_default:
+  #   external: true
