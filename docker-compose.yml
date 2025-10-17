@@ -14,6 +14,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     networks:
       - internal
+      - nginx_default
     # Port non exposé sur l'hôte pour plus de sécurité en production
     # Décommentez la ligne suivante si vous avez besoin d'accéder à la DB localement
     # ports:
@@ -31,17 +32,15 @@ services:
       dockerfile: Dockerfile
     container_name: socialflow-app
     restart: unless-stopped
-    # Port non exposé publiquement car nginx reverse proxy accède via le réseau Docker
-    # Décommentez si vous avez besoin d'accéder directement sans nginx :
-    # ports:
-    #   - "${PORT:-5555}:5555"
+    ports:
+      - "4523:4523"
     environment:
       NODE_ENV: production
-      PORT: 5555
+      PORT: 4523
       DATABASE_URL: postgresql://${PGUSER:-socialflow}:${PGPASSWORD:-changeme}@postgres:5432/${PGDATABASE:-socialflow}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       SESSION_SECRET: ${SESSION_SECRET:-your-secret-key-change-me}
-      APP_URL: ${APP_URL:-http://localhost:5555}
+      APP_URL: ${APP_URL:-http://localhost:4523}
     networks:
       - internal
       - nginx_default
