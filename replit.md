@@ -10,6 +10,9 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### October 17, 2025
+- **Docker Deployment Configuration**: Configured Docker Compose for private server deployment with PostgreSQL and application on same network. Application exposed on port 4523:4523 as requested. PostgreSQL and app communicate via internal Docker network for security. Updated Dockerfile to use port 4523. Optional nginx reverse proxy support (commented by default). Created comprehensive DOCKER.md documentation with setup instructions, network architecture explanation, security best practices, and troubleshooting guide.
+
 ### October 14, 2025
 - **Publication History Error Display Fix**: Fixed bug where publication history incorrectly displayed persistent errors for posts that failed initially but succeeded on retry. Problem: When a post failed, the `error` field was populated, but when the post was successfully republished, only `publishedAt` and `externalPostId` were updated without clearing the `error` field. Solution: Modified `schedulerService.publishPost()` to set `error: null` when publication succeeds, ensuring error messages are cleared from the history view after successful republication.
 - **Publishing Permissions Security Fix**: Fixed critical security vulnerability in POST `/api/posts` endpoint where standard users could publish to ANY page without verification. Added permission check that validates non-admin users can only publish to pages in their `user_page_permissions` list via `getUserAccessiblePages()`. Admins bypass this check and retain full access. Returns 403 Forbidden if user attempts to publish to unauthorized pages. This prevents privilege escalation and ensures proper page-level access control.
