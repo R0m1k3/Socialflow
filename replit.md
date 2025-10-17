@@ -11,7 +11,7 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes
 
 ### October 17, 2025
-- **Docker Deployment Configuration**: Configured Docker Compose for private server deployment with PostgreSQL and application on same network. PostgreSQL exposed on port 4523:5432 for external access. Application runs on internal port 5555 (accessible via Nginx reverse proxy). Both PostgreSQL and app are on nginx_default external network and internal network for communication. Created comprehensive DOCKER.md documentation with setup instructions, network architecture explanation, and troubleshooting guide.
+- **Docker Deployment Configuration**: Configured Docker Compose for private server deployment with PostgreSQL and application on same network. PostgreSQL exposed on port 4523:4523 for external access. Application runs on internal port 5555 (accessible via Nginx reverse proxy). Both PostgreSQL and app are on nginx_default external network and internal network for communication. Created comprehensive DOCKER.md documentation with setup instructions, network architecture explanation, and troubleshooting guide.
 
 ### October 14, 2025
 - **Publication History Error Display Fix**: Fixed bug where publication history incorrectly displayed persistent errors for posts that failed initially but succeeded on retry. Problem: When a post failed, the `error` field was populated, but when the post was successfully republished, only `publishedAt` and `externalPostId` were updated without clearing the `error` field. Solution: Modified `schedulerService.publishPost()` to set `error: null` when publication succeeds, ensuring error messages are cleared from the history view after successful republication.

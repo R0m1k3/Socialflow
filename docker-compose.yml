@@ -7,11 +7,12 @@ services:
     container_name: socialflow-db
     restart: unless-stopped
     ports:
-      - "4523:5432"
+      - "4523:4523"
     environment:
       POSTGRES_DB: ${PGDATABASE:-socialflow}
       POSTGRES_USER: ${PGUSER:-socialflow}
       POSTGRES_PASSWORD: ${PGPASSWORD:-changeme}
+      PGPORT: 4523
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:
@@ -33,7 +34,7 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5555
-      DATABASE_URL: postgresql://${PGUSER:-socialflow}:${PGPASSWORD:-changeme}@postgres:5432/${PGDATABASE:-socialflow}
+      DATABASE_URL: postgresql://${PGUSER:-socialflow}:${PGPASSWORD:-changeme}@postgres:4523/${PGDATABASE:-socialflow}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       SESSION_SECRET: ${SESSION_SECRET:-your-secret-key-change-me}
       APP_URL: ${APP_URL:-http://localhost:5555}

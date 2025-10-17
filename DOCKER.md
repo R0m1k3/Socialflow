@@ -47,7 +47,7 @@ docker-compose down
 
 ## 🌐 Accès
 
-- **PostgreSQL** : Accessible sur le port **4523** (mappé vers 5432 interne)
+- **PostgreSQL** : Accessible sur le port **4523** (interne et externe)
 - **Application** : Accessible via Nginx sur le réseau `nginx_default`
 
 ## 🔧 Architecture réseau
@@ -61,7 +61,7 @@ docker-compose down
 - Permet l'accès via Nginx et un domaine personnalisé
 
 ### Ports exposés
-- **PostgreSQL** : `4523:5432` (port hôte 4523 → port container 5432)
+- **PostgreSQL** : `4523:4523` (port hôte 4523 → port container 4523)
 - **Application** : Port 5555 interne (non exposé sur l'hôte, accessible via Nginx)
 
 ## 📝 Configuration Nginx
