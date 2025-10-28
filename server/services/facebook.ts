@@ -361,27 +361,72 @@ export class FacebookService {
   }
 
   private async publishVideoStory(post: Post, page: SocialPage, media: Media): Promise<string> {
-    // Video stories can be published directly to the video_stories endpoint
+    // Video stories require a 3-phase upload process:
+    // 1. START phase - Initialize the upload and get upload_url
+    // 2. UPLOAD phase - Upload the video to upload_url using file_url header
+    // 3. FINISH phase - Finalize and publish the story
+    
     const videoUrl = media.originalUrl;
-
-    const params = new URLSearchParams({
-      access_token: page.accessToken!,
-      file_url: videoUrl,
+    const accessToken = page.accessToken!;
+    
+    // Phase 1: START - Initialize the upload
+    const startParams = new URLSearchParams({
+      access_token: accessToken,
+      upload_phase: 'start',
     });
-
-    const url = `${this.baseUrl}/${page.pageId}/video_stories?${params.toString()}`;
-
-    const response = await fetch(url, {
+    
+    const startUrl = `${this.baseUrl}/${page.pageId}/video_stories?${startParams.toString()}`;
+    
+    const startResponse = await fetch(startUrl, {
       method: 'POST',
     });
-
-    if (!response.ok) {
-      const error = await response.json() as FacebookError;
-      throw new Error(`Facebook API error publishing video story: ${error.error.message} (code: ${error.error.code})`);
+    
+    if (!startResponse.ok) {
+      const error = await startResponse.json() as FacebookError;
+      throw new Error(`Facebook API error (START phase): ${error.error.message} (code: ${error.error.code})`);
     }
-
-    const data = await response.json() as { success: boolean; post_id: string };
-    return data.post_id;
+    
+    const startData = await startResponse.json() as { video_id: string; upload_url: string };
+    const videoId = startData.video_id;
+    const uploadUrl = startData.upload_url;
+    
+    // Phase 2: UPLOAD - Upload the video using the upload_url
+    // IMPORTANT: file_url must be passed as a header, not a query parameter
+    const uploadResponse = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `OAuth ${accessToken}`,
+        'file_url': videoUrl,
+      },
+    });
+    
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      throw new Error(`Facebook API error (UPLOAD phase): ${errorText}`);
+    }
+    
+    // Phase 3: FINISH - Finalize and publish the story
+    const finishParams = new URLSearchParams({
+      access_token: accessToken,
+      upload_phase: 'finish',
+      video_id: videoId,
+    });
+    
+    const finishUrl = `${this.baseUrl}/${page.pageId}/video_stories?${finishParams.toString()}`;
+    
+    const finishResponse = await fetch(finishUrl, {
+      method: 'POST',
+    });
+    
+    if (!finishResponse.ok) {
+      const error = await finishResponse.json() as FacebookError;
+      throw new Error(`Facebook API error (FINISH phase): ${error.error.message} (code: ${error.error.code})`);
+    }
+    
+    const finishData = await finishResponse.json() as { success: boolean; post_id?: string };
+    
+    // Return the post_id from the finish response
+    return finishData.post_id || videoId;
   }
 }
 
