@@ -30,7 +30,7 @@ import {
   type InsertUserPagePermission,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, desc, asc, isNull } from "drizzle-orm";
+import { eq, and, gte, lte, desc, asc, isNull, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // Users
@@ -66,6 +66,7 @@ export interface IStorage {
 
   // Scheduled Posts
   getScheduledPosts(userId: string, startDate?: Date, endDate?: Date): Promise<ScheduledPost[]>;
+  getScheduledPostsByPages(pageIds: string[], startDate?: Date, endDate?: Date): Promise<ScheduledPost[]>;
   getScheduledPost(id: string): Promise<ScheduledPost | undefined>;
   getScheduledPostsByPost(postId: string): Promise<ScheduledPost[]>;
   createScheduledPost(scheduledPost: InsertScheduledPost): Promise<ScheduledPost>;
@@ -237,6 +238,40 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(posts, eq(scheduledPosts.postId, posts.id))
       .leftJoin(socialPages, eq(scheduledPosts.pageId, socialPages.id))
       .where(eq(posts.userId, userId));
+
+    if (startDate && endDate) {
+      const results = await query;
+      return results
+        .filter(r => {
+          const scheduledAt = new Date(r.scheduled_posts.scheduledAt);
+          return scheduledAt >= startDate && scheduledAt <= endDate;
+        })
+        .map(r => ({
+          ...r.scheduled_posts,
+          post: r.posts,
+          page: r.social_pages,
+        }));
+    }
+
+    const results = await query;
+    return results.map(r => ({
+      ...r.scheduled_posts,
+      post: r.posts,
+      page: r.social_pages,
+    }));
+  }
+
+  async getScheduledPostsByPages(pageIds: string[], startDate?: Date, endDate?: Date): Promise<any[]> {
+    if (pageIds.length === 0) {
+      return [];
+    }
+
+    let query = db
+      .select()
+      .from(scheduledPosts)
+      .innerJoin(posts, eq(scheduledPosts.postId, posts.id))
+      .leftJoin(socialPages, eq(scheduledPosts.pageId, socialPages.id))
+      .where(inArray(scheduledPosts.pageId, pageIds));
 
     if (startDate && endDate) {
       const results = await query;

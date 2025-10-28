@@ -137,15 +137,15 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
           </PopoverTrigger>
           <PopoverContent className="w-auto p-0" align="start">
             <div className="flex">
-              <ScrollArea className="h-60">
-                <div className="p-2">
-                  <div className="text-xs font-semibold mb-2 px-2 text-muted-foreground">Heures</div>
+              <ScrollArea className="h-48">
+                <div className="p-1.5">
+                  <div className="text-[10px] font-semibold mb-1.5 px-1.5 text-muted-foreground">Heures</div>
                   {hours.map((hour) => (
                     <Button
                       key={hour}
                       variant="ghost"
                       className={cn(
-                        "w-full justify-center mb-1",
+                        "w-full justify-center mb-0.5 h-9 text-xs",
                         selectedHour === hour && "bg-primary text-primary-foreground",
                         isOptimalHour(hour) && selectedHour !== hour && "bg-green-500/20 text-green-700 dark:text-green-300 font-semibold hover:bg-green-500/30"
                       )}
@@ -160,15 +160,15 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
                   ))}
                 </div>
               </ScrollArea>
-              <ScrollArea className="h-60 border-l">
-                <div className="p-2">
-                  <div className="text-xs font-semibold mb-2 px-2 text-muted-foreground">Minutes</div>
+              <ScrollArea className="h-48 border-l">
+                <div className="p-1.5">
+                  <div className="text-[10px] font-semibold mb-1.5 px-1.5 text-muted-foreground">Minutes</div>
                   {minutes.map((minute) => (
                     <Button
                       key={minute}
                       variant="ghost"
                       className={cn(
-                        "w-full justify-center mb-1",
+                        "w-full justify-center mb-0.5 h-9 text-xs",
                         selectedMinute === minute && "bg-primary text-primary-foreground"
                       )}
                       onClick={() => handleTimeChange(selectedHour, minute)}
@@ -180,16 +180,13 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
                 </div>
               </ScrollArea>
             </div>
-            <div className="p-3 border-t bg-muted/50">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                <span className="text-[10px] font-semibold text-green-600 dark:text-green-400">
+            <div className="p-2 border-t bg-muted/50">
+              <div className="flex items-center gap-1.5">
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                <span className="text-[9px] font-semibold text-green-600 dark:text-green-400">
                   Heures optimales (8h, 12h-13h, 18h-20h)
                 </span>
               </div>
-              <p className="text-[9px] text-muted-foreground">
-                Ces créneaux maximisent l'engagement
-              </p>
             </div>
           </PopoverContent>
         </Popover>
