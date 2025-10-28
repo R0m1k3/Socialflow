@@ -42,8 +42,15 @@ export default function CalendarListView({ scheduledPosts, onEditPost, onDeleteP
     return acc;
   }, {});
 
-  // Sort dates
-  const sortedDates = Object.keys(groupedPosts).sort();
+  // Sort dates - put today first, then chronological order
+  const today = format(new Date(), "yyyy-MM-dd");
+  const sortedDates = Object.keys(groupedPosts).sort((a, b) => {
+    // Today always comes first
+    if (a === today && b !== today) return -1;
+    if (b === today && a !== today) return 1;
+    // Otherwise chronological order
+    return a.localeCompare(b);
+  });
 
   const toggleDate = (date: string) => {
     const newExpanded = new Set(expandedDates);
