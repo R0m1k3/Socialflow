@@ -135,9 +135,9 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
               {String(selectedHour).padStart(2, '0')}:{String(selectedMinute).padStart(2, '0')}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto max-w-[280px] p-0" align="start">
+          <PopoverContent className="w-[200px] p-0" align="start">
             <div className="flex">
-              <ScrollArea className="h-48">
+              <ScrollArea className="h-48 w-24">
                 <div className="p-1.5">
                   <div className="text-[10px] font-semibold mb-1.5 px-1.5 text-muted-foreground">Heures</div>
                   {hours.map((hour) => (
@@ -160,7 +160,7 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
                   ))}
                 </div>
               </ScrollArea>
-              <ScrollArea className="h-48 border-l">
+              <ScrollArea className="h-48 w-20 border-l">
                 <div className="p-1.5">
                   <div className="text-[10px] font-semibold mb-1.5 px-1.5 text-muted-foreground">Minutes</div>
                   {minutes.map((minute) => (
