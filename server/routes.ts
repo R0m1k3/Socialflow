@@ -991,24 +991,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let scheduledPosts;
       
       if (user.role === 'admin') {
-        // Admin voit tous les posts programmés
-        const allUsers = await storage.getAllUsers();
-        const allPostsPromises = allUsers.map(u => storage.getScheduledPosts(u.id, start, end));
-        const allPostsArrays = await Promise.all(allPostsPromises);
-        scheduledPosts = allPostsArrays.flat();
+        // Admin voit tous les posts programmés - on récupère toutes les pages
+        const allPages = await storage.getAllUsers().then(users => 
+          Promise.all(users.map(u => storage.getSocialPages(u.id)))
+        ).then(pagesArrays => pagesArrays.flat());
+        const allPageIds = allPages.map(p => p.id);
+        
+        if (allPageIds.length > 0) {
+          scheduledPosts = await storage.getScheduledPostsByPages(allPageIds, start, end);
+        } else {
+          scheduledPosts = [];
+        }
       } else {
-        // User voit tous les posts programmés sur les pages qui lui sont attribuées (peu importe qui les a créés)
+        // User voit uniquement les posts programmés sur les pages qui lui sont attribuées
         const accessiblePages = await storage.getUserAccessiblePages(userId);
         const accessiblePageIds = accessiblePages.map(p => p.id);
         
-        // Récupérer tous les posts programmés de tous les utilisateurs
-        const allUsers = await storage.getAllUsers();
-        const allPostsPromises = allUsers.map(u => storage.getScheduledPosts(u.id, start, end));
-        const allPostsArrays = await Promise.all(allPostsPromises);
-        const allScheduledPosts = allPostsArrays.flat();
-        
-        // Filtrer uniquement les posts des pages accessibles
-        scheduledPosts = allScheduledPosts.filter(sp => accessiblePageIds.includes(sp.pageId));
+        if (accessiblePageIds.length > 0) {
+          scheduledPosts = await storage.getScheduledPostsByPages(accessiblePageIds, start, end);
+        } else {
+          scheduledPosts = [];
+        }
       }
       
       res.json(scheduledPosts);
