@@ -11,6 +11,7 @@ Preferred communication style: Simple, everyday language.
 ## Recent Changes
 
 ### October 28, 2025
+- **Calendar Mobile UX Improvements**: Enhanced mobile calendar and publication planning interface with three visual improvements: (1) Mobile calendar list now displays today's date at the top, before chronological ordering, for quick access to current day's publications; (2) Added green visual indicators in new-post page showing optimal posting times (8h-9h, 12h-14h, 18h-21h) to maximize audience reach; (3) Added red visual indicators showing dates with existing scheduled posts to prevent scheduling conflicts. Both indicators appear dynamically below the datetime selector, displaying up to 5 dates with option to view more.
 - **Facebook Video Story Publishing Fix**: Fixed critical bug preventing video story publication. Facebook Graph API requires a 3-phase upload process for video stories: (1) START phase - initialize upload session and get `video_id` + `upload_url`, (2) UPLOAD phase - POST video to rupload.facebook.com endpoint with `file_url` header and OAuth authorization, (3) FINISH phase - finalize and publish story with `video_id`. Previous implementation incorrectly attempted direct upload to `/video_stories` endpoint with `file_url` parameter, causing "#100 The parameter upload_phase is required" error. Fixed by implementing proper 3-phase workflow using remote URL upload method (file_url header), avoiding need for binary chunked uploads.
 
 ### October 17, 2025
