@@ -10,6 +10,9 @@ Preferred communication style: Simple, everyday language.
 
 ## Recent Changes
 
+### October 28, 2025
+- **Facebook Video Story Publishing Fix**: Fixed critical bug preventing video story publication. Facebook Graph API requires a 3-phase upload process for video stories: (1) START phase - initialize upload session and get `video_id` + `upload_url`, (2) UPLOAD phase - POST video to rupload.facebook.com endpoint with `file_url` header and OAuth authorization, (3) FINISH phase - finalize and publish story with `video_id`. Previous implementation incorrectly attempted direct upload to `/video_stories` endpoint with `file_url` parameter, causing "#100 The parameter upload_phase is required" error. Fixed by implementing proper 3-phase workflow using remote URL upload method (file_url header), avoiding need for binary chunked uploads.
+
 ### October 17, 2025
 - **Docker Deployment Configuration**: Configured Docker Compose for private server deployment with PostgreSQL and application on same network. PostgreSQL exposed on port 4523:4523 for external access. Application runs on internal port 5555 (accessible via Nginx reverse proxy). Both PostgreSQL and app are on nginx_default external network and internal network for communication. Created comprehensive DOCKER.md documentation with setup instructions, network architecture explanation, and troubleshooting guide.
 
