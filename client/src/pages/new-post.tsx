@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SocialPage, Media, ScheduledPost } from "@shared/schema";
 import { PreviewModal } from "@/components/preview-modal";
+import { DateTimePicker } from "@/components/datetime-picker";
 
 function SortableMediaItem({ 
   media, 
@@ -108,7 +109,7 @@ export default function NewPost() {
   const [productInfo, setProductInfo] = useState('');
   const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
-  const [scheduledDate, setScheduledDate] = useState('');
+  const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
   const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
   const [postText, setPostText] = useState('');
   const [postType, setPostType] = useState<'feed' | 'story' | 'both'>('feed');
@@ -280,7 +281,7 @@ export default function NewPost() {
 
     createPostMutation.mutate({
       content: postText,
-      scheduledFor: scheduledDate ? new Date(scheduledDate).toISOString() : undefined,
+      scheduledFor: scheduledDate ? scheduledDate.toISOString() : undefined,
       mediaIds: selectedMedia.length > 0 ? selectedMedia : undefined,
       pageIds: selectedPages,
       postType,
@@ -712,91 +713,18 @@ export default function NewPost() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    <Label htmlFor="scheduledDate">Date et heure</Label>
-                    <Input
-                      id="scheduledDate"
-                      type="datetime-local"
+                    <Label>Date et heure</Label>
+                    <DateTimePicker
                       value={scheduledDate}
-                      onChange={(e) => setScheduledDate(e.target.value)}
-                      data-testid="input-scheduled-date"
+                      onChange={setScheduledDate}
+                      occupiedDates={scheduledPosts
+                        .filter(post => post.scheduledAt)
+                        .map(post => new Date(post.scheduledAt!))}
+                      placeholder="Publier immédiatement"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Laissez vide pour publier immédiatement
+                      Sélectionnez une date pour planifier, sinon publication immédiate
                     </p>
-                    
-                    {(() => {
-                      // Get dates with scheduled posts
-                      const datesWithPosts = scheduledPosts
-                        .filter(post => post.scheduledAt)
-                        .map(post => {
-                          const date = new Date(post.scheduledAt!);
-                          return date.toISOString().split('T')[0];
-                        })
-                        .filter((date, index, self) => self.indexOf(date) === index)
-                        .sort();
-                      
-                      if (datesWithPosts.length > 0) {
-                        return (
-                          <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20">
-                            <div className="flex items-center gap-2 mb-2">
-                              <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                              <span className="text-xs font-semibold text-red-600 dark:text-red-400">
-                                Dates avec publications programmées
-                              </span>
-                            </div>
-                            <div className="flex flex-wrap gap-2">
-                              {datesWithPosts.slice(0, 5).map((date) => {
-                                const dateObj = new Date(date + 'T00:00:00');
-                                const formatted = dateObj.toLocaleDateString('fr-FR', { 
-                                  day: '2-digit', 
-                                  month: 'short' 
-                                });
-                                return (
-                                  <span 
-                                    key={date} 
-                                    className="text-xs px-2 py-1 bg-red-500/20 text-red-700 dark:text-red-300 rounded-md font-medium"
-                                  >
-                                    {formatted}
-                                  </span>
-                                );
-                              })}
-                              {datesWithPosts.length > 5 && (
-                                <span className="text-xs px-2 py-1 text-red-600 dark:text-red-400 font-medium">
-                                  +{datesWithPosts.length - 5} autre{datesWithPosts.length - 5 > 1 ? 's' : ''}
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-[10px] text-red-600/80 dark:text-red-400/80 mt-2">
-                              Ces dates ont déjà des publications planifiées
-                            </p>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-                    
-                    <div className="p-3 bg-green-500/10 rounded-lg border border-green-500/20">
-                      <div className="flex items-center gap-2 mb-2">
-                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                        <span className="text-xs font-semibold text-green-600 dark:text-green-400">
-                          Heures optimales pour l'audience
-                        </span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        <span className="text-xs px-2 py-1 bg-green-500/20 text-green-700 dark:text-green-300 rounded-md font-medium">
-                          8h - 9h
-                        </span>
-                        <span className="text-xs px-2 py-1 bg-green-500/20 text-green-700 dark:text-green-300 rounded-md font-medium">
-                          12h - 14h
-                        </span>
-                        <span className="text-xs px-2 py-1 bg-green-500/20 text-green-700 dark:text-green-300 rounded-md font-medium">
-                          18h - 21h
-                        </span>
-                      </div>
-                      <p className="text-[10px] text-green-600/80 dark:text-green-400/80 mt-2">
-                        Ces créneaux maximisent la portée de vos publications
-                      </p>
-                    </div>
                   </div>
                 </CardContent>
               </Card>
