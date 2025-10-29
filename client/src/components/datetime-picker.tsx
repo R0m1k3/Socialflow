@@ -135,7 +135,14 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
               {String(selectedHour).padStart(2, '0')}:{String(selectedMinute).padStart(2, '0')}
             </Button>
           </PopoverTrigger>
-          <PopoverContent className="w-auto min-w-[200px] max-w-[280px] p-0" align="center">
+          <PopoverContent 
+            className="w-auto min-w-[200px] max-w-[280px] p-0" 
+            align="center"
+            side="bottom"
+            sideOffset={8}
+            collisionPadding={16}
+            avoidCollisions={true}
+          >
             <div className="flex">
               <ScrollArea className="h-48 min-w-[96px] flex-1">
                 <div className="p-1.5">
