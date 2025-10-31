@@ -180,8 +180,8 @@ export default function NewPost() {
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
     onDrop,
     accept: {
-      "image/*": [".png", ".jpg", ".jpeg", ".gif"],
-      "video/*": [".mp4", ".mov"],
+      "image/*": [".png", ".jpg", ".jpeg", ".gif", ".webp"],
+      "video/*": [".mp4", ".mov", ".webm", ".3gp", ".3gpp", ".mkv", ".avi"],
     },
     maxSize: 52428800,
     noClick: true,
@@ -299,14 +299,37 @@ export default function NewPost() {
   const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      // Logs de diagnostic pour Android
+      console.log('📹 Capture camera détectée:', {
+        nom: file.name,
+        type: file.type,
+        taille: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+        estVideo: file.type.startsWith('video/')
+      });
+
       // Correction Android : créer un nom valide si le fichier n'a pas de nom
       let fileToUpload = file;
       if (!file.name || file.name === 'blob' || file.name === '') {
         const extension = file.type.split('/')[1] || 'jpg';
         const newFileName = `camera-${Date.now()}.${extension}`;
         fileToUpload = new File([file], newFileName, { type: file.type });
+        console.log('✅ Nom de fichier corrigé:', newFileName);
       }
+
+      // Vérification taille (50 MB max)
+      if (file.size > 52428800) {
+        toast({
+          title: "Fichier trop volumineux",
+          description: `La taille maximale est de 50 MB. Votre fichier fait ${(file.size / 1024 / 1024).toFixed(2)} MB`,
+          variant: "destructive",
+        });
+        console.error('❌ Fichier rejeté: trop volumineux');
+        e.target.value = '';
+        return;
+      }
+
       uploadMutation.mutate(fileToUpload);
+      e.target.value = '';
     }
   };
 
