@@ -324,10 +324,12 @@ export default function NewPost() {
           variant: "destructive",
         });
         console.error('❌ Fichier rejeté: trop volumineux');
+        e.target.value = '';
         return;
       }
 
       uploadMutation.mutate(fileToUpload);
+      e.target.value = '';
     }
   };
 
