@@ -88,18 +88,37 @@ export default function CalendarListView({ scheduledPosts, onEditPost, onDeleteP
           Aucune publication programmée
         </div>
       ) : (
-        sortedDates.map((dateStr) => {
+        sortedDates.map((dateStr, index) => {
           const posts = groupedPosts[dateStr];
           const isExpanded = expandedDates.has(dateStr);
           const dateObj = parseISO(dateStr);
           const isDateToday = isToday(dateStr);
+          
+          // Check if we need to show the separator (first past date)
+          const isPastDate = dateStr < today;
+          const prevDate = index > 0 ? sortedDates[index - 1] : null;
+          const prevWasFutureOrToday = prevDate ? (prevDate >= today) : false;
+          const showSeparator = isPastDate && prevWasFutureOrToday;
 
           return (
-            <div
-              key={dateStr}
-              className={`rounded-xl border ${isDateToday ? 'border-primary/50 bg-primary/5' : 'border-border/50 bg-card'} overflow-hidden`}
-              data-testid={`calendar-list-date-${dateStr}`}
-            >
+            <div key={`wrapper-${dateStr}`}>
+              {showSeparator && (
+                <div 
+                  key="past-separator"
+                  className="flex items-center gap-3 py-2"
+                  data-testid="separator-past-dates"
+                >
+                  <div className="flex-1 h-px bg-muted-foreground/30"></div>
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    Publications passées
+                  </span>
+                  <div className="flex-1 h-px bg-muted-foreground/30"></div>
+                </div>
+              )}
+              <div
+                className={`rounded-xl border ${isDateToday ? 'border-primary/50 bg-primary/5' : 'border-border/50 bg-card'} overflow-hidden`}
+                data-testid={`calendar-list-date-${dateStr}`}
+              >
               <button
                 onClick={() => toggleDate(dateStr)}
                 className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/30 transition-colors"
@@ -211,6 +230,7 @@ export default function CalendarListView({ scheduledPosts, onEditPost, onDeleteP
                   })}
                 </div>
               )}
+            </div>
             </div>
           );
         })
