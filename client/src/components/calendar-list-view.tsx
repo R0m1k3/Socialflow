@@ -42,14 +42,29 @@ export default function CalendarListView({ scheduledPosts, onEditPost, onDeleteP
     return acc;
   }, {});
 
-  // Sort dates - put today first, then chronological order
+  // Sort dates - put today first, then future dates in ascending order, then past dates
   const today = format(new Date(), "yyyy-MM-dd");
   const sortedDates = Object.keys(groupedPosts).sort((a, b) => {
     // Today always comes first
     if (a === today && b !== today) return -1;
     if (b === today && a !== today) return 1;
-    // Otherwise chronological order
-    return a.localeCompare(b);
+    
+    // Both are not today - separate future and past dates
+    const aIsFuture = a > today;
+    const bIsFuture = b > today;
+    
+    // Both are future: ascending chronological order (soonest first)
+    if (aIsFuture && bIsFuture) {
+      return a.localeCompare(b);
+    }
+    
+    // Both are past: ascending chronological order (most recent past first)
+    if (!aIsFuture && !bIsFuture) {
+      return b.localeCompare(a);
+    }
+    
+    // One is future, one is past: future comes first
+    return aIsFuture ? -1 : 1;
   });
 
   const toggleDate = (date: string) => {

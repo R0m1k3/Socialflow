@@ -8,6 +8,14 @@ Social Flow is a comprehensive AI-powered social media automation platform desig
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+### November 5, 2025
+- **Mobile Calendar List Sorting Fix**: Fixed illogical date ordering in mobile calendar list view. Problem: After displaying today's date first, remaining dates were sorted using simple localeCompare, mixing past and future dates together. Solution: Implemented intelligent chronological sorting in `calendar-list-view.tsx` with three-tier logic: (1) Today's date always appears first, (2) Future dates display in ascending chronological order (soonest first), (3) Past dates appear last in descending order (most recent first). The sorting uses ISO date string comparison (yyyy-MM-dd) which preserves chronological order. This provides intuitive navigation where users see today, then upcoming posts in order, then recent past posts.
+
+### October 31, 2025
+- **Android Video Upload Fix**: Fixed critical bug preventing video uploads on Android devices. Problem: React-dropzone only accepted `.mp4` and `.mov` formats, but Android browsers often use different video formats like `.webm`, `.3gp`, `.mkv`. Solution: Extended accepted video formats in both `new-post.tsx` and `media-upload.tsx` to include `.webm`, `.3gp`, `.3gpp`, `.mkv`, `.avi` in addition to `.mp4` and `.mov`. Also added `.webp` support for images. Implemented diagnostic console logging to capture file name, MIME type, size, and video detection. Added explicit file size validation (50 MB max) with user-friendly error messages showing actual file size. Fixed camera input reset bug where oversized file rejection prevented subsequent capture attempts - now properly resets input (`e.target.value = ''`) after both errors and successful uploads. Photo uploads on Android already worked; this fix specifically targets video capture compatibility.
+
 ## System Architecture
 
 ### Frontend Architecture
