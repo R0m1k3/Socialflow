@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Send, Sparkles, Image as ImageIcon, Calendar, Upload, Camera, GripVertical, Loader2 } from "lucide-react";
@@ -60,6 +60,8 @@ function SortableMediaItem({
     transition,
   };
 
+  const isVideo = media.type === 'video';
+
   return (
     <div
       ref={setNodeRef}
@@ -75,12 +77,22 @@ function SortableMediaItem({
         className="w-full h-full"
         data-testid={`button-select-media-${media.id}`}
       >
-        <img 
-          src={media.facebookFeedUrl || media.originalUrl} 
-          alt={media.fileName}
-          className="w-full h-full object-cover"
-          loading="lazy"
-        />
+        {isVideo ? (
+          <video 
+            src={media.originalUrl} 
+            className="w-full h-full object-cover"
+            muted
+            playsInline
+            preload="metadata"
+          />
+        ) : (
+          <img 
+            src={media.facebookFeedUrl || media.originalUrl} 
+            alt={media.fileName}
+            className="w-full h-full object-cover"
+            loading="lazy"
+          />
+        )}
       </button>
       {isSelected && (
         <>
@@ -114,19 +126,27 @@ export default function NewPost() {
   const [postText, setPostText] = useState('');
   const [postType, setPostType] = useState<'feed' | 'story' | 'both'>('feed');
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [visibleMediaCount, setVisibleMediaCount] = useState(() => {
-    // Chargement initial adapté à la taille d'écran : 6 sur mobile, 12 sur desktop
-    return window.innerWidth < 768 ? 6 : 12;
-  });
-  const loadMoreMediaRef = useRef<HTMLDivElement>(null);
 
   const { data: pages = [] } = useQuery<SocialPage[]>({
     queryKey: ['/api/pages'],
   });
 
-  const { data: mediaList = [] } = useQuery<Media[]>({
+  const { data: allMedia = [] } = useQuery<Media[]>({
     queryKey: ['/api/media'],
   });
+
+  // Afficher seulement les 12 derniers médias triés par date décroissante
+  // Utilisation de useMemo pour éviter de re-trier à chaque render
+  // Création d'une copie pour ne pas muter le cache React Query
+  const mediaList = useMemo(() => {
+    return [...allMedia]
+      .sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA; // Tri décroissant (plus récent en premier)
+      })
+      .slice(0, 12);
+  }, [allMedia]);
 
   const { data: scheduledPosts = [] } = useQuery<ScheduledPost[]>({
     queryKey: ['/api/scheduled-posts'],
@@ -352,28 +372,6 @@ export default function NewPost() {
     }
   };
 
-  // Scroll infini - IntersectionObserver pour la grille de médias
-  useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && mediaList && visibleMediaCount < mediaList.length) {
-          setVisibleMediaCount(prev => Math.min(prev + 12, mediaList.length));
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (loadMoreMediaRef.current) {
-      observer.observe(loadMoreMediaRef.current);
-    }
-
-    return () => {
-      if (loadMoreMediaRef.current) {
-        observer.unobserve(loadMoreMediaRef.current);
-      }
-    };
-  }, [mediaList, visibleMediaCount]);
-
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {sidebarOpen && (
@@ -513,12 +511,13 @@ export default function NewPost() {
                           </div>
                         )}
                         <div className="text-sm font-medium text-muted-foreground mb-2">
-                          Toutes les photos
+                          Toutes les photos ({mediaList.length})
                         </div>
                         <div className="max-h-[500px] overflow-y-auto">
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {mediaList.slice(0, visibleMediaCount).map((media) => {
+                            {mediaList.map((media) => {
                               const isSelected = selectedMedia.includes(media.id);
+                              const isVideo = media.type === 'video';
                               
                               return (
                                 <button
@@ -545,12 +544,22 @@ export default function NewPost() {
                                   }`}
                                   data-testid={`button-select-media-${media.id}`}
                                 >
-                                  <img 
-                                    src={media.facebookFeedUrl || media.originalUrl} 
-                                    alt={media.fileName}
-                                    className="w-full h-full object-cover"
-                                    loading="lazy"
-                                  />
+                                  {isVideo ? (
+                                    <video 
+                                      src={media.originalUrl} 
+                                      className="w-full h-full object-cover"
+                                      muted
+                                      playsInline
+                                      preload="metadata"
+                                    />
+                                  ) : (
+                                    <img 
+                                      src={media.facebookFeedUrl || media.originalUrl} 
+                                      alt={media.fileName}
+                                      className="w-full h-full object-cover"
+                                      loading="lazy"
+                                    />
+                                  )}
                                   {isSelected && (
                                     <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
                                       <div className="text-xs font-semibold text-primary">Sélectionnée</div>
@@ -560,13 +569,6 @@ export default function NewPost() {
                               );
                             })}
                           </div>
-                          
-                          {/* Élément sentinelle pour le scroll infini */}
-                          {mediaList && visibleMediaCount < mediaList.length && (
-                            <div ref={loadMoreMediaRef} className="flex justify-center py-4 col-span-3">
-                              <Loader2 className="w-5 h-5 text-primary animate-spin" />
-                            </div>
-                          )}
                         </div>
                       </>
                     )}
