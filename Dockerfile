@@ -17,7 +17,9 @@ RUN apk add --no-cache \
     jpeg \
     pango \
     giflib \
-    pixman
+    pixman \
+    vips-dev \
+    pkgconfig
 
 # Copier les fichiers de configuration
 COPY package*.json ./
@@ -28,8 +30,11 @@ RUN npm install --legacy-peer-deps
 # Copier tout le code source
 COPY . .
 
-# Build du frontend et backend
-RUN npm run build
+# Augmenter la mémoire pour le build (résout les problèmes de mémoire avec Vite)
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+# Build du frontend et backend avec logs détaillés
+RUN npm run build 2>&1 | tee build.log || (cat build.log && exit 1)
 
 # Nettoyer les fichiers inutiles pour réduire la taille
 RUN rm -rf client node_modules/.cache
