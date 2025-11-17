@@ -103,7 +103,7 @@ export class ImageProcessor {
     const STORY_WIDTH = 1080;
     const STORY_HEIGHT = 1920;
     const TEXT_BOX_HEIGHT_RATIO = 0.25;
-    const MIN_FONT_SIZE = 24;
+    const MIN_FONT_SIZE = 12;
     const MAX_FONT_SIZE = 72;
     const PADDING = 40;
     const LINE_HEIGHT_MULTIPLIER = 1.3;
