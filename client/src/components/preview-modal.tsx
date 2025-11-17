@@ -293,7 +293,7 @@ export function PreviewModal({
     return { fontSize, lines, isTruncated };
   };
 
-  const renderInstagramStory = () => {
+  const renderStory = (platform: 'facebook' | 'instagram') => {
     const STORY_WIDTH = 360;
     const STORY_HEIGHT = 640;
     const TEXT_BOX_HEIGHT_RATIO = 0.25;
@@ -311,9 +311,15 @@ export function PreviewModal({
       <div className="bg-black rounded-lg overflow-hidden mx-auto relative" style={{ width: `${STORY_WIDTH}px`, height: `${STORY_HEIGHT}px` }}>
         {/* Header */}
         <div className="absolute top-0 left-0 right-0 p-3 flex items-center gap-3 z-20">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 flex items-center justify-center">
-            <Instagram className="w-5 h-5 text-white" />
-          </div>
+          {platform === 'instagram' ? (
+            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 flex items-center justify-center">
+              <Instagram className="w-5 h-5 text-white" />
+            </div>
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+              <Facebook className="w-5 h-5 text-white" />
+            </div>
+          )}
           <div className="flex-1">
             <div className="font-semibold text-sm text-white drop-shadow-lg">votre_page</div>
           </div>
@@ -381,6 +387,9 @@ export function PreviewModal({
     );
   };
 
+  const renderFacebookStory = () => renderStory('facebook');
+  const renderInstagramStory = () => renderStory('instagram');
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -406,6 +415,9 @@ export function PreviewModal({
                 <SelectItem value="facebook-feed" data-testid="option-facebook-feed">
                   Feed Facebook (1200x630)
                 </SelectItem>
+                <SelectItem value="facebook-story" data-testid="option-facebook-story">
+                  Story Facebook (1080x1920)
+                </SelectItem>
                 <SelectItem value="instagram-feed" data-testid="option-instagram-feed">
                   Feed Instagram (1080x1080)
                 </SelectItem>
@@ -419,6 +431,7 @@ export function PreviewModal({
           {/* Preview */}
           <div className="border rounded-lg p-6 bg-gray-50">
             {previewFormat === 'facebook-feed' && renderFacebookFeed()}
+            {previewFormat === 'facebook-story' && renderFacebookStory()}
             {previewFormat === 'instagram-feed' && renderInstagramFeed()}
             {previewFormat === 'instagram-story' && renderInstagramStory()}
           </div>
