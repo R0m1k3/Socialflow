@@ -36,11 +36,11 @@ export default function AiChat() {
   const { toast } = useToast();
 
   // Fetch available models from OpenRouter
-  const { data: modelsData, isLoading: modelsLoading } = useQuery<{ models: OpenRouterModel[] }>({
-    queryKey: ['/api/ai/models'],
+  const { data: modelsData, isLoading: modelsLoading } = useQuery<{ data: OpenRouterModel[] }>({
+    queryKey: ['/api/openrouter/models'],
   });
 
-  const availableModels = modelsData?.models || [];
+  const availableModels = modelsData?.data || [];
 
   const generateMutation = useMutation({
     mutationFn: async (productInfo: any) => {
