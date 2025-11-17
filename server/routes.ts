@@ -1155,7 +1155,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const userId = user.id;
-      const pageData = insertSocialPageSchema.parse({ ...req.body, userId });
+      
+      // Calculate token expiration date (60 days from now)
+      const tokenExpiresAt = new Date();
+      tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 60);
+      
+      const pageData = insertSocialPageSchema.parse({ 
+        ...req.body, 
+        userId,
+        tokenExpiresAt 
+      });
       const page = await storage.createSocialPage(pageData);
       res.json(page);
     } catch (error) {
