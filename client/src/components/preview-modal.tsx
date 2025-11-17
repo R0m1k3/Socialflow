@@ -16,7 +16,7 @@ interface PreviewModalProps {
   readOnly?: boolean;
 }
 
-type PreviewFormat = 'facebook-feed' | 'instagram-feed' | 'instagram-story';
+type PreviewFormat = 'facebook-feed' | 'facebook-story' | 'instagram-feed' | 'instagram-story';
 
 export function PreviewModal({
   open,
