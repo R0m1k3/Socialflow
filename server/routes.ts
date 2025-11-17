@@ -1156,9 +1156,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       
-      // Calculate token expiration date (60 days from now)
+      // Calculate token expiration date (90 days from now)
       const tokenExpiresAt = new Date();
-      tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 60);
+      tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 90);
       
       const pageData = insertSocialPageSchema.parse({ 
         ...req.body, 
@@ -1184,7 +1184,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Page non trouvée" });
       }
       
-      const pageData = insertSocialPageSchema.partial().parse(req.body);
+      let pageData = insertSocialPageSchema.partial().parse(req.body);
+      
+      // If accessToken is being updated, recalculate expiration date (90 days from now)
+      if (pageData.accessToken) {
+        const tokenExpiresAt = new Date();
+        tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 90);
+        pageData = { ...pageData, tokenExpiresAt };
+      }
+      
       const updatedPage = await storage.updateSocialPage(pageId, pageData);
       res.json(updatedPage);
     } catch (error) {
