@@ -99,6 +99,39 @@ class CloudinaryService {
       resource_type: mediaType,
     });
   }
+
+  async uploadStoryImageWithText(buffer: Buffer, originalFileName: string): Promise<string> {
+    const config = await storage.getAnyCloudinaryConfig();
+    
+    if (!config) {
+      throw new Error('Cloudinary configuration not found. Please ask an administrator to configure Cloudinary in Settings first.');
+    }
+
+    cloudinary.config({
+      cloud_name: config.cloudName,
+      api_key: config.apiKey,
+      api_secret: config.apiSecret,
+      secure: true,
+    });
+
+    const uploadResult = await new Promise<any>((resolve, reject) => {
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'social-flow/stories',
+          public_id: `story-${Date.now()}-${originalFileName.replace(/\.[^/.]+$/, '')}`,
+          resource_type: 'image',
+        },
+        (error, result) => {
+          if (error) reject(error);
+          else resolve(result);
+        }
+      );
+
+      uploadStream.end(buffer);
+    });
+
+    return uploadResult.secure_url;
+  }
 }
 
 export const cloudinaryService = new CloudinaryService();
