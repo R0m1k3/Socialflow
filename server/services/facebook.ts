@@ -1,5 +1,7 @@
 import { storage } from '../storage';
 import type { Post, SocialPage, Media } from '@shared/schema';
+import { imageProcessor } from './imageProcessor';
+import { cloudinaryService } from './cloudinary';
 
 interface FacebookPhotoResponse {
   id: string;
@@ -316,7 +318,17 @@ export class FacebookService {
     // Step 1: Upload photo as unpublished to get photo_id
     // Step 2: Publish the photo as a story using the photo_id
 
-    const photoUrl = media.originalUrl;
+    let photoUrl = media.originalUrl;
+
+    if (post.content && post.content.trim().length > 0) {
+      try {
+        const imageWithText = await imageProcessor.addTextToStoryImage(media.originalUrl, post.content);
+        photoUrl = await cloudinaryService.uploadStoryImageWithText(imageWithText, `story-${media.id}.png`);
+        console.log('Story image with text generated:', photoUrl);
+      } catch (error) {
+        console.error('Error generating story image with text, using original:', error);
+      }
+    }
 
     // Step 1: Upload photo as unpublished
     const uploadParams = new URLSearchParams({
