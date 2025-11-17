@@ -252,7 +252,7 @@ export function PreviewModal({
   };
 
   const calculateAdaptiveFontSize = (text: string, containerWidth: number, containerHeight: number): { fontSize: number; lines: string[]; isTruncated: boolean } => {
-    const MIN_FONT_SIZE = 24;
+    const MIN_FONT_SIZE = 12;
     const MAX_FONT_SIZE = 72;
     const LINE_HEIGHT_MULTIPLIER = 1.2;
     
