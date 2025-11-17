@@ -24,6 +24,7 @@ export const socialPages = pgTable("social_pages", {
   pageId: text("page_id").notNull(),
   pageName: text("page_name").notNull(),
   accessToken: text("access_token").notNull(),
+  tokenExpiresAt: timestamp("token_expires_at"),
   followersCount: integer("followers_count").default(0),
   isActive: text("is_active").notNull().default("true"),
   createdAt: timestamp("created_at").defaultNow(),

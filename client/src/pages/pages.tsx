@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Facebook, Instagram, Trash2, RefreshCw, Edit, Bug, Code } from "lucide-react";
+import { Plus, Facebook, Instagram, Trash2, RefreshCw, Edit, Bug, Code, Calendar, AlertTriangle } from "lucide-react";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,59 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SocialPage } from "@shared/schema";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+
+function getTokenExpirationStatus(expiresAt: string | null | undefined) {
+  if (!expiresAt) {
+    return { 
+      status: 'unknown' as const, 
+      color: 'text-gray-500',
+      bgColor: 'bg-gray-100',
+      daysLeft: null,
+      message: 'Date inconnue'
+    };
+  }
+
+  const now = new Date();
+  const expiration = new Date(expiresAt);
+  const diffTime = expiration.getTime() - now.getTime();
+  const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+  if (daysLeft < 0) {
+    return {
+      status: 'expired' as const,
+      color: 'text-red-600',
+      bgColor: 'bg-red-100',
+      daysLeft,
+      message: 'Expiré'
+    };
+  } else if (daysLeft <= 7) {
+    return {
+      status: 'urgent' as const,
+      color: 'text-red-600',
+      bgColor: 'bg-red-100',
+      daysLeft,
+      message: `${daysLeft} jour${daysLeft > 1 ? 's' : ''} restant${daysLeft > 1 ? 's' : ''}`
+    };
+  } else if (daysLeft <= 15) {
+    return {
+      status: 'warning' as const,
+      color: 'text-orange-600',
+      bgColor: 'bg-orange-100',
+      daysLeft,
+      message: `${daysLeft} jours restants`
+    };
+  } else {
+    return {
+      status: 'good' as const,
+      color: 'text-green-600',
+      bgColor: 'bg-green-100',
+      daysLeft,
+      message: `${daysLeft} jours restants`
+    };
+  }
+}
 
 export default function PagesManagement() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -139,30 +192,55 @@ export default function PagesManagement() {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-muted-foreground">
-                        ID: {page.pageId}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setEditingPage(page)}
-                          data-testid={`button-edit-page-${page.id}`}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => deleteMutation.mutate(page.id)}
-                          disabled={deleteMutation.isPending}
-                          data-testid={`button-delete-page-${page.id}`}
-                        >
-                          <Trash2 className="w-4 h-4 text-destructive" />
-                        </Button>
-                      </div>
+                  <CardContent className="space-y-3">
+                    <div className="text-sm text-muted-foreground">
+                      ID: {page.pageId}
+                    </div>
+                    
+                    {/* Token expiration status */}
+                    {(() => {
+                      const expirationStatus = getTokenExpirationStatus(
+                        page.tokenExpiresAt ? new Date(page.tokenExpiresAt).toISOString() : null
+                      );
+                      return (
+                        <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${expirationStatus.bgColor}`}>
+                          <Calendar className="w-4 h-4" />
+                          <div className="flex-1">
+                            <div className="font-medium">Expiration du token</div>
+                            <div className={`${expirationStatus.color} font-semibold`}>
+                              {expirationStatus.message}
+                            </div>
+                            {page.tokenExpiresAt && (
+                              <div className="text-muted-foreground mt-0.5">
+                                {format(new Date(page.tokenExpiresAt), "d MMMM yyyy", { locale: fr })}
+                              </div>
+                            )}
+                          </div>
+                          {(expirationStatus.status === 'expired' || expirationStatus.status === 'urgent') && (
+                            <AlertTriangle className="w-4 h-4 text-red-600" />
+                          )}
+                        </div>
+                      );
+                    })()}
+
+                    <div className="flex items-center justify-end gap-2 pt-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setEditingPage(page)}
+                        data-testid={`button-edit-page-${page.id}`}
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => deleteMutation.mutate(page.id)}
+                        disabled={deleteMutation.isPending}
+                        data-testid={`button-delete-page-${page.id}`}
+                      >
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
