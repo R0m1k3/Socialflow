@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -222,64 +222,164 @@ export function PreviewModal({
     </div>
   );
 
-  const renderInstagramStory = () => (
-    <div className="bg-black rounded-lg overflow-hidden max-w-sm mx-auto" style={{ aspectRatio: '9/16' }}>
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 p-3 flex items-center gap-3 z-10">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 flex items-center justify-center">
-          <Instagram className="w-5 h-5 text-white" />
-        </div>
-        <div className="flex-1">
-          <div className="font-semibold text-sm text-white drop-shadow-lg">votre_page</div>
-        </div>
-      </div>
+  const wrapText = (text: string, maxWidth: number, fontSize: number): string[] => {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return [text];
 
-      {/* Media */}
-      {orderedMedia.length > 0 && (
-        <div className="relative h-full">
-          {renderMedia(orderedMedia[currentPhotoIndex], "w-full h-full object-cover")}
-          {orderedMedia.length > 1 && (
-            <>
-              <div className="absolute top-3 left-3 right-3 flex gap-1">
-                {orderedMedia.map((_, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => goToPhoto(idx)}
-                    className={`h-1 flex-1 transition-colors rounded-full ${
-                      idx === currentPhotoIndex ? 'bg-white' : 'bg-white/50'
-                    }`}
-                    data-testid={`button-photo-indicator-${idx}`}
-                  />
-                ))}
-              </div>
-              <button
-                onClick={prevPhoto}
-                className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/30 rounded-full flex items-center justify-center hover:bg-black/50 transition-colors"
-                data-testid="button-prev-photo"
-              >
-                <ChevronLeft className="w-6 h-6 text-white" />
-              </button>
-              <button
-                onClick={nextPhoto}
-                className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/30 rounded-full flex items-center justify-center hover:bg-black/50 transition-colors"
-                data-testid="button-next-photo"
-              >
-                <ChevronRight className="w-6 h-6 text-white" />
-              </button>
-            </>
-          )}
-          {/* Text overlay */}
-          {postText && (
-            <div className="absolute bottom-20 left-0 right-0 p-4">
-              <div className="bg-black/50 backdrop-blur-sm rounded-lg p-3">
-                <p className="text-white text-sm text-center">{postText}</p>
-              </div>
-            </div>
-          )}
+    ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+    const words = text.split(' ');
+    const lines: string[] = [];
+    let currentLine = '';
+
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      const metrics = ctx.measureText(testLine);
+      
+      if (metrics.width > maxWidth && currentLine) {
+        lines.push(currentLine);
+        currentLine = word;
+      } else {
+        currentLine = testLine;
+      }
+    }
+    
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+
+    return lines;
+  };
+
+  const calculateAdaptiveFontSize = (text: string, containerWidth: number, containerHeight: number): { fontSize: number; lines: string[]; isTruncated: boolean } => {
+    const MIN_FONT_SIZE = 24;
+    const MAX_FONT_SIZE = 72;
+    const LINE_HEIGHT_MULTIPLIER = 1.2;
+    
+    let fontSize = MAX_FONT_SIZE;
+    let lines: string[] = [];
+    let totalTextHeight = 0;
+    
+    while (fontSize >= MIN_FONT_SIZE) {
+      lines = wrapText(text, containerWidth, fontSize);
+      const lineHeight = fontSize * LINE_HEIGHT_MULTIPLIER;
+      totalTextHeight = lines.length * lineHeight;
+      
+      if (totalTextHeight <= containerHeight) {
+        break;
+      }
+      
+      fontSize -= 2;
+    }
+
+    let isTruncated = false;
+    
+    if (fontSize < MIN_FONT_SIZE) {
+      fontSize = MIN_FONT_SIZE;
+      lines = wrapText(text, containerWidth, fontSize);
+      const lineHeight = fontSize * LINE_HEIGHT_MULTIPLIER;
+      totalTextHeight = lines.length * lineHeight;
+      
+      const maxLines = Math.floor(containerHeight / lineHeight);
+      if (lines.length > maxLines) {
+        lines = lines.slice(0, maxLines);
+        if (lines[maxLines - 1]) {
+          lines[maxLines - 1] = lines[maxLines - 1].substring(0, lines[maxLines - 1].length - 3) + '...';
+        }
+        isTruncated = true;
+      }
+    }
+
+    return { fontSize, lines, isTruncated };
+  };
+
+  const renderInstagramStory = () => {
+    const STORY_WIDTH = 360;
+    const STORY_HEIGHT = 640;
+    const TEXT_BOX_HEIGHT_RATIO = 0.25;
+    const PADDING = 16;
+    
+    const textBoxHeight = STORY_HEIGHT * TEXT_BOX_HEIGHT_RATIO;
+    const maxTextWidth = STORY_WIDTH - (PADDING * 2);
+    const maxTextHeight = textBoxHeight - (PADDING * 2);
+
+    const { fontSize, lines } = postText 
+      ? calculateAdaptiveFontSize(postText, maxTextWidth, maxTextHeight)
+      : { fontSize: 24, lines: [] };
+
+    return (
+      <div className="bg-black rounded-lg overflow-hidden mx-auto relative" style={{ width: `${STORY_WIDTH}px`, height: `${STORY_HEIGHT}px` }}>
+        {/* Header */}
+        <div className="absolute top-0 left-0 right-0 p-3 flex items-center gap-3 z-20">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 flex items-center justify-center">
+            <Instagram className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1">
+            <div className="font-semibold text-sm text-white drop-shadow-lg">votre_page</div>
+          </div>
         </div>
-      )}
-    </div>
-  );
+
+        {/* Media */}
+        {orderedMedia.length > 0 && (
+          <div className="relative w-full h-full">
+            {renderMedia(orderedMedia[currentPhotoIndex], "w-full h-full object-cover")}
+            {orderedMedia.length > 1 && (
+              <>
+                <div className="absolute top-3 left-3 right-3 flex gap-1 z-20">
+                  {orderedMedia.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => goToPhoto(idx)}
+                      className={`h-1 flex-1 transition-colors rounded-full ${
+                        idx === currentPhotoIndex ? 'bg-white' : 'bg-white/50'
+                      }`}
+                      data-testid={`button-photo-indicator-${idx}`}
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={prevPhoto}
+                  className="absolute left-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/30 rounded-full flex items-center justify-center hover:bg-black/50 transition-colors z-20"
+                  data-testid="button-prev-photo"
+                >
+                  <ChevronLeft className="w-6 h-6 text-white" />
+                </button>
+                <button
+                  onClick={nextPhoto}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-10 h-10 bg-black/30 rounded-full flex items-center justify-center hover:bg-black/50 transition-colors z-20"
+                  data-testid="button-next-photo"
+                >
+                  <ChevronRight className="w-6 h-6 text-white" />
+                </button>
+              </>
+            )}
+            
+            {/* Text overlay box - matching exact server rendering */}
+            {postText && (
+              <div 
+                className="absolute bottom-0 left-0 right-0 flex items-center justify-center z-10"
+                style={{ height: `${TEXT_BOX_HEIGHT_RATIO * 100}%` }}
+              >
+                <div className="absolute inset-0 bg-black/60" />
+                <div 
+                  className="relative text-white text-center font-bold leading-tight"
+                  style={{ 
+                    fontSize: `${fontSize}px`,
+                    padding: `${PADDING}px`,
+                    lineHeight: '1.2'
+                  }}
+                >
+                  {lines.map((line, idx) => (
+                    <div key={idx}>{line}</div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
