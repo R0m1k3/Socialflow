@@ -222,13 +222,28 @@ export function PreviewModal({
     </div>
   );
 
+  /**
+   * Removes emojis from text since they don't display well in some contexts
+   */
+  const removeEmojis = (text: string): string => {
+    return text
+      .replace(/[\u2600-\u26FF]/g, '') // Misc symbols
+      .replace(/[\u2700-\u27BF]/g, '') // Dingbats
+      .replace(/[\uD800-\uDFFF]/g, '') // Surrogate pairs (emoji range)
+      .replace(/[\uFE00-\uFE0F]/g, '') // Variation selectors
+      .replace(/\s+/g, ' ') // Normalize whitespace
+      .trim();
+  };
+
   const wrapText = (text: string, maxWidth: number, fontSize: number): string[] => {
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     if (!ctx) return [text];
 
+    // Remove emojis for better text rendering
+    const cleanText = removeEmojis(text);
     ctx.font = `bold ${fontSize}px Arial, sans-serif`;
-    const words = text.split(' ');
+    const words = cleanText.split(' ');
     const lines: string[] = [];
     let currentLine = '';
 
@@ -237,8 +252,27 @@ export function PreviewModal({
       const metrics = ctx.measureText(testLine);
       
       if (metrics.width > maxWidth && currentLine) {
+        // Current line would exceed width, push it and start new line
         lines.push(currentLine);
         currentLine = word;
+        
+        // Check if the word itself is too long for a single line
+        const wordMetrics = ctx.measureText(word);
+        if (wordMetrics.width > maxWidth) {
+          // Word is too long, need to break it into chunks
+          const chunks = breakLongWord(ctx, word, maxWidth);
+          for (let i = 0; i < chunks.length - 1; i++) {
+            lines.push(chunks[i]);
+          }
+          currentLine = chunks[chunks.length - 1];
+        }
+      } else if (metrics.width > maxWidth && !currentLine) {
+        // First word is too long, need to break it
+        const chunks = breakLongWord(ctx, word, maxWidth);
+        for (let i = 0; i < chunks.length - 1; i++) {
+          lines.push(chunks[i]);
+        }
+        currentLine = chunks[chunks.length - 1];
       } else {
         currentLine = testLine;
       }
@@ -249,6 +283,33 @@ export function PreviewModal({
     }
 
     return lines;
+  };
+
+  /**
+   * Breaks a long word into chunks that fit within maxWidth
+   */
+  const breakLongWord = (ctx: CanvasRenderingContext2D, word: string, maxWidth: number): string[] => {
+    const chunks: string[] = [];
+    let currentChunk = '';
+    
+    for (let i = 0; i < word.length; i++) {
+      const char = word[i];
+      const testChunk = currentChunk + char;
+      const metrics = ctx.measureText(testChunk);
+      
+      if (metrics.width > maxWidth && currentChunk) {
+        chunks.push(currentChunk);
+        currentChunk = char;
+      } else {
+        currentChunk = testChunk;
+      }
+    }
+    
+    if (currentChunk) {
+      chunks.push(currentChunk);
+    }
+    
+    return chunks.length > 0 ? chunks : [word];
   };
 
   const calculateAdaptiveFontSize = (text: string, containerWidth: number, containerHeight: number): { fontSize: number; lines: string[]; isTruncated: boolean } => {
