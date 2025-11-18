@@ -19,7 +19,9 @@ RUN apk add --no-cache \
     giflib \
     pixman \
     vips-dev \
-    pkgconfig
+    pkgconfig \
+    ttf-dejavu \
+    fontconfig
 
 # Copier les fichiers de configuration
 COPY package*.json ./

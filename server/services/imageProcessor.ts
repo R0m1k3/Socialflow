@@ -21,6 +21,15 @@ const CROP_FORMATS = {
   instagramStory: { width: 1080, height: 1920 } as CropDimensions,
 };
 
+// Register DejaVu Sans font for proper character rendering
+try {
+  const fontPath = path.join(process.cwd(), "server", "fonts", "DejaVuSans.ttf");
+  registerFont(fontPath, { family: 'DejaVu Sans' });
+  console.log('✓ Font DejaVu Sans enregistrée avec succès');
+} catch (error) {
+  console.error('Erreur lors de l\'enregistrement de la police:', error);
+}
+
 export class ImageProcessor {
   private uploadsDir: string;
 
@@ -150,7 +159,7 @@ export class ImageProcessor {
     let totalTextHeight = 0;
 
     while (fontSize >= MIN_FONT_SIZE) {
-      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      ctx.font = `bold ${fontSize}px "DejaVu Sans", Arial, sans-serif`;
       
       lines = this.wrapText(ctx, text, maxTextWidth);
       const lineHeight = fontSize * LINE_HEIGHT_MULTIPLIER;
@@ -165,7 +174,7 @@ export class ImageProcessor {
 
     if (fontSize < MIN_FONT_SIZE) {
       fontSize = MIN_FONT_SIZE;
-      ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+      ctx.font = `bold ${fontSize}px "DejaVu Sans", Arial, sans-serif`;
       lines = this.wrapText(ctx, text, maxTextWidth);
       const lineHeight = fontSize * LINE_HEIGHT_MULTIPLIER;
       totalTextHeight = lines.length * lineHeight;
