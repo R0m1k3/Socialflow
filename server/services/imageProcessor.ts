@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs/promises";
 import { createCanvas, loadImage, registerFont } from "canvas";
+import { removeEmojis } from "@shared/emoji";
 
 interface CropDimensions {
   width: number;
@@ -116,6 +117,9 @@ export class ImageProcessor {
     const MAX_FONT_SIZE = 72;
     const PADDING = 40;
     const LINE_HEIGHT_MULTIPLIER = 1.3;
+    
+    // Remove emojis from text as canvas doesn't support them
+    const cleanText = removeEmojis(text);
 
     const canvas = createCanvas(STORY_WIDTH, STORY_HEIGHT);
     const ctx = canvas.getContext('2d');
@@ -161,7 +165,7 @@ export class ImageProcessor {
     while (fontSize >= MIN_FONT_SIZE) {
       ctx.font = `bold ${fontSize}px "DejaVu Sans", Arial, sans-serif`;
       
-      lines = this.wrapText(ctx, text, maxTextWidth);
+      lines = this.wrapText(ctx, cleanText, maxTextWidth);
       const lineHeight = fontSize * LINE_HEIGHT_MULTIPLIER;
       totalTextHeight = lines.length * lineHeight;
 
@@ -175,7 +179,7 @@ export class ImageProcessor {
     if (fontSize < MIN_FONT_SIZE) {
       fontSize = MIN_FONT_SIZE;
       ctx.font = `bold ${fontSize}px "DejaVu Sans", Arial, sans-serif`;
-      lines = this.wrapText(ctx, text, maxTextWidth);
+      lines = this.wrapText(ctx, cleanText, maxTextWidth);
       const lineHeight = fontSize * LINE_HEIGHT_MULTIPLIER;
       totalTextHeight = lines.length * lineHeight;
       
@@ -214,8 +218,27 @@ export class ImageProcessor {
       const metrics = ctx.measureText(testLine);
       
       if (metrics.width > maxWidth && currentLine) {
+        // Current line would exceed width, push it and start new line
         lines.push(currentLine);
         currentLine = word;
+        
+        // Check if the word itself is too long for a single line
+        const wordMetrics = ctx.measureText(word);
+        if (wordMetrics.width > maxWidth) {
+          // Word is too long, need to break it into chunks
+          const chunks = this.breakLongWord(ctx, word, maxWidth);
+          for (let i = 0; i < chunks.length - 1; i++) {
+            lines.push(chunks[i]);
+          }
+          currentLine = chunks[chunks.length - 1];
+        }
+      } else if (metrics.width > maxWidth && !currentLine) {
+        // First word is too long, need to break it
+        const chunks = this.breakLongWord(ctx, word, maxWidth);
+        for (let i = 0; i < chunks.length - 1; i++) {
+          lines.push(chunks[i]);
+        }
+        currentLine = chunks[chunks.length - 1];
       } else {
         currentLine = testLine;
       }
@@ -226,6 +249,33 @@ export class ImageProcessor {
     }
 
     return lines;
+  }
+
+  /**
+   * Breaks a long word into chunks that fit within maxWidth
+   */
+  private breakLongWord(ctx: any, word: string, maxWidth: number): string[] {
+    const chunks: string[] = [];
+    let currentChunk = '';
+    
+    for (let i = 0; i < word.length; i++) {
+      const char = word[i];
+      const testChunk = currentChunk + char;
+      const metrics = ctx.measureText(testChunk);
+      
+      if (metrics.width > maxWidth && currentChunk) {
+        chunks.push(currentChunk);
+        currentChunk = char;
+      } else {
+        currentChunk = testChunk;
+      }
+    }
+    
+    if (currentChunk) {
+      chunks.push(currentChunk);
+    }
+    
+    return chunks.length > 0 ? chunks : [word];
   }
 }
 
