@@ -23,7 +23,8 @@ RUN apk add --no-cache \
     ttf-dejavu \
     fontconfig \
     curl \
-    tar
+    tar \
+    bzip2
 
 # Copier les fichiers de configuration
 COPY package*.json ./
@@ -37,10 +38,15 @@ COPY . .
 # Télécharger et installer la police DejaVu Sans pour le rendu de texte
 RUN mkdir -p server/fonts && \
     cd server/fonts && \
-    curl -L -o dejavu.tar.bz2 "https://sourceforge.net/projects/dejavu/files/dejavu/2.37/dejavu-fonts-ttf-2.37.tar.bz2/download" && \
+    echo "Téléchargement de la police DejaVu Sans..." && \
+    curl -L -f --retry 3 --retry-delay 2 -o dejavu.tar.bz2 "https://sourceforge.net/projects/dejavu/files/dejavu/2.37/dejavu-fonts-ttf-2.37.tar.bz2/download" && \
+    echo "Extraction de l'archive..." && \
     tar -xjf dejavu.tar.bz2 && \
+    echo "Installation de la police..." && \
     cp dejavu-fonts-ttf-2.37/ttf/DejaVuSans.ttf . && \
-    rm -rf dejavu.tar.bz2 dejavu-fonts-ttf-2.37
+    ls -lh DejaVuSans.ttf && \
+    rm -rf dejavu.tar.bz2 dejavu-fonts-ttf-2.37 && \
+    echo "✓ Police DejaVu Sans installée avec succès"
 
 # Augmenter la mémoire pour le build (résout les problèmes de mémoire avec Vite)
 ENV NODE_OPTIONS="--max-old-space-size=4096"
