@@ -127,9 +127,43 @@ export class FacebookService {
     return data.post_id || data.id;
   }
 
+  /**
+   * Generates a Facebook-compatible video URL with Cloudinary transformations
+   * Facebook requires: H.264 video codec, AAC audio codec, MP4 container
+   */
+  private getFacebookCompatibleVideoUrl(originalUrl: string): string {
+    // Check if this is a Cloudinary URL
+    const cloudinaryPattern = /https:\/\/res\.cloudinary\.com\/([^\/]+)\/video\/upload\//;
+    const match = originalUrl.match(cloudinaryPattern);
+    
+    if (!match) {
+      // Not a Cloudinary URL, return as-is (may fail on Facebook)
+      console.warn('Video URL is not from Cloudinary, cannot apply transformations:', originalUrl);
+      return originalUrl;
+    }
+
+    const [fullMatch, cloudName] = match;
+    const videoPath = originalUrl.replace(fullMatch, '');
+    
+    // Apply transformations for Facebook compatibility:
+    // - vc_h264: Video codec H.264
+    // - ac_aac: Audio codec AAC
+    // - f_mp4: Force MP4 format
+    // - q_auto: Automatic quality optimization
+    const transformations = 'vc_h264,ac_aac,f_mp4,q_auto';
+    
+    const transformedUrl = `https://res.cloudinary.com/${cloudName}/video/upload/${transformations}/${videoPath}`;
+    
+    console.log('🎬 Transforming video for Facebook compatibility:');
+    console.log('   Original:', originalUrl);
+    console.log('   Transformed:', transformedUrl);
+    
+    return transformedUrl;
+  }
+
   private async publishVideoPost(post: Post, page: SocialPage, media: Media): Promise<string> {
-    // Use original URL for video
-    const videoUrl = media.originalUrl;
+    // Transform video URL to ensure Facebook compatibility (H.264/AAC/MP4)
+    const videoUrl = this.getFacebookCompatibleVideoUrl(media.originalUrl);
 
     const params = new URLSearchParams({
       access_token: page.accessToken!,
