@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight, Send, Facebook, Instagram, Heart, MessageCircle, Share2, Bookmark } from 'lucide-react';
 import type { Media } from '@shared/schema';
+import { removeEmojis } from '@shared/emoji';
 
 interface PreviewModalProps {
   open: boolean;
@@ -221,19 +222,6 @@ export function PreviewModal({
       )}
     </div>
   );
-
-  /**
-   * Removes emojis from text since they don't display well in some contexts
-   */
-  const removeEmojis = (text: string): string => {
-    return text
-      .replace(/[\u2600-\u26FF]/g, '') // Misc symbols
-      .replace(/[\u2700-\u27BF]/g, '') // Dingbats
-      .replace(/[\uD800-\uDFFF]/g, '') // Surrogate pairs (emoji range)
-      .replace(/[\uFE00-\uFE0F]/g, '') // Variation selectors
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .trim();
-  };
 
   const wrapText = (text: string, maxWidth: number, fontSize: number): string[] => {
     const canvas = document.createElement('canvas');

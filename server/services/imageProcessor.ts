@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs/promises";
 import { createCanvas, loadImage, registerFont } from "canvas";
+import { removeEmojis } from "@shared/emoji";
 
 interface CropDimensions {
   width: number;
@@ -108,21 +109,6 @@ export class ImageProcessor {
     }
   }
 
-  /**
-   * Removes emojis from text since canvas doesn't support them natively
-   */
-  private removeEmojis(text: string): string {
-    // Remove emojis and other unicode symbols that canvas can't render
-    // Using a regex that removes emoji-like characters
-    return text
-      .replace(/[\u2600-\u26FF]/g, '') // Misc symbols
-      .replace(/[\u2700-\u27BF]/g, '') // Dingbats
-      .replace(/[\uD800-\uDFFF]/g, '') // Surrogate pairs (emoji range)
-      .replace(/[\uFE00-\uFE0F]/g, '') // Variation selectors
-      .replace(/\s+/g, ' ') // Normalize whitespace
-      .trim();
-  }
-
   async addTextToStoryImage(imageUrl: string, text: string): Promise<Buffer> {
     const STORY_WIDTH = 1080;
     const STORY_HEIGHT = 1920;
@@ -133,7 +119,7 @@ export class ImageProcessor {
     const LINE_HEIGHT_MULTIPLIER = 1.3;
     
     // Remove emojis from text as canvas doesn't support them
-    const cleanText = this.removeEmojis(text);
+    const cleanText = removeEmojis(text);
 
     const canvas = createCanvas(STORY_WIDTH, STORY_HEIGHT);
     const ctx = canvas.getContext('2d');
