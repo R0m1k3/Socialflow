@@ -1247,9 +1247,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       
-      // Calculate token expiration date (90 days from now)
+      // Calculate token expiration date (60 days from now)
       const tokenExpiresAt = new Date();
-      tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 90);
+      tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 60);
       
       const pageData = insertSocialPageSchema.parse({ 
         ...req.body, 
@@ -1277,10 +1277,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let pageData = insertSocialPageSchema.partial().parse(req.body);
       
-      // If accessToken is being updated, recalculate expiration date (90 days from now)
+      // If accessToken is being updated, recalculate expiration date (60 days from now)
       if (pageData.accessToken) {
         const tokenExpiresAt = new Date();
-        tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 90);
+        tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 60);
         pageData = { ...pageData, tokenExpiresAt };
       }
       
