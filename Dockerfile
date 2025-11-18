@@ -21,7 +21,9 @@ RUN apk add --no-cache \
     vips-dev \
     pkgconfig \
     ttf-dejavu \
-    fontconfig
+    fontconfig \
+    curl \
+    tar
 
 # Copier les fichiers de configuration
 COPY package*.json ./
@@ -31,6 +33,14 @@ RUN npm install --legacy-peer-deps
 
 # Copier tout le code source
 COPY . .
+
+# Télécharger et installer la police DejaVu Sans pour le rendu de texte
+RUN mkdir -p server/fonts && \
+    cd server/fonts && \
+    curl -L -o dejavu.tar.bz2 "https://sourceforge.net/projects/dejavu/files/dejavu/2.37/dejavu-fonts-ttf-2.37.tar.bz2/download" && \
+    tar -xjf dejavu.tar.bz2 && \
+    cp dejavu-fonts-ttf-2.37/ttf/DejaVuSans.ttf . && \
+    rm -rf dejavu.tar.bz2 dejavu-fonts-ttf-2.37
 
 # Augmenter la mémoire pour le build (résout les problèmes de mémoire avec Vite)
 ENV NODE_OPTIONS="--max-old-space-size=4096"
