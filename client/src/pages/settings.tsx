@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain, Image, Upload, X } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
@@ -23,6 +23,8 @@ export default function Settings() {
   const [openrouterApiKey, setOpenrouterApiKey] = useState("");
   const [openrouterModel, setOpenrouterModel] = useState("anthropic/claude-3.5-sonnet");
   const [openrouterSystemPrompt, setOpenrouterSystemPrompt] = useState("Tu es un expert en marketing des réseaux sociaux. Génère 3 variations de textes engageants pour des publications Facebook et Instagram à partir des informations produit fournies. Chaque variation doit être unique, captivante et optimisée pour l'engagement.");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const { toast } = useToast();
 
   const { data: cloudinaryConfig } = useQuery({
@@ -41,6 +43,13 @@ export default function Settings() {
     if (cloudinaryConfig) {
       setCloudName((cloudinaryConfig as any).cloudName || "");
       setApiKey((cloudinaryConfig as any).apiKey || "");
+      
+      // Set logo preview if exists
+      if ((cloudinaryConfig as any).logoPublicId) {
+        const cloudName = (cloudinaryConfig as any).cloudName;
+        const logoPublicId = (cloudinaryConfig as any).logoPublicId;
+        setLogoPreview(`https://res.cloudinary.com/${cloudName}/image/upload/${logoPublicId}`);
+      }
     }
   }, [cloudinaryConfig]);
 
@@ -118,6 +127,82 @@ export default function Settings() {
       });
     },
   });
+
+  const uploadLogoMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('logo', file);
+      
+      const response = await fetch('/api/cloudinary/logo', {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Failed to upload logo');
+      }
+      
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cloudinary/config'] });
+      toast({
+        title: "Logo uploadé",
+        description: "Votre logo a été enregistré avec succès",
+      });
+      setLogoFile(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible d'uploader le logo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteLogoMutation = useMutation({
+    mutationFn: () => apiRequest('DELETE', '/api/cloudinary/logo', {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/cloudinary/config'] });
+      setLogoPreview(null);
+      setLogoFile(null);
+      toast({
+        title: "Logo supprimé",
+        description: "Votre logo a été supprimé avec succès",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de supprimer le logo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Erreur",
+          description: "Veuillez sélectionner une image",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -328,6 +413,104 @@ export default function Settings() {
                 >
                   {saveCloudinaryMutation.isPending ? "Enregistrement..." : "Enregistrer Cloudinary"}
                 </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border-border/50 shadow-lg">
+              <CardHeader className="p-6">
+                <CardTitle className="flex items-center gap-2">
+                  <Image className="w-5 h-5" />
+                  Logo de l'entreprise
+                </CardTitle>
+                <CardDescription>
+                  Uploadez votre logo pour l'ajouter aux images éditées
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {logoPreview ? (
+                  <div className="space-y-4">
+                    <div className="relative w-full max-w-xs mx-auto">
+                      <img 
+                        src={logoPreview} 
+                        alt="Logo" 
+                        className="w-full h-auto max-h-48 object-contain rounded-lg border-2 border-border"
+                      />
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        className="absolute top-2 right-2 h-8 w-8"
+                        onClick={() => deleteLogoMutation.mutate()}
+                        disabled={deleteLogoMutation.isPending}
+                        data-testid="button-delete-logo"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="text-center">
+                      <Label htmlFor="logo-upload-replace" className="cursor-pointer">
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          disabled={uploadLogoMutation.isPending}
+                          data-testid="button-replace-logo"
+                          onClick={() => document.getElementById('logo-upload-replace')?.click()}
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          {uploadLogoMutation.isPending ? "Upload en cours..." : "Remplacer le logo"}
+                        </Button>
+                      </Label>
+                      <input
+                        id="logo-upload-replace"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          handleLogoChange(e);
+                          if (e.target.files?.[0]) {
+                            uploadLogoMutation.mutate(e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                      <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground mb-4">
+                        Aucun logo uploadé. Choisissez une image PNG ou JPG.
+                      </p>
+                      <Label htmlFor="logo-upload" className="cursor-pointer">
+                        <Button
+                          variant="outline"
+                          disabled={uploadLogoMutation.isPending || !cloudinaryConfig}
+                          data-testid="button-upload-logo"
+                          onClick={() => document.getElementById('logo-upload')?.click()}
+                        >
+                          <Upload className="w-4 h-4 mr-2" />
+                          {uploadLogoMutation.isPending ? "Upload en cours..." : "Uploader un logo"}
+                        </Button>
+                      </Label>
+                      <input
+                        id="logo-upload"
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          handleLogoChange(e);
+                          if (e.target.files?.[0]) {
+                            uploadLogoMutation.mutate(e.target.files[0]);
+                          }
+                        }}
+                      />
+                    </div>
+                    {!cloudinaryConfig && (
+                      <p className="text-xs text-orange-600 dark:text-orange-400 text-center">
+                        Veuillez d'abord configurer Cloudinary ci-dessus
+                      </p>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
