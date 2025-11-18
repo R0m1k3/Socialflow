@@ -6,6 +6,11 @@ Social Flow is an AI-powered social media automation platform designed to stream
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes
+
+### November 18, 2025
+- **Facebook Video Codec Compatibility Fix**: Fixed issue where MP4 videos uploaded to Facebook would not play correctly due to codec incompatibility. Facebook requires strict video format: H.264 video codec, AAC audio codec, and MP4 container. Solution: Added automatic video transcoding via Cloudinary transformations. When publishing a video to Facebook, the system now transforms the Cloudinary URL to include `vc_h264,ac_aac,f_mp4,q_auto` parameters, ensuring all videos are automatically re-encoded to Facebook-compatible format before publication. The getFacebookCompatibleVideoUrl() method detects Cloudinary video URLs and applies the necessary transformations transparently. Non-Cloudinary URLs are passed through unchanged with a warning. This ensures reliable video playback on Facebook without requiring users to manually re-encode their videos. Files modified: `server/services/facebook.ts`.
+
 ## System Architecture
 
 ### Frontend Architecture
