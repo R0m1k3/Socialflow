@@ -36,6 +36,7 @@ export const cloudinaryConfig = pgTable("cloudinary_config", {
   cloudName: text("cloud_name").notNull(),
   apiKey: text("api_key").notNull(),
   apiSecret: text("api_secret").notNull(),
+  logoPublicId: text("logo_public_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

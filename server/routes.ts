@@ -521,7 +521,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // IMPORTANT: This must be BEFORE /api/media/:id to avoid being intercepted by :id parameter
   app.post("/api/media/apply-overlays", requireAuth, async (req, res) => {
     try {
-      const { imageUrl, ribbon, priceBadge } = req.body;
+      const { imageUrl, ribbon, priceBadge, logo } = req.body;
       const user = req.user as User;
       const userId = user.id;
 
@@ -533,6 +533,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("📥 Image URL:", imageUrl);
       console.log("🎀 Ribbon:", ribbon);
       console.log("💰 Price Badge:", priceBadge);
+      console.log("🏢 Logo:", logo);
 
       // Download image from URL
       const imageResponse = await fetch(imageUrl);
@@ -655,6 +656,86 @@ export async function registerRoutes(app: Express): Promise<Server> {
           top: y,
           left: x
         });
+      }
+
+      // Add logo overlay
+      if (logo && logo.enabled) {
+        console.log("🏢 Adding logo overlay...");
+        
+        // Get Cloudinary config to get logo public ID
+        const cloudinaryConfig = await storage.getAnyCloudinaryConfig();
+        if (cloudinaryConfig && cloudinaryConfig.logoPublicId) {
+          try {
+            // Build logo URL from Cloudinary
+            const logoUrl = `https://res.cloudinary.com/${cloudinaryConfig.cloudName}/image/upload/${cloudinaryConfig.logoPublicId}`;
+            console.log("📥 Downloading logo from:", logoUrl);
+            
+            // Download logo
+            const logoResponse = await fetch(logoUrl);
+            const logoBuffer = Buffer.from(await logoResponse.arrayBuffer());
+            
+            // Determine logo size based on selection
+            const logoSizes = {
+              small: Math.round(width * 0.15),   // 15% of image width
+              medium: Math.round(width * 0.25),  // 25% of image width
+              large: Math.round(width * 0.35)    // 35% of image width
+            };
+            const logoWidth = logoSizes[logo.size as keyof typeof logoSizes] || logoSizes.medium;
+            
+            // Resize logo preserving aspect ratio and apply opacity
+            const resizedLogo = await sharp(logoBuffer)
+              .resize({ width: logoWidth, fit: 'contain' })
+              .ensureAlpha()
+              .toBuffer();
+            
+            // Get resized logo dimensions
+            const logoMetadata = await sharp(resizedLogo).metadata();
+            const logoHeight = logoMetadata.height || logoWidth;
+            
+            // Calculate position with padding
+            const padding = 20;
+            let logoX = padding;
+            let logoY = padding;
+            
+            if (logo.position === 'north_east') {
+              logoX = width - logoWidth - padding;
+            } else if (logo.position === 'south_west') {
+              logoY = height - logoHeight - padding;
+            } else if (logo.position === 'south_east') {
+              logoX = width - logoWidth - padding;
+              logoY = height - logoHeight - padding;
+            } else if (logo.position === 'center') {
+              logoX = Math.round((width - logoWidth) / 2);
+              logoY = Math.round((height - logoHeight) / 2);
+            }
+            
+            // Apply opacity by manipulating alpha channel
+            let logoWithOpacity = resizedLogo;
+            if (logo.opacity < 100) {
+              // Create a semi-transparent version of the logo
+              const opacityFactor = logo.opacity / 100;
+              logoWithOpacity = await sharp(resizedLogo)
+                .ensureAlpha()
+                .linear(opacityFactor, 0)
+                .toBuffer();
+            }
+            
+            // Add logo overlay
+            overlays.push({
+              input: logoWithOpacity,
+              top: logoY,
+              left: logoX,
+              blend: 'over'
+            });
+            
+            console.log(`✅ Logo added at position ${logo.position} with ${logo.opacity}% opacity`);
+          } catch (logoError) {
+            console.error("⚠️  Failed to apply logo:", logoError);
+            // Continue without logo if it fails
+          }
+        } else {
+          console.log("⚠️  No logo configured in settings");
+        }
       }
 
       // Apply all overlays
@@ -1292,6 +1373,83 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error saving Cloudinary config:", error);
       res.status(500).json({ error: "Failed to save Cloudinary config" });
+    }
+  });
+
+  // Upload company logo
+  app.post("/api/cloudinary/logo", requireAdmin, upload.single("logo"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No logo file uploaded" });
+      }
+
+      const user = req.user as User;
+      const userId = user.id;
+
+      // Check if Cloudinary is configured
+      const cloudinaryConfig = await storage.getCloudinaryConfig(userId);
+      if (!cloudinaryConfig) {
+        return res.status(400).json({ 
+          error: "Cloudinary not configured. Please configure Cloudinary first." 
+        });
+      }
+
+      // Delete old logo if exists
+      if (cloudinaryConfig.logoPublicId) {
+        try {
+          await cloudinaryService.deleteLogo(cloudinaryConfig.logoPublicId);
+        } catch (error) {
+          console.warn("Failed to delete old logo:", error);
+          // Continue anyway - not critical
+        }
+      }
+
+      // Upload new logo to Cloudinary
+      const uploadResult = await cloudinaryService.uploadLogo(
+        req.file.buffer,
+        req.file.originalname
+      );
+
+      // Update config with new logo public ID
+      const updatedConfig = await storage.updateCloudinaryConfig(userId, {
+        logoPublicId: uploadResult.publicId,
+      });
+
+      res.json({
+        logoPublicId: uploadResult.publicId,
+        logoUrl: uploadResult.url,
+      });
+    } catch (error) {
+      console.error("Error uploading logo:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload logo";
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
+  // Delete company logo
+  app.delete("/api/cloudinary/logo", requireAdmin, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const userId = user.id;
+
+      const cloudinaryConfig = await storage.getCloudinaryConfig(userId);
+      if (!cloudinaryConfig || !cloudinaryConfig.logoPublicId) {
+        return res.status(404).json({ error: "No logo found" });
+      }
+
+      // Delete from Cloudinary
+      await cloudinaryService.deleteLogo(cloudinaryConfig.logoPublicId);
+
+      // Remove from config
+      await storage.updateCloudinaryConfig(userId, {
+        logoPublicId: null,
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting logo:", error);
+      const errorMessage = error instanceof Error ? error.message : "Failed to delete logo";
+      res.status(500).json({ error: errorMessage });
     }
   });
 

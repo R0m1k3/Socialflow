@@ -35,19 +35,7 @@ interface Logo {
   enabled: boolean;
   opacity: number;
   position: "north_east" | "south_east" | "north_west" | "south_west" | "center";
-}
-
-interface Filters {
-  brightness: number;
-  contrast: number;
-  saturation: number;
-  blur: number;
-  sharpen: number;
-  vibrance: number;
-  hue: number;
-  gamma: number;
-  vignette: number;
-  effect: "none" | "grayscale" | "sepia" | "vintage" | "incognito" | "athena" | "audrey";
+  size: "small" | "medium" | "large";
 }
 
 export default function ImageEditor() {
@@ -72,20 +60,8 @@ export default function ImageEditor() {
   const [logo, setLogo] = useState<Logo>({
     enabled: false,
     opacity: 60,
-    position: "south_east"
-  });
-  
-  const [filters, setFilters] = useState<Filters>({
-    brightness: 0,
-    contrast: 0,
-    saturation: 0,
-    blur: 0,
-    sharpen: 0,
-    vibrance: 0,
-    hue: 0,
-    gamma: 0,
-    vignette: 0,
-    effect: "none"
+    position: "south_east",
+    size: "medium"
   });
 
   const [previewUrl, setPreviewUrl] = useState<string>("");
@@ -94,58 +70,30 @@ export default function ImageEditor() {
     queryKey: ["/api/media"],
   });
 
+  const { data: cloudinaryConfig } = useQuery({
+    queryKey: ['/api/cloudinary/config'],
+  });
+
   const previewRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
-  // Save edited image mutation - DOM capture with html-to-image
+  // Save edited image mutation - Server-side processing with Sharp
   const saveImageMutation = useMutation({
     mutationFn: async () => {
-      if (!selectedMedia || !previewRef.current) {
+      if (!selectedMedia) {
         throw new Error("Aucune image sélectionnée");
       }
 
-      // Capture preview exactly as displayed (no scaling)
-      const dataUrl = await toPng(previewRef.current, {
-        quality: 0.95,
-        pixelRatio: 1, // Keep 1:1 - no zoom
-      });
+      // Send image URL and overlay parameters to backend
+      const payload = {
+        imageUrl: selectedMedia.originalUrl,
+        ribbon: ribbon.enabled ? ribbon : undefined,
+        priceBadge: priceBadge.enabled && priceBadge.price ? priceBadge : undefined,
+        logo: logo.enabled ? logo : undefined,
+      };
 
-      // Convert data URL to blob
-      const response = await fetch(dataUrl);
-      let blob = await response.blob();
-      
-      // Compress if needed to stay under Cloudinary limit
-      if (blob.size > 8 * 1024 * 1024) {
-        const img = new Image();
-        img.src = dataUrl;
-        await new Promise((resolve) => { img.onload = resolve; });
-        
-        const canvas = document.createElement('canvas');
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0);
-        
-        blob = await new Promise<Blob>((resolve) => {
-          canvas.toBlob((b) => resolve(b!), 'image/jpeg', 0.8);
-        });
-      }
-
-      // Upload
-      const formData = new FormData();
-      formData.append('file', blob, `edited_${Date.now()}.jpg`);
-      
-      const uploadResponse = await fetch('/api/media/upload', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include'
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error("Erreur lors de l'upload");
-      }
-
-      return uploadResponse.json();
+      const response = await apiRequest('POST', '/api/media/apply-overlays', payload);
+      return response;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/media"] });
@@ -192,80 +140,18 @@ export default function ImageEditor() {
     // Base resize
     transformations.push('w_800,h_800,c_fit');
 
-    // Filters
-    if (filters.brightness !== 0) {
-      transformations.push(`e_brightness:${filters.brightness}`);
-    }
-    if (filters.contrast !== 0) {
-      transformations.push(`e_contrast:${filters.contrast}`);
-    }
-    if (filters.saturation !== 0) {
-      transformations.push(`e_saturation:${filters.saturation}`);
-    }
-    if (filters.blur > 0) {
-      transformations.push(`e_blur:${filters.blur * 100}`);
-    }
-    if (filters.sharpen > 0) {
-      transformations.push(`e_sharpen:${filters.sharpen * 100}`);
-    }
-    if (filters.vibrance !== 0) {
-      transformations.push(`e_vibrance:${filters.vibrance}`);
-    }
-    if (filters.hue !== 0) {
-      transformations.push(`e_hue:${filters.hue}`);
-    }
-    if (filters.gamma !== 0) {
-      transformations.push(`e_gamma:${filters.gamma}`);
-    }
-    if (filters.vignette > 0) {
-      transformations.push(`e_vignette:${filters.vignette}`);
-    }
-    if (filters.effect !== "none") {
-      // Map effects to proper Cloudinary transformations
-      switch(filters.effect) {
-        case "grayscale":
-          transformations.push("e_grayscale");
-          break;
-        case "sepia":
-          transformations.push("e_sepia");
-          break;
-        case "vintage":
-          // Vintage effect: combine sepia + vignette + reduced saturation
-          transformations.push("e_sepia:50");
-          transformations.push("e_vignette:30");
-          transformations.push("e_saturation:-20");
-          break;
-        case "incognito":
-          transformations.push("e_art:incognito");
-          break;
-        case "athena":
-          transformations.push("e_art:athena");
-          break;
-        case "audrey":
-          transformations.push("e_art:audrey");
-          break;
-      }
-    }
-
     // Note: Ribbon and price badge overlays are rendered as CSS elements in preview
     // They are NOT added to Cloudinary transformation URL
     // This allows for better visual control and positioning
 
-    // Logo overlay - using uploaded logo if available
-    if (logo.enabled) {
-      // TODO: Implement logo upload/selection system
-      // For now, use a watermark text
-      transformations.push(
-        `l_text:Arial_32:© LOGO,co_white,o_${logo.opacity}`,
-        `fl_layer_apply,g_${logo.position},x_30,y_30`
-      );
-    }
+    // Logo overlay will be added by backend when saving
+    // Preview just shows the base image with CSS overlays
 
     // Construct final URL
     const transformedUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${transformations.join('/')}/${imagePath}`;
     setPreviewUrl(transformedUrl);
 
-  }, [selectedMedia, ribbon, priceBadge, logo, filters]);
+  }, [selectedMedia, ribbon, priceBadge, logo]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -596,134 +482,72 @@ export default function ImageEditor() {
                 </CardContent>
               </Card>
 
-              {/* Filters */}
+              {/* Logo */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Filtres</CardTitle>
+                  <CardTitle>Logo</CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <Label>Luminosité</Label>
-                      <span className="text-sm text-muted-foreground">{filters.brightness}</span>
-                    </div>
-                    <Slider
-                      value={[filters.brightness]}
-                      onValueChange={([value]) => setFilters({ ...filters, brightness: value })}
-                      min={-50}
-                      max={50}
-                      step={5}
-                      data-testid="slider-brightness"
+                <CardContent className="space-y-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="logo-enabled"
+                      checked={logo.enabled}
+                      onCheckedChange={(checked) => setLogo({ ...logo, enabled: checked as boolean })}
+                      data-testid="checkbox-logo-enabled"
                     />
+                    <Label htmlFor="logo-enabled" className="cursor-pointer">
+                      Afficher le logo
+                    </Label>
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <Label>Contraste</Label>
-                      <span className="text-sm text-muted-foreground">{filters.contrast}</span>
-                    </div>
-                    <Slider
-                      value={[filters.contrast]}
-                      onValueChange={([value]) => setFilters({ ...filters, contrast: value })}
-                      min={-50}
-                      max={50}
-                      step={5}
-                      data-testid="slider-contrast"
-                    />
-                  </div>
+                  {logo.enabled && (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Position</Label>
+                        <Select value={logo.position} onValueChange={(value) => setLogo({ ...logo, position: value as any })}>
+                          <SelectTrigger data-testid="select-logo-position">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="north_west">Haut gauche</SelectItem>
+                            <SelectItem value="north_east">Haut droit</SelectItem>
+                            <SelectItem value="south_west">Bas gauche</SelectItem>
+                            <SelectItem value="south_east">Bas droit</SelectItem>
+                            <SelectItem value="center">Centre</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <Label>Saturation</Label>
-                      <span className="text-sm text-muted-foreground">{filters.saturation}</span>
-                    </div>
-                    <Slider
-                      value={[filters.saturation]}
-                      onValueChange={([value]) => setFilters({ ...filters, saturation: value })}
-                      min={-100}
-                      max={100}
-                      step={10}
-                      data-testid="slider-saturation"
-                    />
-                  </div>
+                      <div className="space-y-2">
+                        <Label>Taille</Label>
+                        <Select value={logo.size} onValueChange={(value) => setLogo({ ...logo, size: value as any })}>
+                          <SelectTrigger data-testid="select-logo-size">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="small">Petit</SelectItem>
+                            <SelectItem value="medium">Moyen</SelectItem>
+                            <SelectItem value="large">Grand</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <Label>Vibrance</Label>
-                      <span className="text-sm text-muted-foreground">{filters.vibrance}</span>
-                    </div>
-                    <Slider
-                      value={[filters.vibrance]}
-                      onValueChange={([value]) => setFilters({ ...filters, vibrance: value })}
-                      min={-100}
-                      max={100}
-                      step={10}
-                      data-testid="slider-vibrance"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <Label>Teinte</Label>
-                      <span className="text-sm text-muted-foreground">{filters.hue}°</span>
-                    </div>
-                    <Slider
-                      value={[filters.hue]}
-                      onValueChange={([value]) => setFilters({ ...filters, hue: value })}
-                      min={-180}
-                      max={180}
-                      step={10}
-                      data-testid="slider-hue"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <Label>Gamma</Label>
-                      <span className="text-sm text-muted-foreground">{filters.gamma}</span>
-                    </div>
-                    <Slider
-                      value={[filters.gamma]}
-                      onValueChange={([value]) => setFilters({ ...filters, gamma: value })}
-                      min={-50}
-                      max={150}
-                      step={10}
-                      data-testid="slider-gamma"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <Label>Vignette</Label>
-                      <span className="text-sm text-muted-foreground">{filters.vignette}</span>
-                    </div>
-                    <Slider
-                      value={[filters.vignette]}
-                      onValueChange={([value]) => setFilters({ ...filters, vignette: value })}
-                      min={0}
-                      max={100}
-                      step={10}
-                      data-testid="slider-vignette"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Effet artistique</Label>
-                    <Select value={filters.effect} onValueChange={(value) => setFilters({ ...filters, effect: value as any })}>
-                      <SelectTrigger data-testid="select-effect">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Aucun</SelectItem>
-                        <SelectItem value="grayscale">Noir et blanc</SelectItem>
-                        <SelectItem value="sepia">Sépia</SelectItem>
-                        <SelectItem value="vintage">Vintage</SelectItem>
-                        <SelectItem value="incognito">Incognito</SelectItem>
-                        <SelectItem value="athena">Athena</SelectItem>
-                        <SelectItem value="audrey">Audrey</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <Label>Opacité</Label>
+                          <span className="text-sm text-muted-foreground">{logo.opacity}%</span>
+                        </div>
+                        <Slider
+                          value={[logo.opacity]}
+                          onValueChange={(value) => setLogo({ ...logo, opacity: value[0] })}
+                          min={0}
+                          max={100}
+                          step={5}
+                          data-testid="slider-logo-opacity"
+                        />
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </div>
@@ -793,6 +617,26 @@ export default function ImageEditor() {
                             >
                               {priceBadge.price}€
                             </div>
+                          )}
+
+                          {/* Logo Overlay (CSS) */}
+                          {logo.enabled && cloudinaryConfig && (cloudinaryConfig as any).logoPublicId && (
+                            <img
+                              src={`https://res.cloudinary.com/${(cloudinaryConfig as any).cloudName}/image/upload/${(cloudinaryConfig as any).logoPublicId}`}
+                              alt="Logo"
+                              className={`absolute ${
+                                logo.position === "north_east" ? "top-4 right-4" :
+                                logo.position === "south_east" ? "bottom-4 right-4" :
+                                logo.position === "south_west" ? "bottom-4 left-4" :
+                                logo.position === "center" ? "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" :
+                                "top-4 left-4"
+                              } z-10 ${
+                                logo.size === "small" ? "w-16" :
+                                logo.size === "large" ? "w-32" :
+                                "w-24"
+                              }`}
+                              style={{ opacity: logo.opacity / 100 }}
+                            />
                           )}
                         </div>
                         
