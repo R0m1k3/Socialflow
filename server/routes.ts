@@ -674,13 +674,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const logoResponse = await fetch(logoUrl);
             const logoBuffer = Buffer.from(await logoResponse.arrayBuffer());
             
-            // Determine logo size based on selection
-            const logoSizes = {
-              small: Math.round(width * 0.15),   // 15% of image width
-              medium: Math.round(width * 0.25),  // 25% of image width
-              large: Math.round(width * 0.35)    // 35% of image width
+            // Determine logo size based on selection with safety cap
+            const padding = 20;
+            const maxLogoWidth = width - (padding * 2);  // Ensure logo fits within canvas
+            
+            const logoSizePercentages = {
+              small: 0.35,   // 35% of image width
+              medium: 0.50,  // 50% of image width
+              large: 0.70    // 70% of image width
             };
-            const logoWidth = logoSizes[logo.size as keyof typeof logoSizes] || logoSizes.medium;
+            
+            const requestedWidth = Math.round(width * logoSizePercentages[logo.size as keyof typeof logoSizePercentages] || logoSizePercentages.medium);
+            const logoWidth = Math.min(requestedWidth, maxLogoWidth);
             
             // Resize logo preserving aspect ratio and apply opacity
             const resizedLogo = await sharp(logoBuffer)
@@ -692,8 +697,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const logoMetadata = await sharp(resizedLogo).metadata();
             const logoHeight = logoMetadata.height || logoWidth;
             
+            // Ensure logo fits within height as well
+            const maxLogoHeight = height - (padding * 2);
+            if (logoHeight > maxLogoHeight) {
+              console.warn(`⚠️ Logo height ${logoHeight}px exceeds max ${maxLogoHeight}px, would be clipped`);
+            }
+            
             // Calculate position with padding
-            const padding = 20;
             let logoX = padding;
             let logoY = padding;
             

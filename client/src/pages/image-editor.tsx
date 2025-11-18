@@ -630,12 +630,11 @@ export default function ImageEditor() {
                                 logo.position === "south_west" ? "bottom-4 left-4" :
                                 logo.position === "center" ? "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" :
                                 "top-4 left-4"
-                              } z-10 ${
-                                logo.size === "small" ? "w-16" :
-                                logo.size === "large" ? "w-32" :
-                                "w-24"
-                              }`}
-                              style={{ opacity: logo.opacity / 100 }}
+                              } z-10 max-w-full max-h-full object-contain`}
+                              style={{ 
+                                opacity: logo.opacity / 100,
+                                width: logo.size === "small" ? "35%" : logo.size === "large" ? "70%" : "50%"
+                              }}
                             />
                           )}
                         </div>
