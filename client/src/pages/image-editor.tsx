@@ -114,8 +114,6 @@ export default function ImageEditor() {
 
   // Generate Cloudinary transformation URL
   useEffect(() => {
-    console.log("[ImageEditor] useEffect triggered, selectedMedia:", selectedMedia);
-    
     if (!selectedMedia) {
       setPreviewUrl("");
       return;
@@ -123,7 +121,6 @@ export default function ImageEditor() {
 
     // Start with base image URL
     let url = selectedMedia.originalUrl;
-    console.log("[ImageEditor] Generating preview URL from:", url);
     
     // Extract Cloudinary parts
     const cloudinaryPattern = /https:\/\/res\.cloudinary\.com\/([^\/]+)\/image\/upload\//;
@@ -300,10 +297,7 @@ export default function ImageEditor() {
                             className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
                               selectedMedia?.id === media.id ? 'border-primary ring-2 ring-primary' : 'border-border hover:border-primary/50'
                             }`}
-                            onClick={() => {
-                              console.log("[ImageEditor] Thumbnail clicked, media:", media);
-                              setSelectedMedia(media);
-                            }}
+                            onClick={() => setSelectedMedia(media)}
                             data-testid={`select-image-${media.id}`}
                           >
                             <img
