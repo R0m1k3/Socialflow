@@ -1,16 +1,10 @@
-import emojiRegex from 'emoji-regex';
-
-// Cached regex instance for performance
-const emojiPattern = emojiRegex();
-
 /**
- * Removes emojis from text while preserving other Unicode characters
- * Uses the emoji-regex package which correctly identifies emojis without
- * removing legitimate astral-plane characters (CJK Extension B, etc.)
+ * Removes hashtags from text while preserving emojis and other content
+ * Matches patterns like #hashtag, #HashTag123, etc.
  */
-export function removeEmojis(text: string): string {
+export function removeHashtags(text: string): string {
   return text
-    .replace(emojiPattern, '')
+    .replace(/#[\w\u00C0-\u017F]+/g, '') // Remove hashtags (supports accented characters)
     .replace(/\s+/g, ' ') // Normalize whitespace
     .trim();
 }
