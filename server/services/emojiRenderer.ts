@@ -1,6 +1,5 @@
 import { parse } from 'twemoji-parser';
 import { createCanvas, loadImage, CanvasRenderingContext2D } from 'canvas';
-import fetch from 'node-fetch';
 
 interface EmojiSegment {
   type: 'text' | 'emoji';
@@ -129,7 +128,42 @@ export class EmojiRenderer {
   }
 
   /**
+   * Break a long word that exceeds maxWidth into chunks
+   */
+  private async breakLongWord(
+    word: string,
+    ctx: CanvasRenderingContext2D,
+    maxWidth: number,
+    fontSize: number
+  ): Promise<string[]> {
+    const chunks: string[] = [];
+    let currentChunk = '';
+
+    // Split word into individual characters (graphemes for emoji support)
+    const chars = Array.from(word);
+
+    for (const char of chars) {
+      const testChunk = currentChunk + char;
+      const width = await this.measureText(testChunk, ctx, fontSize);
+
+      if (width > maxWidth && currentChunk) {
+        chunks.push(currentChunk);
+        currentChunk = char;
+      } else {
+        currentChunk = testChunk;
+      }
+    }
+
+    if (currentChunk) {
+      chunks.push(currentChunk);
+    }
+
+    return chunks;
+  }
+
+  /**
    * Wrap text with emojis into multiple lines
+   * Handles long words/emoji sequences by breaking them when needed
    */
   async wrapText(
     text: string,
@@ -146,8 +180,27 @@ export class EmojiRenderer {
       const testWidth = await this.measureText(testLine, ctx, fontSize);
 
       if (testWidth > maxWidth && currentLine) {
+        // Current line would exceed width, push it and start new line
         lines.push(currentLine);
         currentLine = word;
+
+        // Check if the word itself is too long for a single line
+        const wordWidth = await this.measureText(word, ctx, fontSize);
+        if (wordWidth > maxWidth) {
+          // Word is too long, need to break it into chunks
+          const chunks = await this.breakLongWord(word, ctx, maxWidth, fontSize);
+          for (let i = 0; i < chunks.length - 1; i++) {
+            lines.push(chunks[i]);
+          }
+          currentLine = chunks[chunks.length - 1];
+        }
+      } else if (testWidth > maxWidth && !currentLine) {
+        // First word is too long, need to break it
+        const chunks = await this.breakLongWord(word, ctx, maxWidth, fontSize);
+        for (let i = 0; i < chunks.length - 1; i++) {
+          lines.push(chunks[i]);
+        }
+        currentLine = chunks[chunks.length - 1];
       } else {
         currentLine = testLine;
       }
