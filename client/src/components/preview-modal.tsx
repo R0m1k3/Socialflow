@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ChevronLeft, ChevronRight, Send, Facebook, Instagram, Heart, MessageCircle, Share2, Bookmark } from 'lucide-react';
 import type { Media } from '@shared/schema';
 import { removeHashtags } from '@shared/emoji';
+import { EmojiText } from '@/components/emoji-text';
 
 interface PreviewModalProps {
   open: boolean;
@@ -425,7 +426,9 @@ export function PreviewModal({
                   }}
                 >
                   {lines.map((line, idx) => (
-                    <div key={idx}>{line}</div>
+                    <div key={idx}>
+                      <EmojiText text={line} emojiSize={fontSize} />
+                    </div>
                   ))}
                 </div>
               </div>
