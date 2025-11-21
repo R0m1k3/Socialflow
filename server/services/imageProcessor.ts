@@ -3,7 +3,8 @@ import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs/promises";
 import { createCanvas, loadImage, registerFont } from "canvas";
-import { removeEmojis } from "@shared/emoji";
+import { removeHashtags } from "@shared/emoji";
+import { emojiRenderer } from "./emojiRenderer";
 
 interface CropDimensions {
   width: number;
@@ -118,8 +119,8 @@ export class ImageProcessor {
     const PADDING = 40;
     const LINE_HEIGHT_MULTIPLIER = 1.3;
     
-    // Remove emojis from text as canvas doesn't support them
-    const cleanText = removeEmojis(text);
+    // Remove hashtags from text while keeping emojis
+    const cleanText = removeHashtags(text);
 
     const canvas = createCanvas(STORY_WIDTH, STORY_HEIGHT);
     const ctx = canvas.getContext('2d');
@@ -165,7 +166,7 @@ export class ImageProcessor {
     while (fontSize >= MIN_FONT_SIZE) {
       ctx.font = `bold ${fontSize}px "DejaVu Sans", Arial, sans-serif`;
       
-      lines = this.wrapText(ctx, cleanText, maxTextWidth);
+      lines = await emojiRenderer.wrapText(cleanText, ctx, maxTextWidth, fontSize);
       const lineHeight = fontSize * LINE_HEIGHT_MULTIPLIER;
       totalTextHeight = lines.length * lineHeight;
 
@@ -179,7 +180,7 @@ export class ImageProcessor {
     if (fontSize < MIN_FONT_SIZE) {
       fontSize = MIN_FONT_SIZE;
       ctx.font = `bold ${fontSize}px "DejaVu Sans", Arial, sans-serif`;
-      lines = this.wrapText(ctx, cleanText, maxTextWidth);
+      lines = await emojiRenderer.wrapText(cleanText, ctx, maxTextWidth, fontSize);
       const lineHeight = fontSize * LINE_HEIGHT_MULTIPLIER;
       totalTextHeight = lines.length * lineHeight;
       
@@ -194,16 +195,19 @@ export class ImageProcessor {
     }
 
     ctx.fillStyle = 'white';
-    ctx.textAlign = 'center';
+    ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
 
     const lineHeight = fontSize * LINE_HEIGHT_MULTIPLIER;
     const startY = textBoxY + (textBoxHeight - totalTextHeight) / 2 + lineHeight / 2;
 
-    lines.forEach((line, index) => {
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index];
       const y = startY + (index * lineHeight);
-      ctx.fillText(line, STORY_WIDTH / 2, y);
-    });
+      const lineWidth = await emojiRenderer.measureText(line, ctx, fontSize);
+      const x = (STORY_WIDTH - lineWidth) / 2; // Center the line
+      await emojiRenderer.drawText(line, ctx, x, y, fontSize);
+    }
 
     return canvas.toBuffer('image/png');
   }

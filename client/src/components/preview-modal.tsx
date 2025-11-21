@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight, Send, Facebook, Instagram, Heart, MessageCircle, Share2, Bookmark } from 'lucide-react';
 import type { Media } from '@shared/schema';
-import { removeEmojis } from '@shared/emoji';
+import { removeHashtags } from '@shared/emoji';
 
 interface PreviewModalProps {
   open: boolean;
@@ -228,8 +228,8 @@ export function PreviewModal({
     const ctx = canvas.getContext('2d');
     if (!ctx) return [text];
 
-    // Remove emojis for better text rendering
-    const cleanText = removeEmojis(text);
+    // Remove hashtags while keeping emojis
+    const cleanText = removeHashtags(text);
     ctx.font = `bold ${fontSize}px Arial, sans-serif`;
     const words = cleanText.split(' ');
     const lines: string[] = [];
