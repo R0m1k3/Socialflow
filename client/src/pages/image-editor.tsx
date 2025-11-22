@@ -615,7 +615,7 @@ export default function ImageEditor() {
                               }`}
                               style={{ fontSize: `${priceBadge.size}px` }}
                             >
-                              {priceBadge.price}€
+                              {priceBadge.price} €
                             </div>
                           )}
 
