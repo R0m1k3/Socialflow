@@ -620,7 +620,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Add price badge overlay
       if (priceBadge) {
         const padding = 16;
-        const badgeText = `€${priceBadge.price}`;
+        const badgeText = `${priceBadge.price} €`;
         const fontSize = priceBadge.size;
         const textWidth = badgeText.length * fontSize * 0.6; // Approximate
         const badgeWidth = textWidth + padding * 2;
