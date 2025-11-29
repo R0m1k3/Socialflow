@@ -19,7 +19,10 @@ export class EmojiRenderer {
    */
   private parseTextWithEmojis(text: string): EmojiSegment[] {
     const emojis = parse(text);
-    console.log(`📝 Parse texte: "${text}" => ${emojis.length} emoji(s) trouvé(s)`);
+
+    if (emojis.length > 0) {
+      console.log(`📝 Texte avec ${emojis.length} emoji(s) détecté(s)`);
+    }
 
     if (emojis.length === 0) {
       return [{ type: 'text', content: text }];
@@ -29,8 +32,6 @@ export class EmojiRenderer {
     let lastIndex = 0;
 
     for (const emoji of emojis) {
-      console.log(`  - Emoji détecté: "${emoji.text}" => URL: ${emoji.url}`);
-
       // Add text before emoji
       if (emoji.indices[0] > lastIndex) {
         const textContent = text.substring(lastIndex, emoji.indices[0]);
@@ -61,25 +62,67 @@ export class EmojiRenderer {
   }
 
   /**
-   * Download and cache emoji image
+   * Convert default Twemoji URL to jsDelivr CDN (more reliable)
+   * Example: https://twemoji.maxcdn.com/v/latest/72x72/1f600.png
+   * Becomes: https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/1f600.png
+   */
+  private convertToReliableCDN(url: string): string {
+    // Extract the emoji filename (e.g., "1f600.png")
+    const match = url.match(/\/([a-f0-9\-]+\.png)$/i);
+    if (!match) return url;
+
+    const filename = match[1];
+    // Use jsDelivr CDN which is more reliable
+    return `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${filename}`;
+  }
+
+  /**
+   * Download and cache emoji image with retry logic
    */
   private async getEmojiImage(url: string): Promise<Buffer> {
-    if (this.emojiCache.has(url)) {
-      return this.emojiCache.get(url)!;
+    // Use reliable CDN URL
+    const reliableUrl = this.convertToReliableCDN(url);
+
+    if (this.emojiCache.has(reliableUrl)) {
+      return this.emojiCache.get(reliableUrl)!;
     }
 
-    console.log('🔍 Téléchargement emoji depuis:', url);
-    const response = await fetch(url);
+    console.log('🔍 Téléchargement emoji depuis:', reliableUrl);
 
-    if (!response.ok) {
-      console.error(`❌ Erreur téléchargement emoji: ${response.status} ${response.statusText}`);
-      throw new Error(`Failed to fetch emoji: ${response.status}`);
+    // Retry logic: try up to 3 times
+    let lastError: Error | null = null;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+        const response = await fetch(reliableUrl, {
+          signal: controller.signal
+        });
+
+        clearTimeout(timeout);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        console.log('✅ Emoji téléchargé avec succès');
+        const buffer = Buffer.from(await response.arrayBuffer());
+        this.emojiCache.set(reliableUrl, buffer);
+        return buffer;
+      } catch (error) {
+        lastError = error as Error;
+        console.warn(`⚠️ Tentative ${attempt}/3 échouée:`, error instanceof Error ? error.message : error);
+
+        if (attempt < 3) {
+          // Wait before retry (exponential backoff: 500ms, 1000ms)
+          await new Promise(resolve => setTimeout(resolve, attempt * 500));
+        }
+      }
     }
 
-    console.log('✅ Emoji téléchargé avec succès');
-    const buffer = Buffer.from(await response.arrayBuffer());
-    this.emojiCache.set(url, buffer);
-    return buffer;
+    console.error(`❌ Échec téléchargement emoji après 3 tentatives:`, lastError);
+    throw lastError || new Error('Failed to fetch emoji');
   }
 
   /**
@@ -130,10 +173,8 @@ export class EmojiRenderer {
 
           ctx.drawImage(emojiImage, currentX, emojiY, emojiSize, emojiSize);
           currentX += emojiSize;
-          console.log(`✅ Emoji "${segment.content}" dessiné avec succès`);
         } catch (error) {
-          console.error(`❌ Erreur lors du chargement/rendu de l'emoji "${segment.content}":`, error);
-          console.error('   URL:', segment.url);
+          console.error(`❌ Impossible de charger l'emoji "${segment.content}":`, error instanceof Error ? error.message : error);
           // Fallback: draw text representation
           ctx.fillText(segment.content, currentX, y);
           currentX += ctx.measureText(segment.content).width;
