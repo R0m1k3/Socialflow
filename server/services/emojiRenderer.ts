@@ -110,11 +110,12 @@ export class EmojiRenderer {
         try {
           const emojiBuffer = await this.getEmojiImage(segment.url);
           const emojiImage = await loadImage(emojiBuffer);
-          
-          // Draw emoji slightly above baseline to align with text
+
+          // Draw emoji centered vertically with text
+          // When textBaseline is 'middle', y represents the vertical center
           const emojiSize = fontSize;
-          const emojiY = y - fontSize * 0.8; // Adjust vertical position
-          
+          const emojiY = y - (emojiSize / 2); // Center the emoji around y
+
           ctx.drawImage(emojiImage, currentX, emojiY, emojiSize, emojiSize);
           currentX += emojiSize;
         } catch (error) {
