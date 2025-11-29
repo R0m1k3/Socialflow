@@ -19,6 +19,8 @@ export class EmojiRenderer {
    */
   private parseTextWithEmojis(text: string): EmojiSegment[] {
     const emojis = parse(text);
+    console.log(`📝 Parse texte: "${text}" => ${emojis.length} emoji(s) trouvé(s)`);
+
     if (emojis.length === 0) {
       return [{ type: 'text', content: text }];
     }
@@ -27,6 +29,8 @@ export class EmojiRenderer {
     let lastIndex = 0;
 
     for (const emoji of emojis) {
+      console.log(`  - Emoji détecté: "${emoji.text}" => URL: ${emoji.url}`);
+
       // Add text before emoji
       if (emoji.indices[0] > lastIndex) {
         const textContent = text.substring(lastIndex, emoji.indices[0]);
@@ -64,7 +68,15 @@ export class EmojiRenderer {
       return this.emojiCache.get(url)!;
     }
 
+    console.log('🔍 Téléchargement emoji depuis:', url);
     const response = await fetch(url);
+
+    if (!response.ok) {
+      console.error(`❌ Erreur téléchargement emoji: ${response.status} ${response.statusText}`);
+      throw new Error(`Failed to fetch emoji: ${response.status}`);
+    }
+
+    console.log('✅ Emoji téléchargé avec succès');
     const buffer = Buffer.from(await response.arrayBuffer());
     this.emojiCache.set(url, buffer);
     return buffer;
@@ -118,8 +130,10 @@ export class EmojiRenderer {
 
           ctx.drawImage(emojiImage, currentX, emojiY, emojiSize, emojiSize);
           currentX += emojiSize;
+          console.log(`✅ Emoji "${segment.content}" dessiné avec succès`);
         } catch (error) {
-          console.error('Error loading emoji:', error);
+          console.error(`❌ Erreur lors du chargement/rendu de l'emoji "${segment.content}":`, error);
+          console.error('   URL:', segment.url);
           // Fallback: draw text representation
           ctx.fillText(segment.content, currentX, y);
           currentX += ctx.measureText(segment.content).width;
