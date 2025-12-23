@@ -91,7 +91,7 @@ export class EmojiRenderer {
    * Download emoji from CDN and save locally
    */
   private async downloadEmoji(filename: string): Promise<Buffer> {
-    const url = `https://cdn.jsdelivr.net/gh/twitter/twemoji@latest/assets/72x72/${filename}`;
+    const url = `https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72/${filename}`;
     const localPath = path.join(this.emojiAssetsDir, filename);
 
     console.log(`🔍 Téléchargement emoji: ${filename}`);
