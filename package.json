@@ -52,7 +52,7 @@
     "@types/node-fetch": "^2.6.13",
     "@types/pg": "^8.15.5",
     "bcrypt": "^6.0.0",
-    "canvas": "^3.2.0",
+    "canvas": "^2.11.2",
     "class-variance-authority": "^0.7.1",
     "cloudinary": "^2.7.0",
     "clsx": "^2.1.1",
