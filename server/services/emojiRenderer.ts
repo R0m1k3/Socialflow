@@ -1,5 +1,6 @@
 import { parse } from 'twemoji-parser';
 import { createCanvas, loadImage, CanvasRenderingContext2D } from 'canvas';
+import sharp from 'sharp';
 
 interface EmojiSegment {
   type: 'text' | 'emoji';
@@ -59,15 +60,27 @@ export class EmojiRenderer {
   /**
    * Download and cache emoji image
    */
-  private async getEmojiImage(url: string): Promise<Buffer> {
+  async getEmojiImage(url: string): Promise<Buffer> {
     if (this.emojiCache.has(url)) {
       return this.emojiCache.get(url)!;
     }
 
-    const response = await fetch(url);
-    const buffer = Buffer.from(await response.arrayBuffer());
-    this.emojiCache.set(url, buffer);
-    return buffer;
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch emoji: ${response.status} ${response.statusText}`);
+      }
+      const buffer = Buffer.from(await response.arrayBuffer());
+
+      // Convert SVG to PNG using sharp because node-canvas struggles with SVGs lacking dimensions
+      const pngBuffer = await sharp(buffer).png().toBuffer();
+
+      this.emojiCache.set(url, pngBuffer);
+      return pngBuffer;
+    } catch (error) {
+      console.error(`Error downloading emoji from ${url}:`, error);
+      throw error;
+    }
   }
 
   /**
@@ -110,11 +123,11 @@ export class EmojiRenderer {
         try {
           const emojiBuffer = await this.getEmojiImage(segment.url);
           const emojiImage = await loadImage(emojiBuffer);
-          
+
           // Draw emoji slightly above baseline to align with text
           const emojiSize = fontSize;
           const emojiY = y - fontSize * 0.8; // Adjust vertical position
-          
+
           ctx.drawImage(emojiImage, currentX, emojiY, emojiSize, emojiSize);
           currentX += emojiSize;
         } catch (error) {
