@@ -17,7 +17,7 @@ export function parseTextWithEmojis(text: string): EmojiSegment[] {
   // Use twemoji to parse and replace emojis
   const parsed = twemoji.parse(text, {
     callback: (icon: string, options: any) => {
-      return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/${icon}.png`;
+      return `https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72/${icon}.png`;
     }
   });
 
@@ -33,7 +33,7 @@ export function parseTextWithEmojis(text: string): EmojiSegment[] {
 
   let node;
   let currentText = '';
-  
+
   while ((node = walker.nextNode())) {
     if (node.nodeType === Node.TEXT_NODE) {
       if (node.textContent) {
@@ -45,7 +45,7 @@ export function parseTextWithEmojis(text: string): EmojiSegment[] {
         segments.push({ type: 'text', content: currentText });
         currentText = '';
       }
-      
+
       const img = node as HTMLImageElement;
       segments.push({
         type: 'emoji',
@@ -75,7 +75,7 @@ export function textToTwemojiHtml(text: string, className?: string): string {
   return twemoji.parse(text, {
     className: className || 'inline-block align-middle',
     callback: (icon: string, options: any) => {
-      return `https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72/${icon}.png`;
+      return `https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72/${icon}.png`;
     }
   });
 }

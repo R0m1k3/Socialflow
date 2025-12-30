@@ -4,19 +4,61 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider, useQuery } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { createResponsiveRoute } from "@/components/responsive-route";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
-import Dashboard from "@/pages/dashboard";
-import NewPost from "@/pages/new-post";
-import Calendar from "@/pages/calendar";
-import Media from "@/pages/media";
-import ImageEditor from "@/pages/image-editor";
-import PagesManagement from "@/pages/pages";
-import AI from "@/pages/ai";
 import History from "@/pages/history";
-import Settings from "@/pages/settings";
-import SqlAdmin from "@/pages/sql";
-import UsersAdmin from "@/pages/users-admin";
+
+// Create responsive routes with lazy loading for optimal performance
+const Dashboard = createResponsiveRoute(
+  () => import("@/pages/dashboard"),
+  () => import("@/pages/mobile/dashboard")
+);
+
+const NewPost = createResponsiveRoute(
+  () => import("@/pages/new-post"),
+  () => import("@/pages/mobile/new-post")
+);
+
+const Calendar = createResponsiveRoute(
+  () => import("@/pages/calendar"),
+  () => import("@/pages/mobile/calendar")
+);
+
+const Media = createResponsiveRoute(
+  () => import("@/pages/media"),
+  () => import("@/pages/mobile/media")
+);
+
+const ImageEditor = createResponsiveRoute(
+  () => import("@/pages/image-editor"),
+  () => import("@/pages/mobile/image-editor")
+);
+
+const PagesManagement = createResponsiveRoute(
+  () => import("@/pages/pages"),
+  () => import("@/pages/mobile/pages")
+);
+
+const AI = createResponsiveRoute(
+  () => import("@/pages/ai"),
+  () => import("@/pages/mobile/ai")
+);
+
+const Settings = createResponsiveRoute(
+  () => import("@/pages/settings"),
+  () => import("@/pages/mobile/settings")
+);
+
+const SqlAdmin = createResponsiveRoute(
+  () => import("@/pages/sql"),
+  () => import("@/pages/mobile/sql")
+);
+
+const UsersAdmin = createResponsiveRoute(
+  () => import("@/pages/users-admin"),
+  () => import("@/pages/mobile/users-admin")
+);
 
 function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType; adminOnly?: boolean }) {
   const [, setLocation] = useLocation();
