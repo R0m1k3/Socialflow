@@ -1,10 +1,6 @@
 import { parse } from 'twemoji-parser';
 import { createCanvas, loadImage, CanvasRenderingContext2D } from 'canvas';
-import path from 'path';
-import fs from 'fs/promises';
-import { createWriteStream } from 'fs';
-import { Readable } from 'stream';
-import { finished } from 'stream/promises';
+import sharp from 'sharp';
 
 interface EmojiSegment {
   type: 'text' | 'emoji';
@@ -18,18 +14,12 @@ interface EmojiSegment {
  */
 export class EmojiRenderer {
   private emojiCache = new Map<string, Buffer>();
-  private emojiAssetsDir = path.join(process.cwd(), 'server', 'assets', 'emoji');
 
   /**
    * Parse text into segments of text and emojis
    */
   private parseTextWithEmojis(text: string): EmojiSegment[] {
     const emojis = parse(text);
-
-    if (emojis.length > 0) {
-      console.log(`📝 Texte avec ${emojis.length} emoji(s) détecté(s)`);
-    }
-
     if (emojis.length === 0) {
       return [{ type: 'text', content: text }];
     }
@@ -68,87 +58,28 @@ export class EmojiRenderer {
   }
 
   /**
-   * Extract emoji filename from URL
-   * Example: https://twemoji.maxcdn.com/v/latest/72x72/1f600.png => 1f600.png
+   * Download and cache emoji image
    */
-  private getEmojiFilename(url: string): string | null {
-    const match = url.match(/\/([a-f0-9\-]+\.png)$/i);
-    return match ? match[1] : null;
-  }
-
-  /**
-   * Ensure emoji assets directory exists
-   */
-  private async ensureEmojiDir(): Promise<void> {
-    try {
-      await fs.access(this.emojiAssetsDir);
-    } catch {
-      await fs.mkdir(this.emojiAssetsDir, { recursive: true });
+  async getEmojiImage(url: string): Promise<Buffer> {
+    if (this.emojiCache.has(url)) {
+      return this.emojiCache.get(url)!;
     }
-  }
-
-  /**
-   * Download emoji from CDN and save locally
-   */
-  private async downloadEmoji(filename: string): Promise<Buffer> {
-    const url = `https://cdn.jsdelivr.net/gh/jdecked/twemoji@latest/assets/72x72/${filename}`;
-    const localPath = path.join(this.emojiAssetsDir, filename);
-
-    console.log(`🔍 Téléchargement emoji: ${filename}`);
 
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-
-      const response = await fetch(url, { signal: controller.signal });
-      clearTimeout(timeout);
-
+      const response = await fetch(url);
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        throw new Error(`Failed to fetch emoji: ${response.status} ${response.statusText}`);
       }
-
       const buffer = Buffer.from(await response.arrayBuffer());
 
-      // Save to disk for future use
-      await fs.writeFile(localPath, buffer);
-      console.log(`✅ Emoji sauvegardé: ${filename}`);
+      // Convert SVG to PNG using sharp because node-canvas struggles with SVGs lacking dimensions
+      const pngBuffer = await sharp(buffer).png().toBuffer();
 
-      return buffer;
+      this.emojiCache.set(url, pngBuffer);
+      return pngBuffer;
     } catch (error) {
-      console.error(`❌ Erreur téléchargement ${filename}:`, error instanceof Error ? error.message : error);
+      console.error(`Error downloading emoji from ${url}:`, error);
       throw error;
-    }
-  }
-
-  /**
-   * Get emoji image - from cache, disk, or download
-   */
-  private async getEmojiImage(url: string): Promise<Buffer> {
-    const filename = this.getEmojiFilename(url);
-    if (!filename) {
-      throw new Error(`Invalid emoji URL: ${url}`);
-    }
-
-    // Check memory cache first
-    const cacheKey = filename;
-    if (this.emojiCache.has(cacheKey)) {
-      return this.emojiCache.get(cacheKey)!;
-    }
-
-    // Ensure directory exists
-    await this.ensureEmojiDir();
-
-    // Check if file exists locally
-    const localPath = path.join(this.emojiAssetsDir, filename);
-    try {
-      const buffer = await fs.readFile(localPath);
-      this.emojiCache.set(cacheKey, buffer);
-      return buffer;
-    } catch {
-      // File doesn't exist locally, download it
-      const buffer = await this.downloadEmoji(filename);
-      this.emojiCache.set(cacheKey, buffer);
-      return buffer;
     }
   }
 
@@ -193,15 +124,14 @@ export class EmojiRenderer {
           const emojiBuffer = await this.getEmojiImage(segment.url);
           const emojiImage = await loadImage(emojiBuffer);
 
-          // Draw emoji centered vertically with text
-          // When textBaseline is 'middle', y represents the vertical center
+          // Draw emoji slightly above baseline to align with text
           const emojiSize = fontSize;
-          const emojiY = y - (emojiSize / 2); // Center the emoji around y
+          const emojiY = y - fontSize * 0.8; // Adjust vertical position
 
           ctx.drawImage(emojiImage, currentX, emojiY, emojiSize, emojiSize);
           currentX += emojiSize;
         } catch (error) {
-          console.error(`❌ Impossible de charger l'emoji "${segment.content}":`, error instanceof Error ? error.message : error);
+          console.error('Error loading emoji:', error);
           // Fallback: draw text representation
           ctx.fillText(segment.content, currentX, y);
           currentX += ctx.measureText(segment.content).width;
