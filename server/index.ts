@@ -2,6 +2,9 @@ import express, { type Request, Response, NextFunction } from "express";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import pg from "pg";
+import crypto from "crypto";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import passport from "./auth";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -10,6 +13,42 @@ import { ensureAdminUserExists } from "./init-admin";
 
 const app = express();
 const PgSession = connectPgSimple(session);
+
+// Headers de sécurité HTTP avec helmet
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      fontSrc: ["'self'", "https://fonts.gstatic.com"],
+      connectSrc: ["'self'", "https://graph.facebook.com", "https://openrouter.ai", "https://res.cloudinary.com", "wss:", "ws:"],
+    }
+  },
+  crossOriginEmbedderPolicy: false,
+}));
+
+// Rate limiting global - 100 requêtes par 15 minutes par IP
+const globalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { error: 'Trop de requêtes, réessayez plus tard' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiting strict pour l'authentification - 5 tentatives par 15 minutes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  message: { error: 'Trop de tentatives de connexion, réessayez dans 15 minutes' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use('/api/', globalLimiter);
+app.use('/api/auth/login', authLimiter);
 
 declare module 'http' {
   interface IncomingMessage {
@@ -23,10 +62,18 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: false }));
 
-// Configuration des sessions
-if (!process.env.SESSION_SECRET) {
-  console.warn('⚠️ SESSION_SECRET non défini. Utilisation d\'une clé par défaut (NON SÉCURISÉ en production)');
+// Validation renforcée du SESSION_SECRET
+if (!process.env.SESSION_SECRET && process.env.NODE_ENV === 'production') {
+  console.error('❌ SESSION_SECRET non défini en production. Arrêt du serveur.');
+  process.exit(1);
 }
+
+if (!process.env.SESSION_SECRET) {
+  console.warn('⚠️ SESSION_SECRET non défini. Utilisation d\'une clé aléatoire pour le développement.');
+}
+
+// Générer un secret aléatoire pour le dev si non défini
+const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
 // Déterminer si on utilise HTTPS basé sur APP_URL
 const isHttps = process.env.APP_URL?.startsWith('https://') || false;
@@ -34,17 +81,17 @@ const isHttps = process.env.APP_URL?.startsWith('https://') || false;
 // Configuration du store de session pour production
 const sessionStore = process.env.NODE_ENV === 'production' && process.env.DATABASE_URL
   ? new PgSession({
-      pool: new pg.Pool({
-        connectionString: process.env.DATABASE_URL,
-      }),
-      tableName: 'session',
-      createTableIfMissing: true,
-    })
+    pool: new pg.Pool({
+      connectionString: process.env.DATABASE_URL,
+    }),
+    tableName: 'session',
+    createTableIfMissing: true,
+  })
   : undefined; // MemoryStore par défaut en dev
 
 app.use(session({
   store: sessionStore,
-  secret: process.env.SESSION_SECRET || 'your-secret-key-change-me',
+  secret: sessionSecret,
   resave: false,
   saveUninitialized: false,
   cookie: {
@@ -77,7 +124,7 @@ app.use((req, res, next) => {
       if (path === "/api/auth/session" && res.statusCode === 401) {
         return;
       }
-      
+
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
@@ -119,17 +166,17 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = parseInt(process.env.PORT || '5000', 10);
-  
+
   // Initialiser l'utilisateur admin par défaut avant de démarrer le serveur
   await ensureAdminUserExists();
-  
+
   server.listen({
     port,
     host: "0.0.0.0",
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
-    
+
     // Démarrer le scheduler pour les publications programmées
     schedulerService.start();
   });

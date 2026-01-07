@@ -1,15 +1,15 @@
-import { 
-  users, 
-  socialPages, 
-  media, 
-  posts, 
+import {
+  users,
+  socialPages,
+  media,
+  posts,
   postMedia,
   scheduledPosts,
   aiGenerations,
   cloudinaryConfig,
   openrouterConfig,
   userPagePermissions,
-  type User, 
+  type User,
   type InsertUser,
   type SocialPage,
   type InsertSocialPage,
@@ -31,6 +31,7 @@ import {
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, asc, isNull, inArray } from "drizzle-orm";
+import { encrypt, decrypt, isEncrypted } from "./utils/encryption";
 
 export interface IStorage {
   // Users
@@ -131,21 +132,43 @@ export class DatabaseStorage implements IStorage {
 
   // Social Pages
   async getSocialPages(userId: string): Promise<SocialPage[]> {
-    return await db.select().from(socialPages).where(eq(socialPages.userId, userId));
+    const pages = await db.select().from(socialPages).where(eq(socialPages.userId, userId));
+    // Déchiffrer les tokens pour chaque page
+    return pages.map(page => ({
+      ...page,
+      accessToken: decrypt(page.accessToken)
+    }));
   }
 
   async getSocialPage(id: string): Promise<SocialPage | undefined> {
     const [page] = await db.select().from(socialPages).where(eq(socialPages.id, id));
+    if (page) {
+      // Déchiffrer le token
+      page.accessToken = decrypt(page.accessToken);
+    }
     return page || undefined;
   }
 
   async createSocialPage(page: InsertSocialPage): Promise<SocialPage> {
-    const [newPage] = await db.insert(socialPages).values(page).returning();
+    // Chiffrer le token avant stockage
+    const encryptedPage = {
+      ...page,
+      accessToken: encrypt(page.accessToken)
+    };
+    const [newPage] = await db.insert(socialPages).values(encryptedPage).returning();
+    // Retourner avec le token déchiffré
+    newPage.accessToken = decrypt(newPage.accessToken);
     return newPage;
   }
 
   async updateSocialPage(id: string, page: Partial<InsertSocialPage>): Promise<SocialPage> {
-    const [updated] = await db.update(socialPages).set(page).where(eq(socialPages.id, id)).returning();
+    // Chiffrer le token si présent dans la mise à jour
+    const updateData = page.accessToken
+      ? { ...page, accessToken: encrypt(page.accessToken) }
+      : page;
+    const [updated] = await db.update(socialPages).set(updateData).where(eq(socialPages.id, id)).returning();
+    // Retourner avec le token déchiffré
+    updated.accessToken = decrypt(updated.accessToken);
     return updated;
   }
 
@@ -219,7 +242,7 @@ export class DatabaseStorage implements IStorage {
 
   async updatePostMedia(postId: string, mediaIds: string[]): Promise<void> {
     await db.delete(postMedia).where(eq(postMedia.postId, postId));
-    
+
     if (mediaIds.length > 0) {
       const postMediaEntries = mediaIds.map((mediaId, index) => ({
         postId,
@@ -423,7 +446,7 @@ export class DatabaseStorage implements IStorage {
       .from(userPagePermissions)
       .innerJoin(socialPages, eq(userPagePermissions.pageId, socialPages.id))
       .where(eq(userPagePermissions.userId, userId));
-    
+
     return permissions.map(p => p.social_pages);
   }
 }

@@ -11,7 +11,27 @@ import { cloudinaryService } from "./services/cloudinary";
 import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
 import type { User, InsertUser, ScheduledPost } from "@shared/schema";
 
-const upload = multer({ storage: multer.memoryStorage() });
+// Types MIME autorisés pour les uploads
+const ALLOWED_MIME_TYPES = [
+  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+  'video/mp4', 'video/quicktime', 'video/webm'
+];
+
+// Configuration multer avec validation de taille et type
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB max
+    files: 10 // 10 fichiers max
+  },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Type de fichier non autorisé: ${file.mimetype}`));
+    }
+  }
+});
 
 // Middleware pour vérifier l'authentification
 function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -83,14 +103,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users", requireAdmin, async (req, res) => {
     try {
       const allUsers = await storage.getAllUsers();
-      
+
       // Ne pas envoyer les mots de passe
       const safeUsers = allUsers.map(user => ({
         id: user.id,
         username: user.username,
         role: user.role,
       }));
-      
+
       res.json(safeUsers);
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -143,7 +163,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.params.id;
       const { username, password, role } = req.body;
-      
+
       // Vérifier si l'utilisateur existe
       const existingUser = await storage.getUser(userId);
       if (!existingUser) {
@@ -151,7 +171,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updateData: Partial<InsertUser> = {};
-      
+
       if (username && username !== existingUser.username) {
         // Vérifier si le nouveau username est déjà pris
         const userWithSameUsername = await storage.getUserByUsername(username);
@@ -160,12 +180,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         updateData.username = username;
       }
-      
+
       if (password) {
         // Hasher le nouveau mot de passe
         updateData.password = await bcrypt.hash(password, 10);
       }
-      
+
       if (role && (role === "admin" || role === "user")) {
         updateData.role = role;
       }
@@ -175,7 +195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updatedUser = await storage.updateUser(userId, updateData);
-      
+
       res.json({
         id: updatedUser.id,
         username: updatedUser.username,
@@ -192,7 +212,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.params.id;
       const currentUser = req.user as User;
-      
+
       // Empêcher l'admin de se supprimer lui-même
       if (userId === currentUser.id) {
         return res.status(400).json({ error: "Vous ne pouvez pas supprimer votre propre compte" });
@@ -205,7 +225,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       await storage.deleteUser(userId);
-      
+
       res.json({ success: true, message: "Utilisateur supprimé avec succès" });
     } catch (error: any) {
       console.error("Error deleting user:", error);
@@ -240,7 +260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Créer les nouvelles permissions
       const permissions = await Promise.all(
-        pageIds.map(pageId => 
+        pageIds.map(pageId =>
           storage.createPagePermission({ userId, pageId })
         )
       );
@@ -276,10 +296,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      res.json({ 
-        success: true, 
+      res.json({
+        success: true,
         message: `${migratedCount} permissions migrées avec succès`,
-        migratedCount 
+        migratedCount
       });
     } catch (error) {
       console.error("Error migrating permissions:", error);
@@ -291,14 +311,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/auth/default-password-status", async (req, res) => {
     try {
       const adminUser = await storage.getUserByUsername("admin");
-      
+
       if (!adminUser) {
         return res.json({ isDefault: false });
       }
 
       // Vérifier si le mot de passe correspond à "admin"
       const isDefaultPassword = await bcrypt.compare("admin", adminUser.password);
-      
+
       res.json({ isDefault: isDefaultPassword });
     } catch (error) {
       console.error("Error checking default password:", error);
@@ -306,8 +326,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Route SQL (réservée aux admins)
+  // Route SQL (réservée aux admins) - DÉSACTIVÉE EN PRODUCTION sauf si explicitement autorisée
   app.post("/api/sql/execute", requireAdmin, async (req, res) => {
+    // Vérification de sécurité: désactivé en production sauf si ALLOW_SQL_CONSOLE=true
+    if (process.env.NODE_ENV === 'production' && process.env.ALLOW_SQL_CONSOLE !== 'true') {
+      return res.status(403).json({
+        success: false,
+        error: "Console SQL désactivée en production pour des raisons de sécurité"
+      });
+    }
+
     try {
       // Validation Zod
       const sqlQuerySchema = z.object({
@@ -318,7 +346,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { db } = await import("./db");
       const result = await db.execute(validatedData.query);
-      
+
       res.json({
         success: true,
         result,
@@ -345,7 +373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const result = await db.execute<{ tablename: string }>(
         `SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename;`
       );
-      
+
       res.json({
         tables: result.rows || result,
       });
@@ -363,7 +391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const userId = user.id;
-      
+
       const posts = await storage.getPosts(userId);
       const pages = await storage.getSocialPages(userId);
       const media = await storage.getMedia(userId);
@@ -379,7 +407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
       yesterday.setHours(0, 0, 0, 0);
-      
+
       const lastMonth = new Date(now);
       lastMonth.setMonth(lastMonth.getMonth() - 1);
 
@@ -399,7 +427,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).length;
 
       // Calculer les variations en pourcentage
-      const aiTextChange = aiTextsYesterday > 0 
+      const aiTextChange = aiTextsYesterday > 0
         ? Math.round(((currentAiTexts - aiTextsYesterday) / aiTextsYesterday) * 100)
         : currentAiTexts > 0 ? 100 : 0;
 
@@ -469,10 +497,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check if Cloudinary is configured (shared config used for all users)
       const cloudinaryConfig = await storage.getAnyCloudinaryConfig();
-      
+
       if (!cloudinaryConfig) {
-        return res.status(400).json({ 
-          error: "Cloudinary not configured. Please ask an administrator to configure Cloudinary in Settings first." 
+        return res.status(400).json({
+          error: "Cloudinary not configured. Please ask an administrator to configure Cloudinary in Settings first."
         });
       }
 
@@ -543,7 +571,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Load with Sharp to process
       const sharp = (await import("sharp")).default;
       let image = sharp(imageBuffer);
-      
+
       // Get image metadata for dimensions
       const metadata = await image.metadata();
       const width = metadata.width!;
@@ -562,33 +590,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Position mapping for each corner
         const positions: Record<string, { x: number; y: number; polygon: string; textX: number; textY: number; textRotation: number }> = {
-          north_west: { 
-            x: 0, 
-            y: 0, 
+          north_west: {
+            x: 0,
+            y: 0,
             polygon: `0,0 ${ribbonSize},0 0,${ribbonSize}`,  // Top-left triangle
             textX: ribbonSize * 0.3,
             textY: ribbonSize * 0.3,
             textRotation: -45
           },
-          north_east: { 
-            x: width - ribbonSize, 
-            y: 0, 
+          north_east: {
+            x: width - ribbonSize,
+            y: 0,
             polygon: `0,0 ${ribbonSize},0 ${ribbonSize},${ribbonSize}`,  // Top-right triangle
             textX: ribbonSize * 0.7,
             textY: ribbonSize * 0.3,
             textRotation: 45
           },
-          south_west: { 
-            x: 0, 
-            y: height - ribbonSize, 
+          south_west: {
+            x: 0,
+            y: height - ribbonSize,
             polygon: `0,0 0,${ribbonSize} ${ribbonSize},${ribbonSize}`,  // Bottom-left triangle
             textX: ribbonSize * 0.3,
             textY: ribbonSize * 0.7,
             textRotation: -135
           },
-          south_east: { 
-            x: width - ribbonSize, 
-            y: height - ribbonSize, 
+          south_east: {
+            x: width - ribbonSize,
+            y: height - ribbonSize,
             polygon: `${ribbonSize},0 0,${ribbonSize} ${ribbonSize},${ribbonSize}`,  // Bottom-right triangle
             textX: ribbonSize * 0.7,
             textY: ribbonSize * 0.7,
@@ -642,8 +670,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const badgeSvg = `
           <svg width="${badgeWidth}" height="${badgeHeight}">
             <rect x="0" y="0" width="${badgeWidth}" height="${badgeHeight}" 
-                  rx="${badgeHeight/2}" ry="${badgeHeight/2}" fill="${color}"/>
-            <text x="${badgeWidth/2}" y="${badgeHeight/2}" 
+                  rx="${badgeHeight / 2}" ry="${badgeHeight / 2}" fill="${color}"/>
+            <text x="${badgeWidth / 2}" y="${badgeHeight / 2}" 
                   font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="bold" 
                   fill="white" text-anchor="middle" dominant-baseline="middle">
               ${badgeText}
@@ -661,7 +689,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Add logo overlay
       if (logo && logo.enabled) {
         console.log("🏢 Adding logo overlay...");
-        
+
         // Get Cloudinary config to get logo public ID
         const cloudinaryConfig = await storage.getAnyCloudinaryConfig();
         if (cloudinaryConfig && cloudinaryConfig.logoPublicId) {
@@ -669,44 +697,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
             // Build logo URL from Cloudinary
             const logoUrl = `https://res.cloudinary.com/${cloudinaryConfig.cloudName}/image/upload/${cloudinaryConfig.logoPublicId}`;
             console.log("📥 Downloading logo from:", logoUrl);
-            
+
             // Download logo
             const logoResponse = await fetch(logoUrl);
             const logoBuffer = Buffer.from(await logoResponse.arrayBuffer());
-            
+
             // Determine logo size based on selection with safety cap
             const padding = 20;
             const maxLogoWidth = width - (padding * 2);  // Ensure logo fits within canvas
-            
+
             const logoSizePercentages = {
               small: 0.35,   // 35% of image width
               medium: 0.50,  // 50% of image width
               large: 0.70    // 70% of image width
             };
-            
+
             const requestedWidth = Math.round(width * logoSizePercentages[logo.size as keyof typeof logoSizePercentages] || logoSizePercentages.medium);
             const logoWidth = Math.min(requestedWidth, maxLogoWidth);
-            
+
             // Resize logo preserving aspect ratio and apply opacity
             const resizedLogo = await sharp(logoBuffer)
               .resize({ width: logoWidth, fit: 'contain' })
               .ensureAlpha()
               .toBuffer();
-            
+
             // Get resized logo dimensions
             const logoMetadata = await sharp(resizedLogo).metadata();
             const logoHeight = logoMetadata.height || logoWidth;
-            
+
             // Ensure logo fits within height as well
             const maxLogoHeight = height - (padding * 2);
             if (logoHeight > maxLogoHeight) {
               console.warn(`⚠️ Logo height ${logoHeight}px exceeds max ${maxLogoHeight}px, would be clipped`);
             }
-            
+
             // Calculate position with padding
             let logoX = padding;
             let logoY = padding;
-            
+
             if (logo.position === 'north_east') {
               logoX = width - logoWidth - padding;
             } else if (logo.position === 'south_west') {
@@ -718,7 +746,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               logoX = Math.round((width - logoWidth) / 2);
               logoY = Math.round((height - logoHeight) / 2);
             }
-            
+
             // Apply opacity by manipulating alpha channel
             let logoWithOpacity = resizedLogo;
             if (logo.opacity < 100) {
@@ -729,7 +757,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 .linear(opacityFactor, 0)
                 .toBuffer();
             }
-            
+
             // Add logo overlay
             overlays.push({
               input: logoWithOpacity,
@@ -737,7 +765,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               left: logoX,
               blend: 'over'
             });
-            
+
             console.log(`✅ Logo added at position ${logo.position} with ${logo.opacity}% opacity`);
           } catch (logoError) {
             console.error("⚠️  Failed to apply logo:", logoError);
@@ -761,8 +789,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if Cloudinary is configured (shared config used for all users)
       const cloudinaryConfig = await storage.getAnyCloudinaryConfig();
       if (!cloudinaryConfig) {
-        return res.status(400).json({ 
-          error: "Cloudinary not configured. Please ask an administrator to configure Cloudinary in Settings first." 
+        return res.status(400).json({
+          error: "Cloudinary not configured. Please ask an administrator to configure Cloudinary in Settings first."
         });
       }
 
@@ -804,11 +832,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       const mediaId = req.params.id;
-      
+
       // Get media to find cloudinary public ID
       const allMedia = await storage.getMedia(userId);
       const mediaToDelete = allMedia.find(m => m.id === mediaId);
-      
+
       if (!mediaToDelete) {
         return res.status(404).json({ error: "Media not found" });
       }
@@ -816,7 +844,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Delete from Cloudinary
       if (mediaToDelete.cloudinaryPublicId) {
         await cloudinaryService.deleteMedia(
-          mediaToDelete.cloudinaryPublicId, 
+          mediaToDelete.cloudinaryPublicId,
           userId,
           mediaToDelete.type
         );
@@ -824,7 +852,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Delete from database
       await storage.deleteMedia(mediaId);
-      
+
       res.json({ success: true });
     } catch (error) {
       console.error("Error deleting media:", error);
@@ -850,10 +878,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       const { pageIds, postType, mediaId, mediaIds, ...postFields } = req.body;
-      
+
       // Convert mediaIds to standardized format: array of { mediaId, displayOrder }
       let finalMediaItems: Array<{ mediaId: string; displayOrder: number }> = [];
-      
+
       if (mediaIds && Array.isArray(mediaIds)) {
         // New format: array of objects or strings
         finalMediaItems = mediaIds.map((item: any, index: number) => {
@@ -873,52 +901,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Legacy single mediaId
         finalMediaItems = [{ mediaId, displayOrder: 0 }];
       }
-      
+
       // Validate max 10 photos
       if (finalMediaItems.length > 10) {
         return res.status(400).json({ error: "Maximum 10 photos autorisées par publication" });
       }
-      
+
       // Validate that stories require media
       if ((postType === 'story' || postType === 'both') && finalMediaItems.length === 0) {
         return res.status(400).json({ error: "Les stories nécessitent au moins un média (image ou vidéo)" });
       }
-      
+
       // Security: Verify user has access to all specified pages (unless admin)
       if (user.role !== 'admin' && pageIds && Array.isArray(pageIds) && pageIds.length > 0) {
         const accessiblePages = await storage.getUserAccessiblePages(userId);
         const accessiblePageIds = accessiblePages.map(p => p.id);
-        
-        const hasAccessToAllPages = pageIds.every(pageId => 
+
+        const hasAccessToAllPages = pageIds.every(pageId =>
           accessiblePageIds.includes(pageId)
         );
-        
+
         if (!hasAccessToAllPages) {
-          return res.status(403).json({ 
-            error: "Vous n'avez pas accès à certaines pages sélectionnées" 
+          return res.status(403).json({
+            error: "Vous n'avez pas accès à certaines pages sélectionnées"
           });
         }
       }
-      
+
       // Convert scheduledFor string to Date if provided
       if (postFields.scheduledFor && typeof postFields.scheduledFor === 'string') {
         postFields.scheduledFor = new Date(postFields.scheduledFor);
       }
-      
+
       // Set status to "scheduled" if scheduledFor is provided, otherwise "draft"
       if (postFields.scheduledFor) {
         postFields.status = "scheduled";
-        
+
         // Validate that scheduled posts require at least one page
         if (!pageIds || !Array.isArray(pageIds) || pageIds.length === 0) {
           return res.status(400).json({ error: "Les posts programmés nécessitent au moins une page cible" });
         }
       }
-      
+
       // Create the post
       const postData = insertPostSchema.parse({ ...postFields, userId });
       const post = await storage.createPost(postData);
-      
+
       // Link media to post if provided (with display order)
       if (finalMediaItems.length > 0) {
         const postMediaValues = finalMediaItems.map(item => ({
@@ -928,15 +956,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }));
         await db.insert(postMedia).values(postMediaValues);
       }
-      
+
       // Create scheduled posts for each selected page
       if (pageIds && Array.isArray(pageIds) && pageIds.length > 0) {
-        const scheduledAt = postFields.scheduledFor 
-          ? new Date(postFields.scheduledFor) 
+        const scheduledAt = postFields.scheduledFor
+          ? new Date(postFields.scheduledFor)
           : new Date(); // Publish immediately if no date specified
-        
+
         const finalPostType = postType || 'feed';
-        
+
         for (const pageId of pageIds) {
           // If postType is "both", create two separate scheduled posts (story + feed)
           if (finalPostType === 'both') {
@@ -962,7 +990,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
       }
-      
+
       res.json(post);
     } catch (error) {
       console.error("Error creating post:", error);
@@ -997,7 +1025,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (scheduledPostsForPost.length > 0) {
         const accessiblePages = await storage.getUserAccessiblePages(userId);
         const accessiblePageIds = accessiblePages.map(p => p.id);
-        
+
         // Vérifier si au moins une page du post est accessible
         const hasAccess = scheduledPostsForPost.some(sp => accessiblePageIds.includes(sp.pageId));
         if (hasAccess) {
@@ -1075,19 +1103,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       const { startDate, endDate } = req.query;
-      
+
       const start = startDate ? new Date(startDate as string) : undefined;
       const end = endDate ? new Date(endDate as string) : undefined;
-      
+
       let scheduledPosts;
-      
+
       if (user.role === 'admin') {
         // Admin voit tous les posts programmés - on récupère toutes les pages
-        const allPages = await storage.getAllUsers().then(users => 
+        const allPages = await storage.getAllUsers().then(users =>
           Promise.all(users.map(u => storage.getSocialPages(u.id)))
         ).then(pagesArrays => pagesArrays.flat());
         const allPageIds = allPages.map(p => p.id);
-        
+
         if (allPageIds.length > 0) {
           scheduledPosts = await storage.getScheduledPostsByPages(allPageIds, start, end);
         } else {
@@ -1097,14 +1125,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // User voit uniquement les posts programmés sur les pages qui lui sont attribuées
         const accessiblePages = await storage.getUserAccessiblePages(userId);
         const accessiblePageIds = accessiblePages.map(p => p.id);
-        
+
         if (accessiblePageIds.length > 0) {
           scheduledPosts = await storage.getScheduledPostsByPages(accessiblePageIds, start, end);
         } else {
           scheduledPosts = [];
         }
       }
-      
+
       res.json(scheduledPosts);
     } catch (error) {
       console.error("Error fetching scheduled posts:", error);
@@ -1117,23 +1145,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       const { id } = req.params;
-      
+
       // Verify the scheduled post exists
       const scheduledPost = await storage.getScheduledPost(id);
       if (!scheduledPost) {
         return res.status(404).json({ error: "Scheduled post not found" });
       }
-      
+
       const post = await storage.getPost(scheduledPost.postId);
       if (!post) {
         return res.status(404).json({ error: "Post not found" });
       }
-      
+
       // Admin peut tout supprimer, user peut supprimer uniquement ses propres posts
       if (user.role !== 'admin' && post.userId !== userId) {
         return res.status(403).json({ error: "Unauthorized" });
       }
-      
+
       await storage.deleteScheduledPost(id);
       res.json({ success: true });
     } catch (error) {
@@ -1147,37 +1175,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       const { id } = req.params;
-      
+
       // Verify the scheduled post exists
       const scheduledPost = await storage.getScheduledPost(id);
       if (!scheduledPost) {
         return res.status(404).json({ error: "Scheduled post not found" });
       }
-      
+
       const post = await storage.getPost(scheduledPost.postId);
       if (!post) {
         return res.status(404).json({ error: "Post not found" });
       }
-      
+
       // Admin peut tout modifier, user peut modifier uniquement ses propres posts
       if (user.role !== 'admin' && post.userId !== userId) {
         return res.status(403).json({ error: "Unauthorized" });
       }
-      
+
       // Only allow updating scheduledAt and pageId
       const { scheduledAt, pageId } = req.body;
       const updateData: Partial<ScheduledPost> = {};
-      
+
       if (scheduledAt) {
         updateData.scheduledAt = new Date(scheduledAt);
         // Synchroniser avec la table posts
         await storage.updatePost(scheduledPost.postId, { scheduledFor: new Date(scheduledAt) });
       }
-      
+
       if (pageId) {
         updateData.pageId = pageId;
       }
-      
+
       const updated = await storage.updateScheduledPost(id, updateData);
       res.json(updated);
     } catch (error) {
@@ -1189,7 +1217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/scheduled-posts", requireAuth, async (req, res) => {
     try {
       const scheduledPostData = insertScheduledPostSchema.parse(req.body);
-      
+
       // If postType is "both", create two separate scheduled posts (story + feed)
       // This prevents retry loops - each post type is independent
       if (scheduledPostData.postType === 'both') {
@@ -1220,9 +1248,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const userId = user.id;
-      
+
       let pages: SocialPage[];
-      
+
       if (user.role === 'admin') {
         // Les admins voient toutes les pages de tous les utilisateurs
         const allUsers = await storage.getAllUsers();
@@ -1234,7 +1262,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Les utilisateurs normaux voient uniquement les pages auxquelles ils ont accès
         pages = await storage.getUserAccessiblePages(userId);
       }
-      
+
       res.json(pages);
     } catch (error) {
       console.error("Error fetching pages:", error);
@@ -1246,15 +1274,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const userId = user.id;
-      
+
       // Calculate token expiration date (60 days from now)
       const tokenExpiresAt = new Date();
       tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 60);
-      
-      const pageData = insertSocialPageSchema.parse({ 
-        ...req.body, 
+
+      const pageData = insertSocialPageSchema.parse({
+        ...req.body,
         userId,
-        tokenExpiresAt 
+        tokenExpiresAt
       });
       const page = await storage.createSocialPage(pageData);
       res.json(page);
@@ -1269,21 +1297,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       const pageId = req.params.id;
-      
+
       const existingPage = await storage.getSocialPage(pageId);
       if (!existingPage || existingPage.userId !== userId) {
         return res.status(404).json({ error: "Page non trouvée" });
       }
-      
+
       let pageData = insertSocialPageSchema.partial().parse(req.body);
-      
+
       // If accessToken is being updated, recalculate expiration date (60 days from now)
       if (pageData.accessToken) {
         const tokenExpiresAt = new Date();
         tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 60);
         pageData = { ...pageData, tokenExpiresAt };
       }
-      
+
       const updatedPage = await storage.updateSocialPage(pageId, pageData);
       res.json(updatedPage);
     } catch (error) {
@@ -1297,12 +1325,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       const pageId = req.params.id;
-      
+
       const existingPage = await storage.getSocialPage(pageId);
       if (!existingPage || existingPage.userId !== userId) {
         return res.status(404).json({ error: "Page non trouvée" });
       }
-      
+
       await storage.deleteSocialPage(pageId);
       res.json({ success: true });
     } catch (error) {
@@ -1330,7 +1358,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       const config = await storage.getCloudinaryConfig(userId);
-      
+
       if (!config) {
         return res.json(null);
       }
@@ -1348,10 +1376,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const userId = user.id;
-      
+
       // Check if config already exists
       const existingConfig = await storage.getCloudinaryConfig(userId);
-      
+
       let config;
       if (existingConfig) {
         // Pour les mises à jour, utiliser le schéma qui rend les secrets optionnels
@@ -1359,14 +1387,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...req.body,
           userId,
         });
-        
+
         // Si apiKey/apiSecret ne sont pas fournis, garder les anciens
         const finalData = {
           ...updateData,
           apiKey: updateData.apiKey || existingConfig.apiKey,
           apiSecret: updateData.apiSecret || existingConfig.apiSecret,
         };
-        
+
         config = await storage.updateCloudinaryConfig(userId, finalData);
       } else {
         // Pour les créations, exiger tous les champs
@@ -1399,8 +1427,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check if Cloudinary is configured
       const cloudinaryConfig = await storage.getCloudinaryConfig(userId);
       if (!cloudinaryConfig) {
-        return res.status(400).json({ 
-          error: "Cloudinary not configured. Please configure Cloudinary first." 
+        return res.status(400).json({
+          error: "Cloudinary not configured. Please configure Cloudinary first."
         });
       }
 
@@ -1490,7 +1518,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
       const config = await storage.getOpenrouterConfig(userId);
-      
+
       if (!config) {
         return res.json(null);
       }
@@ -1508,10 +1536,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const userId = user.id;
-      
+
       // Check if config already exists
       const existingConfig = await storage.getOpenrouterConfig(userId);
-      
+
       let config;
       if (existingConfig) {
         // Pour les mises à jour, utiliser le schéma qui rend apiKey optionnel
@@ -1519,13 +1547,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...req.body,
           userId,
         });
-        
+
         // Si apiKey n'est pas fourni, garder l'ancien
         const finalData = {
           ...updateData,
           apiKey: updateData.apiKey || existingConfig.apiKey,
         };
-        
+
         config = await storage.updateOpenrouterConfig(userId, finalData);
       } else {
         // Pour les créations, exiger tous les champs
