@@ -14,6 +14,10 @@ import { ensureAdminUserExists } from "./init-admin";
 const app = express();
 const PgSession = connectPgSimple(session);
 
+// Faire confiance au reverse proxy (nginx) pour X-Forwarded-For
+// Nécessaire pour que express-rate-limit identifie correctement les IPs
+app.set('trust proxy', 1);
+
 // Headers de sécurité HTTP avec helmet
 app.use(helmet({
   contentSecurityPolicy: {
