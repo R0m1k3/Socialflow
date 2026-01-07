@@ -570,7 +570,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Load with Sharp to process
       const sharp = (await import("sharp")).default;
-      let image = sharp(imageBuffer);
+      let image = sharp(imageBuffer).rotate();
 
       // Get image metadata for dimensions
       const metadata = await image.metadata();
