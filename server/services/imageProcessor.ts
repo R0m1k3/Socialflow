@@ -62,6 +62,7 @@ export class ImageProcessor {
     const fbFeedFilename = `${baseId}-fb-feed${fileExt}`;
     const fbFeedPath = path.join(this.uploadsDir, fbFeedFilename);
     await sharp(buffer)
+      .rotate() // Auto-rotate based on EXIF orientation
       .resize(CROP_FORMATS.facebookFeed.width, CROP_FORMATS.facebookFeed.height, {
         fit: "cover",
         position: "center",
@@ -73,6 +74,7 @@ export class ImageProcessor {
     const igFeedFilename = `${baseId}-ig-feed${fileExt}`;
     const igFeedPath = path.join(this.uploadsDir, igFeedFilename);
     await sharp(buffer)
+      .rotate() // Auto-rotate based on EXIF orientation
       .resize(CROP_FORMATS.instagramFeed.width, CROP_FORMATS.instagramFeed.height, {
         fit: "cover",
         position: "center",
@@ -84,6 +86,7 @@ export class ImageProcessor {
     const igStoryFilename = `${baseId}-ig-story${fileExt}`;
     const igStoryPath = path.join(this.uploadsDir, igStoryFilename);
     await sharp(buffer)
+      .rotate() // Auto-rotate based on EXIF orientation
       .resize(CROP_FORMATS.instagramStory.width, CROP_FORMATS.instagramStory.height, {
         fit: "cover",
         position: "center",
@@ -118,7 +121,7 @@ export class ImageProcessor {
     const MAX_FONT_SIZE = 72;
     const PADDING = 40;
     const LINE_HEIGHT_MULTIPLIER = 1.3;
-    
+
     // Remove hashtags from text while keeping emojis
     const cleanText = removeHashtags(text);
 
@@ -126,7 +129,7 @@ export class ImageProcessor {
     const ctx = canvas.getContext('2d');
 
     const image = await loadImage(imageUrl);
-    
+
     const imgWidth = image.width;
     const imgHeight = image.height;
     const targetRatio = STORY_WIDTH / STORY_HEIGHT;
@@ -165,7 +168,7 @@ export class ImageProcessor {
 
     while (fontSize >= MIN_FONT_SIZE) {
       ctx.font = `bold ${fontSize}px "DejaVu Sans", Arial, sans-serif`;
-      
+
       lines = await emojiRenderer.wrapText(cleanText, ctx, maxTextWidth, fontSize);
       const lineHeight = fontSize * LINE_HEIGHT_MULTIPLIER;
       totalTextHeight = lines.length * lineHeight;
@@ -183,7 +186,7 @@ export class ImageProcessor {
       lines = await emojiRenderer.wrapText(cleanText, ctx, maxTextWidth, fontSize);
       const lineHeight = fontSize * LINE_HEIGHT_MULTIPLIER;
       totalTextHeight = lines.length * lineHeight;
-      
+
       const maxLines = Math.floor(maxTextHeight / lineHeight);
       if (lines.length > maxLines) {
         lines = lines.slice(0, maxLines);
@@ -220,12 +223,12 @@ export class ImageProcessor {
     for (const word of words) {
       const testLine = currentLine ? `${currentLine} ${word}` : word;
       const metrics = ctx.measureText(testLine);
-      
+
       if (metrics.width > maxWidth && currentLine) {
         // Current line would exceed width, push it and start new line
         lines.push(currentLine);
         currentLine = word;
-        
+
         // Check if the word itself is too long for a single line
         const wordMetrics = ctx.measureText(word);
         if (wordMetrics.width > maxWidth) {
@@ -247,7 +250,7 @@ export class ImageProcessor {
         currentLine = testLine;
       }
     }
-    
+
     if (currentLine) {
       lines.push(currentLine);
     }
@@ -261,12 +264,12 @@ export class ImageProcessor {
   private breakLongWord(ctx: any, word: string, maxWidth: number): string[] {
     const chunks: string[] = [];
     let currentChunk = '';
-    
+
     for (let i = 0; i < word.length; i++) {
       const char = word[i];
       const testChunk = currentChunk + char;
       const metrics = ctx.measureText(testChunk);
-      
+
       if (metrics.width > maxWidth && currentChunk) {
         chunks.push(currentChunk);
         currentChunk = char;
@@ -274,11 +277,11 @@ export class ImageProcessor {
         currentChunk = testChunk;
       }
     }
-    
+
     if (currentChunk) {
       chunks.push(currentChunk);
     }
-    
+
     return chunks.length > 0 ? chunks : [word];
   }
 }
