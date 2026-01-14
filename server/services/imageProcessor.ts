@@ -125,10 +125,15 @@ export class ImageProcessor {
     // Remove hashtags from text while keeping emojis
     const cleanText = removeHashtags(text);
 
+    // Pre-process image with sharp to apply rotation
+    const rotationBuffer = await sharp(imageUrl)
+      .rotate() // Apply EXIF rotation
+      .toBuffer();
+
     const canvas = createCanvas(STORY_WIDTH, STORY_HEIGHT);
     const ctx = canvas.getContext('2d');
 
-    const image = await loadImage(imageUrl);
+    const image = await loadImage(rotationBuffer);
 
     const imgWidth = image.width;
     const imgHeight = image.height;
