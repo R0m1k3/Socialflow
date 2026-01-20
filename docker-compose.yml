@@ -19,7 +19,7 @@ services:
       - internal
       - nginx_default
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PGUSER:-socialflow}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${PGUSER:-socialflow}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -44,17 +44,21 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      - encryption_key:/app/.encryption-key-data
     command: sh -c "npx drizzle-kit push --force && npm run start"
 
 volumes:
   postgres_data:
+    driver: local
+  encryption_key:
     driver: local
 
 networks:
   # Réseau interne pour la communication DB <-> App
   internal:
     driver: bridge
-  
+
   # Réseau externe pour nginx reverse proxy
   nginx_default:
     external: true

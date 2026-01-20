@@ -1,24 +1,84 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
 
+// Chemin du fichier de clé - utilise le volume Docker si disponible, sinon le répertoire courant
+const KEY_DIR = fs.existsSync('/app/.encryption-key-data')
+  ? '/app/.encryption-key-data'
+  : process.cwd();
+const KEY_FILE_PATH = path.join(KEY_DIR, '.encryption-key');
+
+// Cache de la clé pour éviter de lire le fichier à chaque appel
+let cachedKey: Buffer | null = null;
+let keyInitialized = false;
+
 /**
- * Récupère la clé de chiffrement depuis les variables d'environnement.
- * Dérive une clé de 32 bytes pour AES-256.
+ * Génère une clé de chiffrement aléatoire et la sauvegarde dans un fichier.
+ * @returns La clé générée
+ */
+function generateAndSaveKey(): Buffer {
+  const randomKey = crypto.randomBytes(32).toString('hex');
+  try {
+    fs.writeFileSync(KEY_FILE_PATH, randomKey, { mode: 0o600 }); // Permissions restrictives
+    console.log('🔐 Nouvelle clé de chiffrement générée et sauvegardée automatiquement');
+  } catch (error) {
+    console.warn('⚠️ Impossible de sauvegarder la clé de chiffrement dans un fichier. Elle sera régénérée au prochain redémarrage.');
+  }
+  return crypto.scryptSync(randomKey, 'socialflow-salt', 32);
+}
+
+/**
+ * Charge la clé depuis le fichier persistant si elle existe.
+ * @returns La clé ou null si non trouvée
+ */
+function loadKeyFromFile(): Buffer | null {
+  try {
+    if (fs.existsSync(KEY_FILE_PATH)) {
+      const savedKey = fs.readFileSync(KEY_FILE_PATH, 'utf8').trim();
+      if (savedKey) {
+        console.log('🔐 Clé de chiffrement chargée depuis le fichier persistant');
+        return crypto.scryptSync(savedKey, 'socialflow-salt', 32);
+      }
+    }
+  } catch (error) {
+    console.warn('⚠️ Impossible de lire le fichier de clé de chiffrement');
+  }
+  return null;
+}
+
+/**
+ * Récupère la clé de chiffrement.
+ * Priorité: 1) Variable d'environnement, 2) Fichier persistant, 3) Génération auto
  */
 function getEncryptionKey(): Buffer {
-  const key = process.env.ENCRYPTION_KEY;
-  if (!key) {
-    // En développement, utiliser une clé par défaut (non sécurisé pour la production)
-    if (process.env.NODE_ENV !== 'production') {
-      console.warn('⚠️ ENCRYPTION_KEY non défini. Utilisation d\'une clé par défaut (développement uniquement)');
-      return crypto.scryptSync('dev-default-key-not-secure', 'salt', 32);
-    }
-    throw new Error('ENCRYPTION_KEY non défini dans les variables d\'environnement');
+  // Retourner la clé en cache si déjà initialisée
+  if (keyInitialized && cachedKey) {
+    return cachedKey;
   }
-  // Dériver une clé de 32 bytes depuis la clé fournie
-  return crypto.scryptSync(key, 'socialflow-salt', 32);
+
+  // 1. Priorité à la variable d'environnement
+  const envKey = process.env.ENCRYPTION_KEY;
+  if (envKey) {
+    cachedKey = crypto.scryptSync(envKey, 'socialflow-salt', 32);
+    keyInitialized = true;
+    return cachedKey;
+  }
+
+  // 2. Essayer de charger depuis le fichier persistant
+  const fileKey = loadKeyFromFile();
+  if (fileKey) {
+    cachedKey = fileKey;
+    keyInitialized = true;
+    return cachedKey;
+  }
+
+  // 3. Générer automatiquement une nouvelle clé et la sauvegarder
+  cachedKey = generateAndSaveKey();
+  keyInitialized = true;
+  return cachedKey;
 }
 
 /**
@@ -30,11 +90,11 @@ export function encrypt(text: string): string {
   const key = getEncryptionKey();
   const iv = crypto.randomBytes(IV_LENGTH);
   const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-  
+
   let encrypted = cipher.update(text, 'utf8', 'hex');
   encrypted += cipher.final('hex');
   const authTag = cipher.getAuthTag();
-  
+
   // Format: iv:authTag:encrypted
   return `${iv.toString('hex')}:${authTag.toString('hex')}:${encrypted}`;
 }
@@ -50,26 +110,26 @@ export function decrypt(encryptedText: string): string {
   if (!encryptedText.includes(':')) {
     return encryptedText;
   }
-  
+
   const key = getEncryptionKey();
   const parts = encryptedText.split(':');
-  
+
   if (parts.length !== 3) {
     // Format invalide, retourner tel quel (rétrocompatibilité)
     return encryptedText;
   }
-  
+
   const [ivHex, authTagHex, encrypted] = parts;
-  
+
   try {
     const iv = Buffer.from(ivHex, 'hex');
     const authTag = Buffer.from(authTagHex, 'hex');
     const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
     decipher.setAuthTag(authTag);
-    
+
     let decrypted = decipher.update(encrypted, 'hex', 'utf8');
     decrypted += decipher.final('utf8');
-    
+
     return decrypted;
   } catch (error) {
     // Si le déchiffrement échoue, retourner tel quel (rétrocompatibilité)
