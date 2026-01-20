@@ -59,8 +59,9 @@ router.post('/pages/:pageId/refresh', async (req, res) => {
             where: eq(socialPages.id, pageId)
         });
         res.json(page);
-    } catch (error) {
-        res.status(500).json({ error: 'Failed to refresh page analytics' });
+    } catch (error: any) {
+        console.error('Refresh error:', error);
+        res.status(500).json({ error: error.message || 'Failed to refresh page analytics' });
     }
 });
 

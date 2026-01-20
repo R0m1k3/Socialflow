@@ -149,16 +149,34 @@ export class AnalyticsService {
 
         if (!page) return;
 
+        let accessToken = page.accessToken;
+        if (accessToken.includes(':')) {
+            try { accessToken = TokenManager.decrypt(accessToken); } catch { }
+        }
+
+        // 1. Fetch Basic Page Info (Followers/Fans) - Essential
+        // If this fails, the whole sync fails (because token might be bad)
+        let followers = page.followersCount || 0;
         try {
-            let accessToken = page.accessToken;
-            if (accessToken.includes(':')) {
-                try { accessToken = TokenManager.decrypt(accessToken); } catch { }
+            const basicInfo = await GraphAPIClient.get<any>(page.pageId, {
+                accessToken,
+                params: { fields: 'fan_count' }
+            });
+            if (basicInfo.fan_count !== undefined) {
+                followers = basicInfo.fan_count;
             }
+        } catch (error: any) {
+            console.error(`[AnalyticsService] Failed to fetch basic info for ${pageId}:`, error);
+            throw new Error(`Failed to fetch Basic Info: ${error.message || error}`);
+        }
 
-            // Fetch Page Insights
-            // common metrics: page_impressions, page_post_engagements, page_fans
-            const fields = 'insights.metric(page_impressions,page_post_engagements).period(day),fan_count';
+        // 2. Fetch Insights (Reach, Engagement) - Optional/Secondary
+        // If this fails, we catch it but still save the follower count
+        let pageReach = 0;
+        let pageViews = 0;
 
+        try {
+            const fields = 'insights.metric(page_impressions,page_post_engagements).period(day)';
             const result = await GraphAPIClient.get<any>(page.pageId, {
                 accessToken,
                 params: { fields }
@@ -171,26 +189,27 @@ export class AnalyticsService {
                 return m ? (m.values[m.values.length - 1]?.value || 0) : 0;
             };
 
-            const followers = result.fan_count || page.followersCount || 0;
-            const pageReach = findMetric('page_impressions'); // Proxy for reach if unique not available
-            const pageViews = 0; // page_views_total requirement specific permission
-
-            // Update Page
-            await db.update(socialPages)
-                .set({ followersCount: followers })
-                .where(eq(socialPages.id, pageId));
-
-            // Insert History
-            await db.insert(pageAnalyticsHistory).values({
-                pageId,
-                date: new Date(),
-                followersCount: followers,
-                pageReach,
-                pageViews
-            });
-
+            pageReach = findMetric('page_impressions');
         } catch (error) {
-            console.error(`[AnalyticsService] Failed to sync page ${page.pageName}:`, error);
+            console.warn(`[AnalyticsService] Failed to fetch insights for ${pageId} (Permissions?):`, error);
+            // Continue execution to save at least the follower count
         }
+
+        // Update Page
+        await db.update(socialPages)
+            .set({ followersCount: followers })
+            .where(eq(socialPages.id, pageId));
+
+        // Insert History
+        await db.insert(pageAnalyticsHistory).values({
+            pageId,
+            date: new Date(),
+            followersCount: followers,
+            pageReach,
+            pageViews
+        });
+
+        console.log(`[AnalyticsService] Synced page ${pageId}: ${followers} followers, ${pageReach} reach`);
+
     }
 }
