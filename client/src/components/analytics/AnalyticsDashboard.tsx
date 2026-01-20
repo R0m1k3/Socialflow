@@ -16,7 +16,7 @@ export function AnalyticsDashboard() {
     const { toast } = useToast();
 
     // Fetch Pages
-    const { data: pages = [], isLoading: isLoadingPages } = useQuery({
+    const { data: pages = [], isLoading: isLoadingPages } = useQuery<any[]>({
         queryKey: ['/api/pages'],
     });
 
@@ -28,7 +28,7 @@ export function AnalyticsDashboard() {
     }, [pages, selectedPageId]);
 
     // Fetch History for selected page
-    const { data: history = [], isLoading: isLoadingHistory } = useQuery({
+    const { data: history = [], isLoading: isLoadingHistory } = useQuery<any[]>({
         queryKey: [`/api/analytics/pages/${selectedPageId}/history`],
         enabled: !!selectedPageId,
     });

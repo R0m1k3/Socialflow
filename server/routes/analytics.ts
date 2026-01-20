@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { db } from '../index';
+import { db } from '../db';
 import { AnalyticsService } from '../services/analytics';
 import { TokenManager } from '../services/token_manager';
 import { postAnalytics, pageAnalyticsHistory, socialPages } from '../../shared/schema';

@@ -1,5 +1,5 @@
 import cron from 'node-cron';
-import { TokenManager } from '../services/token_manager';
+import { TokenManager } from './services/token_manager';
 
 export function startTokenCron() {
     // Run every day at midnight (00:00)

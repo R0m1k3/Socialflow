@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { db } from '../index';
+import { db } from '../db';
 import { socialPages, tokenStatusEnum } from '../../shared/schema';
 import { eq, and, lte } from 'drizzle-orm';
 import { GraphAPIClient } from '../utils/graph_client';
