@@ -46,7 +46,7 @@ services:
         condition: service_healthy
     volumes:
       - encryption_key:/app/.encryption-key-data
-    command: sh -c "npx drizzle-kit push --force && npm run start"
+    command: npm run start
 
 volumes:
   postgres_data:
