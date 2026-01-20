@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Calendar, Images, Users, Bot, Clock, Settings, Database, UserCog, LogOut, ChevronLeft, ChevronRight, Wand2 } from "lucide-react";
+import { Home, PlusCircle, Calendar, Images, Users, Bot, Clock, Settings, Database, UserCog, LogOut, ChevronLeft, ChevronRight, Wand2, BarChart3 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -64,6 +64,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
     { icon: Calendar, label: "Calendrier", href: "/calendar", badge: null },
     { icon: Images, label: "Médiathèque", href: "/media", badge: null },
     { icon: Wand2, label: "Éditeur d'images", href: "/image-editor", badge: null },
+    { icon: BarChart3, label: "Analytics", href: "/analytics", badge: "New" },
   ];
 
   const statsItems = [
@@ -95,7 +96,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location === item.href;
-            
+
             return (
               <li key={item.href} className="relative group">
                 <a
@@ -103,8 +104,8 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
                   onClick={(e) => handleLinkClick(item.href, e)}
                   className={`
                     flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all relative cursor-pointer
-                    ${isActive 
-                      ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
+                    ${isActive
+                      ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
                       : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
                     }
                     ${isCollapsed ? 'justify-center' : ''}
@@ -145,7 +146,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
             {statsItems.map((item) => {
               const Icon = item.icon;
               const isActive = location === item.href;
-              
+
               return (
                 <li key={item.href} className="relative group">
                   <a
@@ -153,8 +154,8 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
                     onClick={(e) => handleLinkClick(item.href, e)}
                     className={`
                       flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative cursor-pointer
-                      ${isActive 
-                        ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
+                      ${isActive
+                        ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
                         : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
                       }
                       ${isCollapsed ? 'justify-center' : ''}
@@ -194,7 +195,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
               className={`
                 flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
                 ${location === "/pages"
-                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
+                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
                   : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
                 }
                 ${isCollapsed ? 'justify-center' : ''}
@@ -218,7 +219,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
               className={`
                 flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
                 ${location === "/ai"
-                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
+                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
                   : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
                 }
                 ${isCollapsed ? 'justify-center' : ''}
@@ -242,7 +243,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
               className={`
                 flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
                 ${location === "/users"
-                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
+                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
                   : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
                 }
                 ${isCollapsed ? 'justify-center' : ''}
@@ -266,7 +267,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
               className={`
                 flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
                 ${location === "/sql"
-                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
+                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
                   : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
                 }
                 ${isCollapsed ? 'justify-center' : ''}
@@ -290,7 +291,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
               className={`
                 flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
                 ${location === "/settings"
-                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm' 
+                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
                   : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
                 }
                 ${isCollapsed ? 'justify-center' : ''}
@@ -310,7 +311,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
             </a>
           </>
         )}
-        
+
         <div className="pt-2 relative group">
           <Button
             variant="ghost"
@@ -328,7 +329,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
             </div>
           )}
         </div>
-        
+
         {/* User Profile Card */}
         {session && (
           <div className={`mt-4 bg-gradient-to-br from-primary/5 to-secondary/5 border border-primary/10 rounded-xl ${isCollapsed ? 'p-2' : 'p-4'}`}>
@@ -347,7 +348,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
             </div>
           </div>
         )}
-        
+
         {/* Toggle Button (Desktop only) */}
         <button
           onClick={() => setIsCollapsed(!isCollapsed)}

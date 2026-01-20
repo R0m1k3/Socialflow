@@ -10,6 +10,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { schedulerService } from "./services/scheduler";
 import { ensureAdminUserExists } from "./init-admin";
+import { startTokenCron } from "./cron";
 
 const app = express();
 const PgSession = connectPgSimple(session);
@@ -183,5 +184,8 @@ app.use((req, res, next) => {
 
     // Démarrer le scheduler pour les publications programmées
     schedulerService.start();
+
+    // Start Token Refresh Cron
+    startTokenCron();
   });
 })();

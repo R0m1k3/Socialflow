@@ -17,6 +17,11 @@ export const users = pgTable("users", {
   role: userRoleEnum("role").notNull().default("user"),
 });
 
+// Update existing enums
+export const tokenStatusEnum = pgEnum("token_status", ["valid", "expiring", "expired", "error"]);
+
+// ... (existing tables)
+
 export const socialPages = pgTable("social_pages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -27,8 +32,83 @@ export const socialPages = pgTable("social_pages", {
   tokenExpiresAt: timestamp("token_expires_at"),
   followersCount: integer("followers_count").default(0),
   isActive: text("is_active").notNull().default("true"),
+
+  // NEW FIELDS
+  tokenStatus: tokenStatusEnum("token_status").default("valid"),
+  lastTokenCheck: timestamp("last_token_check"),
+
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// ... (existing tables)
+
+// NEW TABLES
+
+export const postAnalytics = pgTable("post_analytics", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  postId: varchar("post_id").notNull().references(() => posts.id, { onDelete: "cascade" }),
+  fetchedAt: timestamp("fetched_at").defaultNow(),
+
+  // Standard FB Metrics
+  impressions: integer("impressions").default(0),
+  reach: integer("reach").default(0),
+  engagement: integer("engagement").default(0),
+  reactions: integer("reactions").default(0),
+  comments: integer("comments").default(0),
+  shares: integer("shares").default(0),
+  clicks: integer("clicks").default(0),
+
+  rawData: jsonb("raw_data"), // Backup of full JSON response
+});
+
+export const pageAnalyticsHistory = pgTable("page_analytics_history", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  pageId: varchar("page_id").notNull().references(() => socialPages.id, { onDelete: "cascade" }),
+  date: timestamp("date").notNull(), // Snapshot date
+
+  followersCount: integer("followers_count").default(0),
+  pageViews: integer("page_views").default(0),
+  pageReach: integer("page_reach").default(0),
+
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Relations Updates
+
+
+
+// Insert Schemas Updates
+
+export const insertSocialPageSchema = createInsertSchema(socialPages).omit({
+  id: true,
+  createdAt: true,
+  tokenStatus: true,     // Managed by System
+  lastTokenCheck: true,  // Managed by System
+});
+
+export const insertPostAnalyticsSchema = createInsertSchema(postAnalytics).omit({
+  id: true,
+  fetchedAt: true,
+});
+
+export const insertPageAnalyticsHistorySchema = createInsertSchema(pageAnalyticsHistory).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types
+
+export type PostAnalytics = typeof postAnalytics.$inferSelect;
+export type InsertPostAnalytics = z.infer<typeof insertPostAnalyticsSchema>;
+
+export type PageAnalyticsHistory = typeof pageAnalyticsHistory.$inferSelect;
+export type InsertPageAnalyticsHistory = z.infer<typeof insertPageAnalyticsHistorySchema>;
+
+// ... (rest of existing types)
+
+export type UserPagePermission = typeof userPagePermissions.$inferSelect;
+export type InsertUserPagePermission = z.infer<typeof insertUserPagePermissionSchema>;
+
 
 export const cloudinaryConfig = pgTable("cloudinary_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -112,6 +192,40 @@ export const userPagePermissions = pgTable("user_page_permissions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const socialPagesRelations = relations(socialPages, ({ one, many }) => ({
+  user: one(users, {
+    fields: [socialPages.userId],
+    references: [users.id],
+  }),
+  scheduledPosts: many(scheduledPosts),
+  userPermissions: many(userPagePermissions),
+  analyticsHistory: many(pageAnalyticsHistory), // Relation
+}));
+
+export const postsRelations = relations(posts, ({ one, many }) => ({
+  user: one(users, {
+    fields: [posts.userId],
+    references: [users.id],
+  }),
+  postMedia: many(postMedia),
+  scheduledPosts: many(scheduledPosts),
+  analytics: many(postAnalytics), // Relation
+}));
+
+export const postAnalyticsRelations = relations(postAnalytics, ({ one }) => ({
+  post: one(posts, {
+    fields: [postAnalytics.postId],
+    references: [posts.id],
+  }),
+}));
+
+export const pageAnalyticsHistoryRelations = relations(pageAnalyticsHistory, ({ one }) => ({
+  page: one(socialPages, {
+    fields: [pageAnalyticsHistory.pageId],
+    references: [socialPages.id],
+  }),
+}));
+
 // Relations
 export const usersRelations = relations(users, ({ many, one }) => ({
   socialPages: many(socialPages),
@@ -137,14 +251,7 @@ export const openrouterConfigRelations = relations(openrouterConfig, ({ one }) =
   }),
 }));
 
-export const socialPagesRelations = relations(socialPages, ({ one, many }) => ({
-  user: one(users, {
-    fields: [socialPages.userId],
-    references: [users.id],
-  }),
-  scheduledPosts: many(scheduledPosts),
-  userPermissions: many(userPagePermissions),
-}));
+
 
 export const mediaRelations = relations(media, ({ one, many }) => ({
   user: one(users, {
@@ -154,14 +261,7 @@ export const mediaRelations = relations(media, ({ one, many }) => ({
   postMedia: many(postMedia),
 }));
 
-export const postsRelations = relations(posts, ({ one, many }) => ({
-  user: one(users, {
-    fields: [posts.userId],
-    references: [users.id],
-  }),
-  postMedia: many(postMedia),
-  scheduledPosts: many(scheduledPosts),
-}));
+
 
 export const postMediaRelations = relations(postMedia, ({ one }) => ({
   post: one(posts, {
@@ -210,10 +310,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   role: true,
 });
 
-export const insertSocialPageSchema = createInsertSchema(socialPages).omit({
-  id: true,
-  createdAt: true,
-});
+
 
 export const insertMediaSchema = createInsertSchema(media).omit({
   id: true,
@@ -298,5 +395,4 @@ export type UpdateOpenrouterConfig = z.infer<typeof updateOpenrouterConfigSchema
 export type PostMedia = typeof postMedia.$inferSelect;
 export type InsertPostMedia = z.infer<typeof insertPostMediaSchema>;
 
-export type UserPagePermission = typeof userPagePermissions.$inferSelect;
-export type InsertUserPagePermission = z.infer<typeof insertUserPagePermissionSchema>;
+

@@ -1,25 +1,44 @@
-# Task: Correction Texte Stories Facebook - Socialflow
+# Task: Socialflow - Analytics & Token Management
 
 ## Context
 
-Correction d'un bug où le texte ne s'affichait plus sur les stories Facebook après une correction de l'orientation des images.
+Implementation of a robust Facebook Page Token management system (automatic renewal) and a new Facebook Analytics module (ingestion & dashboard) to improve platform reliability and value.
 
 ## Current Focus
 
-✅ Correction terminée - Prêt pour déploiement.
+Planning and Architecture Definition.
 
 ## Master Plan
 
-- [x] Investiguer le problème de texte manquant sur les stories
-- [x] Identifier la cause : Sharp ne peut pas lire directement les URLs HTTP
-- [x] Corriger `imageProcessor.ts` : télécharger l'image avant de la traiter
-- [x] Vérifier la compilation TypeScript
-- [ ] Commit et push
-- [ ] Déployer sur le serveur Docker
+### Phase 1: Foundation & Data
+
+- [x] Requirements & Architecture Analysis
+- [x] **Review Implementation Plan**
+- [x] [BACKEND] Update Database Schema (Analytics tables, SocialPages extension)
+- [ ] [BACKEND] Run Drizzle Migration (Pending DB connectivity)
+
+### Phase 2: Core Services
+
+- [x] [NEW] `server/services/token_manager.ts` (Encryption + Refresh Logic)
+- [x] [NEW] `server/services/analytics.ts` (Graph API Fetch, DB Store)
+- [x] [NEW] `server/utils/graph_client.ts` (Typed Graph API Client)
+- [x] [MODIFY] `server/routes.ts` - Register analytics routes
+- [x] [NEW] `server/cron.ts` - Setup Daily Token Check
+
+### Phase 3: Frontend
+
+- [x] [NEW] `client/src/components/analytics/AnalyticsDashboard.tsx`
+- [x] [NEW] `client/src/components/analytics/MetricsCard.tsx`
+- [x] [NEW] `client/src/pages/AnalyticsPage.tsx` & Mobile Version
+- [x] [MODIFY] `client/src/App.tsx` - Add /analytics route
+- [x] [MODIFY] `client/src/components/sidebar.tsx` - Add navigation link
+
+### Phase 4: Verification
+
+- [ ] [TEST] Verify Token Encryption
+- [ ] [TEST] Simulate Token Refresh Job
+- [ ] [MANUAL] Validate Analytics Data accuracy through UI
 
 ## Progress Log
 
-- **20 Jan 2026** - Investigation du problème de texte sur les stories
-- **20 Jan 2026** - Cause identifiée : `sharp(imageUrl)` échoue car Sharp attend un Buffer, pas une URL
-- **20 Jan 2026** - `imageProcessor.ts` corrigé : ajout de `fetch()` pour télécharger l'image avant traitement
-- **20 Jan 2026** - ✅ Compilation TypeScript réussie
+- **20 Jan 2026** - Architecture defined: Service-based approach, Encryption for tokens, Node-cron for scheduling.

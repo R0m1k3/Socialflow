@@ -60,9 +60,14 @@ const UsersAdmin = createResponsiveRoute(
   () => import("@/pages/mobile/users-admin")
 );
 
+const Analytics = createResponsiveRoute(
+  () => import("@/pages/AnalyticsPage"),
+  () => import("@/pages/mobile/analytics")
+);
+
 function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType; adminOnly?: boolean }) {
   const [, setLocation] = useLocation();
-  
+
   const { data: session, isLoading } = useQuery({
     queryKey: ["/api/auth/session"],
     retry: false,
@@ -118,6 +123,7 @@ function Router() {
       <Route path="/settings">{() => <ProtectedRoute component={Settings} adminOnly />}</Route>
       <Route path="/sql">{() => <ProtectedRoute component={SqlAdmin} adminOnly />}</Route>
       <Route path="/users">{() => <ProtectedRoute component={UsersAdmin} adminOnly />}</Route>
+      <Route path="/analytics">{() => <ProtectedRoute component={Analytics} />}</Route>
       <Route component={NotFound} />
     </Switch>
   );

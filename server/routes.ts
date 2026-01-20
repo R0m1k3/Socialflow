@@ -10,6 +10,7 @@ import { openRouterService } from "./services/openrouter";
 import { cloudinaryService } from "./services/cloudinary";
 import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
 import type { User, InsertUser, ScheduledPost } from "@shared/schema";
+import { analyticsRouter } from "./routes/analytics";
 
 // Types MIME autorisés pour les uploads
 const ALLOWED_MIME_TYPES = [
@@ -54,6 +55,9 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+
+  // Analytics Routes
+  app.use("/api/analytics", requireAuth, analyticsRouter);
 
   // Routes d'authentification
   app.post("/api/auth/login", (req, res, next) => {
