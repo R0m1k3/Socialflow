@@ -11,6 +11,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { schedulerService } from "./services/scheduler";
 import { ensureAdminUserExists } from "./init-admin";
 import { startTokenCron } from "./cron";
+import { migrate } from "./migrate";
 
 const app = express();
 const PgSession = connectPgSimple(session);
@@ -147,6 +148,9 @@ app.use((req, res, next) => {
 });
 
 (async () => {
+  // Run database migration first
+  await migrate();
+
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
