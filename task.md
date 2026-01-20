@@ -1,27 +1,25 @@
-# Task: Correction Chiffrement Automatique - Socialflow
+# Task: Correction Texte Stories Facebook - Socialflow
 
 ## Context
 
-Correction de l'erreur 500 causée par l'absence de `ENCRYPTION_KEY` dans l'environnement Docker. Implémentation de la génération automatique de la clé de chiffrement au premier lancement.
+Correction d'un bug où le texte ne s'affichait plus sur les stories Facebook après une correction de l'orientation des images.
 
 ## Current Focus
 
-✅ Implémentation terminée - Prêt pour déploiement.
+✅ Correction terminée - Prêt pour déploiement.
 
 ## Master Plan
 
-- [x] Diagnostiquer l'erreur 500 sur `/api/pages/:id`
-- [x] Identifier la cause : `ENCRYPTION_KEY` manquant en production
-- [x] Modifier `encryption.ts` pour générer automatiquement une clé
-- [x] Ajouter la persistance de la clé via volume Docker
-- [x] Ajouter `.encryption-key` au `.gitignore`
+- [x] Investiguer le problème de texte manquant sur les stories
+- [x] Identifier la cause : Sharp ne peut pas lire directement les URLs HTTP
+- [x] Corriger `imageProcessor.ts` : télécharger l'image avant de la traiter
 - [x] Vérifier la compilation TypeScript
+- [ ] Commit et push
 - [ ] Déployer sur le serveur Docker
 
 ## Progress Log
 
-- **20 Jan 2026** - Diagnostic : erreur causée par `ENCRYPTION_KEY` non défini
-- **20 Jan 2026** - `encryption.ts` modifié : génération automatique de clé avec persistance
-- **20 Jan 2026** - `docker-compose.yml` modifié : ajout volume `encryption_key`
-- **20 Jan 2026** - `.gitignore` modifié : ajout `.encryption-key`
+- **20 Jan 2026** - Investigation du problème de texte sur les stories
+- **20 Jan 2026** - Cause identifiée : `sharp(imageUrl)` échoue car Sharp attend un Buffer, pas une URL
+- **20 Jan 2026** - `imageProcessor.ts` corrigé : ajout de `fetch()` pour télécharger l'image avant traitement
 - **20 Jan 2026** - ✅ Compilation TypeScript réussie

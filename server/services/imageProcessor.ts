@@ -125,8 +125,15 @@ export class ImageProcessor {
     // Remove hashtags from text while keeping emojis
     const cleanText = removeHashtags(text);
 
+    // Download image from URL first (Sharp can't read URLs directly)
+    const imageResponse = await fetch(imageUrl);
+    if (!imageResponse.ok) {
+      throw new Error(`Failed to fetch image from URL: ${imageUrl}`);
+    }
+    const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+
     // Pre-process image with sharp to apply rotation
-    const rotationBuffer = await sharp(imageUrl)
+    const rotationBuffer = await sharp(imageBuffer)
       .rotate() // Apply EXIF rotation
       .toBuffer();
 
