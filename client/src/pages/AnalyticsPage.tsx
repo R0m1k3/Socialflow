@@ -27,8 +27,8 @@ export default function AnalyticsPage() {
 
                 <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-[1600px] mx-auto">
                     <div className="mb-8">
-                        <h1 className="text-3xl font-bold tracking-tight mb-2">Social Analytics</h1>
-                        <p className="text-muted-foreground">Monitor your Facebook & Instagram performance.</p>
+                        <h1 className="text-3xl font-bold tracking-tight mb-2">Analystique Sociale</h1>
+                        <p className="text-muted-foreground">Suivez vos performances Facebook & Instagram.</p>
                     </div>
                     <AnalyticsDashboard />
                 </div>

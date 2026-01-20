@@ -27,8 +27,8 @@ export default function AnalyticsPageMobile() {
 
                 <div className="p-4 space-y-6">
                     <div className="mb-4">
-                        <h1 className="text-2xl font-bold tracking-tight mb-2">Social Analytics</h1>
-                        <p className="text-sm text-muted-foreground">Monitor your performance.</p>
+                        <h1 className="text-2xl font-bold tracking-tight mb-2">Analystique Sociale</h1>
+                        <p className="text-sm text-muted-foreground">Suivez vos performances.</p>
                     </div>
                     <AnalyticsDashboard />
                 </div>

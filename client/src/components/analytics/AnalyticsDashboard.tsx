@@ -43,14 +43,14 @@ export function AnalyticsDashboard() {
             queryClient.invalidateQueries({ queryKey: [`/api/analytics/pages/${selectedPageId}/history`] });
             queryClient.invalidateQueries({ queryKey: ['/api/pages'] });
             toast({
-                title: "Analytics refreshed",
-                description: "Latest data has been fetched from Facebook.",
+                title: "Analyses actualisées",
+                description: "Les dernières données ont été récupérées depuis Facebook.",
             });
         },
         onError: () => {
             toast({
-                title: "Refresh failed",
-                description: "Could not fetch latest data.",
+                title: "Échec de l'actualisation",
+                description: "Impossible de récupérer les dernières données.",
                 variant: "destructive"
             });
         }
@@ -74,8 +74,8 @@ export function AnalyticsDashboard() {
         return Math.round(((current - prev) / prev) * 100);
     };
 
-    if (isLoadingPages) return <div>Loading pages...</div>;
-    if (!pages.length) return <div>No pages connected. Please connect a Facebook page in Settings.</div>;
+    if (isLoadingPages) return <div>Chargement des pages...</div>;
+    if (!pages.length) return <div>Aucune page connectée. Veuillez connecter une page Facebook dans les Paramètres.</div>;
 
     return (
         <div className="space-y-8">
@@ -83,7 +83,7 @@ export function AnalyticsDashboard() {
                 <div className="flex items-center gap-4">
                     <Select value={selectedPageId || ''} onValueChange={setSelectedPageId}>
                         <SelectTrigger className="w-[250px]">
-                            <SelectValue placeholder="Select Page" />
+                            <SelectValue placeholder="Sélectionner une page" />
                         </SelectTrigger>
                         <SelectContent>
                             {pages.map((page: any) => (
@@ -96,7 +96,7 @@ export function AnalyticsDashboard() {
 
                     {selectedPage && (
                         <span className={`px-2 py-1 rounded text-xs ${selectedPage.tokenStatus === 'valid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                            Token: {selectedPage.tokenStatus || 'Unknown'}
+                            Token : {selectedPage.tokenStatus || 'Inconnu'}
                         </span>
                     )}
                 </div>
@@ -107,7 +107,7 @@ export function AnalyticsDashboard() {
                     disabled={refreshMutation.isPending || !selectedPageId}
                 >
                     <RefreshCw className={`mr-2 h-4 w-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
-                    Refresh Data
+                    Actualiser les données
                 </Button>
             </div>
 
@@ -115,25 +115,25 @@ export function AnalyticsDashboard() {
                 <>
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                         <MetricsCard
-                            title="Total Followers"
+                            title="Abonnés Totaux"
                             value={latest?.followersCount?.toLocaleString() || 0}
                             icon={<Users className="h-4 w-4 text-muted-foreground" />}
                             trend={latest && previous ? getTrend(latest.followersCount, previous.followersCount) : undefined}
-                            description="from last update"
+                            description="depuis la dernière mise à jour"
                         />
                         <MetricsCard
-                            title="Page Reach"
+                            title="Portée de la Page"
                             value={latest?.pageReach?.toLocaleString() || 0}
                             icon={<BarChart3 className="h-4 w-4 text-muted-foreground" />}
                             trend={latest && previous ? getTrend(latest.pageReach, previous.pageReach) : undefined}
-                            description="from last update"
+                            description="depuis la dernière mise à jour"
                         />
                         {/* Add more metrics if available */}
                     </div>
 
                     <Card>
                         <CardHeader>
-                            <CardTitle>Growth & Reach History</CardTitle>
+                            <CardTitle>Historique de Croissance & Portée</CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="h-[300px]">
@@ -144,8 +144,8 @@ export function AnalyticsDashboard() {
                                         <YAxis yAxisId="left" />
                                         <YAxis yAxisId="right" orientation="right" />
                                         <Tooltip />
-                                        <Line yAxisId="left" type="monotone" dataKey="followers" stroke="#8884d8" name="Followers" />
-                                        <Line yAxisId="right" type="monotone" dataKey="reach" stroke="#82ca9d" name="Reach" />
+                                        <Line yAxisId="left" type="monotone" dataKey="followers" stroke="#8884d8" name="Abonnés" />
+                                        <Line yAxisId="right" type="monotone" dataKey="reach" stroke="#82ca9d" name="Portée" />
                                     </LineChart>
                                 </ResponsiveContainer>
                             </div>
