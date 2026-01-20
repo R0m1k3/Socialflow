@@ -167,6 +167,19 @@ export class AnalyticsService {
             }
         } catch (error: any) {
             console.error(`[AnalyticsService] Failed to fetch basic info for ${pageId}:`, error);
+
+            // Check if it's an Auth Error (Token invalid/expired)
+            // Codes: 190 (Invalid OAuth), 102 (API Session), 10 (Permission), 463 (Expired), 467 (Invalid)
+            if (error.code === 190 || error.code === 463 || error.code === 467) {
+                console.log(`[AnalyticsService] Marking token as EXPIRED for page ${pageId}`);
+                await db.update(socialPages)
+                    .set({
+                        tokenStatus: "expired",
+                        lastTokenCheck: new Date()
+                    })
+                    .where(eq(socialPages.id, pageId));
+            }
+
             throw new Error(`Failed to fetch Basic Info: ${error.message || error}`);
         }
 
