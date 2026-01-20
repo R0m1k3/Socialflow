@@ -1,13 +1,10 @@
-import crypto from 'crypto';
+// crypto removed, using shared encryption utility
 import { db } from '../db';
 import { socialPages, tokenStatusEnum } from '../../shared/schema';
 import { eq, and, lte } from 'drizzle-orm';
 import { GraphAPIClient } from '../utils/graph_client';
 
-// Constants
-const ALGORITHM = 'aes-256-cbc';
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || 'default-dev-key-must-be-changed-in-prod-32chars'; // 32 chars
-const IV_LENGTH = 16;
+import { encrypt, decrypt } from '../utils/encryption';
 
 /**
  * Service responsible for managing Facebook Page Token lifecycle
@@ -17,29 +14,17 @@ const IV_LENGTH = 16;
 export class TokenManager {
 
     /**
-     * Encrypts a text using AES-256-CBC
+     * Encrypts a text using shared encryption utility
      */
     static encrypt(text: string): string {
-        const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
-        const iv = crypto.randomBytes(IV_LENGTH);
-        const cipher = crypto.createCipheriv(ALGORITHM, key, iv);
-        let encrypted = cipher.update(text);
-        encrypted = Buffer.concat([encrypted, cipher.final()]);
-        return iv.toString('hex') + ':' + encrypted.toString('hex');
+        return encrypt(text);
     }
 
     /**
-     * Decrypts a text using AES-256-CBC
+     * Decrypts a text using shared encryption utility
      */
     static decrypt(text: string): string {
-        const textParts = text.split(':');
-        const iv = Buffer.from(textParts.shift()!, 'hex');
-        const encryptedText = Buffer.from(textParts.join(':'), 'hex');
-        const key = crypto.scryptSync(ENCRYPTION_KEY, 'salt', 32);
-        const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-        let decrypted = decipher.update(encryptedText);
-        decrypted = Buffer.concat([decrypted, decipher.final()]);
-        return decrypted.toString();
+        return decrypt(text);
     }
 
     /**
