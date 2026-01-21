@@ -221,9 +221,13 @@ export class AnalyticsService {
             // Continue execution to save at least the follower count
         }
 
-        // Update Page
+        // Update Page - Auto-heal status if sync works
         await db.update(socialPages)
-            .set({ followersCount: followers })
+            .set({
+                followersCount: followers,
+                tokenStatus: 'valid', // If we got here, the token worked!
+                lastTokenCheck: new Date()
+            })
             .where(eq(socialPages.id, pageId));
 
         // Insert History
