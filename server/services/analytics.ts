@@ -178,6 +178,9 @@ export class AnalyticsService {
                         lastTokenCheck: new Date()
                     })
                     .where(eq(socialPages.id, pageId));
+
+                // Return gracefully so the UI sees the updated status
+                return;
             }
 
             throw new Error(`Failed to fetch Basic Info: ${error.message || error}`);
