@@ -168,6 +168,11 @@ export class AnalyticsService {
         } catch (error: any) {
             console.error(`[AnalyticsService] Failed to fetch basic info for ${pageId}:`, error);
 
+            // DEBUG: Log key details to diagnose token issues
+            const tokenPreview = accessToken ? `${accessToken.substring(0, 10)}...` : 'undefined';
+            console.log(`[AnalyticsService] DEBUG: Token used: ${tokenPreview}`);
+            console.log(`[AnalyticsService] DEBUG: Full Error Object:`, JSON.stringify(error, null, 2));
+
             // Check if it's an Auth Error (Token invalid/expired)
             // Codes: 190 (Invalid OAuth), 102 (API Session), 10 (Permission), 463 (Expired), 467 (Invalid)
             if (error.code === 190 || error.code === 463 || error.code === 467) {
