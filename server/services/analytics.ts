@@ -211,8 +211,13 @@ export class AnalyticsService {
             };
 
             pageReach = findMetric('page_impressions');
-        } catch (error) {
-            console.warn(`[AnalyticsService] Failed to fetch insights for ${pageId} (Permissions?):`, error);
+        } catch (error: any) {
+            // Code 100: Invalid Parameter (often means metric not available for this page type)
+            if (error.code === 100) {
+                console.warn(`[AnalyticsService] Metrics unavailable for ${pageId} (Code 100). This is likely due to page type restrictions. Skipping insights.`);
+            } else {
+                console.warn(`[AnalyticsService] Failed to fetch insights for ${pageId}:`, error.message);
+            }
             // Continue execution to save at least the follower count
         }
 

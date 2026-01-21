@@ -1310,10 +1310,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let pageData = insertSocialPageSchema.partial().parse(req.body);
 
       // If accessToken is being updated, recalculate expiration date (60 days from now)
+      // AND reset the status to valid so the UI updates immediately
       if (pageData.accessToken) {
         const tokenExpiresAt = new Date();
         tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 60);
-        pageData = { ...pageData, tokenExpiresAt };
+        pageData = {
+          ...pageData,
+          tokenExpiresAt,
+          tokenStatus: 'valid',
+          lastTokenCheck: new Date()
+        };
       }
 
       const updatedPage = await storage.updateSocialPage(pageId, pageData);
