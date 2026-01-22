@@ -360,10 +360,11 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
 
                 // Si pas de planification, publier immédiatement
                 if (!scheduledFor) {
+                    const finalDescription = description || overlayText || '';
                     const reelId = await facebookService.publishReel(
                         page,
                         cloudinaryResult.originalUrl,
-                        description
+                        finalDescription
                     );
 
                     // Mettre à jour le scheduled_post avec l'ID externe
