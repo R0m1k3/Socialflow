@@ -16,6 +16,9 @@ API_KEY = os.environ.get("API_KEY", "default-key")
 TEMP_DIR = Path("/tmp/ffmpeg_processing")
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
+# Font path for text overlay (installed via fonts-dejavu in Dockerfile)
+FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+
 
 class ReelRequest(BaseModel):
     video_base64: Optional[str] = None
@@ -94,7 +97,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             # Escape text for drawtext
             sanitized_text = request.text.replace("'", "").replace(":", "\\:")
             # Move text to bottom (with 150px padding to avoid UI elements)
-            drawtext = f"drawtext=fontfile={font_path}:text='{sanitized_text}':fontcolor=white:fontsize={request.font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-text_h-150"
+            drawtext = f"drawtext=fontfile={FONT_PATH}:text='{sanitized_text}':fontcolor=white:fontsize={request.font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-text_h-150"
             video_filters.append(drawtext)
 
         # Audio Mixing/Volume (Audio Filter)

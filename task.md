@@ -30,6 +30,7 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] [NEW] `ffmpeg-service/` - Dedicated Python microservice for video processing
   - [x] `main.py` (FastAPI, FFmpeg logic)
   - [x] `Dockerfile` & `requirements.txt`
+  - [x] Fix `font_path` NameError in `main.py`
 - [x] [CFG] `docker-compose.yml` - Add `ffmpeg-api` service & Link to App
 - [x] `server/routes.ts` - Enregistrement du reelsRouter de la configuration
 
