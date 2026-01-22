@@ -5,7 +5,7 @@ export async function migrate() {
   try {
     console.log("[Migration] Starting safe migration Check...");
 
-    // 1. Create Enums if not exist
+    // 1. Create Enums if not exist and Update Enums
     await client.query(`
       DO $$ BEGIN
         CREATE TYPE "token_status" AS ENUM('valid', 'expiring', 'expired', 'error');
@@ -13,6 +13,9 @@ export async function migrate() {
         WHEN duplicate_object THEN null;
       END $$;
     `);
+
+    // Add 'reel' to post_type enum if not exists
+    await client.query(`ALTER TYPE "post_type" ADD VALUE IF NOT EXISTS 'reel';`);
 
     // 2. Create Tables if not exist
 
