@@ -46,7 +46,7 @@ def clean_text_for_tts(text: str) -> str:
     return " ".join(text.split())
 
 
-def generate_tts_with_subs(
+async def generate_tts_with_subs(
     text: str, voice: str, audio_path: Path, vtt_path: Path
 ):
     """Generate TTS audio with subtitles, with retry and fallback voices."""
@@ -226,12 +226,12 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 # Check for male/female voice map
                 voice = request.tts_voice
                 if voice == "male":
-                    voice = "fr-FR-HenriNeural"
+                    voice = "fr-FR-RemyMultilingualNeural"
                 elif voice == "female":
-                    voice = "fr-FR-VivienneNeural"
+                    voice = "fr-FR-VivienneMultilingualNeural"
                 elif not voice or "Neural" not in voice:
                     # Default if invalid
-                    voice = "fr-FR-VivienneNeural"
+                    voice = "fr-FR-VivienneMultilingualNeural"
 
                 print(f"🔊 Using voice: {voice}")
 

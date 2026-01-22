@@ -761,7 +761,7 @@ export default function NewReel() {
                                                                 }`}
                                                         >
                                                             <div className="font-semibold">Masculine</div>
-                                                            <div className="text-xs text-muted-foreground">Henri</div>
+                                                            <div className="text-xs text-muted-foreground">Rémy</div>
                                                         </div>
                                                     </div>
                                                     <p className="text-xs text-muted-foreground mt-2">
