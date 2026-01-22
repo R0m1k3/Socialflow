@@ -32,7 +32,8 @@ app.use(helmet({
       styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
       imgSrc: ["'self'", "data:", "https:", "blob:"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
-      connectSrc: ["'self'", "https://graph.facebook.com", "https://openrouter.ai", "https://res.cloudinary.com", "wss:", "ws:"],
+      connectSrc: ["'self'", "https://graph.facebook.com", "https://openrouter.ai", "https://res.cloudinary.com", "https://freesound.org", "wss:", "ws:"],
+      mediaSrc: ["'self'", "https://cdn.freesound.org", "https:"],
     }
   },
   crossOriginEmbedderPolicy: false,
