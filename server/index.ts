@@ -12,6 +12,8 @@ import { schedulerService } from "./services/scheduler";
 import { ensureAdminUserExists } from "./init-admin";
 import { startTokenCron } from "./cron";
 import { migrate } from "./migrate";
+import { jamendoService } from "./services/jamendo";
+import { ffmpegService } from "./services/ffmpeg";
 
 const app = express();
 const PgSession = connectPgSimple(session);
@@ -178,6 +180,17 @@ app.use((req, res, next) => {
 
   // Initialiser l'utilisateur admin par défaut avant de démarrer le serveur
   await ensureAdminUserExists();
+
+  // Configurer le service Jamendo pour les Reels
+  const jamendoClientId = process.env.JAMENDO_CLIENT_ID || 'b42d9f71';  // Demo client ID
+  jamendoService.configure(jamendoClientId);
+
+  // Configurer le service FFmpeg pour le traitement vidéo (si configuré)
+  if (process.env.FFMPEG_API_URL && process.env.FFMPEG_API_KEY) {
+    ffmpegService.configure(process.env.FFMPEG_API_URL, process.env.FFMPEG_API_KEY);
+  } else {
+    log('⚠️ FFmpeg API not configured - video processing will be skipped');
+  }
 
   server.listen({
     port,
