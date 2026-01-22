@@ -84,66 +84,42 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 # We continue without music if it fails
 
         # 3. Build FFmpeg Command
-        # This is a simplified command. Real implementation for tiktok-style text overlay is complex.
-        # For now, we will draw simple text centered.
-
         cmd = ["ffmpeg", "-y", "-i", str(input_video_path)]
 
-        filters = []
+        video_filters = []
+        audio_filters = []
 
-        # Text Overlay
+        # Text Overlay (Video Filter)
         if request.text:
             # Escape text for drawtext
             sanitized_text = request.text.replace("'", "").replace(":", "\\:")
-            # Use a default font or one inside the container
-            font_path = "/usr/share/fonts/ttf-dejavu/DejaVuSans-Bold.ttf"
-            drawtext = f"drawtext=fontfile={font_path}:text='{sanitized_text}':fontcolor=white:fontsize={request.font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=(h-text_h)/2"
-            filters.append(drawtext)
+            # Move text to bottom (with 150px padding to avoid UI elements)
+            drawtext = f"drawtext=fontfile={font_path}:text='{sanitized_text}':fontcolor=white:fontsize={request.font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-text_h-150"
+            video_filters.append(drawtext)
 
-        # Audio Mixing
+        # Audio Mixing/Volume (Audio Filter)
         if has_music:
             cmd.extend(["-i", str(input_audio_path)])
-            # Mix original audio (if any) with new music
-            # [0:a] is video audio, [1:a] is music
-            # We need to loop music if video is longer, or cut it.
-            # Simple mix: amix
-            # Better: volume adjustment
+            # Apply volume adjustment to the music
+            audio_filters.append(f"volume={request.music_volume}")
 
-            # Complex filter for audio:
-            # [1:a]volume={request.music_volume}[music];[0:a][music]amix=inputs=2:duration=first[aout]
-            # But what if video has no audio? We need to verify.
-            # For simplicity, we assume video has audio stream. If not, this might fail or produce silent output.
-            # Safer: -map 0:v -map 1:a (replace audio completely) or check streams.
-            # Let's simple check: replacing audio is often safer for "Reels" unless voiceover is needed.
-            # But usually we want background music.
-            # Use filter_complex to mix
+        # Apply Video Filters if any
+        if video_filters:
+            cmd.extend(["-vf", ",".join(video_filters)])
 
-            filters.append(f"[1:a]volume={request.music_volume}[music]")
-            # We assume input video has audio. If not, we map just music.
-            # To be robust, we map [music] to output audio.
-            # Let's TRY to mix, but fallback to just music if 0:a doesn't exist?
-            # FFmpeg is tricky here.
-            # Strategy: Generate a silent audio track matching video length, mix everything alongside.
-            # Too complex for this snippet.
-            # Decision: Replace audio if music is present, or mix if simple.
-            # Let's just output the music track as the audio for now (Reel style), usually original audio is noise.
-            # Or add it.
-            # [0:a]volume=1.0[orig];[1:a]volume={vol}[mus];[orig][mus]amix=inputs=2[a]
-
-            # Lets try Map 0:v and Map 1:a (Music replaces audio) - Safer MVP
-            # filters.append(...)
-            pass
-
-        filter_str = ",".join(filters)
-
-        if filters:
-            cmd.extend(["-vf", filter_str])
+        # Apply Audio Filters if any
+        # Note: -af applies to the output audio stream.
+        if audio_filters:
+            cmd.extend(["-af", ",".join(audio_filters)])
 
         if has_music:
-            # Map video from 0, audio from 1 (music), shortest (cut music to video len)
+            # Map video from input 0
+            # Map audio from input 1 (music)
+            # -shortest: finish when the shortest input (usually video or music) ends
             cmd.extend(["-map", "0:v", "-map", "1:a", "-shortest"])
         else:
-            cmd.extend(["-map", "0:v", "-map", "0:a?"])  # Keep original audio if exists
+            # Keep original video and audio (if exists)
+            cmd.extend(["-map", "0:v", "-map", "0:a?"])
 
         cmd.append(str(output_video_path))
 
