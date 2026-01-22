@@ -49,18 +49,60 @@ def clean_text_for_tts(text: str) -> str:
 async def generate_tts_with_subs(
     text: str, voice: str, audio_path: Path, vtt_path: Path
 ):
-    communicate = edge_tts.Communicate(text, voice)
-    submaker = edge_tts.SubMaker()
+    """Generate TTS audio with subtitles, with retry and fallback voices."""
+    import asyncio
 
-    with open(audio_path, "wb") as file:
-        async for chunk in communicate.stream():
-            if chunk["type"] == "audio":
-                file.write(chunk["data"])
-            elif chunk["type"] == "WordBoundary":
-                submaker.feed(chunk)
+    # List of fallback voices to try if the primary fails
+    fallback_voices = [
+        voice,  # Try requested voice first
+        "fr-FR-DeniseNeural",  # Alternative female
+        "fr-FR-HenriNeural",  # Alternative male
+        "en-US-JennyNeural",  # English fallback
+    ]
 
-    with open(vtt_path, "w", encoding="utf-8") as file:
-        file.write(submaker.get_subs())
+    last_error = None
+
+    for attempt_voice in fallback_voices:
+        try:
+            print(f"🔊 TTS attempt with voice: {attempt_voice}")
+            communicate = edge_tts.Communicate(text, attempt_voice)
+            submaker = edge_tts.SubMaker()
+
+            audio_data = bytearray()
+
+            # Use asyncio.wait_for to add a timeout
+            async def stream_audio():
+                nonlocal audio_data
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        audio_data.extend(chunk["data"])
+                    elif chunk["type"] == "WordBoundary":
+                        submaker.feed(chunk)
+
+            # 30 second timeout for TTS generation
+            await asyncio.wait_for(stream_audio(), timeout=30.0)
+
+            if len(audio_data) > 0:
+                with open(audio_path, "wb") as file:
+                    file.write(audio_data)
+
+                with open(vtt_path, "w", encoding="utf-8") as file:
+                    file.write(submaker.get_subs())
+
+                print(f"✅ TTS success with voice: {attempt_voice}")
+                return  # Success!
+            else:
+                print(f"⚠️ No audio data received with voice: {attempt_voice}")
+
+        except asyncio.TimeoutError:
+            print(f"⚠️ TTS timeout with voice: {attempt_voice}")
+            last_error = "Timeout"
+        except Exception as e:
+            print(f"⚠️ TTS failed with voice {attempt_voice}: {e}")
+            last_error = e
+
+    # If all voices failed, raise the last error
+    raise Exception(f"All TTS voices failed. Last error: {last_error}")
 
 
 class ReelResponse(BaseModel):
