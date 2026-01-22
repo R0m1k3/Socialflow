@@ -30,7 +30,7 @@ class ReelRequest(BaseModel):
     music_id: Optional[str] = None
     music_url: Optional[str] = None
     word_duration: float = 0.6
-    font_size: int = 30
+    font_size: int = 10
     music_volume: float = 0.25
     tts_enabled: bool = False
     tts_voice: str = "fr-FR-VivienneMultilingualNeural"
