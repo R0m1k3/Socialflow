@@ -14,7 +14,7 @@ interface FFmpegReelRequest {
     tts_enabled?: boolean;      // Activation du TTS
     tts_voice?: string;         // Voix TTS (ex: fr-FR-VivienneNeural)
     word_duration?: number;     // Durée par mot (default: 0.6s)
-    font_size?: number;         // Taille police (default: 60)
+    font_size?: number;         // Taille police (default: 24)
     music_volume?: number;      // Volume musique (default: 0.25)
     draw_text?: boolean;        // Dessiner le texte sur la vidéo (default: true)
 }
@@ -83,7 +83,7 @@ export class FFmpegService {
             tts_enabled: options.ttsEnabled,
             tts_voice: options.ttsVoice,
             word_duration: options.wordDuration ?? 0.6,
-            font_size: options.fontSize ?? 60,
+            font_size: options.fontSize ?? 24,
             music_volume: options.musicVolume ?? 0.25,
             draw_text: options.drawText ?? true,
         };
@@ -176,7 +176,7 @@ export class FFmpegService {
             tts_enabled: options.ttsEnabled,
             tts_voice: options.ttsVoice,
             word_duration: options.wordDuration ?? 0.6,
-            font_size: options.fontSize ?? 60,
+            font_size: options.fontSize ?? 24,
             music_volume: options.musicVolume ?? 0.25,
             draw_text: options.drawText ?? true,
         };
