@@ -83,7 +83,7 @@ export class FFmpegService {
             tts_enabled: options.ttsEnabled,
             tts_voice: options.ttsVoice,
             word_duration: options.wordDuration ?? 0.6,
-            font_size: options.fontSize ?? 24,
+            font_size: options.fontSize ?? 16,
             music_volume: options.musicVolume ?? 0.25,
             draw_text: options.drawText ?? true,
         };
@@ -176,7 +176,7 @@ export class FFmpegService {
             tts_enabled: options.ttsEnabled,
             tts_voice: options.ttsVoice,
             word_duration: options.wordDuration ?? 0.6,
-            font_size: options.fontSize ?? 24,
+            font_size: options.fontSize ?? 16,
             music_volume: options.musicVolume ?? 0.25,
             draw_text: options.drawText ?? true,
         };

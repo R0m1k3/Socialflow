@@ -117,7 +117,7 @@ def generate_simple_vtt(text: str, vtt_path: Path):
 
     for word in words:
         current_chunk.append(word)
-        if len(current_chunk) >= 5 or word.endswith((".", "!", "?", ":")):
+        if len(current_chunk) >= 3 or word.endswith((".", "!", "?", ":")):
             chunks.append(" ".join(current_chunk))
             current_chunk = []
 
@@ -131,7 +131,7 @@ def generate_simple_vtt(text: str, vtt_path: Path):
 
     for i, chunk in enumerate(chunks):
         word_count = len(chunk.split())
-        duration = word_count * 0.4  # 0.4 seconds per word
+        duration = word_count * 0.3  # 0.3 seconds per word (faster sync)
 
         start_time = format_vtt_time(current_time)
         end_time = format_vtt_time(current_time + duration)
