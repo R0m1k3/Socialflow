@@ -65,6 +65,12 @@ const Analytics = createResponsiveRoute(
   () => import("@/pages/mobile/analytics")
 );
 
+// NewReel uses desktop version for now (mobile can be added later)
+const NewReel = createResponsiveRoute(
+  () => import("@/pages/new-reel"),
+  () => import("@/pages/new-reel") // Uses same component for now
+);
+
 function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType; adminOnly?: boolean }) {
   const [, setLocation] = useLocation();
 
@@ -114,6 +120,7 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/">{() => <ProtectedRoute component={Dashboard} />}</Route>
       <Route path="/new">{() => <ProtectedRoute component={NewPost} />}</Route>
+      <Route path="/reel">{() => <ProtectedRoute component={NewReel} />}</Route>
       <Route path="/calendar">{() => <ProtectedRoute component={Calendar} />}</Route>
       <Route path="/media">{() => <ProtectedRoute component={Media} />}</Route>
       <Route path="/image-editor">{() => <ProtectedRoute component={ImageEditor} />}</Route>

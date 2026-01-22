@@ -5,7 +5,7 @@ import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
 export const platformEnum = pgEnum("platform", ["facebook", "instagram"]);
-export const postTypeEnum = pgEnum("post_type", ["feed", "story", "both"]);
+export const postTypeEnum = pgEnum("post_type", ["feed", "story", "both", "reel"]);
 export const postStatusEnum = pgEnum("post_status", ["draft", "scheduled", "published", "failed"]);
 export const mediaTypeEnum = pgEnum("media_type", ["image", "video"]);
 export const userRoleEnum = pgEnum("user_role", ["admin", "user"]);

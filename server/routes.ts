@@ -11,6 +11,7 @@ import { cloudinaryService } from "./services/cloudinary";
 import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
 import type { User, InsertUser, ScheduledPost } from "@shared/schema";
 import { analyticsRouter } from "./routes/analytics";
+import { reelsRouter } from "./routes/reels";
 
 // Types MIME autorisés pour les uploads
 const ALLOWED_MIME_TYPES = [
@@ -58,6 +59,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Analytics Routes
   app.use("/api/analytics", requireAuth, analyticsRouter);
+
+  // Reels & Music Routes
+  app.use("/api", requireAuth, reelsRouter);
 
   // Routes d'authentification
   app.post("/api/auth/login", (req, res, next) => {

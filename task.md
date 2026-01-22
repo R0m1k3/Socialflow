@@ -1,50 +1,51 @@
-# Task: Socialflow - Analytics & Token Management
+# Task: Socialflow - Facebook Reels avec Musique et Texte
 
 ## Context
 
-Implementation of a robust Facebook Page Token management system (automatic renewal) and a new Facebook Analytics module (ingestion & dashboard) to improve platform reliability and value.
+Ajout d'une fonctionnalité complète de création de Reels Facebook permettant de capturer une vidéo, ajouter une musique libre de droits (Jamendo API), superposer du texte style TikTok, et publier via l'API Graph Facebook. Le traitement vidéo sera effectué via une API FFmpeg Docker locale.
 
 ## Current Focus
 
-Planning and Architecture Definition.
+**Phase: COMPLETED** - Implémentation terminée, prêt pour configuration et tests.
 
 ## Master Plan
 
-### Phase 1: Foundation & Data
+### Phase 0: Clarifications ✅
 
-- [x] Requirements & Architecture Analysis
-- [x] **Review Implementation Plan**
-- [x] [BACKEND] Update Database Schema (Analytics tables, SocialPages extension)
-- [ ] [BACKEND] Run Drizzle Migration (Pending DB connectivity)
+- [x] Confirmer source de musique → Jamendo API
+- [x] Confirmer URL et format API FFmpeg Docker → `/process-reel`, base64, X-API-Key
+- [x] Style texte → TikTok (animation mot par mot)
 
-### Phase 2: Core Services
+### Phase 1: Backend Services ✅
 
-- [x] [NEW] `server/services/token_manager.ts` (Encryption + Refresh Logic)
-- [x] [NEW] `server/services/analytics.ts` (Graph API Fetch, DB Store)
-- [x] [NEW] `server/utils/graph_client.ts` (Typed Graph API Client)
-- [x] [MODIFY] `server/routes.ts` - Register analytics routes
-- [x] [NEW] `server/cron.ts` - Setup Daily Token Check
+- [x] `server/services/ffmpeg.ts` - Intégration API FFmpeg Docker
+- [x] `server/services/jamendo.ts` - Service recherche musique Jamendo
+- [x] `server/services/facebook.ts` - Méthodes `publishReel()` et `publishReelFromBuffer()`
 
-### Phase 3: Frontend
+### Phase 2: Database & Routes ✅
 
-- [x] [NEW] `client/src/components/analytics/AnalyticsDashboard.tsx`
-- [x] [NEW] `client/src/components/analytics/MetricsCard.tsx`
-- [x] [NEW] `client/src/pages/AnalyticsPage.tsx` & Mobile Version
-- [x] [MODIFY] `client/src/App.tsx` - Add /analytics route
-- [x] [MODIFY] `client/src/components/sidebar.tsx` - Add navigation link
+- [x] `shared/schema.ts` - Ajout type "reel" à postTypeEnum
+- [x] `server/routes/reels.ts` - Routes API complètes
+- [x] `server/routes.ts` - Enregistrement du reelsRouter
 
-### Phase 4: Verification
+### Phase 3: Frontend ✅
 
-### Phase 4: Verification & Stabilization
+- [x] `client/src/pages/new-reel.tsx` - Page création Reel (workflow 4 étapes)
+- [x] `client/src/App.tsx` - Route `/reel`
+- [x] `client/src/components/sidebar.tsx` - Lien navigation "Nouveau Reel"
 
-- [x] [TEST] Verify implementation builds correctly (`npm run build`)
-- [x] [FIX] **Deployment**: Implemented automated safe DB migration on startup
-- [x] [FIX] **Encryption**: Unified TokenManager encryption with storage service (Fixed Invalid Token error)
-- [x] [FIX] **Resilience**: Added auto-expiration for invalid tokens in `AnalyticsService`
-- [x] [FIX] **Feedback**: Improved error reporting in `AnalyticsService`
-- [ ] [MANUAL] Validate Analytics Data accuracy through UI
+### Phase 4: Configuration Requise ⏳
+
+- [ ] Configurer Jamendo Client ID (variable d'environnement)
+- [ ] Configurer FFmpeg API URL et clé (variable d'environnement)
+- [ ] Ajouter la valeur 'reel' à l'enum post_type en base de données
 
 ## Progress Log
 
-- **20 Jan 2026** - Architecture defined: Service-based approach, Encryption for tokens, Node-cron for scheduling.
-- **20 Jan 2026** - **Build Fixed**: Resolved circular dependencies (`db` import) and frontend type errors.
+- **22 Jan 2026** - Analyse complète de l'application Socialflow effectuée
+- **22 Jan 2026** - PRD créé avec architecture proposée  
+- **22 Jan 2026** - Spécifications confirmées : Jamendo API, FFmpeg Docker, style TikTok
+- **22 Jan 2026** - Backend complet : ffmpeg.ts, jamendo.ts, facebook.ts (publishReel)
+- **22 Jan 2026** - Routes API créées dans server/routes/reels.ts
+- **22 Jan 2026** - Frontend créé : new-reel.tsx avec workflow 4 étapes
+- **22 Jan 2026** - Navigation mise à jour : route et lien sidebar
