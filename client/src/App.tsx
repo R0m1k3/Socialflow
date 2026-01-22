@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { createResponsiveRoute } from "@/components/responsive-route";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
+import TestCamera from "@/pages/test-camera";
 
 
 // Create responsive routes with lazy loading for optimal performance
@@ -135,6 +136,7 @@ function Router() {
       <Route path="/sql">{() => <ProtectedRoute component={SqlAdmin} adminOnly />}</Route>
       <Route path="/users">{() => <ProtectedRoute component={UsersAdmin} adminOnly />}</Route>
       <Route path="/analytics">{() => <ProtectedRoute component={Analytics} />}</Route>
+      <Route path="/test-camera" component={TestCamera} />
       <Route component={NotFound} />
     </Switch>
   );
