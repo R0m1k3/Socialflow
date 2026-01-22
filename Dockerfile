@@ -52,7 +52,8 @@ RUN mkdir -p server/fonts && \
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # Build du frontend et backend avec logs détaillés
-RUN npm run build 2>&1 | tee build.log || (cat build.log && exit 1)
+# Build du frontend et backend (Exit on error)
+RUN npm run build
 
 # Nettoyer les fichiers inutiles pour réduire la taille
 RUN rm -rf client node_modules/.cache
