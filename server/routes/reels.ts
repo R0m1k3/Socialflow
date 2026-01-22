@@ -5,7 +5,7 @@
 import { Router, Request, Response } from 'express';
 import type { User, Media, SocialPage } from '@shared/schema';
 import { storage } from '../storage';
-import { jamendoService, type MusicTrack } from '../services/jamendo';
+import { freeSoundService, type MusicTrack } from '../services/freesound';
 import { ffmpegService } from '../services/ffmpeg';
 import { facebookService } from '../services/facebook';
 import { cloudinaryService } from '../services/cloudinary';
@@ -32,7 +32,7 @@ reelsRouter.get('/music/search', async (req: Request, res: Response) => {
             search,
         } = req.query;
 
-        const tracks = await jamendoService.searchMusicByDuration({
+        const tracks = await freeSoundService.searchMusicByDuration({
             minDuration: parseInt(minDuration as string),
             maxDuration: parseInt(maxDuration as string),
             genre: genre as string | undefined,
@@ -70,7 +70,7 @@ reelsRouter.get('/music/more', async (req: Request, res: Response) => {
             search,
         } = req.query;
 
-        const tracks = await jamendoService.searchMusicByDuration({
+        const tracks = await freeSoundService.searchMusicByDuration({
             minDuration: parseInt(minDuration as string),
             maxDuration: parseInt(maxDuration as string),
             genre: genre as string | undefined,
@@ -100,7 +100,7 @@ reelsRouter.get('/music/more', async (req: Request, res: Response) => {
 reelsRouter.get('/music/popular', async (req: Request, res: Response) => {
     try {
         const limit = parseInt(req.query.limit as string) || 10;
-        const tracks = await jamendoService.getPopularTracks(limit);
+        const tracks = await freeSoundService.getPopularTracks(limit);
         res.json({ tracks });
     } catch (error) {
         console.error('❌ Error fetching popular music:', error);
@@ -115,7 +115,7 @@ reelsRouter.get('/music/popular', async (req: Request, res: Response) => {
 reelsRouter.get('/music/:trackId', async (req: Request, res: Response) => {
     try {
         const { trackId } = req.params;
-        const track = await jamendoService.getMusicDetails(trackId);
+        const track = await freeSoundService.getMusicDetails(trackId);
 
         if (!track) {
             return res.status(404).json({ error: 'Musique non trouvée' });
@@ -200,7 +200,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
         // Récupérer l'URL de la musique si trackId fourni
         let finalMusicUrl = musicUrl;
         if (musicTrackId && !musicUrl) {
-            const track = await jamendoService.getMusicDetails(musicTrackId);
+            const track = await freeSoundService.getMusicDetails(musicTrackId);
             if (track) {
                 finalMusicUrl = track.downloadUrl;
             }
@@ -273,7 +273,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
         // Récupérer l'URL de la musique si trackId fourni
         let finalMusicUrl = musicUrl;
         if (musicTrackId && !musicUrl) {
-            const track = await jamendoService.getMusicDetails(musicTrackId);
+            const track = await freeSoundService.getMusicDetails(musicTrackId);
             if (track) {
                 finalMusicUrl = track.downloadUrl;
             }
@@ -399,7 +399,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
  */
 reelsRouter.get('/reels/config', async (req: Request, res: Response) => {
     try {
-        const jamendoConfigured = await jamendoService.testConnection().catch(() => false);
+        const jamendoConfigured = await freeSoundService.testConnection().catch(() => false);
         const ffmpegConfigured = await ffmpegService.healthCheck().catch(() => false);
 
         res.json({

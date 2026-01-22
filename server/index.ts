@@ -13,6 +13,7 @@ import { ensureAdminUserExists } from "./init-admin";
 import { startTokenCron } from "./cron";
 import { migrate } from "./migrate";
 import { jamendoService } from "./services/jamendo";
+import { freeSoundService } from "./services/freesound";
 import { ffmpegService } from "./services/ffmpeg";
 
 const app = express();
@@ -181,9 +182,10 @@ app.use((req, res, next) => {
   // Initialiser l'utilisateur admin par défaut avant de démarrer le serveur
   await ensureAdminUserExists();
 
-  // Configurer le service Jamendo pour les Reels
-  const jamendoClientId = process.env.JAMENDO_CLIENT_ID || 'b42d9f71';  // Demo client ID
-  jamendoService.configure(jamendoClientId);
+  // Configurer le service FreeSound pour les Reels
+  const freeSoundClientId = process.env.FREESOUND_CLIENT_ID || 'uTn5gEjjJRzPvyGP1eAN';
+  const freeSoundClientSecret = process.env.FREESOUND_CLIENT_SECRET || 'QGUgFJFcDwXPfVOflMTXBBJ8C5l4UuKf4t9KAYBX';
+  freeSoundService.configure(freeSoundClientId, freeSoundClientSecret);
 
   // Configurer le service FFmpeg pour le traitement vidéo (si configuré)
   if (process.env.FFMPEG_API_URL && process.env.FFMPEG_API_KEY) {
