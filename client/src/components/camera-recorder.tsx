@@ -4,7 +4,6 @@ import Webcam from 'react-webcam';
 import { Camera, StopCircle, RefreshCw, CheckCircle, X, RotateCcw, Settings2, AlertCircle, Video } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface CameraRecorderProps {
     onCapture: (file: File) => void;
@@ -40,6 +39,7 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
     // Devices & Settings
     const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
     const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+    const [facingMode, setFacingMode] = useState<"user" | "environment">("environment");
     const [quality, setQuality] = useState<VideoQuality>('1080p');
     const [showSettings, setShowSettings] = useState(false);
     const [cameraError, setCameraError] = useState<string | null>(null);
@@ -131,6 +131,11 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
         setCameraError(msg);
     }, []);
 
+    const toggleCamera = () => {
+        setFacingMode(prev => prev === "user" ? "environment" : "user");
+        setSelectedDeviceId('');
+    };
+
     // Review Mode
     if (recordedBlob && previewUrl) {
         return (
@@ -153,7 +158,7 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
         width: { ideal: config.width },
         height: { ideal: config.height },
         deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
-        facingMode: selectedDeviceId ? undefined : "user"
+        facingMode: selectedDeviceId ? undefined : facingMode
     };
 
     return (
@@ -173,10 +178,15 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
                             {formatTime(timer)}
                         </div>
                     ) : (
-                        <Button variant="outline" size="sm" onClick={() => setShowSettings(!showSettings)} className="bg-black/30 border-white/20 text-white backdrop-blur">
-                            <Settings2 className="mr-2 h-4 w-4" />
-                            <span className="hidden sm:inline">Réglages</span>
-                        </Button>
+                        <div className="flex gap-2">
+                            <Button variant="outline" size="icon" onClick={toggleCamera} className="bg-black/30 border-white/20 text-white backdrop-blur">
+                                <RefreshCw className="h-4 w-4" />
+                            </Button>
+                            <Button variant="outline" size="sm" onClick={() => setShowSettings(!showSettings)} className="bg-black/30 border-white/20 text-white backdrop-blur">
+                                <Settings2 className="mr-2 h-4 w-4" />
+                                <span className="hidden sm:inline">Réglages</span>
+                            </Button>
+                        </div>
                     )}
                 </div>
                 <div className="w-10"></div>
@@ -205,19 +215,22 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
                         </div>
                         <div className="space-y-4">
                             <div>
-                                <label className="text-sm font-medium text-white/70">Caméra</label>
-                                <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
-                                    <SelectTrigger className="w-full bg-white/5 border-white/10 text-white mt-1">
-                                        <SelectValue placeholder="Choisir..." />
-                                    </SelectTrigger>
-                                    <SelectContent className="bg-[#2c2c2e] border-white/10 text-white">
-                                        {devices.map((device) => (
-                                            <SelectItem key={device.deviceId} value={device.deviceId}>
-                                                {device.label || `Caméra ${device.deviceId.slice(0, 5)}...`}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <label className="text-sm font-medium text-white/70 block mb-2">Caméra</label>
+                                <Button variant="outline" className="w-full justify-start text-white border-white/20 hover:bg-white/10 mb-2" onClick={toggleCamera}>
+                                    <RefreshCw className="mr-2 h-4 w-4" />
+                                    Basculer Avant/Arrière
+                                </Button>
+                                <div className="space-y-1 max-h-32 overflow-y-auto">
+                                    {devices.map((device, idx) => (
+                                        <button
+                                            key={device.deviceId || idx}
+                                            onClick={() => setSelectedDeviceId(device.deviceId)}
+                                            className={`w-full text-left px-3 py-2 rounded text-sm truncate border transition-colors ${selectedDeviceId === device.deviceId ? 'bg-white text-black' : 'bg-transparent text-white border-white/20 hover:bg-white/10'}`}
+                                        >
+                                            {device.label || `Caméra ${idx + 1}`}
+                                        </button>
+                                    ))}
+                                </div>
                             </div>
                             <div>
                                 <label className="text-sm font-medium text-white/70">Qualité</label>
