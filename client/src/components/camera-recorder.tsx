@@ -52,32 +52,39 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
             const config = QUALITY_CONFIGS[quality];
             console.log(`📸 Starting camera: ${config.label}, facing: ${facingMode}`);
 
-            const constraints: MediaStreamConstraints = {
-                audio: {
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                },
+            // Simple constraints that work on all devices
+            const simpleConstraints: MediaStreamConstraints = {
+                audio: true,
                 video: {
                     facingMode: facingMode,
-                    width: { ideal: config.width, min: 640 },
-                    height: { ideal: config.height, min: 480 },
-                    frameRate: { ideal: 30 },
-                    // @ts-ignore - Advanced constraints for iOS stabilization
-                    advanced: [
-                        { zoom: 1.0 },
-                        // Enable video stabilization on supported devices (iOS)
-                        { videoStabilizationMode: 'cinematic' },
-                        { videoStabilizationMode: 'auto' },
-                    ]
+                    width: { ideal: config.width },
+                    height: { ideal: config.height },
                 }
             };
 
-            const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+            let newStream: MediaStream;
+
+            try {
+                // Try to get camera with simple constraints
+                newStream = await navigator.mediaDevices.getUserMedia(simpleConstraints);
+                console.log('✅ Camera obtained with simple constraints');
+            } catch (err) {
+                console.warn('⚠️ Simple constraints failed, trying minimal:', err);
+                // Fallback to minimal constraints
+                newStream = await navigator.mediaDevices.getUserMedia({
+                    audio: true,
+                    video: { facingMode: facingMode }
+                });
+                console.log('✅ Camera obtained with minimal constraints');
+            }
+
             setStream(newStream);
 
             if (videoRef.current) {
                 videoRef.current.srcObject = newStream;
                 videoRef.current.volume = 0;
+                // Ensure video plays on iOS
+                await videoRef.current.play().catch(() => { });
             }
 
             // Check actual resolution
