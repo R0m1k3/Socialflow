@@ -57,11 +57,7 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
 
 export async function registerRoutes(app: Express): Promise<Server> {
 
-  // Analytics Routes
-  app.use("/api/analytics", requireAuth, analyticsRouter);
 
-  // Reels & Music Routes
-  app.use("/api", requireAuth, reelsRouter);
 
   // Routes d'authentification
   app.post("/api/auth/login", (req, res, next) => {
@@ -329,10 +325,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({ isDefault: isDefaultPassword });
     } catch (error) {
-      console.error("Error checking default password:", error);
-      res.status(500).json({ error: "Erreur lors de la vérification" });
+      console.error("Error checking default password status:", error);
+      res.status(500).json({ error: "Erreur lors de la vérification du statut du mot de passe" });
     }
   });
+
+  // Analytics Routes
+  app.use("/api/analytics", requireAuth, analyticsRouter);
+
+  // Reels & Music Routes
+  app.use("/api", requireAuth, reelsRouter);
+
 
   // Route SQL (réservée aux admins) - DÉSACTIVÉE EN PRODUCTION sauf si explicitement autorisée
   app.post("/api/sql/execute", requireAdmin, async (req, res) => {
