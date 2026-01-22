@@ -65,9 +65,9 @@ export default function NewReel() {
     const [selectedPages, setSelectedPages] = useState<string[]>([]);
     const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
     const [musicVolume, setMusicVolume] = useState([25]);
-    const [ttsEnabled, setTtsEnabled] = useState(false);
+    const [ttsEnabled, setTtsEnabled] = useState(true);
     const [ttsVoice, setTtsVoice] = useState("female");
-    const [drawText, setDrawText] = useState(true);
+    const [drawText, setDrawText] = useState(false);
 
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);

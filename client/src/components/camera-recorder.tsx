@@ -1,9 +1,9 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Camera, StopCircle, RefreshCw, CheckCircle, X, RotateCcw, Settings2 } from 'lucide-react';
+import { Camera, StopCircle, RefreshCw, CheckCircle, X, RotateCcw, Settings2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 interface CameraRecorderProps {
     onCapture: (file: File) => void;
@@ -37,26 +37,64 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
     const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [timer, setTimer] = useState(0);
-    const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+
+    // Camera Device State
+    const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+    const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+    const [permissionError, setPermissionError] = useState<string | null>(null);
+
     const [resolutionInfo, setResolutionInfo] = useState<string>('');
     const [quality, setQuality] = useState<VideoQuality>('1080p');
     const [showSettings, setShowSettings] = useState(false);
 
+    // Fetch video devices
+    useEffect(() => {
+        const getDevices = async () => {
+            try {
+                // Request permission first to get device labels
+                await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+
+                const allDevices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = allDevices.filter(device => device.kind === 'videoinput');
+                setDevices(videoDevices);
+
+                if (videoDevices.length > 0 && !selectedDeviceId) {
+                    setSelectedDeviceId(videoDevices[0].deviceId);
+                }
+            } catch (err) {
+                console.error("Error enumerating devices:", err);
+                setPermissionError("Accès caméra refusé ou non disponible.");
+            }
+        };
+        getDevices();
+    }, []);
+
     // Initialisation de la caméra
     const startCamera = useCallback(async () => {
+        if (!selectedDeviceId && devices.length > 0) return; // Wait for selection logic
+
         try {
+            setPermissionError(null);
+
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
             }
 
             const config = QUALITY_CONFIGS[quality];
-            console.log(`📸 Starting camera: ${config.label}, facing: ${facingMode}`);
+            console.log(`📸 Starting camera: ${config.label}, deviceId: ${selectedDeviceId}`);
 
-            // Simple constraints that work on all devices
-            const simpleConstraints: MediaStreamConstraints = {
-                audio: true,
-                video: {
-                    facingMode: facingMode,
+            // Constraints with specific deviceId if selected, otherwise facingMode fallback
+            const constraints: MediaStreamConstraints = {
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                },
+                video: selectedDeviceId ? {
+                    deviceId: { exact: selectedDeviceId },
+                    width: { ideal: config.width },
+                    height: { ideal: config.height },
+                } : {
+                    facingMode: 'user', // Default fallback
                     width: { ideal: config.width },
                     height: { ideal: config.height },
                 }
@@ -65,15 +103,14 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
             let newStream: MediaStream;
 
             try {
-                // Try to get camera with simple constraints
-                newStream = await navigator.mediaDevices.getUserMedia(simpleConstraints);
-                console.log('✅ Camera obtained with simple constraints');
+                newStream = await navigator.mediaDevices.getUserMedia(constraints);
+                console.log('✅ Camera obtained');
             } catch (err) {
-                console.warn('⚠️ Simple constraints failed, trying minimal:', err);
-                // Fallback to minimal constraints
+                console.warn('⚠️ Constraints failed, trying minimal fallback:', err);
+                // Fallback to minimal constraints (any video source)
                 newStream = await navigator.mediaDevices.getUserMedia({
                     audio: true,
-                    video: { facingMode: facingMode }
+                    video: true
                 });
                 console.log('✅ Camera obtained with minimal constraints');
             }
@@ -83,8 +120,12 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
             if (videoRef.current) {
                 videoRef.current.srcObject = newStream;
                 videoRef.current.volume = 0;
-                // Ensure video plays on iOS
-                await videoRef.current.play().catch(() => { });
+                // Explicit play try
+                try {
+                    await videoRef.current.play();
+                } catch (playErr) {
+                    console.error("Video play failed:", playErr);
+                }
             }
 
             // Check actual resolution
@@ -98,24 +139,27 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
 
         } catch (error) {
             console.error('❌ Error accessing camera:', error);
+            setPermissionError(error instanceof Error ? error.message : "Erreur inconnue");
             toast({
                 title: "Erreur caméra",
                 description: "Impossible d'accéder à la caméra. Vérifiez les permissions.",
                 variant: "destructive"
             });
-            onCancel();
         }
-    }, [facingMode, quality, onCancel, toast]);
+    }, [selectedDeviceId, quality, toast, devices]); // Removed complex deps
 
+    // Restart camera when device or quality changes
     useEffect(() => {
-        startCamera();
+        if (selectedDeviceId) {
+            startCamera();
+        }
         return () => {
-            // Cleanup on unmount
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
             }
         };
-    }, [startCamera]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedDeviceId, quality]);
 
     // Timer logic
     useEffect(() => {
@@ -136,22 +180,30 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
         chunksRef.current = [];
 
         // Essayer les codecs supportés pour la meilleure qualité
-        // iOS (Safari) supporte bien video/mp4 ou video/webkit;codecs=h264
-        let mimeType = 'video/mp4';
-        if (!MediaRecorder.isTypeSupported(mimeType)) {
-            mimeType = 'video/webm;codecs=vp9';
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-                mimeType = 'video/webm';
-            }
+        const mimeTypes = [
+            'video/mp4',
+            'video/webm;codecs=vp9,opus',
+            'video/webm;codecs=vp8,opus',
+            'video/webm'
+        ];
+
+        let mimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)) || '';
+
+        if (!mimeType) {
+            console.warn("No supported mimeType found, letting browser decide default.");
         }
 
         console.log('🎥 Recording with mimeType:', mimeType);
 
         try {
-            const mediaRecorder = new MediaRecorder(stream, {
-                mimeType,
+            const options: MediaRecorderOptions = {
                 videoBitsPerSecond: 8000000 // 8 Mbps target
-            });
+            };
+            if (mimeType) {
+                options.mimeType = mimeType;
+            }
+
+            const mediaRecorder = new MediaRecorder(stream, options);
 
             mediaRecorder.ondataavailable = (e) => {
                 if (e.data.size > 0) {
@@ -160,12 +212,14 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
             };
 
             mediaRecorder.onstop = () => {
-                const blob = new Blob(chunksRef.current, { type: mimeType });
+                const blob = new Blob(chunksRef.current, { type: mimeType || 'video/webm' });
                 setRecordedBlob(blob);
                 const url = URL.createObjectURL(blob);
                 setPreviewUrl(url);
 
                 // Stop stream tracks to save battery while reviewing
+                // stream.getTracks().forEach(track => track.stop()); // Don't stop yet if we want retake to be fast?
+                // Actually retake restarts camera, so stopping here is fine.
                 stream.getTracks().forEach(track => track.stop());
             };
 
@@ -189,19 +243,15 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
         }
     };
 
-    const switchCamera = () => {
-        setFacingMode(prev => prev === 'user' ? 'environment' : 'user');
-    };
-
     const handleRetake = () => {
         setRecordedBlob(null);
         setPreviewUrl(null);
-        startCamera(); // Restart stream
+        // Force restart
+        startCamera();
     };
 
     const handleConfirm = () => {
         if (recordedBlob) {
-            // Create a File object
             const file = new File([recordedBlob], `capture-${Date.now()}.mp4`, {
                 type: recordedBlob.type
             });
@@ -253,12 +303,15 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
     return (
         <div className="fixed inset-0 z-50 bg-black flex flex-col">
             {/* Header */}
-            <div className="absolute top-0 left-0 right-0 p-4 z-10 flex justify-between items-center bg-gradient-to-b from-black/50 to-transparent">
-                <Button variant="ghost" size="icon" onClick={onCancel} className="text-white">
-                    <X className="h-6 w-6" />
-                </Button>
-                <div className="flex items-center gap-2">
-                    {/* Recording timer or quality selector */}
+            <div className="absolute top-0 left-0 right-0 p-4 z-10 flex justify-between items-center bg-gradient-to-b from-black/80 to-transparent pointer-events-none">
+                <div className="pointer-events-auto">
+                    <Button variant="ghost" size="icon" onClick={onCancel} className="text-white">
+                        <X className="h-6 w-6" />
+                    </Button>
+                </div>
+
+                <div className="flex items-center gap-2 pointer-events-auto">
+                    {/* Recording timer or Settings Trigger */}
                     {isRecording ? (
                         <div className="bg-red-600 px-3 py-1 rounded-full text-white font-mono text-sm flex items-center gap-2">
                             <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
@@ -267,101 +320,126 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
                     ) : (
                         <button
                             onClick={() => setShowSettings(!showSettings)}
-                            className="bg-black/50 backdrop-blur-md px-3 py-2 rounded-full text-white font-medium text-sm flex items-center gap-2 border border-white/30"
+                            className="bg-black/50 backdrop-blur-md px-3 py-2 rounded-full text-white font-medium text-sm flex items-center gap-2 border border-white/30 hover:bg-black/70 transition-colors"
                         >
                             <Settings2 className="h-4 w-4" />
-                            {quality.toUpperCase()}
-                            <span className="text-white/60 text-xs">
-                                {resolutionInfo || QUALITY_CONFIGS[quality].label}
-                            </span>
+                            <span className="hidden sm:inline">Paramètres</span>
                         </button>
                     )}
                 </div>
-                <Button variant="ghost" size="icon" onClick={switchCamera} className="text-white">
-                    <RefreshCw className="h-6 w-6" />
-                </Button>
+
+                <div className="w-10"></div> {/* Spacer for alignment */}
             </div>
 
-            {/* Quality Settings Panel */}
+            {/* Error Message */}
+            {permissionError && (
+                <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 text-white p-6 text-center">
+                    <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+                    <h3 className="text-xl font-bold mb-2">Erreur Caméra</h3>
+                    <p className="text-white/70 mb-6">{permissionError}</p>
+                    <Button onClick={onCancel} variant="outline" className="text-black">
+                        Fermer
+                    </Button>
+                </div>
+            )}
+
+            {/* Settings Panel Overlay */}
             {showSettings && !isRecording && (
-                <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 bg-black/80 backdrop-blur-md rounded-xl p-4 min-w-[200px]">
-                    <p className="text-white text-sm font-medium mb-3 text-center">Qualité Vidéo</p>
-                    <div className="flex gap-2">
-                        {(Object.keys(QUALITY_CONFIGS) as VideoQuality[]).map((q) => (
-                            <button
-                                key={q}
-                                onClick={() => {
-                                    setQuality(q);
-                                    setShowSettings(false);
-                                }}
-                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${quality === q
-                                    ? 'bg-white text-black'
-                                    : 'bg-white/20 text-white hover:bg-white/30'
-                                    }`}
-                            >
-                                {q.toUpperCase()}
-                            </button>
-                        ))}
+                <div className="absolute inset-0 z-20 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-[#1c1c1e] text-white p-6 rounded-2xl w-full max-w-sm border border-white/10 shadow-2xl">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-lg font-bold">Paramètres Caméra</h2>
+                            <Button variant="ghost" size="icon" onClick={() => setShowSettings(false)} className="h-8 w-8 text-white/50 hover:text-white">
+                                <X className="h-5 w-5" />
+                            </Button>
+                        </div>
+
+                        <div className="space-y-6">
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-white/70">Caméra</label>
+                                <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
+                                    <SelectTrigger className="w-full bg-white/5 border-white/10 text-white">
+                                        <SelectValue placeholder="Sélectionner une caméra" />
+                                    </SelectTrigger>
+                                    <SelectContent className="bg-[#2c2c2e] border-white/10 text-white">
+                                        {devices.map((device) => (
+                                            <SelectItem key={device.deviceId} value={device.deviceId} className="focus:bg-white/10 cursor-pointer">
+                                                {device.label || `Caméra ${device.deviceId.slice(0, 5)}...`}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+
+                            <div className="space-y-2">
+                                <label className="text-sm font-medium text-white/70">Qualité</label>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(Object.keys(QUALITY_CONFIGS) as VideoQuality[]).map((q) => (
+                                        <button
+                                            key={q}
+                                            onClick={() => setQuality(q)}
+                                            className={`px-2 py-2 rounded-lg text-sm font-medium transition-all border ${quality === q
+                                                ? 'bg-white text-black border-white'
+                                                : 'bg-white/5 text-white border-transparent hover:bg-white/10'
+                                                }`}
+                                        >
+                                            {q.toUpperCase()}
+                                        </button>
+                                    ))}
+                                </div>
+                                <p className="text-xs text-white/40 text-center pt-1">
+                                    {QUALITY_CONFIGS[quality].label} - {resolutionInfo}
+                                </p>
+                            </div>
+
+                            <Button onClick={() => setShowSettings(false)} className="w-full bg-white text-black hover:bg-white/90">
+                                Terminer
+                            </Button>
+                        </div>
                     </div>
-                    <p className="text-white/60 text-xs mt-2 text-center">
-                        {QUALITY_CONFIGS[quality].label}
-                    </p>
                 </div>
             )}
 
             {/* Viewfinder */}
             <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
-                <video
-                    ref={videoRef}
-                    autoPlay
-                    playsInline
-                    muted
-                    className="absolute min-w-full min-h-full object-cover"
-                />
+                {!permissionError && (
+                    <video
+                        ref={videoRef}
+                        autoPlay
+                        playsInline
+                        muted
+                        className="absolute w-full h-full object-cover"
+                    />
+                )}
             </div>
 
             {/* Controls */}
-            <div className="absolute bottom-0 left-0 right-0 p-6 pb-10 flex flex-col items-center bg-gradient-to-t from-black/80 to-transparent">
-                {/* Quality selector - visible before recording */}
-                {!isRecording && (
-                    <div className="flex gap-2 mb-6">
-                        {(Object.keys(QUALITY_CONFIGS) as VideoQuality[]).map((q) => (
-                            <button
-                                key={q}
-                                onClick={() => setQuality(q)}
-                                className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${quality === q
-                                    ? 'bg-white text-black'
-                                    : 'bg-white/20 text-white border border-white/40'
-                                    }`}
-                            >
-                                {q.toUpperCase()}
-                            </button>
-                        ))}
-                    </div>
-                )}
-
-                {/* Record button */}
-                {isRecording ? (
-                    <button
-                        onClick={stopRecording}
-                        className="group relative flex items-center justify-center"
-                    >
-                        <div className="absolute inset-0 rounded-full border-4 border-white opacity-100 group-hover:scale-105 transition-transform" />
-                        <div className="w-16 h-16 rounded-lg bg-red-600 flex items-center justify-center animate-pulse">
-                            <div className="w-6 h-6 bg-transparent" />
-                        </div>
-                    </button>
-                ) : (
-                    <button
-                        onClick={startRecording}
-                        className="group relative flex items-center justify-center"
-                    >
-                        <div className="w-20 h-20 rounded-full border-[6px] border-white flex items-center justify-center transition-all group-hover:scale-105 group-active:scale-95">
-                            <div className="w-16 h-16 rounded-full bg-red-600" />
-                        </div>
-                    </button>
-                )}
+            <div className="absolute bottom-0 left-0 right-0 p-8 pb-12 flex flex-col items-center justify-end bg-gradient-to-t from-black/80 to-transparent h-48 pointer-events-none">
+                <div className="pointer-events-auto">
+                    {isRecording ? (
+                        <button
+                            onClick={stopRecording}
+                            className="group relative flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                        >
+                            <div className="w-20 h-20 rounded-full border-[4px] border-white flex items-center justify-center">
+                                <div className="w-8 h-8 rounded-md bg-red-500" />
+                            </div>
+                        </button>
+                    ) : (
+                        <button
+                            onClick={startRecording}
+                            className="group relative flex items-center justify-center transition-all hover:scale-110 active:scale-95"
+                        >
+                            <div className="w-20 h-20 rounded-full border-[4px] border-white flex items-center justify-center p-1">
+                                <div className="w-full h-full rounded-full bg-red-500" />
+                            </div>
+                        </button>
+                    )}
+                </div>
             </div>
         </div>
     );
 }
+
+// Ensure TypeScript treats this as a module
+export default CameraRecorder;

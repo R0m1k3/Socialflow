@@ -30,10 +30,10 @@ class ReelRequest(BaseModel):
     music_id: Optional[str] = None
     music_url: Optional[str] = None
     word_duration: float = 0.6
-    font_size: int = 60
+    font_size: int = 30
     music_volume: float = 0.25
     tts_enabled: bool = False
-    tts_voice: str = "fr-FR-VivienneNeural"
+    tts_voice: str = "fr-FR-VivienneMultilingualNeural"
     draw_text: bool = True
 
 
@@ -270,8 +270,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         if request.text and request.draw_text:
             if has_tts:
                 # Use subtitles filter
-                # Force style to look like TikTok/Reels text (Bottom center, white, black box)
-                style = f"FontName=Arial,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H80000000,BorderStyle=3,BackColour=&H80000000,Bold=1,Alignment=2,MarginV=150"
+                # Force style to look like TikTok/Reels text (No Black Box, just Outline)
+                style = f"FontName=Arial,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=150"
                 # Escape path for FFmpeg filter
                 vtt_path_str = str(tts_vtt_path).replace("\\", "/").replace(":", "\\:")
                 video_filters.append(
@@ -280,7 +280,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             else:
                 # Standard Drawtext logic
                 sanitized_text = request.text.replace("'", "").replace(":", "\\:")
-                drawtext = f"drawtext=fontfile={FONT_PATH}:text='{sanitized_text}':fontcolor=white:fontsize={request.font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-text_h-150"
+                drawtext = f"drawtext=fontfile={FONT_PATH}:text='{sanitized_text}':fontcolor=white:fontsize={request.font_size}:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-text_h-150"
                 video_filters.append(drawtext)
 
         # Audio Mixing Strategy
