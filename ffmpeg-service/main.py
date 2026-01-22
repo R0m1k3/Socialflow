@@ -203,6 +203,12 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         filter_complex_parts = []
         mix_inputs = 0
 
+        if has_music:
+            cmd.extend(["-i", str(input_audio_path)])
+
+        if has_tts:
+            cmd.extend(["-i", str(tts_audio_path)])
+
         # Prepare inputs for mixing
         if has_original_audio:
             # Original audio usually needs to be lowered if there is music/voice
