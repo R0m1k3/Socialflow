@@ -60,8 +60,6 @@ services:
     restart: unless-stopped
     environment:
       API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
-    volumes:
-      - ./ffmpeg-service:/app
     networks:
       - internal
     expose:
