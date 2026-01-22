@@ -7,9 +7,13 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { createResponsiveRoute } from "@/components/responsive-route";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
-import History from "@/pages/history";
+
 
 // Create responsive routes with lazy loading for optimal performance
+const History = createResponsiveRoute(
+  () => import("@/pages/history"),
+  () => import("@/pages/mobile/history")
+);
 const Dashboard = createResponsiveRoute(
   () => import("@/pages/dashboard"),
   () => import("@/pages/mobile/dashboard")
@@ -68,7 +72,7 @@ const Analytics = createResponsiveRoute(
 // NewReel uses desktop version for now (mobile can be added later)
 const NewReel = createResponsiveRoute(
   () => import("@/pages/new-reel"),
-  () => import("@/pages/new-reel") // Uses same component for now
+  () => import("@/pages/mobile/new-reel") // Uses same component for now
 );
 
 function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType; adminOnly?: boolean }) {
