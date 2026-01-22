@@ -182,6 +182,8 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             musicTrackId,
             musicUrl,
             overlayText,
+            ttsEnabled,
+            ttsVoice,
             wordDuration = 0.6,
             fontSize = 60,
             musicVolume = 0.25,
@@ -210,6 +212,8 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
         const result = await ffmpegService.processReelFromUrl(media.originalUrl, {
             text: overlayText,
             musicUrl: finalMusicUrl,
+            ttsEnabled,
+            ttsVoice,
             wordDuration,
             fontSize,
             musicVolume,
@@ -244,6 +248,8 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             musicUrl,
             overlayText,
             description,
+            ttsEnabled,
+            ttsVoice,
             pageIds,
             scheduledFor,
             wordDuration = 0.6,
@@ -283,6 +289,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             videoMediaId,
             hasMusic: !!finalMusicUrl,
             hasText: !!overlayText,
+            hasTTS: !!ttsEnabled,
             pageCount: pageIds.length,
         });
 
@@ -290,6 +297,8 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
         const ffmpegResult = await ffmpegService.processReelFromUrl(media.originalUrl, {
             text: overlayText,
             musicUrl: finalMusicUrl,
+            ttsEnabled,
+            ttsVoice,
             wordDuration,
             fontSize,
             musicVolume,

@@ -45,6 +45,13 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 - [x] Configurer FreeSound API (env vars)
 - [x] Configurer FFmpeg API URL et clé (interface Settings)
+- [x] Ajouter la voix off (TTS) gratuite via Edge-TTS
+  - [x] FFmpeg Service: Installer edge-tts et implémenter le mixage audio
+  - [x] Backend: Supporter les options TTS (enable, voice)
+  - [ ] Améliorer le TTS (Genre, Sync, Cleanup)
+  - [ ] FFmpeg: Nettoyer le texte (No hashtags/emojis) avant TTS
+  - [ ] FFmpeg: Générer fichier VTT pour synchro sous-titres
+  - [ ] Frontend: Sélecteur de voix (Homme/Femme)
 - [/] Ajouter la valeur 'reel' à l'enum post_type en base de données
 - [x] Amélioration UI Musique (Pagination, Preview Audio)
 

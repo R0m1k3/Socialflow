@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import {
     Send, Sparkles, Video, Music, Type, Calendar,
     Upload, Camera, Play, Pause, Volume2, VolumeX,
-    ChevronRight, Loader2, Check, RefreshCw
+    ChevronRight, Loader2, Check, RefreshCw, Mic
 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import Sidebar from "@/components/sidebar";
@@ -14,8 +14,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
@@ -55,7 +65,10 @@ export default function NewReel() {
     const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
     const [selectedPages, setSelectedPages] = useState<string[]>([]);
     const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
+    const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
     const [musicVolume, setMusicVolume] = useState([25]);
+    const [ttsEnabled, setTtsEnabled] = useState(false);
+    const [ttsVoice, setTtsVoice] = useState("female");
 
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
@@ -298,6 +311,8 @@ export default function NewReel() {
             pageIds: selectedPages,
             scheduledFor: scheduledDate?.toISOString(),
             musicVolume: musicVolume[0] / 100,
+            ttsEnabled,
+            ttsVoice,
         });
     };
 
@@ -684,6 +699,52 @@ export default function NewReel() {
                                                 placeholder="Écrivez le texte qui apparaîtra sur votre Reel..."
                                                 rows={4}
                                             />
+
+                                            <div className="flex items-center space-x-2 mt-4">
+                                                <Switch
+                                                    id="tts-mode"
+                                                    checked={ttsEnabled}
+                                                    onCheckedChange={setTtsEnabled}
+                                                />
+                                                <Label htmlFor="tts-mode" className="font-medium cursor-pointer">
+                                                    Activer la lecture voix (TTS)
+                                                </Label>
+                                            </div>
+
+                                            {ttsEnabled && (
+                                                <div className="mt-4 space-y-2 ml-12 p-4 bg-muted/30 rounded-lg border border-border/50">
+                                                    <Label className="flex items-center gap-2">
+                                                        <Mic className="w-4 h-4" />
+                                                        Voix du narrateur
+                                                    </Label>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div
+                                                            onClick={() => setTtsVoice("female")}
+                                                            className={`cursor-pointer p-3 rounded-md border-2 text-center transition-all ${ttsVoice === 'female'
+                                                                ? 'border-primary bg-primary/10'
+                                                                : 'border-transparent bg-background hover:bg-accent'
+                                                                }`}
+                                                        >
+                                                            <div className="font-semibold">Féminine</div>
+                                                            <div className="text-xs text-muted-foreground">Vivienne</div>
+                                                        </div>
+                                                        <div
+                                                            onClick={() => setTtsVoice("male")}
+                                                            className={`cursor-pointer p-3 rounded-md border-2 text-center transition-all ${ttsVoice === 'male'
+                                                                ? 'border-primary bg-primary/10'
+                                                                : 'border-transparent bg-background hover:bg-accent'
+                                                                }`}
+                                                        >
+                                                            <div className="font-semibold">Masculine</div>
+                                                            <div className="text-xs text-muted-foreground">Rémy</div>
+                                                        </div>
+                                                    </div>
+                                                    <p className="text-xs text-muted-foreground mt-2">
+                                                        Le texte sera automatiquement synchronisé avec la voix.
+                                                        Les #hashtags et émojis ne seront pas lus.
+                                                    </p>
+                                                </div>
+                                            )}
 
                                             <div className="mt-4 flex justify-between">
                                                 <Button variant="outline" onClick={() => setCurrentStep('music')}>

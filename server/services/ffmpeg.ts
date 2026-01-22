@@ -11,6 +11,8 @@ interface FFmpegReelRequest {
     text?: string;              // Texte overlay style TikTok
     music_id?: string;          // ID de la musique (catalogue FFmpeg)
     music_url?: string;         // OU URL directe de la musique
+    tts_enabled?: boolean;      // Activation du TTS
+    tts_voice?: string;         // Voix TTS (ex: fr-FR-VivienneNeural)
     word_duration?: number;     // Durée par mot (default: 0.6s)
     font_size?: number;         // Taille police (default: 60)
     music_volume?: number;      // Volume musique (default: 0.25)
@@ -62,6 +64,8 @@ export class FFmpegService {
             text?: string;
             musicId?: string;
             musicUrl?: string;
+            ttsEnabled?: boolean;
+            ttsVoice?: string;
             wordDuration?: number;
             fontSize?: number;
             musicVolume?: number;
@@ -74,6 +78,8 @@ export class FFmpegService {
             text: options.text,
             music_id: options.musicId,
             music_url: options.musicUrl,
+            tts_enabled: options.ttsEnabled,
+            tts_voice: options.ttsVoice,
             word_duration: options.wordDuration ?? 0.6,
             font_size: options.fontSize ?? 60,
             music_volume: options.musicVolume ?? 0.25,
@@ -91,6 +97,7 @@ export class FFmpegService {
             hasText: !!options.text,
             hasMusicId: !!options.musicId,
             hasMusicUrl: !!options.musicUrl,
+            hasTTS: options.ttsEnabled,
         });
 
         try {
@@ -147,6 +154,8 @@ export class FFmpegService {
             text?: string;
             musicId?: string;
             musicUrl?: string;
+            ttsEnabled?: boolean;
+            ttsVoice?: string;
             wordDuration?: number;
             fontSize?: number;
             musicVolume?: number;
@@ -159,6 +168,8 @@ export class FFmpegService {
             text: options.text,
             music_id: options.musicId,
             music_url: options.musicUrl,
+            tts_enabled: options.ttsEnabled,
+            tts_voice: options.ttsVoice,
             word_duration: options.wordDuration ?? 0.6,
             font_size: options.fontSize ?? 60,
             music_volume: options.musicVolume ?? 0.25,
@@ -176,6 +187,7 @@ export class FFmpegService {
             hasText: !!options.text,
             hasMusicId: !!options.musicId,
             hasMusicUrl: !!options.musicUrl,
+            hasTTS: options.ttsEnabled,
         });
 
         try {
