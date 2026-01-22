@@ -14,8 +14,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
@@ -64,7 +62,6 @@ export default function NewReel() {
     const [productInfo, setProductInfo] = useState('');
     const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
     const [selectedPages, setSelectedPages] = useState<string[]>([]);
-    const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
     const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
     const [musicVolume, setMusicVolume] = useState([25]);
     const [ttsEnabled, setTtsEnabled] = useState(false);
