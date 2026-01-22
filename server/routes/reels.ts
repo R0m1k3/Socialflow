@@ -185,7 +185,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             ttsEnabled,
             ttsVoice,
             wordDuration = 0.6,
-            fontSize = 60,
+            fontSize = 24,
             musicVolume = 0.25,
             drawText = true,
         } = req.body;
@@ -255,7 +255,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             pageIds,
             scheduledFor,
             wordDuration = 0.6,
-            fontSize = 60,
+            fontSize = 24,
             musicVolume = 0.25,
             drawText = true,
         } = req.body;
