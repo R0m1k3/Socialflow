@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
 import { DateTimePicker } from "@/components/datetime-picker";
+import { CameraRecorder } from "@/components/camera-recorder";
 
 interface MusicTrack {
     id: string;
@@ -331,6 +332,17 @@ export default function NewReel() {
 
     return (
         <div className="flex h-screen overflow-hidden bg-background">
+            {/* Camera Recorder Modal */}
+            {showCamera && (
+                <CameraRecorder
+                    onCapture={(file) => {
+                        uploadMutation.mutate(file);
+                        setShowCamera(false);
+                    }}
+                    onCancel={() => setShowCamera(false)}
+                />
+            )}
+
             {sidebarOpen && (
                 <div
                     className="fixed inset-0 bg-black/50 z-40 lg:hidden"

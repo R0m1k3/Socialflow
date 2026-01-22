@@ -48,16 +48,17 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] Ajouter la voix off (TTS) gratuite via Edge-TTS
   - [x] FFmpeg Service: Installer edge-tts et implémenter le mixage audio
   - [x] Backend: Supporter les options TTS (enable, voice)
-  - [ ] Améliorer le TTS (Genre, Sync, Cleanup)
-  - [ ] FFmpeg: Nettoyer le texte (No hashtags/emojis) avant TTS
-  - [ ] FFmpeg: Générer fichier VTT pour synchro sous-titres
+  - [x] Améliorer le TTS (Genre, Sync, Cleanup)
+  - [x] FFmpeg: Nettoyer le texte (No hashtags/emojis) avant TTS
+  - [x] FFmpeg: Générer fichier VTT pour synchro sous-titres
+  - [x] FFmpeg: Enlever le son original quand TTS activé
   - [ ] Frontend: Sélecteur de voix (Homme/Femme)
 - [/] Ajouter la valeur 'reel' à l'enum post_type en base de données
 - [x] Amélioration UI Musique (Pagination, Preview Audio)
-- [ ] **Improve Camera Capture Quality** (User Request)
-  - [ ] Create `CameraRecorder` component with 4K/1080p constraints
-  - [ ] Integrate CameraRecorder into `new-reel.tsx`
-  - [ ] Test camera permissions and recording flow
+- [x] **Improve Camera Capture Quality** (User Request)
+  - [x] Create `CameraRecorder` component with 4K/1080p/720p quality selector
+  - [x] Integrate CameraRecorder into `new-reel.tsx`
+  - [x] Add quality settings panel in camera UI
 
 ## Progress Log
 

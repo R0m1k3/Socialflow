@@ -60,7 +60,7 @@ async def generate_tts_with_subs(
                 submaker.feed(chunk)
 
     with open(vtt_path, "w", encoding="utf-8") as file:
-        file.write(submaker.generate_subs())
+        file.write(submaker.get_subs())
 
 
 class ReelResponse(BaseModel):
@@ -228,11 +228,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             cmd.extend(["-i", str(tts_audio_path)])
 
         # Prepare inputs for mixing
-        if has_original_audio:
-            # Original audio usually needs to be lowered if there is music/voice
-            vol = 0.6 if (has_music or has_tts) else 1.0
-            filter_complex_parts.append(f"[0:a]volume={vol}[a0]")
-            mix_inputs += 1
+        # ALWAYS ignore original video audio - only use music and/or TTS
+        # (Original audio is never used per user request)
 
         if has_music:
             # Music volume
@@ -249,8 +246,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         # Build mix command
         if mix_inputs > 0:
             inputs_str = ""
-            if has_original_audio:
-                inputs_str += "[a0]"
+            # Note: Original audio is never mixed in (always muted)
             if has_music:
                 inputs_str += "[a1]"
             if has_tts:

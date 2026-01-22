@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect, useCallback } from 'react';
-import { Camera, StopCircle, RefreshCw, CheckCircle, X, RotateCcw } from 'lucide-react';
+import { Camera, StopCircle, RefreshCw, CheckCircle, X, RotateCcw, Settings2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -9,6 +9,22 @@ interface CameraRecorderProps {
     onCapture: (file: File) => void;
     onCancel: () => void;
 }
+
+// Quality configurations
+type VideoQuality = "4k" | "1080p" | "720p";
+
+interface QualityConfig {
+    label: string;
+    width: number;
+    height: number;
+    bitrate: number;
+}
+
+const QUALITY_CONFIGS: Record<VideoQuality, QualityConfig> = {
+    "4k": { label: "4K Ultra HD", width: 3840, height: 2160, bitrate: 25000000 },
+    "1080p": { label: "Full HD", width: 1920, height: 1080, bitrate: 8000000 },
+    "720p": { label: "HD 720p", width: 1280, height: 720, bitrate: 5000000 },
+};
 
 export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -23,6 +39,8 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
     const [timer, setTimer] = useState(0);
     const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
     const [resolutionInfo, setResolutionInfo] = useState<string>('');
+    const [quality, setQuality] = useState<VideoQuality>('1080p');
+    const [showSettings, setShowSettings] = useState(false);
 
     // Initialisation de la caméra
     const startCamera = useCallback(async () => {
@@ -31,15 +49,15 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
                 stream.getTracks().forEach(track => track.stop());
             }
 
-            console.log('📸 Starting camera with facing mode:', facingMode);
+            const config = QUALITY_CONFIGS[quality];
+            console.log(`📸 Starting camera: ${config.label}, facing: ${facingMode}`);
 
-            // Constraints pour forcer la meilleure qualité possible (4K ou 1080p)
             const constraints: MediaStreamConstraints = {
                 audio: true,
                 video: {
                     facingMode: facingMode,
-                    width: { ideal: 3840 }, // Try 4K
-                    height: { ideal: 2160 },
+                    width: { ideal: config.width, min: 640 },
+                    height: { ideal: config.height, min: 480 },
                 }
             };
 
@@ -48,7 +66,7 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
 
             if (videoRef.current) {
                 videoRef.current.srcObject = newStream;
-                videoRef.current.volume = 0; // Mute preview to avoid feedback loop
+                videoRef.current.volume = 0;
             }
 
             // Check actual resolution
@@ -69,7 +87,7 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
             });
             onCancel();
         }
-    }, [facingMode, onCancel, toast]);
+    }, [facingMode, quality, onCancel, toast]);
 
     useEffect(() => {
         startCamera();
@@ -221,13 +239,52 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
                 <Button variant="ghost" size="icon" onClick={onCancel} className="text-white">
                     <X className="h-6 w-6" />
                 </Button>
-                <div className="bg-black/30 backdrop-blur-md px-3 py-1 rounded-full text-white font-mono text-sm">
-                    {isRecording ? formatTime(timer) : (resolutionInfo || 'Camera')}
+                <div className="flex items-center gap-2">
+                    <div className="bg-black/30 backdrop-blur-md px-3 py-1 rounded-full text-white font-mono text-sm">
+                        {isRecording ? formatTime(timer) : (resolutionInfo || 'Camera')}
+                    </div>
+                    {!isRecording && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setShowSettings(!showSettings)}
+                            className="text-white"
+                        >
+                            <Settings2 className="h-5 w-5" />
+                        </Button>
+                    )}
                 </div>
                 <Button variant="ghost" size="icon" onClick={switchCamera} className="text-white">
                     <RefreshCw className="h-6 w-6" />
                 </Button>
             </div>
+
+            {/* Quality Settings Panel */}
+            {showSettings && !isRecording && (
+                <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 bg-black/80 backdrop-blur-md rounded-xl p-4 min-w-[200px]">
+                    <p className="text-white text-sm font-medium mb-3 text-center">Qualité Vidéo</p>
+                    <div className="flex gap-2">
+                        {(Object.keys(QUALITY_CONFIGS) as VideoQuality[]).map((q) => (
+                            <button
+                                key={q}
+                                onClick={() => {
+                                    setQuality(q);
+                                    setShowSettings(false);
+                                }}
+                                className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${quality === q
+                                        ? 'bg-white text-black'
+                                        : 'bg-white/20 text-white hover:bg-white/30'
+                                    }`}
+                            >
+                                {q.toUpperCase()}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-white/60 text-xs mt-2 text-center">
+                        {QUALITY_CONFIGS[quality].label}
+                    </p>
+                </div>
+            )}
 
             {/* Viewfinder */}
             <div className="relative flex-1 bg-black flex items-center justify-center overflow-hidden">
