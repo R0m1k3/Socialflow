@@ -346,13 +346,13 @@ export default function NewReel() {
                                         else if (step === 'publish' && canProceedToPublish) setCurrentStep(step);
                                     }}
                                     className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${currentStep === step
-                                            ? 'bg-primary text-primary-foreground'
-                                            : step === 'video' ||
-                                                (step === 'music' && canProceedToMusic) ||
-                                                (step === 'text' && canProceedToText) ||
-                                                (step === 'publish' && canProceedToPublish)
-                                                ? 'bg-muted hover:bg-accent cursor-pointer'
-                                                : 'bg-muted/50 text-muted-foreground cursor-not-allowed'
+                                        ? 'bg-primary text-primary-foreground'
+                                        : step === 'video' ||
+                                            (step === 'music' && canProceedToMusic) ||
+                                            (step === 'text' && canProceedToText) ||
+                                            (step === 'publish' && canProceedToPublish)
+                                            ? 'bg-muted hover:bg-accent cursor-pointer'
+                                            : 'bg-muted/50 text-muted-foreground cursor-not-allowed'
                                         }`}
                                 >
                                     {step === 'video' && <Video className="w-4 h-4" />}
@@ -430,8 +430,8 @@ export default function NewReel() {
                                                             key={media.id}
                                                             onClick={() => handleSelectVideo(media)}
                                                             className={`relative aspect-video rounded-lg overflow-hidden border-2 transition-all ${selectedVideoId === media.id
-                                                                    ? 'border-primary ring-2 ring-primary'
-                                                                    : 'border-transparent hover:border-muted-foreground'
+                                                                ? 'border-primary ring-2 ring-primary'
+                                                                : 'border-transparent hover:border-muted-foreground'
                                                                 }`}
                                                         >
                                                             <video
@@ -486,13 +486,32 @@ export default function NewReel() {
                                         ) : (
                                             <>
                                                 <div className="space-y-2">
+                                                    {(!musicData?.tracks || musicData.tracks.length === 0) && (
+                                                        <div className="text-center py-8 border-2 border-dashed border-border rounded-lg">
+                                                            <Music className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                                                            <p className="text-muted-foreground mb-2">
+                                                                Aucune musique disponible
+                                                            </p>
+                                                            <p className="text-xs text-muted-foreground mb-4">
+                                                                Configurez un Client ID Jamendo dans les Paramètres
+                                                            </p>
+                                                            <a
+                                                                href="https://developer.jamendo.com/v3.0"
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="text-sm text-primary hover:underline"
+                                                            >
+                                                                Obtenir un Client ID Jamendo →
+                                                            </a>
+                                                        </div>
+                                                    )}
                                                     {musicData?.tracks?.map((track) => (
                                                         <div
                                                             key={track.id}
                                                             onClick={() => handleSelectTrack(track)}
                                                             className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${selectedTrack?.id === track.id
-                                                                    ? 'bg-primary/10 border border-primary'
-                                                                    : 'bg-muted/50 hover:bg-muted'
+                                                                ? 'bg-primary/10 border border-primary'
+                                                                : 'bg-muted/50 hover:bg-muted'
                                                                 }`}
                                                         >
                                                             <button
