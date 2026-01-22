@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain, Image, Upload, X } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain, Image, Upload, X, Video } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
@@ -25,6 +25,8 @@ export default function Settings() {
   const [openrouterSystemPrompt, setOpenrouterSystemPrompt] = useState("Tu es un expert en marketing des réseaux sociaux. Génère 3 variations de textes engageants pour des publications Facebook et Instagram à partir des informations produit fournies. Chaque variation doit être unique, captivante et optimisée pour l'engagement.");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [ffmpegApiUrl, setFfmpegApiUrl] = useState("");
+  const [ffmpegApiKey, setFfmpegApiKey] = useState("");
   const { toast } = useToast();
 
   const { data: cloudinaryConfig } = useQuery({
@@ -39,11 +41,15 @@ export default function Settings() {
     queryKey: ['/api/openrouter/models'],
   });
 
+  const { data: ffmpegConfig } = useQuery({
+    queryKey: ['/api/ffmpeg/config'],
+  });
+
   useEffect(() => {
     if (cloudinaryConfig) {
       setCloudName((cloudinaryConfig as any).cloudName || "");
       setApiKey((cloudinaryConfig as any).apiKey || "");
-      
+
       // Set logo preview if exists
       if ((cloudinaryConfig as any).logoPublicId) {
         const cloudName = (cloudinaryConfig as any).cloudName;
@@ -60,15 +66,22 @@ export default function Settings() {
     }
   }, [openrouterConfig]);
 
+  useEffect(() => {
+    if (ffmpegConfig) {
+      setFfmpegApiUrl((ffmpegConfig as any).apiUrl || "");
+    }
+  }, [ffmpegConfig]);
+
   // Vérifier si une config OpenRouter existe déjà
   const hasExistingConfig = !!openrouterConfig;
+  const hasExistingFfmpegConfig = !!ffmpegConfig;
 
   const saveCloudinaryMutation = useMutation({
     mutationFn: () => {
       const payload: any = {
         cloudName,
       };
-      
+
       // N'inclure apiKey et apiSecret que s'ils ne sont pas vides
       if (apiKey && apiKey.trim() !== "") {
         payload.apiKey = apiKey;
@@ -76,7 +89,7 @@ export default function Settings() {
       if (apiSecret && apiSecret.trim() !== "") {
         payload.apiSecret = apiSecret;
       }
-      
+
       return apiRequest('POST', '/api/cloudinary/config', payload);
     },
     onSuccess: () => {
@@ -103,12 +116,12 @@ export default function Settings() {
         model: openrouterModel,
         systemPrompt: openrouterSystemPrompt,
       };
-      
+
       // N'inclure apiKey que s'il n'est pas vide
       if (openrouterApiKey && openrouterApiKey.trim() !== "") {
         payload.apiKey = openrouterApiKey;
       }
-      
+
       return apiRequest('POST', '/api/openrouter/config', payload);
     },
     onSuccess: () => {
@@ -132,18 +145,18 @@ export default function Settings() {
     mutationFn: async (file: File) => {
       const formData = new FormData();
       formData.append('logo', file);
-      
+
       const response = await fetch('/api/cloudinary/logo', {
         method: 'POST',
         credentials: 'include',
         body: formData,
       });
-      
+
       if (!response.ok) {
         const error = await response.json();
         throw new Error(error.error || 'Failed to upload logo');
       }
-      
+
       return response.json();
     },
     onSuccess: () => {
@@ -183,6 +196,36 @@ export default function Settings() {
     },
   });
 
+  const saveFfmpegMutation = useMutation({
+    mutationFn: () => {
+      const payload: any = {
+        apiUrl: ffmpegApiUrl,
+      };
+
+      // N'inclure apiKey que s'il n'est pas vide
+      if (ffmpegApiKey && ffmpegApiKey.trim() !== "") {
+        payload.apiKey = ffmpegApiKey;
+      }
+
+      return apiRequest('POST', '/api/ffmpeg/config', payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/ffmpeg/config'] });
+      toast({
+        title: "Configuration sauvegardée",
+        description: "Vos paramètres FFmpeg ont été enregistrés",
+      });
+      setFfmpegApiKey(""); // Clear the API key after saving
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder la configuration FFmpeg",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -194,7 +237,7 @@ export default function Settings() {
         });
         return;
       }
-      
+
       setLogoFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -207,12 +250,12 @@ export default function Settings() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
-      
+
       <div className={`
         fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -222,7 +265,7 @@ export default function Settings() {
 
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-        
+
         <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Paramètres</h1>
@@ -339,11 +382,11 @@ export default function Settings() {
                     Définissez les instructions que l'IA doit suivre pour générer vos textes
                   </p>
                 </div>
-                <Button 
+                <Button
                   onClick={() => saveOpenrouterMutation.mutate()}
                   disabled={
-                    saveOpenrouterMutation.isPending || 
-                    !openrouterModel || 
+                    saveOpenrouterMutation.isPending ||
+                    !openrouterModel ||
                     !openrouterSystemPrompt ||
                     (!hasExistingConfig && !openrouterApiKey)
                   }
@@ -405,13 +448,73 @@ export default function Settings() {
                     Votre API Secret restera sécurisé et ne sera jamais exposé
                   </p>
                 </div>
-                <Button 
+                <Button
                   onClick={() => saveCloudinaryMutation.mutate()}
                   disabled={saveCloudinaryMutation.isPending || !cloudName || !apiKey || !apiSecret}
                   data-testid="button-save-cloudinary"
                   className="w-full"
                 >
                   {saveCloudinaryMutation.isPending ? "Enregistrement..." : "Enregistrer Cloudinary"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border-border/50 shadow-lg">
+              <CardHeader className="p-6">
+                <CardTitle className="flex items-center gap-2">
+                  <Video className="w-5 h-5" />
+                  Configuration FFmpeg API (Reels)
+                </CardTitle>
+                <CardDescription>
+                  Configurez l'API FFmpeg Docker pour le traitement des vidéos Reels
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="ffmpegApiUrl">URL de l'API FFmpeg</Label>
+                  <Input
+                    id="ffmpegApiUrl"
+                    type="url"
+                    value={ffmpegApiUrl}
+                    onChange={(e) => setFfmpegApiUrl(e.target.value)}
+                    placeholder="https://ffmpeg.votre-domaine.com:8100"
+                    data-testid="input-ffmpeg-api-url"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    L'URL complète de votre API FFmpeg Docker (ex: https://ffmpeg.example.com:8100)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="ffmpegApiKey">Clé API FFmpeg</Label>
+                  <Input
+                    id="ffmpegApiKey"
+                    type="password"
+                    value={ffmpegApiKey}
+                    onChange={(e) => setFfmpegApiKey(e.target.value)}
+                    placeholder={hasExistingFfmpegConfig ? "••••••••••••••••" : "votre-clé-api"}
+                    data-testid="input-ffmpeg-api-key"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {hasExistingFfmpegConfig ? (
+                      <>
+                        <span className="text-green-600 dark:text-green-400">✓ Clé API configurée</span> - Laissez vide pour garder la clé actuelle
+                      </>
+                    ) : (
+                      "Clé de sécurité X-API-Key pour accéder à l'API FFmpeg"
+                    )}
+                  </p>
+                </div>
+                <Button
+                  onClick={() => saveFfmpegMutation.mutate()}
+                  disabled={
+                    saveFfmpegMutation.isPending ||
+                    !ffmpegApiUrl ||
+                    (!hasExistingFfmpegConfig && !ffmpegApiKey)
+                  }
+                  data-testid="button-save-ffmpeg"
+                  className="w-full"
+                >
+                  {saveFfmpegMutation.isPending ? "Enregistrement..." : "Enregistrer FFmpeg"}
                 </Button>
               </CardContent>
             </Card>
@@ -430,9 +533,9 @@ export default function Settings() {
                 {logoPreview ? (
                   <div className="space-y-4">
                     <div className="relative w-full max-w-xs mx-auto">
-                      <img 
-                        src={logoPreview} 
-                        alt="Logo" 
+                      <img
+                        src={logoPreview}
+                        alt="Logo"
                         className="w-full h-auto max-h-48 object-contain rounded-lg border-2 border-border"
                       />
                       <Button

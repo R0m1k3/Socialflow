@@ -1587,6 +1587,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // FFmpeg API Configuration
+  app.get("/api/ffmpeg/config", requireAdmin, async (req, res) => {
+    try {
+      const user = req.user as User;
+      // Lire depuis les variables d'environnement ou un storage dédié
+      // Pour simplifier, on renvoie juste si c'est configuré ou non
+      const apiUrl = process.env.FFMPEG_API_URL || "";
+
+      res.json({
+        apiUrl: apiUrl,
+        configured: !!apiUrl && !!process.env.FFMPEG_API_KEY,
+      });
+    } catch (error) {
+      console.error("Error fetching FFmpeg config:", error);
+      res.status(500).json({ error: "Failed to fetch FFmpeg config" });
+    }
+  });
+
+  app.post("/api/ffmpeg/config", requireAdmin, async (req, res) => {
+    try {
+      const { apiUrl, apiKey } = req.body;
+
+      if (!apiUrl) {
+        return res.status(400).json({ error: "URL de l'API FFmpeg requise" });
+      }
+
+      // Configurer le service FFmpeg avec les nouvelles valeurs
+      const { ffmpegService } = await import("./services/ffmpeg");
+
+      // Si apiKey fourni, configurer avec
+      if (apiKey) {
+        ffmpegService.configure(apiUrl, apiKey);
+      } else if (process.env.FFMPEG_API_KEY) {
+        // Garder la clé existante
+        ffmpegService.configure(apiUrl, process.env.FFMPEG_API_KEY);
+      } else {
+        return res.status(400).json({ error: "Clé API FFmpeg requise pour la première configuration" });
+      }
+
+      // Stocker dans les variables d'environnement (pour cette session)
+      process.env.FFMPEG_API_URL = apiUrl;
+      if (apiKey) {
+        process.env.FFMPEG_API_KEY = apiKey;
+      }
+
+      // Tester la connexion
+      const isHealthy = await ffmpegService.healthCheck();
+
+      res.json({
+        success: true,
+        apiUrl: apiUrl,
+        configured: true,
+        healthy: isHealthy,
+      });
+    } catch (error) {
+      console.error("Error saving FFmpeg config:", error);
+      res.status(500).json({ error: "Failed to save FFmpeg config" });
+    }
+  });
+
   const httpServer = createServer(app);
 
   return httpServer;

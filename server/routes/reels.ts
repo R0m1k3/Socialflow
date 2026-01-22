@@ -145,12 +145,21 @@ reelsRouter.post('/reels/generate-text', async (req: Request, res: Response) => 
             return res.status(400).json({ error: 'Informations produit requises' });
         }
 
-        const generatedTexts = await openRouterService.generatePostText(productInfo, user.id, model);
+        // Convertir la chaîne de texte simple en objet ProductInfo
+        // Si l'utilisateur envoie une chaîne, on l'utilise comme description du produit
+        const productInfoObject = typeof productInfo === 'string'
+            ? {
+                name: productInfo.trim(),  // Utiliser le texte comme nom
+                description: productInfo.trim(),  // Et comme description
+            }
+            : productInfo;
+
+        const generatedTexts = await openRouterService.generatePostText(productInfoObject, user.id, model);
 
         // Sauvegarder la génération
         await storage.createAiGeneration({
             userId: user.id,
-            productInfo,
+            productInfo: productInfoObject,
             generatedTexts,
         });
 
