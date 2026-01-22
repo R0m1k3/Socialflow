@@ -46,19 +46,33 @@ def clean_text_for_tts(text: str) -> str:
     return " ".join(text.split())
 
 
-async def generate_tts_with_subs(
+def generate_tts_with_subs(
     text: str, voice: str, audio_path: Path, vtt_path: Path
 ):
     """Generate TTS audio with subtitles, with retry and fallback voices."""
     import asyncio
 
-    # List of fallback voices to try if the primary fails
-    fallback_voices = [
-        voice,  # Try requested voice first
-        "fr-FR-DeniseNeural",  # Alternative female
-        "fr-FR-HenriNeural",  # Alternative male
-        "en-US-JennyNeural",  # English fallback
-    ]
+    # Determine gender of requested voice to choose appropriate fallbacks
+    is_male = any(name in voice for name in ["Remy", "Henri", "Paul"])
+    
+    if is_male:
+        fallback_voices = [
+            voice,               # Try requested voice first
+            "fr-FR-HenriNeural", # Primary Male fallback
+            "fr-FR-PaulNeural",  # Secondary Male fallback
+        ]
+    else:
+        fallback_voices = [
+            voice,                  # Try requested voice first
+            "fr-FR-VivienneNeural", # Primary Female fallback
+            "fr-FR-DeniseNeural",   # Secondary Female fallback
+        ]
+        
+    # Always add English fallback as last resort
+    fallback_voices.append("en-US-JennyNeural")
+    
+    # Remove duplicates while preserving order
+    fallback_voices = list(dict.fromkeys(fallback_voices))
 
     last_error = None
 
@@ -212,7 +226,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 # Check for male/female voice map
                 voice = request.tts_voice
                 if voice == "male":
-                    voice = "fr-FR-RemyNeural"
+                    voice = "fr-FR-HenriNeural"
                 elif voice == "female":
                     voice = "fr-FR-VivienneNeural"
                 elif not voice or "Neural" not in voice:

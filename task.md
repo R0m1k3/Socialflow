@@ -52,7 +52,7 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [x] FFmpeg: Nettoyer le texte (No hashtags/emojis) avant TTS
   - [x] FFmpeg: Générer fichier VTT pour synchro sous-titres
   - [x] FFmpeg: Enlever le son original quand TTS activé
-  - [ ] Frontend: Sélecteur de voix (Homme/Femme)
+  - [x] Frontend: Sélecteur de voix (Homme/Femme) - *Switched Male default to Henri*
 - [/] Ajouter la valeur 'reel' à l'enum post_type en base de données
 - [x] Amélioration UI Musique (Pagination, Preview Audio)
 - [x] **Improve Camera Capture Quality** (User Request)
