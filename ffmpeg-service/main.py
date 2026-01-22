@@ -34,6 +34,7 @@ class ReelRequest(BaseModel):
     music_volume: float = 0.25
     tts_enabled: bool = False
     tts_voice: str = "fr-FR-VivienneNeural"
+    draw_text: bool = True
 
 
 def clean_text_for_tts(text: str) -> str:
@@ -155,7 +156,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         # Text Overlay
         # If TTS is enabled, we use the generated VTT subtitles for perfect sync
         # If not, we use the standard drawtext
-        if request.text:
+        # Only apply if draw_text is True
+        if request.text and request.draw_text:
             if has_tts:
                 # Use subtitles filter
                 # Force style to look like TikTok/Reels text (Bottom center, white, black box)

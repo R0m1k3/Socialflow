@@ -16,6 +16,7 @@ interface FFmpegReelRequest {
     word_duration?: number;     // Durée par mot (default: 0.6s)
     font_size?: number;         // Taille police (default: 60)
     music_volume?: number;      // Volume musique (default: 0.25)
+    draw_text?: boolean;        // Dessiner le texte sur la vidéo (default: true)
 }
 
 interface FFmpegReelResponse {
@@ -69,6 +70,7 @@ export class FFmpegService {
             wordDuration?: number;
             fontSize?: number;
             musicVolume?: number;
+            drawText?: boolean;
         } = {}
     ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string }> {
         const config = this.ensureConfigured();
@@ -83,6 +85,7 @@ export class FFmpegService {
             word_duration: options.wordDuration ?? 0.6,
             font_size: options.fontSize ?? 60,
             music_volume: options.musicVolume ?? 0.25,
+            draw_text: options.drawText ?? true,
         };
 
         // Remove undefined values
@@ -98,6 +101,7 @@ export class FFmpegService {
             hasMusicId: !!options.musicId,
             hasMusicUrl: !!options.musicUrl,
             hasTTS: options.ttsEnabled,
+            drawText: options.drawText,
         });
 
         try {
@@ -159,6 +163,7 @@ export class FFmpegService {
             wordDuration?: number;
             fontSize?: number;
             musicVolume?: number;
+            drawText?: boolean;
         } = {}
     ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string }> {
         const config = this.ensureConfigured();
@@ -173,6 +178,7 @@ export class FFmpegService {
             word_duration: options.wordDuration ?? 0.6,
             font_size: options.fontSize ?? 60,
             music_volume: options.musicVolume ?? 0.25,
+            draw_text: options.drawText ?? true,
         };
 
         // Remove undefined values

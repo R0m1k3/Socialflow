@@ -66,6 +66,7 @@ export default function NewReel() {
     const [musicVolume, setMusicVolume] = useState([25]);
     const [ttsEnabled, setTtsEnabled] = useState(false);
     const [ttsVoice, setTtsVoice] = useState("female");
+    const [drawText, setDrawText] = useState(true);
 
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
@@ -310,6 +311,7 @@ export default function NewReel() {
             musicVolume: musicVolume[0] / 100,
             ttsEnabled,
             ttsVoice,
+            drawText,
         });
     };
 
@@ -696,6 +698,17 @@ export default function NewReel() {
                                                 placeholder="Écrivez le texte qui apparaîtra sur votre Reel..."
                                                 rows={4}
                                             />
+
+                                            <div className="flex items-center space-x-2 mt-4">
+                                                <Switch
+                                                    id="draw-text"
+                                                    checked={drawText}
+                                                    onCheckedChange={setDrawText}
+                                                />
+                                                <Label htmlFor="draw-text" className="font-medium cursor-pointer">
+                                                    Afficher le texte sur la vidéo
+                                                </Label>
+                                            </div>
 
                                             <div className="flex items-center space-x-2 mt-4">
                                                 <Switch

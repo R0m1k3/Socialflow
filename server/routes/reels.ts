@@ -187,6 +187,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             wordDuration = 0.6,
             fontSize = 60,
             musicVolume = 0.25,
+            drawText = true,
         } = req.body;
 
         // Récupérer le média vidéo
@@ -217,6 +218,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             wordDuration,
             fontSize,
             musicVolume,
+            drawText,
         });
 
         if (!result.success) {
@@ -255,6 +257,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             wordDuration = 0.6,
             fontSize = 60,
             musicVolume = 0.25,
+            drawText = true,
         } = req.body;
 
         // Validation
@@ -302,6 +305,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             wordDuration,
             fontSize,
             musicVolume,
+            drawText,
         });
 
         if (!ffmpegResult.success || !ffmpegResult.videoBase64) {
