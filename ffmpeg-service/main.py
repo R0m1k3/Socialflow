@@ -66,33 +66,22 @@ async def generate_tts_with_subs(
         try:
             print(f"🔊 TTS attempt with voice: {attempt_voice}")
             communicate = edge_tts.Communicate(text, attempt_voice)
-            submaker = edge_tts.SubMaker()
 
-            audio_data = bytearray()
+            # Use the simple save() method which is more reliable
+            await asyncio.wait_for(communicate.save(str(audio_path)), timeout=60.0)
 
-            # Use asyncio.wait_for to add a timeout
-            async def stream_audio():
-                nonlocal audio_data
-                async for chunk in communicate.stream():
-                    if chunk["type"] == "audio":
-                        audio_data.extend(chunk["data"])
-                    elif chunk["type"] == "WordBoundary":
-                        submaker.feed(chunk)
+            # Check if file was created and has content
+            if audio_path.exists() and audio_path.stat().st_size > 0:
+                print(f"✅ TTS audio saved: {audio_path.stat().st_size} bytes")
 
-            # 30 second timeout for TTS generation
-            await asyncio.wait_for(stream_audio(), timeout=30.0)
-
-            if len(audio_data) > 0:
-                with open(audio_path, "wb") as file:
-                    file.write(audio_data)
-
-                with open(vtt_path, "w", encoding="utf-8") as file:
-                    file.write(submaker.get_subs())
+                # Generate a simple VTT file with the full text
+                # (word-by-word sync would require working SubMaker)
+                generate_simple_vtt(text, vtt_path)
 
                 print(f"✅ TTS success with voice: {attempt_voice}")
                 return  # Success!
             else:
-                print(f"⚠️ No audio data received with voice: {attempt_voice}")
+                print(f"⚠️ Audio file empty or missing with voice: {attempt_voice}")
 
         except asyncio.TimeoutError:
             print(f"⚠️ TTS timeout with voice: {attempt_voice}")
@@ -103,6 +92,53 @@ async def generate_tts_with_subs(
 
     # If all voices failed, raise the last error
     raise Exception(f"All TTS voices failed. Last error: {last_error}")
+
+
+def generate_simple_vtt(text: str, vtt_path: Path):
+    """Generate a simple VTT subtitle file that displays the full text."""
+    # Split text into chunks for better display
+    words = text.split()
+    chunks = []
+    current_chunk = []
+
+    for word in words:
+        current_chunk.append(word)
+        if len(current_chunk) >= 5 or word.endswith((".", "!", "?", ":")):
+            chunks.append(" ".join(current_chunk))
+            current_chunk = []
+
+    if current_chunk:
+        chunks.append(" ".join(current_chunk))
+
+    # Estimate timing (average speaking rate: ~150 words per minute = 0.4s per word)
+    # Each chunk gets time proportional to its word count
+    vtt_content = "WEBVTT\n\n"
+    current_time = 0.0
+
+    for i, chunk in enumerate(chunks):
+        word_count = len(chunk.split())
+        duration = word_count * 0.4  # 0.4 seconds per word
+
+        start_time = format_vtt_time(current_time)
+        end_time = format_vtt_time(current_time + duration)
+
+        vtt_content += f"{i + 1}\n"
+        vtt_content += f"{start_time} --> {end_time}\n"
+        vtt_content += f"{chunk}\n\n"
+
+        current_time += duration
+
+    with open(vtt_path, "w", encoding="utf-8") as f:
+        f.write(vtt_content)
+
+
+def format_vtt_time(seconds: float) -> str:
+    """Format seconds as VTT timestamp (HH:MM:SS.mmm)."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    millis = int((seconds % 1) * 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d}.{millis:03d}"
 
 
 class ReelResponse(BaseModel):
