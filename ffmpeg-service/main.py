@@ -173,68 +173,106 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 drawtext = f"drawtext=fontfile={FONT_PATH}:text='{sanitized_text}':fontcolor=white:fontsize={request.font_size}:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=h-text_h-150"
                 video_filters.append(drawtext)
 
-        # Audio Mixing/Volume (Audio Filter)
+        # Audio Mixing Strategy
+        # We need to mix:
+        # 1. Original Video Audio (0:a) - if exists
+        # 2. Background Music (1:a) - if has_music
+        # 3. TTS Voice (1:a or 2:a) - if has_tts
+
+        # Detect if original video has audio
+        has_original_audio = False
+        try:
+            probe_cmd = [
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "a:0",
+                "-show_entries",
+                "stream=codec_type",
+                "-of",
+                "csv=p=0",
+                str(input_video_path),
+            ]
+            probe_out = subprocess.check_output(probe_cmd).decode().strip()
+            if probe_out == "audio":
+                has_original_audio = True
+        except Exception:
+            pass
+
+        filter_complex_parts = []
+        mix_inputs = 0
+
+        # Prepare inputs for mixing
+        if has_original_audio:
+            # Original audio usually needs to be lowered if there is music/voice
+            vol = 0.6 if (has_music or has_tts) else 1.0
+            filter_complex_parts.append(f"[0:a]volume={vol}[a0]")
+            mix_inputs += 1
+
         if has_music:
-            cmd.extend(["-i", str(input_audio_path)])
-            # Apply volume adjustment to the music
-            # If TTS is present, reduce music volume further to prioritize voice
-            music_vol = request.music_volume * 0.5 if has_tts else request.music_volume
-            audio_filters.append(f"[1:a]volume={music_vol}[music]")
+            # Music volume
+            music_vol = request.music_volume * 0.4 if has_tts else request.music_volume
+            filter_complex_parts.append(f"[1:a]volume={music_vol}[a1]")
+            mix_inputs += 1
 
         if has_tts:
-            cmd.extend(["-i", str(tts_audio_path)])
-            # TTS is typically input 2 if music exists, or input 1 if no music
-            tts_input_idx = 2 if has_music else 1
-            audio_filters.append(f"[{tts_input_idx}:a]volume=1.5[voice]")
+            tts_idx = 2 if has_music else 1
+            # Voice needs to be loud and clear
+            filter_complex_parts.append(f"[{tts_idx}:a]volume=2.0[a2]")
+            mix_inputs += 1
+
+        # Build mix command
+        if mix_inputs > 0:
+            inputs_str = ""
+            if has_original_audio:
+                inputs_str += "[a0]"
+            if has_music:
+                inputs_str += "[a1]"
+            if has_tts:
+                inputs_str += "[a2]"
+
+            filter_complex_parts.append(
+                f"{inputs_str}amix=inputs={mix_inputs}:duration=first:dropout_transition=2[aout]"
+            )
+
+            cmd.extend(["-filter_complex", ";".join(filter_complex_parts)])
+
+            # Map processed video and audio
+            cmd.extend(["-map", "0:v", "-map", "[aout]"])
+        else:
+            # No audio at all, just video
+            cmd.extend(["-map", "0:v"])
 
         # Apply Video Filters if any
         if video_filters:
             cmd.extend(["-vf", ",".join(video_filters)])
 
-        # Apply Audio Filters if any
-        # Note: -af applies to the output audio stream.
-        # Apply Audio Filters if any
-        if audio_filters:
-            # If we have multiple audio sources, we need to mix them
-            if has_music and has_tts:
-                # Mix music and voice
-                filter_complex = (
-                    ";".join(audio_filters)
-                    + ";[music][voice]amix=inputs=2:duration=longest[aout]"
-                )
-                cmd.extend(["-filter_complex", filter_complex])
-                # We need complex filter for mixing, so we don't use -vf/-af separately for audio
-                # But we still need video filters
-                if video_filters:
-                    # Remove the previously added -vf and use filter_complex for everything ideally,
-                    # or just keep -vf for video simple chain if separate.
-                    # FFmpeg allows -vf and -filter_complex together if they touch different streams.
-                    pass
-            elif has_music:
-                # Valid because we modified the filter previously to verify [1:a]... which requires filter_complex or mapping
-                # Let's simplify: if simple volume filter, use -af. If named pads ([music]), use complex.
-                # To keep it robust, let's use filter_complex for audio always if we started naming pads.
-                cmd.extend(
-                    ["-filter_complex", f"[1:a]volume={request.music_volume}[aout]"]
-                )
-            elif has_tts:
-                cmd.extend(["-filter_complex", f"[1:a]volume=1.5[aout]"])
+        # -shortest not needed with duration=first in amix, but good practice if logic changes
+        # actually duration=first in amix takes the length of the first input (usually video audio or music if mapped first)
+        # We want the video length to dictate.
+        # Easier: just use -shortest to cut audio to video length
+        cmd.extend(["-shortest"])
 
-            # Note: The above logic replaces the simple -af append. We need to be careful not to double add.
-            # Let's Refactor slightly to ensure clean command construction.
-
-        if has_music or has_tts:
-            # Map processed video
-            cmd.extend(["-map", "0:v"])
-
-            # Map processed audio [aout]
-            cmd.extend(["-map", "[aout]"])
-
-            # -shortest: finish when the shortest input ends
-            cmd.extend(["-shortest"])
-        else:
-            # Keep original video and audio (if exists)
-            cmd.extend(["-map", "0:v", "-map", "0:a?"])
+        # Quality settings
+        cmd.extend(
+            [
+                "-c:v",
+                "libx264",
+                "-preset",
+                "medium",
+                "-crf",
+                "23",  # Good balance for quality/size
+                "-c:a",
+                "aac",
+                "-b:a",
+                "192k",
+                "-pix_fmt",
+                "yuv420p",  # Ensure compatibility
+                "-movflags",
+                "+faststart",
+            ]
+        )
 
         cmd.append(str(output_video_path))
 
