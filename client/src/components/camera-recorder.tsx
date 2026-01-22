@@ -53,11 +53,22 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
             console.log(`📸 Starting camera: ${config.label}, facing: ${facingMode}`);
 
             const constraints: MediaStreamConstraints = {
-                audio: true,
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                },
                 video: {
                     facingMode: facingMode,
                     width: { ideal: config.width, min: 640 },
                     height: { ideal: config.height, min: 480 },
+                    frameRate: { ideal: 30 },
+                    // @ts-ignore - Advanced constraints for iOS stabilization
+                    advanced: [
+                        { zoom: 1.0 },
+                        // Enable video stabilization on supported devices (iOS)
+                        { videoStabilizationMode: 'cinematic' },
+                        { videoStabilizationMode: 'auto' },
+                    ]
                 }
             };
 
@@ -240,18 +251,23 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
                     <X className="h-6 w-6" />
                 </Button>
                 <div className="flex items-center gap-2">
-                    <div className="bg-black/30 backdrop-blur-md px-3 py-1 rounded-full text-white font-mono text-sm">
-                        {isRecording ? formatTime(timer) : (resolutionInfo || 'Camera')}
-                    </div>
-                    {!isRecording && (
-                        <Button
-                            variant="ghost"
-                            size="icon"
+                    {/* Recording timer or quality selector */}
+                    {isRecording ? (
+                        <div className="bg-red-600 px-3 py-1 rounded-full text-white font-mono text-sm flex items-center gap-2">
+                            <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+                            {formatTime(timer)}
+                        </div>
+                    ) : (
+                        <button
                             onClick={() => setShowSettings(!showSettings)}
-                            className="text-white"
+                            className="bg-black/50 backdrop-blur-md px-3 py-2 rounded-full text-white font-medium text-sm flex items-center gap-2 border border-white/30"
                         >
-                            <Settings2 className="h-5 w-5" />
-                        </Button>
+                            <Settings2 className="h-4 w-4" />
+                            {quality.toUpperCase()}
+                            <span className="text-white/60 text-xs">
+                                {resolutionInfo || QUALITY_CONFIGS[quality].label}
+                            </span>
+                        </button>
                     )}
                 </div>
                 <Button variant="ghost" size="icon" onClick={switchCamera} className="text-white">
@@ -272,8 +288,8 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
                                     setShowSettings(false);
                                 }}
                                 className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${quality === q
-                                        ? 'bg-white text-black'
-                                        : 'bg-white/20 text-white hover:bg-white/30'
+                                    ? 'bg-white text-black'
+                                    : 'bg-white/20 text-white hover:bg-white/30'
                                     }`}
                             >
                                 {q.toUpperCase()}
@@ -298,7 +314,26 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
             </div>
 
             {/* Controls */}
-            <div className="absolute bottom-0 left-0 right-0 p-8 pb-12 flex justify-center items-center bg-gradient-to-t from-black/80 to-transparent">
+            <div className="absolute bottom-0 left-0 right-0 p-6 pb-10 flex flex-col items-center bg-gradient-to-t from-black/80 to-transparent">
+                {/* Quality selector - visible before recording */}
+                {!isRecording && (
+                    <div className="flex gap-2 mb-6">
+                        {(Object.keys(QUALITY_CONFIGS) as VideoQuality[]).map((q) => (
+                            <button
+                                key={q}
+                                onClick={() => setQuality(q)}
+                                className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${quality === q
+                                    ? 'bg-white text-black'
+                                    : 'bg-white/20 text-white border border-white/40'
+                                    }`}
+                            >
+                                {q.toUpperCase()}
+                            </button>
+                        ))}
+                    </div>
+                )}
+
+                {/* Record button */}
                 {isRecording ? (
                     <button
                         onClick={stopRecording}

@@ -310,15 +310,22 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         # (Original audio is never used per user request)
 
         if has_music:
-            # Music volume
-            music_vol = request.music_volume * 0.4 if has_tts else request.music_volume
+            # Music volume - ensure it's properly scaled (0.0 to 1.0)
+            # Apply volume more aggressively for noticeable effect
+            music_vol = request.music_volume
+            if has_tts:
+                # Reduce music even more when TTS is active so voice is clear
+                music_vol = music_vol * 0.3
+            print(
+                f"🎵 Music volume applied: {music_vol:.2f} (requested: {request.music_volume})"
+            )
             filter_complex_parts.append(f"[1:a]volume={music_vol}[a1]")
             mix_inputs += 1
 
         if has_tts:
             tts_idx = 2 if has_music else 1
             # Voice needs to be loud and clear
-            filter_complex_parts.append(f"[{tts_idx}:a]volume=2.0[a2]")
+            filter_complex_parts.append(f"[{tts_idx}:a]volume=1.5[a2]")
             mix_inputs += 1
 
         # Build mix command
@@ -330,8 +337,10 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             if has_tts:
                 inputs_str += "[a2]"
 
+            # IMPORTANT: normalize=0 prevents amix from auto-adjusting volumes
+            # which was causing volume slider to have no effect
             filter_complex_parts.append(
-                f"{inputs_str}amix=inputs={mix_inputs}:duration=first:dropout_transition=2[aout]"
+                f"{inputs_str}amix=inputs={mix_inputs}:duration=first:dropout_transition=2:normalize=0[aout]"
             )
 
             cmd.extend(["-filter_complex", ";".join(filter_complex_parts)])
