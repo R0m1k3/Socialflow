@@ -4,7 +4,7 @@ import { useLocation } from "wouter";
 import {
     Send, Sparkles, Video, Music, Type, Calendar,
     Upload, Camera, Play, Pause, Volume2, VolumeX,
-    ChevronRight, Loader2, Check
+    ChevronRight, Loader2, Check, RefreshCw
 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import Sidebar from "@/components/sidebar";
@@ -73,34 +73,31 @@ export default function NewReel() {
 
     const videoList = allMedia.filter(m => m.type === 'video').slice(0, 12);
 
+    // État pour stocker les musiques chargées manuellement
+    const [loadedTracks, setLoadedTracks] = useState<MusicTrack[]>([]);
+
     // Recherche de musiques par durée
-    const { data: musicData, isLoading: musicLoading } = useQuery<{ tracks: MusicTrack[] }>({
-        queryKey: ['/api/music/search', selectedVideo?.id],
+    const { data: musicData, isLoading: musicLoading, refetch: refetchMusic } = useQuery<{ tracks: MusicTrack[] }>({
+        queryKey: ['/api/music/search', selectedVideo?.id, musicOffset],
         queryFn: async () => {
             // Estimer la durée vidéo (on prend une marge de ±10 secondes)
             const minDuration = 10;
             const maxDuration = 120; // On prend toutes les musiques courtes
             const response = await fetch(
-                `/api/music/search?minDuration=${minDuration}&maxDuration=${maxDuration}&limit=10`
+                `/api/music/search?minDuration=${minDuration}&maxDuration=${maxDuration}&limit=10&offset=${musicOffset}`
             );
-            return response.json();
+            const data = await response.json();
+            setLoadedTracks(data.tracks || []);
+            return data;
         },
         enabled: currentStep === 'music' && !!selectedVideo,
     });
 
-    // Mutation pour voir plus de musiques
-    const loadMoreMusicMutation = useMutation({
-        mutationFn: async (offset: number) => {
-            const response = await fetch(
-                `/api/music/more?minDuration=10&maxDuration=120&limit=10&offset=${offset}`
-            );
-            return response.json();
-        },
-        onSuccess: (data) => {
-            setMusicOffset(prev => prev + 10);
-            // Vous pourriez ajouter les nouveaux tracks à une liste
-        },
-    });
+    // Charger 10 nouvelles musiques
+    const handleLoadNewMusic = () => {
+        setMusicOffset(prev => prev + 10);
+        refetchMusic();
+    };
 
     // Upload vidéo
     const uploadMutation = useMutation({
@@ -230,15 +227,26 @@ export default function NewReel() {
         setIsPlaying(null);
     };
 
-    const togglePlayPreview = (track: MusicTrack) => {
+    const togglePlayPreview = async (track: MusicTrack) => {
         if (isPlaying === track.id) {
             audioRef.current?.pause();
             setIsPlaying(null);
         } else {
             if (audioRef.current) {
+                console.log('🎵 Playing preview:', track.previewUrl);
                 audioRef.current.src = track.previewUrl;
-                audioRef.current.play();
-                setIsPlaying(track.id);
+                try {
+                    await audioRef.current.play();
+                    setIsPlaying(track.id);
+                } catch (error) {
+                    console.error('❌ Audio play error:', error);
+                    toast({
+                        title: "Erreur de lecture",
+                        description: "Impossible de lire la prévisualisation audio. Vérifiez votre connexion.",
+                        variant: "destructive",
+                    });
+                    setIsPlaying(null);
+                }
             }
         }
     };
@@ -493,15 +501,15 @@ export default function NewReel() {
                                                                 Aucune musique disponible
                                                             </p>
                                                             <p className="text-xs text-muted-foreground mb-4">
-                                                                Configurez un Client ID Jamendo dans les Paramètres
+                                                                Service FreeSound non configuré ou aucun résultat trouvé
                                                             </p>
                                                             <a
-                                                                href="https://developer.jamendo.com/v3.0"
+                                                                href="https://freesound.org/apiv2/apply/"
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
                                                                 className="text-sm text-primary hover:underline"
                                                             >
-                                                                Obtenir un Client ID Jamendo →
+                                                                Obtenir des credentials FreeSound →
                                                             </a>
                                                         </div>
                                                     )}
@@ -539,6 +547,19 @@ export default function NewReel() {
                                                             )}
                                                         </div>
                                                     ))}
+
+                                                    {/* Bouton pour charger 10 nouvelles musiques */}
+                                                    {musicData?.tracks && musicData.tracks.length > 0 && (
+                                                        <Button
+                                                            variant="outline"
+                                                            className="w-full mt-4"
+                                                            onClick={handleLoadNewMusic}
+                                                            disabled={musicLoading}
+                                                        >
+                                                            <RefreshCw className={`w-4 h-4 mr-2 ${musicLoading ? 'animate-spin' : ''}`} />
+                                                            10 nouvelles musiques
+                                                        </Button>
+                                                    )}
                                                 </div>
 
                                                 {selectedTrack && (
