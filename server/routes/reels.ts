@@ -292,7 +292,10 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             videoMediaId,
             hasMusic: !!finalMusicUrl,
             hasText: !!overlayText,
-            hasTTS: !!ttsEnabled,
+            textPreview: overlayText?.substring(0, 50),
+            ttsEnabled: ttsEnabled,
+            ttsVoice: ttsVoice,
+            drawText: drawText,
             pageCount: pageIds.length,
         });
 

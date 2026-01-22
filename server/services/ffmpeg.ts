@@ -191,10 +191,15 @@ export class FFmpegService {
         console.log('🎬 Processing Reel from URL:', {
             videoUrl,
             hasText: !!options.text,
+            textLength: options.text?.length || 0,
             hasMusicId: !!options.musicId,
             hasMusicUrl: !!options.musicUrl,
-            hasTTS: options.ttsEnabled,
+            ttsEnabled: options.ttsEnabled,
+            ttsVoice: options.ttsVoice,
+            drawText: options.drawText,
         });
+
+        console.log('📤 Sending to FFmpeg API:', JSON.stringify(requestBody, null, 2).substring(0, 500) + '...');
 
         try {
             const response = await fetch(`${config.apiUrl}/process-reel`, {

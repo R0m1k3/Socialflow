@@ -128,6 +128,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             try:
                 # Clean text for TTS (remove hashtags/emojis)
                 tts_clean_text = clean_text_for_tts(request.text)
+                print(f"🔊 TTS enabled. Original: '{request.text}'")
+                print(f"🔊 TTS cleaned: '{tts_clean_text}'")
 
                 # Check for male/female voice map
                 voice = request.tts_voice
@@ -139,13 +141,29 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                     # Default if invalid
                     voice = "fr-FR-VivienneNeural"
 
+                print(f"🔊 Using voice: {voice}")
+
                 if tts_clean_text:
+                    print(f"🔊 Generating TTS audio to: {tts_audio_path}")
                     await generate_tts_with_subs(
                         tts_clean_text, voice, tts_audio_path, tts_vtt_path
                     )
-                    has_tts = True
+
+                    # Verify files were created
+                    if tts_audio_path.exists() and tts_audio_path.stat().st_size > 0:
+                        print(
+                            f"✅ TTS audio generated: {tts_audio_path.stat().st_size} bytes"
+                        )
+                        has_tts = True
+                    else:
+                        print(f"❌ TTS audio file missing or empty!")
+                else:
+                    print("⚠️ TTS text is empty after cleaning, skipping.")
             except Exception as e:
-                print(f"Failed to generate TTS: {e}")
+                import traceback
+
+                print(f"❌ Failed to generate TTS: {e}")
+                traceback.print_exc()
 
         # 4. Build FFmpeg Command
         cmd = ["ffmpeg", "-y", "-i", str(input_video_path)]

@@ -54,6 +54,10 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [ ] Frontend: Sélecteur de voix (Homme/Femme)
 - [/] Ajouter la valeur 'reel' à l'enum post_type en base de données
 - [x] Amélioration UI Musique (Pagination, Preview Audio)
+- [ ] **Improve Camera Capture Quality** (User Request)
+  - [ ] Create `CameraRecorder` component with 4K/1080p constraints
+  - [ ] Integrate CameraRecorder into `new-reel.tsx`
+  - [ ] Test camera permissions and recording flow
 
 ## Progress Log
 

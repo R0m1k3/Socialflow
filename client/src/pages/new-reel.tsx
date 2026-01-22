@@ -72,6 +72,9 @@ export default function NewReel() {
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
     const [musicOffset, setMusicOffset] = useState(0);
 
+    // État caméra custom
+    const [showCamera, setShowCamera] = useState(false);
+
     // Récupérer les pages disponibles
     const { data: pages = [] } = useQuery<SocialPage[]>({
         queryKey: ['/api/pages'],
@@ -420,7 +423,7 @@ export default function NewReel() {
 
                                             <div className="flex gap-2 mb-4">
                                                 <Button
-                                                    onClick={() => cameraInputRef.current?.click()}
+                                                    onClick={() => setShowCamera(true)}
                                                     disabled={uploadMutation.isPending}
                                                     variant="outline"
                                                     className="lg:hidden"
