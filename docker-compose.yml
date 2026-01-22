@@ -38,6 +38,9 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       SESSION_SECRET: ${SESSION_SECRET:-your-secret-key-change-me}
       APP_URL: ${APP_URL:-http://localhost:5555}
+      # Configuration FFmpeg Service
+      FFMPEG_API_URL: http://ffmpeg-api:8000
+      FFMPEG_API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
     networks:
       - internal
       - nginx_default
@@ -47,6 +50,20 @@ services:
     volumes:
       - encryption_key:/app/.encryption-key-data
     command: npm run start
+
+  # Service FFmpeg dédié
+  ffmpeg-api:
+    build:
+      context: ./ffmpeg-service
+      dockerfile: Dockerfile
+    container_name: socialflow-ffmpeg
+    restart: unless-stopped
+    environment:
+      API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
+    networks:
+      - internal
+    expose:
+      - "8000"
 
 volumes:
   postgres_data:

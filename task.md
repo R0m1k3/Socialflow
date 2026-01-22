@@ -26,6 +26,11 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 - [x] `shared/schema.ts` - Ajout type "reel" à postTypeEnum
 - [x] `server/routes/reels.ts` - Routes API complètes
+- [x] [NEW] `server/cron.ts` - Setup Daily Token Check
+- [x] [NEW] `ffmpeg-service/` - Dedicated Python microservice for video processing
+  - [x] `main.py` (FastAPI, FFmpeg logic)
+  - [x] `Dockerfile` & `requirements.txt`
+- [x] [CFG] `docker-compose.yml` - Add `ffmpeg-api` service & Link to App
 - [x] `server/routes.ts` - Enregistrement du reelsRouter de la configuration
 
 ### Phase 3: Frontend ✅
