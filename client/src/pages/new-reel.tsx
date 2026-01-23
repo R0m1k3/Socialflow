@@ -999,13 +999,12 @@ export default function NewReel() {
                     </div>
                 </div>
             </main>
-        </div>
-            {/* Overlay de progression */ }
-    <ProcessingOverlay
-        isVisible={createReelMutation.isPending}
-        stabilize={shouldStabilize}
-        ttsEnabled={ttsEnabled}
-    />
+            {/* Overlay de progression */}
+            <ProcessingOverlay
+                isVisible={createReelMutation.isPending}
+                stabilize={shouldStabilize}
+                ttsEnabled={ttsEnabled}
+            />
         </div >
     );
 }
@@ -1023,8 +1022,8 @@ function ProcessingOverlay({ isVisible, stabilize, ttsEnabled }: { isVisible: bo
         setProgress(0);
         setStatus("Préparation des fichiers...");
 
-        const timeouts: NodeJS.Timeout[] = [];
-        let interval: NodeJS.Timeout;
+        const timeouts: any[] = [];
+        let interval: any;
 
         // Sequence de simulation
         // 1. 2s: Téléchargement
