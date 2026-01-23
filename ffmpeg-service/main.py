@@ -431,6 +431,11 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         # [0:v] -> [v_processed]
         video_filters_str = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:0.8:3:3:0.4"
         
+        # 2. Text Overlay
+        if request.text and request.draw_text:
+            text_filter = ""
+            if has_tts:
+                # Subtitles (TikTok style) using VTT
                 # Force style to look like TikTok/Reels text
                 # Use generic 'Sans' which fontconfig should alias to DejaVu or similar
                 style = f"FontName=Sans,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
