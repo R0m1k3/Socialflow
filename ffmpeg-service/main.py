@@ -539,7 +539,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             print(f"❌ FFmpeg failed. Stderr:\n{process.stderr.decode()}")
         else:
             # Check stderr for font warnings even on success
-            print(f"✅ FFmpeg executed. Stderr (last 20 lines):\n{'\n'.join(process.stderr.decode().splitlines()[-20:])}")
+            stderr_last_lines = '\n'.join(process.stderr.decode().splitlines()[-20:])
+            print(f"✅ FFmpeg executed. Stderr (last 20 lines):\n{stderr_last_lines}")
 
         stats["encoding_duration"] = time.time() - start_step
         stats["total_duration"] = time.time() - start_total
