@@ -373,6 +373,9 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 drawtext = f"drawtext=fontfile={FONT_PATH}:text='{sanitized_text}':fontcolor=white:fontsize={request.font_size}:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-text_h-300"
                 video_filters.append(drawtext)
 
+        # Build FFmpeg Command
+        cmd = ["ffmpeg", "-y", "-i", str(input_video_path)]
+
         # Audio Mixing Strategy
         # Detect if original video has audio
         has_original_audio = False
@@ -457,6 +460,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         )
 
         cmd.append(str(output_video_path))
+        print(f"🚀 Executing FFmpeg command: {' '.join(cmd)}")
 
         # execute
         process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
