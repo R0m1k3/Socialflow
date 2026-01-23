@@ -113,13 +113,13 @@ def clean_text_for_tts(text: str) -> str:
 
 
 async def generate_tts_with_subs(
-    text: str, voice: str, audio_path: Path, srt_path: Path
+    text: str, voice: str, audio_path: Path, ass_path: Path
 ):
     """Generate TTS audio with subtitles, with retry and fallback voices."""
     import asyncio
 
     # Determine gender of requested voice to choose appropriate fallbacks
-    is_male = any(name in voice for name in ["Remy", "Henri", "Paul"])
+    is_male = any(name in voice for name in ["Remi", "Henri", "Paul"])
 
     if is_male:
         fallback_voices = [
@@ -154,8 +154,8 @@ async def generate_tts_with_subs(
             if audio_path.exists() and audio_path.stat().st_size > 0:
                 print(f"✅ TTS audio saved: {audio_path.stat().st_size} bytes")
 
-                # Generate a simple SRT file with the full text
-                generate_simple_srt(text, srt_path)
+                # Generate a high-quality ASS file
+                generate_simple_ass(text, ass_path)
 
                 print(f"✅ TTS success with voice: {attempt_voice}")
                 return  # Success!
@@ -173,9 +173,9 @@ async def generate_tts_with_subs(
     raise Exception(f"All TTS voices failed. Last error: {last_error}")
 
 
-def generate_simple_srt(text: str, srt_path: Path):
-    """Generate a simple SRT subtitle file that displays the full text."""
-    # Split text into chunks for better display
+def generate_simple_ass(text: str, ass_path: Path, font_size: int = 50):
+    """Generate a high-quality ASS subtitle file with embedded styling."""
+    # Split text into chunks
     words = text.split()
     chunks = []
     current_chunk = []
@@ -189,34 +189,54 @@ def generate_simple_srt(text: str, srt_path: Path):
     if current_chunk:
         chunks.append(" ".join(current_chunk))
 
-    # Each chunk gets time proportional to its word count
-    srt_content = ""
+    # ASS Header with explicit resolution and style
+    # Alignment 5 = Middle Center
+    header = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,DejaVu Sans,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,2,0,5,50,50,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    
+    events = ""
     current_time = 0.0
 
     for i, chunk in enumerate(chunks):
         word_count = len(chunk.split())
-        duration = word_count * 0.4  # 0.4 seconds per word
+        duration = word_count * 0.4
 
-        start_time = format_srt_time(current_time)
-        end_time = format_srt_time(current_time + duration)
+        start_time = format_ass_time(current_time)
+        end_time = format_ass_time(current_time + duration)
 
-        srt_content += f"{i + 1}\n"
-        srt_content += f"{start_time} --> {end_time}\n"
-        srt_content += f"{chunk}\n\n"
+        # Escape special characters if any
+        sanitized_chunk = chunk.replace("{", "(").replace("}", ")")
+        events += f"Dialogue: 0,{start_time},{end_time},Default,,0,0,0,,{sanitized_chunk}\n"
 
         current_time += duration
 
-    print(f"📄 Generated {len(chunks)} SRT chunks. Content:\n{srt_content}")
-    with open(srt_path, "w", encoding="utf-8") as f:
-        f.write(srt_content)
+    with open(ass_path, "w", encoding="utf-8") as f:
+        f.write(header + events)
     
-    if srt_path.exists():
-        print(f"✅ SRT file written: {srt_path.stat().st_size} bytes at {srt_path}")
-    else:
-        print(f"❌ Failed to write SRT file at {srt_path}")
+    print(f"📄 Generated ASS file: {ass_path.stat().st_size} bytes with {len(chunks)} chunks")
 
 
-def format_srt_time(seconds: float) -> str:
+def format_ass_time(seconds: float) -> str:
+    """Format seconds as ASS timestamp (H:MM:SS.ss)."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    centis = int((seconds % 1) * 100)
+    return f"{hours}:{minutes:02d}:{secs:02d}.{centis:02d}"
+
+
+def generate_simple_srt(text: str, srt_path: Path):
     """Format seconds as SRT timestamp (HH:MM:SS,mmm)."""
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
@@ -271,7 +291,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         input_video_path = job_dir / "input.mp4"
         input_audio_path = job_dir / "music.mp3"
         tts_audio_path = job_dir / "tts.mp3"
-        tts_srt_path = job_dir / "tts.srt"
+        tts_ass_path = job_dir / "tts.ass"
         output_video_path = job_dir / "output.mp4"
 
         start_step = time.time()
@@ -331,7 +351,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 if tts_clean_text:
                     print(f"🔊 Generating TTS audio to: {tts_audio_path}")
                     await generate_tts_with_subs(
-                        tts_clean_text, voice, tts_audio_path, tts_srt_path
+                        tts_clean_text, voice, tts_audio_path, tts_ass_path
                     )
 
                     # Verify files were created
@@ -340,8 +360,6 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                             f"✅ TTS audio generated: {tts_audio_path.stat().st_size} bytes"
                         )
                         has_tts = True
-                        # Generate SRT
-                        generate_simple_srt(tts_clean_text, tts_srt_path)
                     else:
                         print(f"❌ TTS audio file missing or empty!")
                 else:
@@ -479,23 +497,19 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         if request.text and request.draw_text:
             text_filter = ""
             if has_tts:
-                # Subtitles (TikTok style) using SRT (already generated in TTS block)
-                print(f"🎬 Overlaying subtitles from TTS SRT: {tts_srt_path}")
-                # White color (&H00FFFFFF), Size 20, Centered (Alignment 5)
-                # Note: FontSize 10 is extremely small, using 20 for minimum legibility
-                style = f"FontName=DejaVu Sans,FontSize=20,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=1,Shadow=0,Bold=1,Alignment=5,MarginV=0"
-                srt_path_str = str(tts_srt_path).replace("\\", "/").replace(":", "\\:")
-                text_filter = f"subtitles='{srt_path_str}':force_style='{style}'"
+                # Subtitles (TikTok style) using ASS (already generated in TTS block)
+                print(f"🎬 Overlaying subtitles from TTS ASS: {tts_ass_path}")
+                ass_path_str = str(tts_ass_path).replace("\\", "/").replace(":", "\\:")
+                text_filter = f"subtitles='{ass_path_str}'"
             else:
                 # Standard Text (without TTS)
                 print(f"🎬 Overlaying subtitles from standard text: {request.text[:30]}...")
-                std_srt_path = job_dir / "std_text.srt"
-                generate_simple_srt(request.text, std_srt_path)
+                std_ass_path = job_dir / "std_text.ass"
+                # Use fontsize 40 by default for standard text
+                generate_simple_ass(request.text, std_ass_path, font_size=40)
                 
-                # White color (&H00FFFFFF), Size 20, Centered (Alignment 5)
-                style = f"FontName=DejaVu Sans,FontSize=20,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=1,Shadow=0,Bold=1,Alignment=5,MarginV=0"
-                srt_path_str = str(std_srt_path).replace("\\", "/").replace(":", "\\:")
-                text_filter = f"subtitles='{std_srt_path}':force_style='{style}'"
+                ass_path_str = str(std_ass_path).replace("\\", "/").replace(":", "\\:")
+                text_filter = f"subtitles='{ass_path_str}'"
             
             # Combine formatting + text
             video_filters_str += f",{text_filter}"
