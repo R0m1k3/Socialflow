@@ -22,19 +22,40 @@ TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 # Set HOME for libass/fontconfig to ensure cache can be written
 os.environ["HOME"] = "/tmp"
+os.environ["XDG_CACHE_HOME"] = "/tmp/.cache"
 
 # List available filters and fonts for debugging
-try:
+def run_diagnostics():
     print("📋 Checking FFmpeg environment...")
-    filters_out = subprocess.run(["ffmpeg", "-filters"], capture_output=True, text=True).stdout
-    has_subtitles = "subtitles" in filters_out
-    has_drawtext = "drawtext" in filters_out
-    print(f"✅ Filters found: subtitles={has_subtitles}, drawtext={has_drawtext}")
-    
-    print("📋 Available fonts:")
-    subprocess.run(["fc-list"], check=True)
-except Exception as e:
-    print(f"⚠️ Failed to check FFmpeg environment: {e}")
+    try:
+        filters_out = subprocess.run(["ffmpeg", "-filters"], capture_output=True, text=True).stdout
+        has_subtitles = "subtitles" in filters_out
+        has_drawtext = "drawtext" in filters_out
+        print(f"✅ Filters found: subtitles={has_subtitles}, drawtext={has_drawtext}")
+        
+        print("📋 Available fonts (fc-list):")
+        subprocess.run(["fc-list"], check=True)
+    except Exception as e:
+        print(f"⚠️ Failed to check FFmpeg environment: {e}")
+
+run_diagnostics()
+
+@app.get("/debug-ffmpeg")
+async def debug_ffmpeg():
+    try:
+        filters = subprocess.run(["ffmpeg", "-filters"], capture_output=True, text=True).stdout
+        fonts = subprocess.run(["fc-list"], capture_output=True, text=True).stdout
+        return {
+            "filters_summary": {
+                "subtitles": "subtitles" in filters,
+                "drawtext": "drawtext" in filters
+            },
+            "env": {k: v for k, v in os.environ.items() if "API" not in k},
+            "fonts": fonts.splitlines()[:50], # First 50
+            "raw_filters_hint": filters[:500]
+        }
+    except Exception as e:
+        return {"error": str(e)}
 
 # Robust font detection
 def get_font_path():
@@ -62,8 +83,7 @@ def get_font_path():
     except Exception as e:
         print(f"⚠️ Error searching for fonts: {e}")
 
-    print("❌ No TTF font found!")
-    return "Arial"
+    return "Sans" # Generic fallback
 
 FONT_PATH = get_font_path()
 
@@ -460,7 +480,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             if has_tts:
                 # Subtitles (TikTok style) using SRT (already generated in TTS block)
                 print(f"🎬 Overlaying subtitles from TTS SRT: {tts_srt_path}")
-                style = f"FontName=DejaVu Sans,FontSize=120,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=150"
+                # White color (&H00FFFFFF), Size 64, Black outline
+                style = f"FontName=DejaVu Sans,FontSize=64,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=250"
                 srt_path_str = str(tts_srt_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f"subtitles='{srt_path_str}':force_style='{style}'"
             else:
@@ -469,7 +490,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 std_srt_path = job_dir / "std_text.srt"
                 generate_simple_srt(request.text, std_srt_path)
                 
-                style = f"FontName=DejaVu Sans,FontSize=120,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=150"
+                # White color (&H00FFFFFF), Size 64, Black outline
+                style = f"FontName=DejaVu Sans,FontSize=64,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=250"
                 srt_path_str = str(std_srt_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f"subtitles='{srt_path_str}':force_style='{style}'"
             
