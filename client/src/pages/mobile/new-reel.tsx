@@ -13,7 +13,7 @@ import Sidebar from "@/components/sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -307,7 +307,7 @@ export default function MobileNewReel() {
                                                 </div>
                                                 <div className="text-xs text-muted-foreground">Recommandé pour Facebook Reels</div>
                                             </div>
-                                            <Checkbox
+                                            <Switch
                                                 checked={stabilize}
                                                 onCheckedChange={(checked) => setStabilize(!!checked)}
                                             />

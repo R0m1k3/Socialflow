@@ -68,7 +68,8 @@ export default function NewReel() {
     const [ttsEnabled, setTtsEnabled] = useState(true);
     const [ttsVoice, setTtsVoice] = useState("fr-FR-VivienneMultilingualNeural");
     const [drawText, setDrawText] = useState(true);
-    const [shouldStabilize, setShouldStabilize] = useState(false);
+    const [stabilize, setStabilize] = useState(true); // default to true
+
 
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
@@ -339,7 +340,7 @@ export default function NewReel() {
             ttsEnabled,
             ttsVoice,
             drawText,
-            stabilize: shouldStabilize,
+            stabilize: stabilize,
         });
     };
 
@@ -361,13 +362,13 @@ export default function NewReel() {
                 <CameraRecorder
                     onCapture={(file, options) => {
                         if (options?.stabilize) {
-                            setShouldStabilize(true);
+                            setStabilize(true);
                             toast({
                                 title: "Stabilisation activée",
                                 description: "La vidéo sera stabilisée lors de la création du Reel (ceci peut prendre plus de temps)",
                             });
                         } else {
-                            setShouldStabilize(false);
+                            setStabilize(false);
                         }
                         uploadMutation.mutate(file);
                         setShowCamera(false);
@@ -468,15 +469,6 @@ export default function NewReel() {
 
                                             <div className="flex gap-2 mb-4">
                                                 <Button
-                                                    onClick={() => cameraInputRef.current?.click()}
-                                                    disabled={uploadMutation.isPending}
-                                                    variant="outline"
-                                                    className="lg:hidden"
-                                                >
-                                                    <Camera className="w-4 h-4 mr-2" />
-                                                    Filmer (Qualité Max)
-                                                </Button>
-                                                <Button
                                                     onClick={open}
                                                     disabled={uploadMutation.isPending}
                                                     variant="outline"
@@ -523,11 +515,28 @@ export default function NewReel() {
                                         </div>
 
                                         {selectedVideo && (
-                                            <div className="mt-4 flex justify-end">
-                                                <Button onClick={() => setCurrentStep('music')}>
-                                                    Continuer
-                                                    <ChevronRight className="w-4 h-4 ml-2" />
-                                                </Button>
+                                            <div className="mt-6 p-4 border rounded-xl bg-accent/30 space-y-4">
+                                                <div className="flex items-center justify-between">
+                                                    <div className="space-y-0.5">
+                                                        <Label className="text-base font-semibold flex items-center gap-2">
+                                                            <Sparkles className="w-5 h-5 text-primary" />
+                                                            Stabilisation & Qualité 1080p
+                                                        </Label>
+                                                        <p className="text-sm text-muted-foreground">
+                                                            Recommandé pour un rendu professionnel sur Facebook Reels
+                                                        </p>
+                                                    </div>
+                                                    <Switch
+                                                        checked={stabilize}
+                                                        onCheckedChange={setStabilize}
+                                                    />
+                                                </div>
+                                                <div className="flex justify-end">
+                                                    <Button onClick={() => setCurrentStep('music')}>
+                                                        Continuer
+                                                        <ChevronRight className="w-4 h-4 ml-2" />
+                                                    </Button>
+                                                </div>
                                             </div>
                                         )}
                                     </CardContent>
@@ -1024,7 +1033,7 @@ export default function NewReel() {
             {/* Overlay de progression */}
             <ProcessingOverlay
                 isVisible={createReelMutation.isPending}
-                stabilize={shouldStabilize}
+                stabilize={stabilize}
                 ttsEnabled={ttsEnabled}
             />
         </div >
