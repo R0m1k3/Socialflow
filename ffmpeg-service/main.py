@@ -146,8 +146,8 @@ async def generate_tts_with_subs(
     raise Exception(f"All TTS voices failed. Last error: {last_error}")
 
 
-def generate_simple_vtt(text: str, vtt_path: Path):
-    """Generate a simple VTT subtitle file that displays the full text."""
+def generate_simple_srt(text: str, srt_path: Path):
+    """Generate a simple SRT subtitle file that displays the full text."""
     # Split text into chunks for better display
     words = text.split()
     chunks = []
@@ -155,33 +155,42 @@ def generate_simple_vtt(text: str, vtt_path: Path):
 
     for word in words:
         current_chunk.append(word)
-        if len(current_chunk) >= 3 or word.endswith((".", "!", "?", ":")):
+        if len(current_chunk) >= 5 or word.endswith((".", "!", "?", ":")):
             chunks.append(" ".join(current_chunk))
             current_chunk = []
 
     if current_chunk:
         chunks.append(" ".join(current_chunk))
 
-    # Estimate timing (average speaking rate: ~150 words per minute = 0.4s per word)
     # Each chunk gets time proportional to its word count
-    vtt_content = "WEBVTT\n\n"
+    srt_content = ""
     current_time = 0.0
 
     for i, chunk in enumerate(chunks):
         word_count = len(chunk.split())
-        duration = word_count * 0.3  # 0.3 seconds per word (faster sync)
+        duration = word_count * 0.4  # 0.4 seconds per word
 
-        start_time = format_vtt_time(current_time)
-        end_time = format_vtt_time(current_time + duration)
+        start_time = format_srt_time(current_time)
+        end_time = format_srt_time(current_time + duration)
 
-        vtt_content += f"{i + 1}\n"
-        vtt_content += f"{start_time} --> {end_time}\n"
-        vtt_content += f"{chunk}\n\n"
+        srt_content += f"{i + 1}\n"
+        srt_content += f"{start_time} --> {end_time}\n"
+        srt_content += f"{chunk}\n\n"
 
         current_time += duration
 
-    with open(vtt_path, "w", encoding="utf-8") as f:
-        f.write(vtt_content)
+    print(f"📄 Generated SRT content:\n{srt_content}")
+    with open(srt_path, "w", encoding="utf-8") as f:
+        f.write(srt_content)
+
+
+def format_srt_time(seconds: float) -> str:
+    """Format seconds as SRT timestamp (HH:MM:SS,mmm)."""
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    millis = int((seconds % 1) * 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
 
 def format_vtt_time(seconds: float) -> str:
@@ -230,7 +239,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         input_video_path = job_dir / "input.mp4"
         input_audio_path = job_dir / "music.mp3"
         tts_audio_path = job_dir / "tts.mp3"
-        tts_vtt_path = job_dir / "tts.vtt"
+        tts_srt_path = job_dir / "tts.srt"
         output_video_path = job_dir / "output.mp4"
 
         start_step = time.time()
@@ -290,7 +299,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 if tts_clean_text:
                     print(f"🔊 Generating TTS audio to: {tts_audio_path}")
                     await generate_tts_with_subs(
-                        tts_clean_text, voice, tts_audio_path, tts_vtt_path
+                        tts_clean_text, voice, tts_audio_path, tts_srt_path
                     )
 
                     # Verify files were created
@@ -299,6 +308,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                             f"✅ TTS audio generated: {tts_audio_path.stat().st_size} bytes"
                         )
                         has_tts = True
+                        # Generate SRT
+                        generate_simple_srt(tts_clean_text, tts_srt_path)
                     else:
                         print(f"❌ TTS audio file missing or empty!")
                 else:
@@ -435,12 +446,12 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         if request.text and request.draw_text:
             text_filter = ""
             if has_tts:
-                # Subtitles (TikTok style) using VTT
+                # Subtitles (TikTok style) using SRT
                 # Force style to look like TikTok/Reels text
-                # Use generic 'Sans' which fontconfig should alias to DejaVu or similar
-                style = f"FontName=Sans,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
-                vtt_path_str = str(tts_vtt_path).replace("\\", "/").replace(":", "\\:")
-                text_filter = f"subtitles='{vtt_path_str}':force_style='{style}'"
+                # We use DejaVu Sans exactly as listed in fc-list
+                style = f"FontName=DejaVu Sans,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
+                srt_path_str = str(tts_srt_path).replace("\\", "/").replace(":", "\\:")
+                text_filter = f"subtitles='{srt_path_str}':force_style='{style}'"
             else:
                 # Standard Drawtext
                 # Ensure font path is valid (using FONT_PATH detected earlier)
@@ -596,7 +607,7 @@ async def preview_tts(request: ReelRequest, x_api_key: str = Header(None)):
         job_dir.mkdir()
 
         tts_audio_path = job_dir / "preview.mp3"
-        tts_vtt_path = job_dir / "preview.vtt"  # Not used but needed for function sig
+        tts_srt_path = job_dir / "preview.srt"  # Consistent with rest of app
 
         if not request.text:
             raise HTTPException(status_code=400, detail="Text required for preview")
@@ -612,7 +623,7 @@ async def preview_tts(request: ReelRequest, x_api_key: str = Header(None)):
         elif not voice or "Neural" not in voice:
             voice = "fr-FR-VivienneMultilingualNeural"
 
-        await generate_tts_with_subs(clean_text, voice, tts_audio_path, tts_vtt_path)
+        await generate_tts_with_subs(clean_text, voice, tts_audio_path, tts_srt_path)
 
         if not tts_audio_path.exists():
             raise Exception("TTS generation failed (file missing)")
