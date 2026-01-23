@@ -227,18 +227,16 @@ export default function NewReel() {
     const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
         onDrop,
         accept: {
-            accept: {
-                'video/mp4': ['.mp4', '.m4v'],
-                'video/quicktime': ['.mov', '.qt'],
-                'video/webm': ['.webm'],
-                'video/x-msvideo': ['.avi'],
-                'video/*': [],
-            },
-            multiple: true, // Use multiple to bypass iOS Safari automatic compression
-            maxSize: 4 * 1024 * 1024 * 1024, // 4GB Limit
-            noClick: true,
-            noKeyboard: true,
-        });
+            'video/mp4': ['.mp4', '.m4v'],
+            'video/quicktime': ['.mov', '.qt'],
+            'video/webm': ['.webm'],
+            'video/x-msvideo': ['.avi'],
+        },
+        multiple: true, // Use multiple to bypass iOS Safari automatic compression
+        maxSize: 4 * 1024 * 1024 * 1024, // 4GB Limit
+        noClick: true,
+        noKeyboard: true,
+    });
 
     const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -445,7 +443,7 @@ export default function NewReel() {
                                                     </p>
                                                     <div className="flex items-center gap-1.5 text-[10px] text-primary/70 bg-primary/5 px-2 py-0.5 rounded-full w-fit">
                                                         <Sparkles className="w-3 h-3" />
-                                                        <span>Note iPhone : Activez la stabilisation dans Réglages > Appareil Photo</span>
+                                                        <span>Note iPhone : Activez la stabilisation dans Réglages &gt; Appareil Photo</span>
                                                     </div>
                                                 </div>
                                                 <Switch
