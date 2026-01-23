@@ -73,6 +73,30 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 - [~] Run `/bmad-bmgd-workflows-workflow-init` (Annulé: Application, pas un Jeu)
 
+### Phase 7: Amélioration Qualité Vidéo & Stabilisation ✅
+
+- [x] **Amélioration Capture Caméra** (`camera-recorder.tsx`)
+  - [x] Augmenter bitrate selon résolution (720p: 12Mbps, 1080p: 25Mbps, 4K: 50Mbps)
+  - [x] Ajouter contrainte framerate 30fps
+  - [x] Ajouter toggle "Stabilisation serveur" dans réglages
+- [x] **Stabilisation FFmpeg vidstab** (`ffmpeg-service/main.py`)
+  - [x] Installer vidstab dans le Dockerfile (via static build)
+  - [x] Ajouter paramètre `stabilize` au modèle ReelRequest
+  - [x] Implémenter stabilisation 2 passes (detect + transform)
+  - [x] Améliorer qualité sortie (CRF 18)
+- [x] **Backend API** (`ffmpeg.ts`)
+  - [x] Passer le paramètre `stabilize` à l'API FFmpeg
+
+### Phase 8: Monitoring & UX ✅
+
+- [x] **Monitoring Performance** (`ffmpeg-service/main.py`)
+  - [x] Mesurer et logger les temps de traitement par étape (Download, Stabilize, TTS, Encode)
+  - [x] Retourner les métriques dans la réponse API
+- [x] **Feedback UI** (`new-reel.tsx`)
+  - [x] Ajouter un composant de progression "fake" intelligent pendant la création
+  - [x] Afficher les étapes (Upload, Audio, Stabilisation, Encodage)
+  - [x] Estimer le temps restant selon les options activées (Stabilisation = +30s)
+
 ## Progress Log
 
 - **22 Jan 2026** - Analyse complète et PRD créé

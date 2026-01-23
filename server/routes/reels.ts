@@ -188,6 +188,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             fontSize = 16,
             musicVolume = 0.25,
             drawText = true,
+            stabilize = false,
         } = req.body;
 
         // Récupérer le média vidéo
@@ -321,6 +322,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             ttsEnabled: ttsEnabled,
             ttsVoice: ttsVoice,
             drawText: drawText,
+            stabilize: stabilize,
             pageCount: pageIds.length,
         });
 

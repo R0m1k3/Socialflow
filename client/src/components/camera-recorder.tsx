@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 
 interface CameraRecorderProps {
-    onCapture: (file: File) => void;
+    onCapture: (file: File, options?: { stabilize?: boolean }) => void;
     onCancel: () => void;
 }
 
@@ -17,12 +17,13 @@ interface QualityConfig {
     label: string;
     width: number;
     height: number;
+    bitrate: number; // in bps
 }
 
 const QUALITY_CONFIGS: Record<VideoQuality, QualityConfig> = {
-    "4k": { label: "4K Ultra HD", width: 3840, height: 2160 },
-    "1080p": { label: "Full HD", width: 1920, height: 1080 },
-    "720p": { label: "HD 720p", width: 1280, height: 720 },
+    "4k": { label: "4K Ultra HD", width: 3840, height: 2160, bitrate: 50000000 },
+    "1080p": { label: "Full HD", width: 1920, height: 1080, bitrate: 25000000 },
+    "720p": { label: "HD 720p", width: 1280, height: 720, bitrate: 12000000 },
 };
 
 export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
@@ -43,6 +44,7 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
     const [quality, setQuality] = useState<VideoQuality>('1080p');
     const [showSettings, setShowSettings] = useState(false);
     const [cameraError, setCameraError] = useState<string | null>(null);
+    const [stabilize, setStabilize] = useState(true); // Stabilisation serveur activée par défaut
 
     // Fetch devices
     const handleDevices = useCallback((mediaDevices: MediaDeviceInfo[]) => {
@@ -86,11 +88,12 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
 
         const mimeTypes = ['video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'];
         const mimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)) || '';
+        const currentConfig = QUALITY_CONFIGS[quality];
 
         try {
             const mediaRecorder = new MediaRecorder(stream, {
                 mimeType,
-                videoBitsPerSecond: 8000000
+                videoBitsPerSecond: currentConfig.bitrate // Bitrate dynamique selon qualité
             });
 
             mediaRecorder.ondataavailable = (e) => {
@@ -121,7 +124,10 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
 
     const handleConfirm = () => {
         if (recordedBlob) {
-            onCapture(new File([recordedBlob], `capture-${Date.now()}.mp4`, { type: recordedBlob.type }));
+            onCapture(
+                new File([recordedBlob], `capture-${Date.now()}.mp4`, { type: recordedBlob.type }),
+                { stabilize }
+            );
         }
     };
 
@@ -157,6 +163,7 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
     const videoConstraints = {
         width: { ideal: config.width },
         height: { ideal: config.height },
+        frameRate: { ideal: 30 }, // 30fps pour une capture fluide
         deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined,
         facingMode: selectedDeviceId ? undefined : facingMode
     };
@@ -245,6 +252,18 @@ export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
                                         </button>
                                     ))}
                                 </div>
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium text-white/70 flex items-center justify-between">
+                                    <span>Stabilisation serveur</span>
+                                    <button
+                                        onClick={() => setStabilize(!stabilize)}
+                                        className={`relative w-12 h-6 rounded-full transition-colors ${stabilize ? 'bg-green-500' : 'bg-gray-600'}`}
+                                    >
+                                        <span className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${stabilize ? 'left-7' : 'left-1'}`} />
+                                    </button>
+                                </label>
+                                <p className="text-xs text-white/50 mt-1">Corrige les tremblements après capture (traitement serveur)</p>
                             </div>
                         </div>
                         <Button className="w-full mt-6 bg-white text-black hover:bg-gray-200" onClick={() => setShowSettings(false)}>OK</Button>

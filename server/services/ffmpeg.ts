@@ -17,6 +17,7 @@ interface FFmpegReelRequest {
     font_size?: number;         // Taille police (default: 24)
     music_volume?: number;      // Volume musique (default: 0.25)
     draw_text?: boolean;        // Dessiner le texte sur la vidéo (default: true)
+    stabilize?: boolean;        // Stabilisation vidéo via vidstab (default: false)
 }
 
 interface FFmpegReelResponse {
@@ -71,6 +72,7 @@ export class FFmpegService {
             fontSize?: number;
             musicVolume?: number;
             drawText?: boolean;
+            stabilize?: boolean;
         } = {}
     ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string }> {
         const config = this.ensureConfigured();
@@ -86,6 +88,7 @@ export class FFmpegService {
             font_size: options.fontSize ?? 16,
             music_volume: options.musicVolume ?? 0.25,
             draw_text: options.drawText ?? true,
+            stabilize: options.stabilize ?? false,
         };
 
         // Remove undefined values
@@ -164,6 +167,7 @@ export class FFmpegService {
             fontSize?: number;
             musicVolume?: number;
             drawText?: boolean;
+            stabilize?: boolean;
         } = {}
     ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string }> {
         const config = this.ensureConfigured();
@@ -179,6 +183,7 @@ export class FFmpegService {
             font_size: options.fontSize ?? 16,
             music_volume: options.musicVolume ?? 0.25,
             draw_text: options.drawText ?? true,
+            stabilize: options.stabilize ?? false,
         };
 
         // Remove undefined values

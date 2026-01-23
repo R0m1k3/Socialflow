@@ -12,6 +12,7 @@ from pathlib import Path
 import edge_tts
 import re
 import emoji
+import time
 
 app = FastAPI()
 
@@ -35,6 +36,7 @@ class ReelRequest(BaseModel):
     tts_enabled: bool = False
     tts_voice: str = "fr-FR-VivienneMultilingualNeural"
     draw_text: bool = True
+    stabilize: bool = False  # Stabilisation vidéo via vidstab
 
 
 def clean_text_for_tts(text: str) -> str:
@@ -160,6 +162,7 @@ class ReelResponse(BaseModel):
     output_base64: Optional[str] = None
     duration: Optional[float] = None
     detail: Optional[str] = None
+    processing_stats: Optional[dict] = None
 
 
 @app.get("/health")
@@ -174,6 +177,15 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
     if x_api_key != API_KEY:
         raise HTTPException(status_code=401, detail="Invalid API Key")
 
+    start_total = time.time()
+    stats = {
+        "download_duration": 0,
+        "tts_duration": 0,
+        "stabilize_duration": 0,
+        "encoding_duration": 0,
+        "total_duration": 0,
+    }
+
     try:
         job_id = str(uuid.uuid4())
         job_dir = TEMP_DIR / job_id
@@ -185,6 +197,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         tts_vtt_path = job_dir / "tts.vtt"
         output_video_path = job_dir / "output.mp4"
 
+        start_step = time.time()
         # 1. Save Input Video
         if request.video_base64:
             with open(input_video_path, "wb") as f:
@@ -211,6 +224,9 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             except Exception as e:
                 print(f"Failed to download music: {e}")
                 # We continue without music if it fails
+
+        stats["download_duration"] = time.time() - start_step
+        start_step = time.time()
 
         # 3. Generate TTS (if enabled)
         has_tts = False
@@ -256,6 +272,78 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
 
                 print(f"❌ Failed to generate TTS: {e}")
                 traceback.print_exc()
+
+        stats["tts_duration"] = time.time() - start_step
+        start_step = time.time()
+
+        # 3.5 Stabilize video if requested (vidstab two-pass)
+        if request.stabilize:
+            print("📐 Starting video stabilization (vidstab)...")
+            transforms_path = job_dir / "transforms.trf"
+            stabilized_path = job_dir / "stabilized.mp4"
+
+            try:
+                # Pass 1: Detect motion/shakiness
+                print("📐 Pass 1: Detecting motion...")
+                detect_cmd = [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    str(input_video_path),
+                    "-vf",
+                    f"vidstabdetect=stepsize=6:shakiness=8:accuracy=9:result={transforms_path}",
+                    "-f",
+                    "null",
+                    "-",
+                ]
+                detect_proc = subprocess.run(
+                    detect_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                )
+
+                if detect_proc.returncode != 0:
+                    print(
+                        f"⚠️ Stabilization pass 1 failed: {detect_proc.stderr.decode()[:500]}"
+                    )
+                elif transforms_path.exists():
+                    # Pass 2: Apply stabilization transform
+                    print("📐 Pass 2: Applying stabilization...")
+                    transform_cmd = [
+                        "ffmpeg",
+                        "-y",
+                        "-i",
+                        str(input_video_path),
+                        "-vf",
+                        f"vidstabtransform=input={transforms_path}:smoothing=10:crop=black:zoom=1,unsharp=5:5:0.8:3:3:0.4",
+                        "-c:v",
+                        "libx264",
+                        "-preset",
+                        "medium",
+                        "-crf",
+                        "18",
+                        "-c:a",
+                        "copy",
+                        str(stabilized_path),
+                    ]
+                    transform_proc = subprocess.run(
+                        transform_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+                    )
+
+                    if transform_proc.returncode == 0 and stabilized_path.exists():
+                        # Use stabilized video for further processing
+                        input_video_path = stabilized_path
+                        print("✅ Video stabilization complete!")
+                    else:
+                        print(
+                            f"⚠️ Stabilization pass 2 failed: {transform_proc.stderr.decode()[:500]}"
+                        )
+                else:
+                    print("⚠️ Transforms file not created, skipping stabilization")
+
+            except Exception as e:
+                print(f"⚠️ Stabilization error (continuing without): {e}")
+
+        stats["stabilize_duration"] = time.time() - start_step
+        start_step = time.time()
 
         # 4. Build FFmpeg Command
         cmd = ["ffmpeg", "-y", "-i", str(input_video_path)]
@@ -383,7 +471,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 "-preset",
                 "medium",
                 "-crf",
-                "23",  # Good balance for quality/size
+                "18",  # High quality output (lower = better, 18 is visually lossless)
                 "-c:a",
                 "aac",
                 "-b:a",
@@ -399,6 +487,9 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
 
         # execute
         process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        stats["encoding_duration"] = time.time() - start_step
+        stats["total_duration"] = time.time() - start_total
 
         if process.returncode != 0:
             print(f"FFmpeg failed: {process.stderr.decode()}")
@@ -426,7 +517,14 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         # Cleanup
         shutil.rmtree(job_dir)
 
-        return {"success": True, "output_base64": out_b64, "duration": duration}
+        print(f"📊 Processing Stats: {stats}")
+
+        return {
+            "success": True,
+            "output_base64": out_b64,
+            "duration": duration,
+            "processing_stats": stats,
+        }
 
     except Exception as e:
         if "job_dir" in locals():

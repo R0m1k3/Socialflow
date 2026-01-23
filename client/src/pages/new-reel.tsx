@@ -68,6 +68,7 @@ export default function NewReel() {
     const [ttsEnabled, setTtsEnabled] = useState(true);
     const [ttsVoice, setTtsVoice] = useState("fr-FR-VivienneMultilingualNeural");
     const [drawText, setDrawText] = useState(true);
+    const [shouldStabilize, setShouldStabilize] = useState(false);
 
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
@@ -316,6 +317,7 @@ export default function NewReel() {
             ttsEnabled,
             ttsVoice,
             drawText,
+            stabilize: shouldStabilize,
         });
     };
 
@@ -335,7 +337,16 @@ export default function NewReel() {
             {/* Camera Recorder Modal */}
             {showCamera && (
                 <CameraRecorder
-                    onCapture={(file) => {
+                    onCapture={(file, options) => {
+                        if (options?.stabilize) {
+                            setShouldStabilize(true);
+                            toast({
+                                title: "Stabilisation activée",
+                                description: "La vidéo sera stabilisée lors de la création du Reel (ceci peut prendre plus de temps)",
+                            });
+                        } else {
+                            setShouldStabilize(false);
+                        }
                         uploadMutation.mutate(file);
                         setShowCamera(false);
                     }}
@@ -988,6 +999,116 @@ export default function NewReel() {
                     </div>
                 </div>
             </main>
+        </div>
+            {/* Overlay de progression */ }
+    <ProcessingOverlay
+        isVisible={createReelMutation.isPending}
+        stabilize={shouldStabilize}
+        ttsEnabled={ttsEnabled}
+    />
+        </div >
+    );
+}
+
+function ProcessingOverlay({ isVisible, stabilize, ttsEnabled }: { isVisible: boolean; stabilize: boolean; ttsEnabled: boolean }) {
+    const [progress, setProgress] = useState(0);
+    const [status, setStatus] = useState("Initialisation...");
+
+    useEffect(() => {
+        if (!isVisible) {
+            setProgress(0);
+            return;
+        }
+
+        setProgress(0);
+        setStatus("Préparation des fichiers...");
+
+        const timeouts: NodeJS.Timeout[] = [];
+        let interval: NodeJS.Timeout;
+
+        // Sequence de simulation
+        // 1. 2s: Téléchargement
+        timeouts.push(setTimeout(() => {
+            setStatus("Téléchargement des médias...");
+            setProgress(10);
+        }, 1500));
+
+        // 2. 4s: Audio/TTS
+        timeouts.push(setTimeout(() => {
+            setStatus(ttsEnabled ? "Génération de la voix IA..." : "Mixage audio...");
+            setProgress(25);
+        }, 3500));
+
+        // 3. 7s: Stabilisation ou Encodage
+        timeouts.push(setTimeout(() => {
+            if (stabilize) {
+                setStatus("Stabilisation vidéo (Traitement long)...");
+                setProgress(35);
+
+                // Progression lente : +1% toutes les 800ms
+                // Ça permet de couvrir ~45 secondes avant d'arriver à 90%
+                let p = 35;
+                interval = setInterval(() => {
+                    if (p < 90) {
+                        p++;
+                        setProgress(p);
+                    }
+                }, 800);
+            } else {
+                setStatus("Encodage optimisé...");
+                setProgress(40);
+
+                // Progression pour encodage standard (~10-15s)
+                let p = 40;
+                interval = setInterval(() => {
+                    if (p < 90) {
+                        p += 2;
+                        setProgress(p);
+                    }
+                }, 500);
+            }
+        }, 6500));
+
+        // Nettoyage
+        return () => {
+            timeouts.forEach(clearTimeout);
+            if (interval) clearInterval(interval);
+        };
+    }, [isVisible, stabilize, ttsEnabled]);
+
+    if (!isVisible) return null;
+
+    return (
+        <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="w-full max-w-md space-y-8 text-center">
+                <div className="relative w-24 h-24 mx-auto mb-8">
+                    <Loader2 className="w-full h-full text-primary animate-spin" />
+                    <div className="absolute inset-0 flex items-center justify-center font-bold text-xl">
+                        {progress}%
+                    </div>
+                </div>
+
+                <div className="space-y-4">
+                    <h3 className="text-2xl font-bold text-white tracking-tight">Création de votre Reel</h3>
+                    <p className="text-lg text-muted-foreground animate-pulse">
+                        {status}
+                    </p>
+                </div>
+
+                <div className="w-full h-2 bg-secondary/30 rounded-full overflow-hidden">
+                    <div
+                        className="h-full bg-primary transition-all duration-300 ease-out"
+                        style={{ width: `${progress}%` }}
+                    />
+                </div>
+
+                {stabilize && (
+                    <div className="flex items-center justify-center gap-2 text-sm text-yellow-500/80 bg-yellow-500/10 py-2 px-4 rounded-full mx-auto w-fit">
+                        <Sparkles className="w-4 h-4" />
+                        <span>Stabilisation activée : traitement prolongé</span>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
