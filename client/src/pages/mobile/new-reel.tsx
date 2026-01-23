@@ -222,6 +222,7 @@ export default function MobileNewReel() {
             scheduledFor: scheduledDate?.toISOString(),
             musicVolume: musicVolume[0] / 100,
             stabilize: stabilize,
+            drawText: true,
         });
     };
 
