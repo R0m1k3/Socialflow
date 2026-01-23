@@ -470,9 +470,10 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         fc_parts = []
         
         # A. Video Chain
-        # 1. Scale & Pad & Unsharp
+        # 1. Scale & Crop to Fill 1080x1920 (Vertical Reel)
         # [0:v] -> [v_processed]
-        video_filters_str = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:0.8:3:3:0.4"
+        # Using 'increase' + 'crop' to ensure full screen coverage without black bars
+        video_filters_str = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,unsharp=5:5:0.8:3:3:0.4"
         
         # 2. Text Overlay
         if request.text and request.draw_text:
@@ -480,8 +481,9 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             if has_tts:
                 # Subtitles (TikTok style) using SRT (already generated in TTS block)
                 print(f"🎬 Overlaying subtitles from TTS SRT: {tts_srt_path}")
-                # White color (&H00FFFFFF), Size 10, Centered (Alignment 5)
-                style = f"FontName=DejaVu Sans,FontSize=10,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=1,Shadow=0,Bold=1,Alignment=5,MarginV=0"
+                # White color (&H00FFFFFF), Size 20, Centered (Alignment 5)
+                # Note: FontSize 10 is extremely small, using 20 for minimum legibility
+                style = f"FontName=DejaVu Sans,FontSize=20,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=1,Shadow=0,Bold=1,Alignment=5,MarginV=0"
                 srt_path_str = str(tts_srt_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f"subtitles='{srt_path_str}':force_style='{style}'"
             else:
@@ -490,8 +492,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 std_srt_path = job_dir / "std_text.srt"
                 generate_simple_srt(request.text, std_srt_path)
                 
-                # White color (&H00FFFFFF), Size 10, Centered (Alignment 5)
-                style = f"FontName=DejaVu Sans,FontSize=10,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=1,Shadow=0,Bold=1,Alignment=5,MarginV=0"
+                # White color (&H00FFFFFF), Size 20, Centered (Alignment 5)
+                style = f"FontName=DejaVu Sans,FontSize=20,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=1,Shadow=0,Bold=1,Alignment=5,MarginV=0"
                 srt_path_str = str(std_srt_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f"subtitles='{std_srt_path}':force_style='{style}'"
             
