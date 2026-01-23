@@ -21,7 +21,36 @@ TEMP_DIR = Path("/tmp/ffmpeg_processing")
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 # Font path for text overlay (installed via fonts-dejavu in Dockerfile)
-FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+# Robust font detection
+def get_font_path():
+    possible_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/dejavu-core/DejaVuSans.ttf",
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf"
+    ]
+    for path in possible_paths:
+        if os.path.exists(path):
+            print(f"✅ Found font at: {path}")
+            return path
+    
+    # Fallback: search anywhere in /usr/share/fonts
+    print("⚠️ Specific font not found, searching recursively...")
+    try:
+        for root, dirs, files in os.walk("/usr/share/fonts"):
+            for file in files:
+                if file.endswith(".ttf") and ("Sans" in file or "Arial" in file):
+                    full_path = os.path.join(root, file)
+                    print(f"✅ Found fallback font at: {full_path}")
+                    return full_path
+    except Exception as e:
+        print(f"⚠️ Error searching for fonts: {e}")
+
+    print("❌ No TTF font found! Text overlay may fail.")
+    return "font.ttf"  # Hope for the best or let ffmpeg fail
+
+FONT_PATH = get_font_path()
 
 
 class ReelRequest(BaseModel):

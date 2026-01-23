@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     xz-utils \
     fonts-dejavu \
+    fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 # Download static FFmpeg build with all filters including vidstab
