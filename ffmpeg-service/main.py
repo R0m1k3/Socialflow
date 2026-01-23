@@ -360,7 +360,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 # Use subtitles filter
                 # Force style to look like TikTok/Reels text (No Black Box, just Outline)
                 # Bigger font size (64 by default) and better vertical margin for 1080p
-                style = f"FontName=Arial,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
+                style = f"FontName=DejaVu Sans,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
                 # Escape path for FFmpeg filter
                 vtt_path_str = str(tts_vtt_path).replace("\\", "/").replace(":", "\\:")
                 video_filters.append(
