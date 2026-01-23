@@ -85,7 +85,7 @@ def clean_text_for_tts(text: str) -> str:
 
 
 async def generate_tts_with_subs(
-    text: str, voice: str, audio_path: Path, vtt_path: Path
+    text: str, voice: str, audio_path: Path, srt_path: Path
 ):
     """Generate TTS audio with subtitles, with retry and fallback voices."""
     import asyncio
@@ -126,9 +126,8 @@ async def generate_tts_with_subs(
             if audio_path.exists() and audio_path.stat().st_size > 0:
                 print(f"✅ TTS audio saved: {audio_path.stat().st_size} bytes")
 
-                # Generate a simple VTT file with the full text
-                # (word-by-word sync would require working SubMaker)
-                generate_simple_vtt(text, vtt_path)
+                # Generate a simple SRT file with the full text
+                generate_simple_srt(text, srt_path)
 
                 print(f"✅ TTS success with voice: {attempt_voice}")
                 return  # Success!
@@ -446,17 +445,22 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         if request.text and request.draw_text:
             text_filter = ""
             if has_tts:
-                # Subtitles (TikTok style) using SRT
+                # Subtitles (TikTok style) using SRT (already generated in TTS block)
                 # Force style to look like TikTok/Reels text
                 # We use DejaVu Sans exactly as listed in fc-list
                 style = f"FontName=DejaVu Sans,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
                 srt_path_str = str(tts_srt_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f"subtitles='{srt_path_str}':force_style='{style}'"
             else:
-                # Standard Drawtext
-                # Ensure font path is valid (using FONT_PATH detected earlier)
-                sanitized_text = request.text.replace("'", "").replace(":", "\\:")
-                text_filter = f"drawtext=fontfile='{FONT_PATH}':text='{sanitized_text}':fontcolor=white:fontsize={request.font_size}:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-text_h-300"
+                # Standard Text (without TTS)
+                # We use subtitles filter here too because drawtext filter was reported missing
+                print("📝 Using subtitles filter for standard text overlay (fallback from drawtext)")
+                std_srt_path = job_dir / "std_text.srt"
+                generate_simple_srt(request.text, std_srt_path)
+                
+                style = f"FontName=DejaVu Sans,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
+                srt_path_str = str(std_srt_path).replace("\\", "/").replace(":", "\\:")
+                text_filter = f"subtitles='{srt_path_str}':force_style='{style}'"
             
             # Combine formatting + text
             video_filters_str += f",{text_filter}"

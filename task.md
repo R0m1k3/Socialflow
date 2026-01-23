@@ -116,6 +116,12 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [x] Ajouter l'attribut `multiple` à l'input file pour forcer l'envoi du fichier original (Bypass Safari downscaling)
   - [x] Mettre à jour les MIME types pour inclure `video/quicktime` (iPhone natif)
   - [x] Documenter que la stabilisation native dépend des réglages iOS de l'utilisateur
+  - [x] **Fix Build Failure** : Correction syntaxe `useDropzone` et JSX dans `new-reel.tsx`.
+  - [x] **Fix Mobile Overlay** : Force `drawText: true` sur le client mobile.
+  - [x] **Fix Font Issue** : Ajout de `fontconfig`, `fc-cache`, et utilisation de police générique "Sans".
+  - [x] **Refactor FFmpeg** : Passage à un pipeline `filter_complex` unifié pour éviter les conflits et garantir l'overlay.
+  - [x] **Fix Indentation** : Correction de l'erreur de syntaxe Python introduite.
+  - [x] **Fix F-String Syntax** : Correction de l'erreur `f-string expression part cannot include a backslash`.
 
 ## Progress Log
 
