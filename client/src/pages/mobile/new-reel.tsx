@@ -253,13 +253,30 @@ export default function MobileNewReel() {
                 {/* VIDEO STEP */}
                 {currentStep === 'video' && (
                     <div className="space-y-4">
+                        <Card className="bg-primary/5 border-primary/20">
+                            <CardContent className="p-4 space-y-4">
+                                <div className="flex items-center justify-between">
+                                    <div className="space-y-0.5">
+                                        <div className="text-sm font-medium flex items-center gap-2">
+                                            <Sparkles className="w-4 h-4 text-primary" /> Stabilisation & Qualité 1080p
+                                        </div>
+                                        <div className="text-xs text-muted-foreground">Application automatique après capture</div>
+                                    </div>
+                                    <Switch
+                                        checked={stabilize}
+                                        onCheckedChange={(checked) => setStabilize(!!checked)}
+                                    />
+                                </div>
+                            </CardContent>
+                        </Card>
+
                         <div {...getRootProps()} className={`border-2 border-dashed rounded-xl p-6 text-center ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted'}`}>
                             <input {...getInputProps()} />
                             <input ref={cameraInputRef} type="file" accept="video/*" capture="environment" onChange={handleCameraCapture} className="hidden" />
 
                             <div className="flex gap-2 justify-center mb-6">
                                 <Button onClick={handleCameraButtonClick} variant="outline" size="lg" className="h-12">
-                                    <Camera className="mr-2 h-5 w-5" /> {isIOS ? 'Filmer (Qualité Max)' : 'Capturer'}
+                                    <Camera className="mr-2 h-5 w-5" /> {isIOS ? 'Filmer (Haute Qualité)' : 'Capturer'}
                                 </Button>
                                 <Button onClick={open} variant="outline" size="lg" className="h-12">
                                     <Upload className="mr-2 h-5 w-5" /> Galerie
@@ -297,27 +314,9 @@ export default function MobileNewReel() {
                         </div>
 
                         {selectedVideo && (
-                            <div className="space-y-3">
-                                <Card>
-                                    <CardContent className="p-4 space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <div className="space-y-0.5">
-                                                <div className="text-sm font-medium flex items-center gap-2">
-                                                    <Sparkles className="w-4 h-4 text-primary" /> Stabilisation & Qualité 1080p
-                                                </div>
-                                                <div className="text-xs text-muted-foreground">Recommandé pour Facebook Reels</div>
-                                            </div>
-                                            <Switch
-                                                checked={stabilize}
-                                                onCheckedChange={(checked) => setStabilize(!!checked)}
-                                            />
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                                <Button className="w-full h-12 text-lg sticky bottom-4 shadow-xl" onClick={goNext}>
-                                    Suivant <ChevronRight className="ml-2 w-5 h-5" />
-                                </Button>
-                            </div>
+                            <Button className="w-full h-12 text-lg sticky bottom-4 shadow-xl" onClick={goNext}>
+                                Suivant <ChevronRight className="ml-2 w-5 h-5" />
+                            </Button>
                         )}
                     </div>
                 )}

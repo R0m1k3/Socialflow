@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
     Send, Sparkles, Video, Music, Type, Calendar,
-    Upload, Camera, Play, Pause, Volume2, VolumeX,
+    Upload, Play, Pause, Volume2, VolumeX,
     ChevronRight, Loader2, Check, RefreshCw, Mic
 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
@@ -28,7 +28,6 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
 import { DateTimePicker } from "@/components/datetime-picker";
-import { CameraRecorder } from "@/components/camera-recorder";
 
 interface MusicTrack {
     id: string;
@@ -49,7 +48,6 @@ export default function NewReel() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [, navigate] = useLocation();
     const { toast } = useToast();
-    const cameraInputRef = useRef<HTMLInputElement>(null);
     const audioRef = useRef<HTMLAudioElement>(null);
 
     // État du workflow
@@ -74,9 +72,6 @@ export default function NewReel() {
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
     const [musicOffset, setMusicOffset] = useState(0);
-
-    // État caméra custom
-    const [showCamera, setShowCamera] = useState(false);
 
     // Récupérer les pages disponibles
     const { data: pages = [] } = useQuery<SocialPage[]>({
@@ -232,16 +227,18 @@ export default function NewReel() {
     const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
         onDrop,
         accept: {
-            'video/mp4': ['.mp4', '.m4v'],
-            'video/quicktime': ['.mov', '.qt'],
-            'video/webm': ['.webm'],
-            'video/x-msvideo': ['.avi'],
-            'video/*': [], // Fallback
-        },
-        maxSize: 4 * 1024 * 1024 * 1024, // 4GB Limit
-        noClick: true,
-        noKeyboard: true,
-    });
+            accept: {
+                'video/mp4': ['.mp4', '.m4v'],
+                'video/quicktime': ['.mov', '.qt'],
+                'video/webm': ['.webm'],
+                'video/x-msvideo': ['.avi'],
+                'video/*': [],
+            },
+            multiple: true, // Use multiple to bypass iOS Safari automatic compression
+            maxSize: 4 * 1024 * 1024 * 1024, // 4GB Limit
+            noClick: true,
+            noKeyboard: true,
+        });
 
     const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -357,26 +354,6 @@ export default function NewReel() {
 
     return (
         <div className="flex h-screen overflow-hidden bg-background">
-            {/* Camera Recorder Modal */}
-            {showCamera && (
-                <CameraRecorder
-                    onCapture={(file, options) => {
-                        if (options?.stabilize) {
-                            setStabilize(true);
-                            toast({
-                                title: "Stabilisation activée",
-                                description: "La vidéo sera stabilisée lors de la création du Reel (ceci peut prendre plus de temps)",
-                            });
-                        } else {
-                            setStabilize(false);
-                        }
-                        uploadMutation.mutate(file);
-                        setShowCamera(false);
-                    }}
-                    onCancel={() => setShowCamera(false)}
-                />
-            )}
-
             {sidebarOpen && (
                 <div
                     className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -442,6 +419,7 @@ export default function NewReel() {
                         {/* Colonne principale */}
                         <div className="lg:col-span-2 space-y-6">
 
+
                             {/* ÉTAPE 1: Vidéo */}
                             {currentStep === 'video' && (
                                 <Card className="rounded-2xl border-border/50 shadow-lg">
@@ -451,18 +429,31 @@ export default function NewReel() {
                                             Sélectionnez une Vidéo
                                         </CardTitle>
                                         <CardDescription>
-                                            Choisissez une vidéo existante ou capturez-en une nouvelle
+                                            Choisissez une vidéo existante ou téléchargez-en une nouvelle
                                         </CardDescription>
                                     </CardHeader>
-                                    <CardContent>
-                                        <input
-                                            ref={cameraInputRef}
-                                            type="file"
-                                            accept="video/*"
-                                            capture="environment"
-                                            onChange={handleCameraCapture}
-                                            className="hidden"
-                                        />
+                                    <CardContent className="space-y-6">
+                                        <div className="p-4 border rounded-xl bg-primary/5 border-primary/20 space-y-2">
+                                            <div className="flex items-center justify-between">
+                                                <div className="space-y-0.5">
+                                                    <Label className="text-base font-semibold flex items-center gap-2">
+                                                        <Sparkles className="w-5 h-5 text-primary" />
+                                                        Stabilisation & Qualité 1080p
+                                                    </Label>
+                                                    <p className="text-sm text-muted-foreground">
+                                                        Recommandé pour un rendu professionnel sur Facebook Reels
+                                                    </p>
+                                                    <div className="flex items-center gap-1.5 text-[10px] text-primary/70 bg-primary/5 px-2 py-0.5 rounded-full w-fit">
+                                                        <Sparkles className="w-3 h-3" />
+                                                        <span>Note iPhone : Activez la stabilisation dans Réglages > Appareil Photo</span>
+                                                    </div>
+                                                </div>
+                                                <Switch
+                                                    checked={stabilize}
+                                                    onCheckedChange={setStabilize}
+                                                />
+                                            </div>
+                                        </div>
 
                                         <div {...getRootProps()} className={`${isDragActive ? 'bg-primary/5 border-primary' : ''}`}>
                                             <input {...getInputProps()} />
@@ -515,28 +506,11 @@ export default function NewReel() {
                                         </div>
 
                                         {selectedVideo && (
-                                            <div className="mt-6 p-4 border rounded-xl bg-accent/30 space-y-4">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="space-y-0.5">
-                                                        <Label className="text-base font-semibold flex items-center gap-2">
-                                                            <Sparkles className="w-5 h-5 text-primary" />
-                                                            Stabilisation & Qualité 1080p
-                                                        </Label>
-                                                        <p className="text-sm text-muted-foreground">
-                                                            Recommandé pour un rendu professionnel sur Facebook Reels
-                                                        </p>
-                                                    </div>
-                                                    <Switch
-                                                        checked={stabilize}
-                                                        onCheckedChange={setStabilize}
-                                                    />
-                                                </div>
-                                                <div className="flex justify-end">
-                                                    <Button onClick={() => setCurrentStep('music')}>
-                                                        Continuer
-                                                        <ChevronRight className="w-4 h-4 ml-2" />
-                                                    </Button>
-                                                </div>
+                                            <div className="mt-6 flex justify-end">
+                                                <Button onClick={() => setCurrentStep('music')}>
+                                                    Continuer
+                                                    <ChevronRight className="w-4 h-4 ml-2" />
+                                                </Button>
                                             </div>
                                         )}
                                     </CardContent>
@@ -548,6 +522,7 @@ export default function NewReel() {
                                 <Card className="rounded-2xl border-border/50 shadow-lg">
                                     <CardHeader>
                                         <CardTitle className="flex items-center gap-2">
+
                                             <Music className="w-5 h-5" />
                                             Choisissez une Musique
                                         </CardTitle>
@@ -1027,11 +1002,11 @@ export default function NewReel() {
                                 </CardContent>
                             </Card>
                         </div>
-                    </div>
-                </div>
-            </main>
+                    </div >
+                </div >
+            </main >
             {/* Overlay de progression */}
-            <ProcessingOverlay
+            < ProcessingOverlay
                 isVisible={createReelMutation.isPending}
                 stabilize={stabilize}
                 ttsEnabled={ttsEnabled}

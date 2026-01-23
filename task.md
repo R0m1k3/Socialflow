@@ -6,7 +6,7 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 ## Current Focus
 
-**Phase: VERIFICATION** - Implémentation terminée, améliorations UI (preview audio, pagination musique).
+**Phase: EXECUTION** - Optimisation qualité iPhone Safari (Bypass compression).
 
 ## Master Plan
 
@@ -107,7 +107,15 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [x] FFmpeg: Augmenter CRF à 17 et preset à `slow`
   - [x] FFmpeg: Augmenter taille police par défaut à 64
   - [x] FFmpeg: Positionner texte plus bas (proportionnel 1080p)
-  - [/] Frontend: Ajouter toggle Stabilisation et Qualité
+  - [x] Frontend: Ajouter toggle Stabilisation et Qualité
+- [ ] **Phase 11: Clarification UX Mobile** ✅
+  - [x] Modifier l'alerte iOS pour prévenir que les réglages se font après
+  - [x] Ajouter une flèche ou une animation pour attirer l'œil sur le Switch de stabilisation
+  - [x] S'assurer que le bouton "Suivant" est bien visible sous le Switch
+- [x] **Phase 12: Optimisation Safari (Bypass Compression)** ✅
+  - [x] Ajouter l'attribut `multiple` à l'input file pour forcer l'envoi du fichier original (Bypass Safari downscaling)
+  - [x] Mettre à jour les MIME types pour inclure `video/quicktime` (iPhone natif)
+  - [x] Documenter que la stabilisation native dépend des réglages iOS de l'utilisateur
 
 ## Progress Log
 
