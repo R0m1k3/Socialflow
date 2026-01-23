@@ -119,7 +119,10 @@ export default function MobileNewReel() {
                 method: "POST",
                 body: formData,
             });
-            if (!response.ok) throw new Error("Upload failed");
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${errorText.substring(0, 100)}`);
+            }
             return response.json();
         },
         onSuccess: (data) => {
@@ -128,8 +131,14 @@ export default function MobileNewReel() {
             setSelectedVideo(data);
             toast({ title: "Succès", description: "Vidéo téléchargée" });
         },
-        onError: () => {
-            toast({ title: "Erreur", description: "Échec upload", variant: "destructive" });
+        onError: (error) => {
+            console.error("Upload error details:", error);
+            toast({
+                title: "Erreur Upload",
+                description: error.message || "Échec inattendu",
+                variant: "destructive",
+                duration: 5000
+            });
         },
     });
 
