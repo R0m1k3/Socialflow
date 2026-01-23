@@ -11,8 +11,8 @@ import { Lock, User, Sparkles } from "lucide-react";
 export default function Login() {
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
+  const [username, setUsername] = useState("admin");
+  const [password, setPassword] = useState("admin");
   const [isLoading, setIsLoading] = useState(false);
   const [showDefaultPassword, setShowDefaultPassword] = useState(false);
 
@@ -58,7 +58,7 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-primary/5 to-secondary/5 p-4">
       <div className="absolute inset-0 bg-grid-pattern opacity-5"></div>
-      
+
       <Card className="w-full max-w-md rounded-2xl border-border/50 shadow-2xl relative z-10">
         <CardHeader className="space-y-4 text-center pt-8 pb-6">
           <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-secondary mx-auto flex items-center justify-center shadow-2xl">
