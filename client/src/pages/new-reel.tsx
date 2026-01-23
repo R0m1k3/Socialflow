@@ -195,15 +195,28 @@ export default function NewReel() {
         },
     });
 
-    const onDrop = useCallback((acceptedFiles: File[]) => {
+    const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
+        if (fileRejections.length > 0) {
+            console.error('❌ Fichiers rejetés:', fileRejections);
+            const rej = fileRejections[0];
+            toast({
+                title: "Fichier non supporté",
+                description: `Type détecté: ${rej.file.type || 'Inconnu'}. Erreur: ${rej.errors?.[0]?.message}`,
+                variant: "destructive",
+            });
+            return;
+        }
+
         if (acceptedFiles.length > 0) {
             const file = acceptedFiles[0];
-            if (file.type.startsWith('video/')) {
+            console.log('✅ Fichier accepté:', file.type, file.size);
+            // Accepter aussi formats iOS sans type MIME standard
+            if (file.type.startsWith('video/') || file.name.toLowerCase().endsWith('.mov') || file.name.toLowerCase().endsWith('.mp4')) {
                 uploadMutation.mutate(file);
             } else {
                 toast({
                     title: "Format invalide",
-                    description: "Veuillez sélectionner un fichier vidéo",
+                    description: `Fichier non reconnu comme vidéo (${file.type || 'sans type'}). Essayez MP4/MOV.`,
                     variant: "destructive",
                 });
             }
