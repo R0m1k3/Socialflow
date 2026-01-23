@@ -480,8 +480,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             if has_tts:
                 # Subtitles (TikTok style) using SRT (already generated in TTS block)
                 print(f"🎬 Overlaying subtitles from TTS SRT: {tts_srt_path}")
-                # White color (&H00FFFFFF), Size 30, Black outline
-                style = f"FontName=DejaVu Sans,FontSize=30,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=250"
+                # White color (&H00FFFFFF), Size 10, Centered (Alignment 5)
+                style = f"FontName=DejaVu Sans,FontSize=10,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=1,Shadow=0,Bold=1,Alignment=5,MarginV=0"
                 srt_path_str = str(tts_srt_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f"subtitles='{srt_path_str}':force_style='{style}'"
             else:
@@ -490,8 +490,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 std_srt_path = job_dir / "std_text.srt"
                 generate_simple_srt(request.text, std_srt_path)
                 
-                # White color (&H00FFFFFF), Size 30, Black outline
-                style = f"FontName=DejaVu Sans,FontSize=30,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=250"
+                # White color (&H00FFFFFF), Size 10, Centered (Alignment 5)
+                style = f"FontName=DejaVu Sans,FontSize=10,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=1,Shadow=0,Bold=1,Alignment=5,MarginV=0"
                 srt_path_str = str(std_srt_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f"subtitles='{std_srt_path}':force_style='{style}'"
             
