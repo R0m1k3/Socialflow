@@ -33,7 +33,7 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:", "blob:"],
       fontSrc: ["'self'", "https://fonts.gstatic.com"],
       connectSrc: ["'self'", "https://graph.facebook.com", "https://openrouter.ai", "https://res.cloudinary.com", "https://freesound.org", "wss:", "ws:"],
-      mediaSrc: ["'self'", "https://cdn.freesound.org", "https:"],
+      mediaSrc: ["'self'", "https://cdn.freesound.org", "https:", "data:"],
     }
   },
   crossOriginEmbedderPolicy: false,
