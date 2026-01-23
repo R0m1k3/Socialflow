@@ -31,7 +31,7 @@ class ReelRequest(BaseModel):
     music_id: Optional[str] = None
     music_url: Optional[str] = None
     word_duration: float = 0.6
-    font_size: int = 10
+    font_size: int = 64
     music_volume: float = 0.25
     tts_enabled: bool = False
     tts_voice: str = "fr-FR-VivienneMultilingualNeural"
@@ -359,7 +359,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             if has_tts:
                 # Use subtitles filter
                 # Force style to look like TikTok/Reels text (No Black Box, just Outline)
-                style = f"FontName=Arial,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=150"
+                # Bigger font size (64 by default) and better vertical margin for 1080p
+                style = f"FontName=Arial,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
                 # Escape path for FFmpeg filter
                 vtt_path_str = str(tts_vtt_path).replace("\\", "/").replace(":", "\\:")
                 video_filters.append(
@@ -367,16 +368,12 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 )
             else:
                 # Standard Drawtext logic
+                # Scale font for 1080p
                 sanitized_text = request.text.replace("'", "").replace(":", "\\:")
-                drawtext = f"drawtext=fontfile={FONT_PATH}:text='{sanitized_text}':fontcolor=white:fontsize={request.font_size}:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-text_h-150"
+                drawtext = f"drawtext=fontfile={FONT_PATH}:text='{sanitized_text}':fontcolor=white:fontsize={request.font_size}:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-text_h-300"
                 video_filters.append(drawtext)
 
         # Audio Mixing Strategy
-        # We need to mix:
-        # 1. Original Video Audio (0:a) - if exists
-        # 2. Background Music (1:a) - if has_music
-        # 3. TTS Voice (1:a or 2:a) - if has_tts
-
         # Detect if original video has audio
         has_original_audio = False
         try:
@@ -400,67 +397,43 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
 
         filter_complex_parts = []
         mix_inputs = 0
-
         if has_music:
             cmd.extend(["-i", str(input_audio_path)])
-
         if has_tts:
             cmd.extend(["-i", str(tts_audio_path)])
 
-        # Prepare inputs for mixing
-        # ALWAYS ignore original video audio - only use music and/or TTS
-        # (Original audio is never used per user request)
-
         if has_music:
-            # Music volume - ensure it's properly scaled (0.0 to 1.0)
-            # Apply volume more aggressively for noticeable effect
             music_vol = request.music_volume
             if has_tts:
-                # Reduce music even more when TTS is active so voice is clear
                 music_vol = music_vol * 0.3
-            print(
-                f"🎵 Music volume applied: {music_vol:.2f} (requested: {request.music_volume})"
-            )
             filter_complex_parts.append(f"[1:a]volume={music_vol}[a1]")
             mix_inputs += 1
 
         if has_tts:
             tts_idx = 2 if has_music else 1
-            # Voice needs to be loud and clear
             filter_complex_parts.append(f"[{tts_idx}:a]volume=1.5[a2]")
             mix_inputs += 1
 
-        # Build mix command
         if mix_inputs > 0:
-            inputs_str = ""
-            # Note: Original audio is never mixed in (always muted)
-            if has_music:
-                inputs_str += "[a1]"
-            if has_tts:
-                inputs_str += "[a2]"
-
-            # IMPORTANT: normalize=0 prevents amix from auto-adjusting volumes
-            # which was causing volume slider to have no effect
+            inputs_str = "".join(
+                ["[a1]" if has_music else "", "[a2]" if has_tts else ""]
+            )
             filter_complex_parts.append(
                 f"{inputs_str}amix=inputs={mix_inputs}:duration=first:dropout_transition=2:normalize=0[aout]"
             )
-
             cmd.extend(["-filter_complex", ";".join(filter_complex_parts)])
-
-            # Map processed video and audio
             cmd.extend(["-map", "0:v", "-map", "[aout]"])
         else:
-            # No audio at all, just video
             cmd.extend(["-map", "0:v"])
 
-        # Apply Video Filters if any
+        # Scaling to 1080x1920 (Vertical HD Reel Format)
+        # unsharp is added to counteract any blurring from scaling
+        format_filter = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:0.8:3:3:0.4"
+        video_filters.insert(0, format_filter)
+
         if video_filters:
             cmd.extend(["-vf", ",".join(video_filters)])
 
-        # -shortest not needed with duration=first in amix, but good practice if logic changes
-        # actually duration=first in amix takes the length of the first input (usually video audio or music if mapped first)
-        # We want the video length to dictate.
-        # Easier: just use -shortest to cut audio to video length
         cmd.extend(["-shortest"])
 
         # Quality settings
@@ -469,15 +442,15 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 "-c:v",
                 "libx264",
                 "-preset",
-                "medium",
+                "slow",
                 "-crf",
-                "18",  # High quality output (lower = better, 18 is visually lossless)
+                "17",
                 "-c:a",
                 "aac",
                 "-b:a",
                 "192k",
                 "-pix_fmt",
-                "yuv420p",  # Ensure compatibility
+                "yuv420p",
                 "-movflags",
                 "+faststart",
             ]

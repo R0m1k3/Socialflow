@@ -76,6 +76,9 @@ export default function MobileNewReel() {
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
     const [musicOffset, setMusicOffset] = useState(0);
+    const [stabilize, setStabilize] = useState(true); // Activé par défaut pour les Reels
+    const [force1080p, setForce1080p] = useState(true); // Activé par défaut
+
 
     const { data: pages = [] } = useQuery<SocialPage[]>({
         queryKey: ['/api/pages'],
@@ -209,6 +212,7 @@ export default function MobileNewReel() {
             pageIds: selectedPages,
             scheduledFor: scheduledDate?.toISOString(),
             musicVolume: musicVolume[0] / 100,
+            stabilize: stabilize,
         });
     };
 
@@ -293,9 +297,27 @@ export default function MobileNewReel() {
                         </div>
 
                         {selectedVideo && (
-                            <Button className="w-full h-12 text-lg sticky bottom-4 shadow-xl" onClick={goNext}>
-                                Suivant <ChevronRight className="ml-2 w-5 h-5" />
-                            </Button>
+                            <div className="space-y-3">
+                                <Card>
+                                    <CardContent className="p-4 space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div className="space-y-0.5">
+                                                <div className="text-sm font-medium flex items-center gap-2">
+                                                    <Sparkles className="w-4 h-4 text-primary" /> Stabilisation & Qualité 1080p
+                                                </div>
+                                                <div className="text-xs text-muted-foreground">Recommandé pour Facebook Reels</div>
+                                            </div>
+                                            <Checkbox
+                                                checked={stabilize}
+                                                onCheckedChange={(checked) => setStabilize(!!checked)}
+                                            />
+                                        </div>
+                                    </CardContent>
+                                </Card>
+                                <Button className="w-full h-12 text-lg sticky bottom-4 shadow-xl" onClick={goNext}>
+                                    Suivant <ChevronRight className="ml-2 w-5 h-5" />
+                                </Button>
+                            </div>
                         )}
                     </div>
                 )}

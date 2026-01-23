@@ -102,6 +102,12 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] **Fix API 500** (`server/routes/reels.ts`) : Variable `stabilize` manquante corrigée.
 - [x] **Fix iOS Upload** (`client/src/pages/new-reel.tsx`) : Ajout support `.mov` et augmentation limite taille (500MB).
 - [ ] **Support Gros Fichiers (4GB)** : Passage à DiskStorage et streaming Cloudinary.
+- [ ] **Phase 10: Optimisation 1080p & Qualité Maximale** ⏳
+  - [x] FFmpeg: Forcer scaling 1080x1920 (Vertical HD)
+  - [x] FFmpeg: Augmenter CRF à 17 et preset à `slow`
+  - [x] FFmpeg: Augmenter taille police par défaut à 64
+  - [x] FFmpeg: Positionner texte plus bas (proportionnel 1080p)
+  - [/] Frontend: Ajouter toggle Stabilisation et Qualité
 
 ## Progress Log
 
