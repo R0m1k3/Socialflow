@@ -380,45 +380,15 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         video_filters = []
         audio_filters = []
 
-        # Text Overlay
-        # If TTS is enabled, we use the generated VTT subtitles for perfect sync
-        # If not, we use the standard drawtext
-        # Only apply if draw_text is True
-        if request.text and request.draw_text:
-            if has_tts:
-                # Use subtitles filter
-                # Force style to look like TikTok/Reels text (No Black Box, just Outline)
-                # Bigger font size (64 by default) and better vertical margin for 1080p
-                style = f"FontName=DejaVu Sans,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
-                # Escape path for FFmpeg filter
-                vtt_path_str = str(tts_vtt_path).replace("\\", "/").replace(":", "\\:")
-                video_filters.append(
-                    f"subtitles='{vtt_path_str}':force_style='{style}'"
-                )
-            else:
-                # Standard Drawtext logic
-                # Scale font for 1080p
-                sanitized_text = request.text.replace("'", "").replace(":", "\\:")
-                drawtext = f"drawtext=fontfile={FONT_PATH}:text='{sanitized_text}':fontcolor=white:fontsize={request.font_size}:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-text_h-300"
-                video_filters.append(drawtext)
-
-        # Build FFmpeg Command
+        # 4. Build FFmpeg Command with Unified filter_complex
         cmd = ["ffmpeg", "-y", "-i", str(input_video_path)]
 
-        # Audio Mixing Strategy
-        # Detect if original video has audio
+        # --- Audio Checks ---
         has_original_audio = False
         try:
             probe_cmd = [
-                "ffprobe",
-                "-v",
-                "error",
-                "-select_streams",
-                "a:0",
-                "-show_entries",
-                "stream=codec_type",
-                "-of",
-                "csv=p=0",
+                "ffprobe", "-v", "error", "-select_streams", "a:0",
+                "-show_entries", "stream=codec_type", "-of", "csv=p=0",
                 str(input_video_path),
             ]
             probe_out = subprocess.check_output(probe_cmd).decode().strip()
@@ -427,45 +397,107 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         except Exception:
             pass
 
-        filter_complex_parts = []
-        mix_inputs = 0
+        # --- Inputs ---
+        # 0: Video (already added)
+        # 1: Music (optional)
+        # 2: TTS (optional)
+        
+        input_count = 1
+        music_idx = -1
+        tts_idx = -1
+
         if has_music:
             cmd.extend(["-i", str(input_audio_path)])
+            music_idx = input_count
+            input_count += 1
+        
         if has_tts:
             cmd.extend(["-i", str(tts_audio_path)])
+            tts_idx = input_count
+            input_count += 1
 
-        if has_music:
-            music_vol = request.music_volume
+        # --- Filter Complex Construction ---
+        fc_parts = []
+        
+        # A. Video Chain
+        # 1. Scale & Pad & Unsharp
+        # [0:v] -> [v_processed]
+        video_filters_str = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:0.8:3:3:0.4"
+        
+        # 2. Text Overlay
+        if request.text and request.draw_text:
+            text_filter = ""
             if has_tts:
-                music_vol = music_vol * 0.3
-            filter_complex_parts.append(f"[1:a]volume={music_vol}[a1]")
-            mix_inputs += 1
+                # Subtitles (TikTok style) using VTT
+                # Force style to look like TikTok/Reels text
+                style = f"FontName=DejaVu Sans,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
+                vtt_path_str = str(tts_vtt_path).replace("\\", "/").replace(":", "\\:")
+                text_filter = f"subtitles='{vtt_path_str}':force_style='{style}'"
+            else:
+                # Standard Drawtext
+                # Ensure font path is valid (using FONT_PATH detected earlier)
+                sanitized_text = request.text.replace("'", "").replace(":", "\\:")
+                text_filter = f"drawtext=fontfile='{FONT_PATH}':text='{sanitized_text}':fontcolor=white:fontsize={request.font_size}:borderw=3:bordercolor=black:x=(w-text_w)/2:y=h-text_h-300"
+            
+            # Combine formatting + text
+            video_filters_str += f",{text_filter}"
 
-        if has_tts:
-            tts_idx = 2 if has_music else 1
-            filter_complex_parts.append(f"[{tts_idx}:a]volume=1.5[a2]")
-            mix_inputs += 1
+        # Define Video Chain
+        fc_parts.append(f"[0:v]{video_filters_str}[vout]")
 
-        if mix_inputs > 0:
-            inputs_str = "".join(
-                ["[a1]" if has_music else "", "[a2]" if has_tts else ""]
-            )
-            filter_complex_parts.append(
-                f"{inputs_str}amix=inputs={mix_inputs}:duration=first:dropout_transition=2:normalize=0[aout]"
-            )
-            cmd.extend(["-filter_complex", ";".join(filter_complex_parts)])
-            cmd.extend(["-map", "0:v", "-map", "[aout]"])
+        # B. Audio Chain
+        audio_mapped = False
+        
+        inputs_for_mix = 0
+        audio_mix_str = ""
+
+        # Strategy:
+        # If no music and no TTS -> Copy original audio (if exists) or silent
+        # If music or TTS -> Mix everything
+        
+        if has_music or has_tts:
+            # Prepare inputs
+            if has_original_audio:
+                audio_mix_str += "[0:a]"
+                inputs_for_mix += 1
+            
+            if has_music:
+                # Adjust volume
+                fc_parts.append(f"[{music_idx}:a]volume={request.music_volume}[a_music]")
+                audio_mix_str += "[a_music]"
+                inputs_for_mix += 1
+            
+            if has_tts:
+                # TTS louder
+                fc_parts.append(f"[{tts_idx}:a]volume=1.5[a_tts]")
+                audio_mix_str += "[a_tts]"
+                inputs_for_mix += 1
+            
+            # Mix
+            if inputs_for_mix > 0:
+                fc_parts.append(f"{audio_mix_str}amix=inputs={inputs_for_mix}:duration=first:dropout_transition=2:normalize=0[aout]")
+                audio_mapped = True
         else:
-            cmd.extend(["-map", "0:v"])
+            # No external audio added
+            if has_original_audio:
+                # Just pass through original audio
+                # We can map 0:a directly, no filter needed for audio
+                audio_mapped = False 
+            else:
+                # No audio at all
+                audio_mapped = False
 
-        # Scaling to 1080x1920 (Vertical HD Reel Format)
-        # unsharp is added to counteract any blurring from scaling
-        format_filter = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:0.8:3:3:0.4"
-        video_filters.insert(0, format_filter)
-
-        if video_filters:
-            cmd.extend(["-vf", ",".join(video_filters)])
-
+        # Apply Filter Complex
+        cmd.extend(["-filter_complex", ";".join(fc_parts)])
+        
+        # Maps
+        cmd.extend(["-map", "[vout]"]) # Map processed video
+        
+        if audio_mapped:
+            cmd.extend(["-map", "[aout]"]) # Map mixed audio
+        elif has_original_audio:
+            cmd.extend(["-map", "0:a"]) # Map original audio directly
+        
         cmd.extend(["-shortest"])
 
         # Quality settings
