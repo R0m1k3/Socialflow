@@ -20,6 +20,13 @@ API_KEY = os.environ.get("API_KEY", "default-key")
 TEMP_DIR = Path("/tmp/ffmpeg_processing")
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
+# List available fonts for debugging
+try:
+    print("📋 Available fonts:")
+    subprocess.run(["fc-list"], check=True)
+except Exception as e:
+    print(f"⚠️ Failed to list fonts: {e}")
+
 # Font path for text overlay (installed via fonts-dejavu in Dockerfile)
 # Robust font detection
 def get_font_path():
@@ -424,13 +431,9 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         # [0:v] -> [v_processed]
         video_filters_str = "scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,unsharp=5:5:0.8:3:3:0.4"
         
-        # 2. Text Overlay
-        if request.text and request.draw_text:
-            text_filter = ""
-            if has_tts:
-                # Subtitles (TikTok style) using VTT
                 # Force style to look like TikTok/Reels text
-                style = f"FontName=DejaVu Sans,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
+                # Use generic 'Sans' which fontconfig should alias to DejaVu or similar
+                style = f"FontName=Sans,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
                 vtt_path_str = str(tts_vtt_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f"subtitles='{vtt_path_str}':force_style='{style}'"
             else:
@@ -526,11 +529,17 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         # execute
         process = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
+        # Log detailed output on failure OR success for debugging font issues
+        if process.returncode != 0:
+            print(f"❌ FFmpeg failed. Stderr:\n{process.stderr.decode()}")
+        else:
+            # Check stderr for font warnings even on success
+            print(f"✅ FFmpeg executed. Stderr (last 20 lines):\n{'\n'.join(process.stderr.decode().splitlines()[-20:])}")
+
         stats["encoding_duration"] = time.time() - start_step
         stats["total_duration"] = time.time() - start_total
 
         if process.returncode != 0:
-            print(f"FFmpeg failed: {process.stderr.decode()}")
             raise Exception(f"FFmpeg encoding failed: {process.stderr.decode()}")
 
         # 4. Get Duration (ffprobe)
