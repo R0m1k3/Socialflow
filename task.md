@@ -97,6 +97,12 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [x] Afficher les étapes (Upload, Audio, Stabilisation, Encodage)
   - [x] Estimer le temps restant selon les options activées (Stabilisation = +30s)
 
+### Phase 9: Maintenance & Bug Fixes 🛠️
+
+- [x] **Fix API 500** (`server/routes/reels.ts`) : Variable `stabilize` manquante corrigée.
+- [x] **Fix iOS Upload** (`client/src/pages/new-reel.tsx`) : Ajout support `.mov` et augmentation limite taille (500MB).
+- [ ] **Support Gros Fichiers (4GB)** : Passage à DiskStorage et streaming Cloudinary.
+
 ## Progress Log
 
 - **22 Jan 2026** - Analyse complète et PRD créé

@@ -1,5 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import fs from "fs";
+import os from "os";
 import { storage } from "./storage";
 import { db } from "./db";
 import multer from "multer";
@@ -20,14 +22,25 @@ const ALLOWED_MIME_TYPES = [
 ];
 
 // Configuration multer avec validation de taille et type
+// Configuration multer avec validation de taille (4GB) et stockage disque temporaire
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage: multer.diskStorage({
+    destination: os.tmpdir(),
+    filename: (req, file, cb) => {
+      // Nettoyer le nom de fichier pour éviter les problèmes d'encodage
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + '-' + safeName);
+    }
+  }),
   limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB max
+    fileSize: 4 * 1024 * 1024 * 1024, // 4GB max
     files: 10 // 10 fichiers max
   },
   fileFilter: (req, file, cb) => {
-    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    // Accepter plus de formats vidéo si nécessaire (ex: mkv, avi) pour le transcodage
+    // Mais on garde les limites actuelles pour l'instant
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype) || file.mimetype === 'application/octet-stream') { // iOS envoie parfois octet-stream
       cb(null, true);
     } else {
       cb(new Error(`Type de fichier non autorisé: ${file.mimetype}`));
@@ -498,6 +511,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
+      console.log(`📂 Processing upload: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
+
       const user = req.user as User;
       const userId = user.id;
 
@@ -505,22 +520,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const cloudinaryConfig = await storage.getAnyCloudinaryConfig();
 
       if (!cloudinaryConfig) {
+        // Nettoyer le fichier temporaire
+        await fs.promises.unlink(req.file.path).catch(console.error);
         return res.status(400).json({
           error: "Cloudinary not configured. Please ask an administrator to configure Cloudinary in Settings first."
         });
       }
 
-      // Upload to Cloudinary (service will use shared config internally)
+      // Upload to Cloudinary using file path (streamed from disk)
+      // req.file.path est disponible avec DiskStorage
       const uploadResult = await cloudinaryService.uploadMedia(
-        req.file.buffer,
+        req.file.path,
         req.file.originalname,
         userId,
         req.file.mimetype
       );
 
+      // Clean up temp file immediately after upload to free disk space
+      await fs.promises.unlink(req.file.path).catch(err => console.error("Failed to cleanup temp file:", err));
+
       const mediaItem = await storage.createMedia({
         userId,
-        type: req.file.mimetype.startsWith("video/") ? "video" : "image",
+        // Détection basique basée sur le mimetype ou le résultat Cloudinary
+        type: req.file.mimetype.startsWith("video/") || req.file.originalname.match(/\.(mp4|mov|avi|mkv)$/i) ? "video" : "image",
         cloudinaryPublicId: uploadResult.publicId,
         originalUrl: uploadResult.originalUrl,
         facebookFeedUrl: uploadResult.facebookFeedUrl,
@@ -533,6 +555,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(mediaItem);
     } catch (error) {
       console.error("Error uploading media:", error);
+
+      // Attempt cleanup on error
+      if (req.file && req.file.path) {
+        await fs.promises.unlink(req.file.path).catch(() => { });
+      }
+
       const errorMessage = error instanceof Error ? error.message : "Failed to upload media";
       res.status(500).json({ error: errorMessage });
     }

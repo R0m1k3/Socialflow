@@ -3,7 +3,7 @@ import { storage } from '../storage';
 
 class CloudinaryService {
   async uploadMedia(
-    buffer: Buffer,
+    file: Buffer | string,
     fileName: string,
     userId: string,
     mimeType: string
@@ -16,7 +16,7 @@ class CloudinaryService {
   }> {
     // Get any available Cloudinary config (shared across all users)
     const config = await storage.getAnyCloudinaryConfig();
-    
+
     if (!config) {
       throw new Error('Cloudinary configuration not found. Please ask an administrator to configure Cloudinary in Settings first.');
     }
@@ -32,30 +32,42 @@ class CloudinaryService {
     const isVideo = mimeType.startsWith('video/');
 
     // Define eager transformations for images (generated during upload)
+    // Note: Eager transformations are not applied to videos in this flow to avoid timeouts or huge processing
     const eagerTransformations = !isVideo ? [
       { width: 1080, height: 1080, crop: 'fill', gravity: 'center' },                        // Facebook Feed (square, no borders)
       { width: 1080, height: 1080, crop: 'pad', gravity: 'center', background: 'auto' },     // Instagram Feed
       { width: 1080, height: 1920, crop: 'pad', gravity: 'center', background: 'auto' }      // Instagram Story
     ] : undefined;
 
-    // Upload to Cloudinary with eager transformations
-    const uploadResult = await new Promise<any>((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          folder: 'social-flow',
-          public_id: `${Date.now()}-${fileName.replace(/\.[^/.]+$/, '')}`,
-          resource_type: isVideo ? 'video' : 'image',
-          eager: eagerTransformations,
-          eager_async: false, // Generate transformations immediately
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
+    const uploadOptions = {
+      folder: 'social-flow',
+      public_id: `${Date.now()}-${fileName.replace(/\.[^/.]+$/, '')}`,
+      resource_type: isVideo ? 'video' : 'image',
+      eager: eagerTransformations,
+      eager_async: false, // Generate transformations immediately
+    };
 
-      uploadStream.end(buffer);
-    });
+    let uploadResult;
+
+    if (typeof file === 'string') {
+      // Upload from file path (streamed by SDK)
+      uploadResult = await cloudinary.uploader.upload(file, {
+        ...uploadOptions,
+        resource_type: isVideo ? 'video' : 'image', // Type assertion for SDK
+      } as any);
+    } else {
+      // Upload from buffer (memory)
+      uploadResult = await new Promise<any>((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          uploadOptions as any,
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+        uploadStream.end(file);
+      });
+    }
 
     const publicId = uploadResult.public_id;
     const originalUrl = uploadResult.secure_url;
@@ -83,7 +95,7 @@ class CloudinaryService {
   async deleteMedia(publicId: string, userId: string, mediaType: 'image' | 'video'): Promise<void> {
     // Get any available Cloudinary config (shared across all users)
     const config = await storage.getAnyCloudinaryConfig();
-    
+
     if (!config) {
       throw new Error('Cloudinary configuration not found. Please ask an administrator to configure Cloudinary in Settings first.');
     }
@@ -102,7 +114,7 @@ class CloudinaryService {
 
   async uploadStoryImageWithText(buffer: Buffer, originalFileName: string): Promise<string> {
     const config = await storage.getAnyCloudinaryConfig();
-    
+
     if (!config) {
       throw new Error('Cloudinary configuration not found. Please ask an administrator to configure Cloudinary in Settings first.');
     }
@@ -135,7 +147,7 @@ class CloudinaryService {
 
   async uploadLogo(buffer: Buffer, fileName: string): Promise<{ publicId: string; url: string }> {
     const config = await storage.getAnyCloudinaryConfig();
-    
+
     if (!config) {
       throw new Error('Cloudinary configuration not found. Please ask an administrator to configure Cloudinary in Settings first.');
     }
@@ -171,7 +183,7 @@ class CloudinaryService {
 
   async deleteLogo(publicId: string): Promise<void> {
     const config = await storage.getAnyCloudinaryConfig();
-    
+
     if (!config) {
       throw new Error('Cloudinary configuration not found. Please ask an administrator to configure Cloudinary in Settings first.');
     }

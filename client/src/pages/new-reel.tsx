@@ -237,7 +237,7 @@ export default function NewReel() {
             'video/x-msvideo': ['.avi'],
             'video/*': [], // Fallback
         },
-        maxSize: 500 * 1024 * 1024, // 500MB pour supporter les vidéos 4K
+        maxSize: 4 * 1024 * 1024 * 1024, // 4GB Limit
         noClick: true,
         noKeyboard: true,
     });
