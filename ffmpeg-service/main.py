@@ -20,42 +20,50 @@ API_KEY = os.environ.get("API_KEY", "default-key")
 TEMP_DIR = Path("/tmp/ffmpeg_processing")
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
-# List available fonts for debugging
+# Set HOME for libass/fontconfig to ensure cache can be written
+os.environ["HOME"] = "/tmp"
+
+# List available filters and fonts for debugging
 try:
+    print("📋 Checking FFmpeg environment...")
+    filters_out = subprocess.run(["ffmpeg", "-filters"], capture_output=True, text=True).stdout
+    has_subtitles = "subtitles" in filters_out
+    has_drawtext = "drawtext" in filters_out
+    print(f"✅ Filters found: subtitles={has_subtitles}, drawtext={has_drawtext}")
+    
     print("📋 Available fonts:")
     subprocess.run(["fc-list"], check=True)
 except Exception as e:
-    print(f"⚠️ Failed to list fonts: {e}")
+    print(f"⚠️ Failed to check FFmpeg environment: {e}")
 
-# Font path for text overlay (installed via fonts-dejavu in Dockerfile)
 # Robust font detection
 def get_font_path():
     possible_paths = [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/dejavu-core/DejaVuSans.ttf",
         "/usr/share/fonts/TTF/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "/usr/share/fonts/truetype/msttcorefonts/Arial.ttf"
     ]
     for path in possible_paths:
         if os.path.exists(path):
             print(f"✅ Found font at: {path}")
             return path
     
-    # Fallback: search anywhere in /usr/share/fonts
-    print("⚠️ Specific font not found, searching recursively...")
+    # Fallback search
+    print("⚠️ Specific font not found, searching recursively in /usr/share/fonts...")
     try:
+        found = []
         for root, dirs, files in os.walk("/usr/share/fonts"):
             for file in files:
-                if file.endswith(".ttf") and ("Sans" in file or "Arial" in file):
-                    full_path = os.path.join(root, file)
-                    print(f"✅ Found fallback font at: {full_path}")
-                    return full_path
+                if file.endswith(".ttf"):
+                    found.append(os.path.join(root, file))
+        if found:
+            print(f"✅ Found {len(found)} fonts, using first: {found[0]}")
+            return found[0]
     except Exception as e:
         print(f"⚠️ Error searching for fonts: {e}")
 
-    print("❌ No TTF font found! Text overlay may fail.")
-    return "font.ttf"  # Hope for the best or let ffmpeg fail
+    print("❌ No TTF font found!")
+    return "Arial"
 
 FONT_PATH = get_font_path()
 
@@ -178,9 +186,14 @@ def generate_simple_srt(text: str, srt_path: Path):
 
         current_time += duration
 
-    print(f"📄 Generated SRT content:\n{srt_content}")
+    print(f"📄 Generated {len(chunks)} SRT chunks. Content:\n{srt_content}")
     with open(srt_path, "w", encoding="utf-8") as f:
         f.write(srt_content)
+    
+    if srt_path.exists():
+        print(f"✅ SRT file written: {srt_path.stat().st_size} bytes at {srt_path}")
+    else:
+        print(f"❌ Failed to write SRT file at {srt_path}")
 
 
 def format_srt_time(seconds: float) -> str:
@@ -446,19 +459,17 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             text_filter = ""
             if has_tts:
                 # Subtitles (TikTok style) using SRT (already generated in TTS block)
-                # Force style to look like TikTok/Reels text
-                # We use DejaVu Sans exactly as listed in fc-list
-                style = f"FontName=DejaVu Sans,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
+                print(f"🎬 Overlaying subtitles from TTS SRT: {tts_srt_path}")
+                style = f"FontName=DejaVu Sans,FontSize=120,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=150"
                 srt_path_str = str(tts_srt_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f"subtitles='{srt_path_str}':force_style='{style}'"
             else:
                 # Standard Text (without TTS)
-                # We use subtitles filter here too because drawtext filter was reported missing
-                print("📝 Using subtitles filter for standard text overlay (fallback from drawtext)")
+                print(f"🎬 Overlaying subtitles from standard text: {request.text[:30]}...")
                 std_srt_path = job_dir / "std_text.srt"
                 generate_simple_srt(request.text, std_srt_path)
                 
-                style = f"FontName=DejaVu Sans,FontSize={request.font_size},PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=300"
+                style = f"FontName=DejaVu Sans,FontSize=120,PrimaryColour=&H0000FFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=0,Bold=1,Alignment=2,MarginV=150"
                 srt_path_str = str(std_srt_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f"subtitles='{srt_path_str}':force_style='{style}'"
             
