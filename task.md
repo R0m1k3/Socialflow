@@ -60,6 +60,19 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [x] Integrate CameraRecorder into `new-reel.tsx`
   - [x] Add quality settings panel in camera UI
 
+### Phase 5: Reels Enhancements ⚡
+
+- [x] **Enable Text Overlay by Default** in `new-reel.tsx`
+- [x] **Expand French Voice Options**
+  - [x] Research available French voices (Edge-TTS)
+  - [x] Update frontend selection list
+  - [x] Update backend validation if needed
+- [x] **Add Voice Test Button** (Preview TTS)
+
+### Phase 6: Workflow Initialization 🚫
+
+- [~] Run `/bmad-bmgd-workflows-workflow-init` (Annulé: Application, pas un Jeu)
+
 ## Progress Log
 
 - **22 Jan 2026** - Analyse complète et PRD créé

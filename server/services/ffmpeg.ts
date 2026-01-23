@@ -263,6 +263,46 @@ export class FFmpegService {
             return false;
         }
     }
+    async previewTTS(
+        text: string,
+        voice: string
+    ): Promise<{ success: boolean; audioBase64?: string; error?: string }> {
+        const config = this.ensureConfigured();
+
+        try {
+            const response = await fetch(`${config.apiUrl}/preview-tts`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-API-Key': config.apiKey,
+                },
+                body: JSON.stringify({
+                    text,
+                    tts_voice: voice
+                }),
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                return { success: false, error: `FFmpeg API error: ${response.status} - ${errorText}` };
+            }
+
+            const data = await response.json();
+
+            if (!data.success) {
+                return { success: false, error: data.detail };
+            }
+
+            return { success: true, audioBase64: data.audio_base64 };
+
+        } catch (error) {
+            console.error('❌ TTS Preview error:', error);
+            return {
+                success: false,
+                error: error instanceof Error ? error.message : 'Unknown error',
+            };
+        }
+    }
 }
 
 export const ffmpegService = new FFmpegService();

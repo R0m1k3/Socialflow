@@ -66,8 +66,8 @@ export default function NewReel() {
     const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
     const [musicVolume, setMusicVolume] = useState([25]);
     const [ttsEnabled, setTtsEnabled] = useState(true);
-    const [ttsVoice, setTtsVoice] = useState("female");
-    const [drawText, setDrawText] = useState(false);
+    const [ttsVoice, setTtsVoice] = useState("fr-FR-VivienneMultilingualNeural");
+    const [drawText, setDrawText] = useState(true);
 
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
@@ -742,28 +742,63 @@ export default function NewReel() {
                                                         <Mic className="w-4 h-4" />
                                                         Voix du narrateur
                                                     </Label>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <div
-                                                            onClick={() => setTtsVoice("female")}
-                                                            className={`cursor-pointer p-3 rounded-md border-2 text-center transition-all ${ttsVoice === 'female'
-                                                                ? 'border-primary bg-primary/10'
-                                                                : 'border-transparent bg-background hover:bg-accent'
-                                                                }`}
-                                                        >
-                                                            <div className="font-semibold">Féminine</div>
-                                                            <div className="text-xs text-muted-foreground">Vivienne</div>
-                                                        </div>
-                                                        <div
-                                                            onClick={() => setTtsVoice("male")}
-                                                            className={`cursor-pointer p-3 rounded-md border-2 text-center transition-all ${ttsVoice === 'male'
-                                                                ? 'border-primary bg-primary/10'
-                                                                : 'border-transparent bg-background hover:bg-accent'
-                                                                }`}
-                                                        >
-                                                            <div className="font-semibold">Masculine</div>
-                                                            <div className="text-xs text-muted-foreground">Rémy</div>
-                                                        </div>
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        {[
+                                                            { id: "fr-FR-VivienneMultilingualNeural", label: "Vivienne", type: "Femme (Défaut)", style: "bg-pink-500/10 border-pink-500/50" },
+                                                            { id: "fr-FR-RemyMultilingualNeural", label: "Rémy", type: "Homme", style: "bg-blue-500/10 border-blue-500/50" },
+                                                            { id: "fr-FR-DeniseNeural", label: "Denise", type: "Femme (Calme)", style: "bg-purple-500/10 border-purple-500/50" },
+                                                            { id: "fr-FR-HenriNeural", label: "Henri", type: "Homme (Grave)", style: "bg-slate-500/10 border-slate-500/50" },
+                                                            { id: "fr-FR-EloiseNeural", label: "Éloïse", type: "Enfant", style: "bg-orange-500/10 border-orange-500/50" }
+                                                        ].map((voice) => (
+                                                            <div
+                                                                key={voice.id}
+                                                                onClick={() => setTtsVoice(voice.id)}
+                                                                className={`cursor-pointer p-3 rounded-md border-2 transition-all hover:bg-accent ${ttsVoice === voice.id || (ttsVoice === 'female' && voice.id === 'fr-FR-VivienneMultilingualNeural')
+                                                                    ? `border-primary ${voice.style}`
+                                                                    : 'border-transparent bg-muted/30'
+                                                                    }`}
+                                                            >
+                                                                <div className="font-semibold flex items-center justify-between">
+                                                                    {voice.label}
+                                                                    {(ttsVoice === voice.id || (ttsVoice === 'female' && voice.id === 'fr-FR-VivienneMultilingualNeural')) && <Check className="w-3 h-3 text-primary" />}
+                                                                </div>
+                                                                <div className="text-xs text-muted-foreground">{voice.type}</div>
+                                                            </div>
+                                                        ))}
                                                     </div>
+
+                                                    <div className="mt-3 flex gap-2">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="secondary"
+                                                            className="w-full"
+                                                            onClick={async (e) => {
+                                                                e.stopPropagation();
+                                                                const textToTest = overlayText || "Ceci est un test de voix pour votre vidéo.";
+                                                                try {
+                                                                    const response = await apiRequest('POST', '/api/reels/tts-preview', {
+                                                                        text: textToTest,
+                                                                        voice: ttsVoice
+                                                                    });
+                                                                    const data = await response.json();
+                                                                    if (data.success && data.audioBase64) {
+                                                                        const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
+                                                                        audio.play();
+                                                                    }
+                                                                } catch (err) {
+                                                                    toast({
+                                                                        title: "Erreur",
+                                                                        description: "Impossible de tester la voix",
+                                                                        variant: "destructive"
+                                                                    });
+                                                                }
+                                                            }}
+                                                        >
+                                                            <Play className="w-3 h-3 mr-2" />
+                                                            Tester la voix
+                                                        </Button>
+                                                    </div>
+
                                                     <p className="text-xs text-muted-foreground mt-2">
                                                         Le texte sera automatiquement synchronisé avec la voix.
                                                         Les #hashtags et émojis ne seront pas lus.

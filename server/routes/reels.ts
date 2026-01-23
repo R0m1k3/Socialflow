@@ -238,6 +238,31 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
 });
 
 /**
+ * Prévisualiser la voix TTS
+ * POST /api/reels/tts-preview
+ */
+reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
+    try {
+        const { text, voice } = req.body;
+
+        if (!text) {
+            return res.status(400).json({ error: 'Texte requis' });
+        }
+
+        const result = await ffmpegService.previewTTS(text, voice);
+
+        if (!result.success) {
+            return res.status(500).json({ error: result.error || 'Erreur de génération TTS' });
+        }
+
+        res.json({ success: true, audioBase64: result.audioBase64 });
+    } catch (error) {
+        console.error('❌ Error generating TTS preview:', error);
+        res.status(500).json({ error: 'Erreur lors de la génération de la voix' });
+    }
+});
+
+/**
  * Créer et publier un Reel
  * POST /api/reels
  */

@@ -54,23 +54,23 @@ async def generate_tts_with_subs(
 
     # Determine gender of requested voice to choose appropriate fallbacks
     is_male = any(name in voice for name in ["Remy", "Henri", "Paul"])
-    
+
     if is_male:
         fallback_voices = [
-            voice,               # Try requested voice first
-            "fr-FR-HenriNeural", # Primary Male fallback
+            voice,  # Try requested voice first
+            "fr-FR-HenriNeural",  # Primary Male fallback
             "fr-FR-PaulNeural",  # Secondary Male fallback
         ]
     else:
         fallback_voices = [
-            voice,                  # Try requested voice first
-            "fr-FR-VivienneNeural", # Primary Female fallback
-            "fr-FR-DeniseNeural",   # Secondary Female fallback
+            voice,  # Try requested voice first
+            "fr-FR-VivienneNeural",  # Primary Female fallback
+            "fr-FR-DeniseNeural",  # Secondary Female fallback
         ]
-        
+
     # Always add English fallback as last resort
     fallback_voices.append("en-US-JennyNeural")
-    
+
     # Remove duplicates while preserving order
     fallback_voices = list(dict.fromkeys(fallback_voices))
 
@@ -427,6 +427,51 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         shutil.rmtree(job_dir)
 
         return {"success": True, "output_base64": out_b64, "duration": duration}
+
+    except Exception as e:
+        if "job_dir" in locals():
+            shutil.rmtree(job_dir, ignore_errors=True)
+        return {"success": False, "detail": str(e)}
+
+
+@app.post("/preview-tts")
+async def preview_tts(request: ReelRequest, x_api_key: str = Header(None)):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+
+    try:
+        job_id = str(uuid.uuid4())
+        job_dir = TEMP_DIR / job_id
+        job_dir.mkdir()
+
+        tts_audio_path = job_dir / "preview.mp3"
+        tts_vtt_path = job_dir / "preview.vtt"  # Not used but needed for function sig
+
+        if not request.text:
+            raise HTTPException(status_code=400, detail="Text required for preview")
+
+        clean_text = clean_text_for_tts(request.text)
+
+        # Determine voice (reuse logic)
+        voice = request.tts_voice
+        if voice == "male":
+            voice = "fr-FR-RemyMultilingualNeural"
+        elif voice == "female":
+            voice = "fr-FR-VivienneMultilingualNeural"
+        elif not voice or "Neural" not in voice:
+            voice = "fr-FR-VivienneMultilingualNeural"
+
+        await generate_tts_with_subs(clean_text, voice, tts_audio_path, tts_vtt_path)
+
+        if not tts_audio_path.exists():
+            raise Exception("TTS generation failed (file missing)")
+
+        with open(tts_audio_path, "rb") as f:
+            audio_bytes = f.read()
+            audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+
+        shutil.rmtree(job_dir)
+        return {"success": True, "audio_base64": audio_b64}
 
     except Exception as e:
         if "job_dir" in locals():
