@@ -197,11 +197,16 @@ export default function NewReel() {
 
     const onDrop = useCallback((acceptedFiles: File[], fileRejections: any[]) => {
         if (fileRejections.length > 0) {
-            console.error('❌ Fichiers rejetés:', fileRejections);
             const rej = fileRejections[0];
+            const errorMsg = `Erreur: ${rej.errors?.[0]?.message}. Type: ${rej.file.type || 'Inconnu'}. Nom: ${rej.file.name}`;
+            console.error('❌ Fichiers rejetés:', errorMsg);
+
+            // Debug mobile agressif
+            window.alert("Fichier rejeté !\n" + errorMsg);
+
             toast({
                 title: "Fichier non supporté",
-                description: `Type détecté: ${rej.file.type || 'Inconnu'}. Erreur: ${rej.errors?.[0]?.message}`,
+                description: errorMsg,
                 variant: "destructive",
             });
             return;
