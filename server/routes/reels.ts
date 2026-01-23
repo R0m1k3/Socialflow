@@ -284,6 +284,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             fontSize = 16,
             musicVolume = 0.25,
             drawText = true,
+            stabilize = false,
         } = req.body;
 
         // Validation
