@@ -122,6 +122,8 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [x] **Refactor FFmpeg** : Passage à un pipeline `filter_complex` unifié pour éviter les conflits et garantir l'overlay.
   - [x] **Fix Indentation** : Correction de l'erreur de syntaxe Python introduite.
   - [x] **Fix F-String Syntax** : Correction de l'erreur `f-string expression part cannot include a backslash`.
+  - [x] **Final Robust Fix** : Switch complet vers le filtre `subtitles` et format `.srt` pour contourner l'absence de `drawtext` dans l'environnement.
+  - [x] **Style Adjustment** : Réduction de la taille du texte à 30 pour un rendu plus élégant.
 
 ## Progress Log
 
