@@ -213,9 +213,13 @@ export default function NewReel() {
     const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
         onDrop,
         accept: {
-            "video/*": [".mp4", ".mov", ".webm", ".3gp", ".3gpp", ".mkv", ".avi"],
+            'video/mp4': ['.mp4', '.m4v'],
+            'video/quicktime': ['.mov', '.qt'],
+            'video/webm': ['.webm'],
+            'video/x-msvideo': ['.avi'],
+            'video/*': [], // Fallback
         },
-        maxSize: 52428800,
+        maxSize: 500 * 1024 * 1024, // 500MB pour supporter les vidéos 4K
         noClick: true,
         noKeyboard: true,
     });
