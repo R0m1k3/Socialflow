@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo } from "react";
 import { CameraRecorder } from "@/components/camera-recorder";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
@@ -42,6 +42,22 @@ export default function MobileNewReel() {
     const audioRef = useRef<HTMLAudioElement>(null);
 
     const [showCamera, setShowCamera] = useState(false);
+
+    // Détection iOS pour utiliser la caméra native (meilleure qualité + stabilisation)
+    const isIOS = useMemo(() => {
+        if (typeof navigator === 'undefined') return false;
+        return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    }, []);
+
+    // Handler pour le bouton caméra - iOS utilise l'input natif, Android utilise WebRTC
+    const handleCameraButtonClick = useCallback(() => {
+        if (isIOS) {
+            cameraInputRef.current?.click();
+        } else {
+            setShowCamera(true);
+        }
+    }, [isIOS]);
 
     // État du workflow
     const [currentStep, setCurrentStep] = useState<Step>('video');
@@ -238,15 +254,16 @@ export default function MobileNewReel() {
                             <input ref={cameraInputRef} type="file" accept="video/*" capture="environment" onChange={handleCameraCapture} className="hidden" />
 
                             <div className="flex gap-2 justify-center mb-6">
-                                <Button onClick={() => setShowCamera(true)} variant="outline" size="lg" className="h-12">
-                                    <Camera className="mr-2 h-5 w-5" /> Capturer
+                                <Button onClick={handleCameraButtonClick} variant="outline" size="lg" className="h-12">
+                                    <Camera className="mr-2 h-5 w-5" /> {isIOS ? 'Filmer (Qualité Max)' : 'Capturer'}
                                 </Button>
                                 <Button onClick={open} variant="outline" size="lg" className="h-12">
                                     <Upload className="mr-2 h-5 w-5" /> Galerie
                                 </Button>
                             </div>
 
-                            {showCamera && (
+                            {/* CameraRecorder pour Android uniquement */}
+                            {showCamera && !isIOS && (
                                 <CameraRecorder
                                     onCapture={(file) => {
                                         uploadMutation.mutate(file);
@@ -255,6 +272,7 @@ export default function MobileNewReel() {
                                     onCancel={() => setShowCamera(false)}
                                 />
                             )}
+
 
                             {selectedVideo ? (
                                 <div className="relative rounded-lg overflow-hidden aspect-[9/16] bg-black max-h-[50vh] mx-auto shadow-lg">
