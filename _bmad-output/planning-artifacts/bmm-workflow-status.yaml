@@ -1,0 +1,46 @@
+# Workflow Status Template
+
+# This tracks progress through BMM methodology Analysis, Planning, and Solutioning phases.
+# Implementation phase is tracked separately in sprint-status.yaml
+
+# STATUS DEFINITIONS:
+# ==================
+# Initial Status (before completion):
+#   - required: Must be completed to progress
+#   - optional: Can be completed but not required
+#   - recommended: Strongly suggested but not required
+#   - conditional: Required only if certain conditions met (e.g., if_has_ui)
+#
+# Completion Status:
+#   - {file-path}: File created/found (e.g., "docs/product-brief.md")
+#   - skipped: Optional/conditional workflow that was skipped
+
+generated: "2026-01-23T08:20:00Z"
+project: "Socialflow"
+project_type: "brownfield"
+selected_track: "bmad-method"
+field_type: "brownfield"
+workflow_path: "_bmad/bmm/workflows/workflow-status/paths/method-brownfield.yaml"
+workflow_status:
+  - id: "document-project"
+    status: "skipped"
+  - id: "brainstorm-project"
+    status: "skipped"
+  - id: "research"
+    status: "skipped"
+  - id: "product-brief"
+    status: "skipped"
+  - id: "prd"
+    status: "{planning_artifacts}/prd.md"
+  - id: "create-ux-design"
+    status: "conditional"
+  - id: "create-architecture"
+    status: "{planning_artifacts}/architecture.md"
+  - id: "create-epics-and-stories"
+    status: "required"
+  - id: "test-design"
+    status: "optional"
+  - id: "implementation-readiness"
+    status: "required"
+  - id: "sprint-planning"
+    status: "required"
