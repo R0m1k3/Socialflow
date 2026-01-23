@@ -468,13 +468,13 @@ export default function NewReel() {
 
                                             <div className="flex gap-2 mb-4">
                                                 <Button
-                                                    onClick={() => setShowCamera(true)}
+                                                    onClick={() => cameraInputRef.current?.click()}
                                                     disabled={uploadMutation.isPending}
                                                     variant="outline"
                                                     className="lg:hidden"
                                                 >
                                                     <Camera className="w-4 h-4 mr-2" />
-                                                    Capturer
+                                                    Filmer (Qualité Max)
                                                 </Button>
                                                 <Button
                                                     onClick={open}
