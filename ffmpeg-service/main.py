@@ -162,12 +162,14 @@ class ReelRequest(BaseModel):
 
 
 def clean_text_for_display(text: str) -> str:
-    """Removes hashtags but keeps emojis and punctuation for display."""
+    """Removes emojis and hashtags for display (text only)."""
     if not text:
         return ""
-    # Remove hashtags (e.g. #viral #fyp)
+    # 1. Remove emojis
+    text = emoji.replace_emoji(text, replace="")
+    # 2. Remove hashtags (e.g. #viral #fyp)
     text = re.sub(r"#\w+", "", text)
-    # Collapse multiple spaces
+    # 3. Collapse multiple spaces
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
@@ -272,7 +274,7 @@ async def generate_tts_with_subs(
 
 
 def generate_simple_ass(
-    text: str, ass_path: Path, font_size: int = 50, total_duration: float = None
+    text: str, ass_path: Path, font_size: int = 65, total_duration: float = None
 ):
     """Generate a high-quality ASS subtitle file with embedded styling."""
     # Split text into chunks
