@@ -102,13 +102,14 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] **Fix API 500** (`server/routes/reels.ts`) : Variable `stabilize` manquante corrigée.
 - [x] **Fix iOS Upload** (`client/src/pages/new-reel.tsx`) : Ajout support `.mov` et augmentation limite taille (500MB).
 - [ ] **Support Gros Fichiers (4GB)** : Passage à DiskStorage et streaming Cloudinary.
-- [ ] **Phase 10: Optimisation 1080p & Qualité Maximale** ⏳
+- [x] **Phase 10: Optimisation 1080p & Qualité Maximale** ✅
   - [x] FFmpeg: Forcer scaling 1080x1920 (Vertical HD)
   - [x] FFmpeg: Augmenter CRF à 17 et preset à `slow`
   - [x] FFmpeg: Augmenter taille police par défaut à 64
   - [x] FFmpeg: Positionner texte plus bas (proportionnel 1080p)
+  - [x] FFmpeg: Profil H.264 High, 30fps et bitrate 10Mbps
   - [x] Frontend: Ajouter toggle Stabilisation et Qualité
-- [ ] **Phase 11: Clarification UX Mobile** ✅
+- [x] **Phase 11: Clarification UX Mobile** ✅
   - [x] Modifier l'alerte iOS pour prévenir que les réglages se font après
   - [x] Ajouter une flèche ou une animation pour attirer l'œil sur le Switch de stabilisation
   - [x] S'assurer que le bouton "Suivant" est bien visible sous le Switch
@@ -124,6 +125,12 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [x] **Fix F-String Syntax** : Correction de l'erreur `f-string expression part cannot include a backslash`.
   - [x] **Final Robust Fix** : Switch complet vers le filtre `subtitles` et format `.srt` pour contourner l'absence de `drawtext` dans l'environnement.
   - [x] **Style Adjustment** : Réduction de la taille du texte à 30 pour un rendu plus élégant.
+
+### Phase 13: Activation Agent BMad ⏳
+
+- [x] Activer l'agent `bmad-master.md`
+- [x] Charger la configuration `_bmad/core/config.yaml`
+- [x] Afficher le menu de l'agent en français
 
 ## Progress Log
 

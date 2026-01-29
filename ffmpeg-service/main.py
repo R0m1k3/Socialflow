@@ -24,38 +24,46 @@ TEMP_DIR.mkdir(parents=True, exist_ok=True)
 os.environ["HOME"] = "/tmp"
 os.environ["XDG_CACHE_HOME"] = "/tmp/.cache"
 
+
 # List available filters and fonts for debugging
 def run_diagnostics():
     print("📋 Checking FFmpeg environment...")
     try:
-        filters_out = subprocess.run(["ffmpeg", "-filters"], capture_output=True, text=True).stdout
+        filters_out = subprocess.run(
+            ["ffmpeg", "-filters"], capture_output=True, text=True
+        ).stdout
         has_subtitles = "subtitles" in filters_out
         has_drawtext = "drawtext" in filters_out
         print(f"✅ Filters found: subtitles={has_subtitles}, drawtext={has_drawtext}")
-        
+
         print("📋 Available fonts (fc-list):")
         subprocess.run(["fc-list"], check=True)
     except Exception as e:
         print(f"⚠️ Failed to check FFmpeg environment: {e}")
 
+
 run_diagnostics()
+
 
 @app.get("/debug-ffmpeg")
 async def debug_ffmpeg():
     try:
-        filters = subprocess.run(["ffmpeg", "-filters"], capture_output=True, text=True).stdout
+        filters = subprocess.run(
+            ["ffmpeg", "-filters"], capture_output=True, text=True
+        ).stdout
         fonts = subprocess.run(["fc-list"], capture_output=True, text=True).stdout
         return {
             "filters_summary": {
                 "subtitles": "subtitles" in filters,
-                "drawtext": "drawtext" in filters
+                "drawtext": "drawtext" in filters,
             },
             "env": {k: v for k, v in os.environ.items() if "API" not in k},
-            "fonts": fonts.splitlines()[:50], # First 50
-            "raw_filters_hint": filters[:500]
+            "fonts": fonts.splitlines()[:50],  # First 50
+            "raw_filters_hint": filters[:500],
         }
     except Exception as e:
         return {"error": str(e)}
+
 
 # Robust font detection
 def get_font_path():
@@ -68,7 +76,7 @@ def get_font_path():
         if os.path.exists(path):
             print(f"✅ Found font at: {path}")
             return path
-    
+
     # Fallback search
     print("⚠️ Specific font not found, searching recursively in /usr/share/fonts...")
     try:
@@ -83,7 +91,8 @@ def get_font_path():
     except Exception as e:
         print(f"⚠️ Error searching for fonts: {e}")
 
-    return "Sans" # Generic fallback
+    return "Sans"  # Generic fallback
+
 
 FONT_PATH = get_font_path()
 
@@ -204,7 +213,7 @@ Style: Default,DejaVu Sans,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H000000
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
-    
+
     events = ""
     current_time = 0.0
 
@@ -217,14 +226,18 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
         # Escape special characters if any
         sanitized_chunk = chunk.replace("{", "(").replace("}", ")")
-        events += f"Dialogue: 0,{start_time},{end_time},Default,,0,0,0,,{sanitized_chunk}\n"
+        events += (
+            f"Dialogue: 0,{start_time},{end_time},Default,,0,0,0,,{sanitized_chunk}\n"
+        )
 
         current_time += duration
 
     with open(ass_path, "w", encoding="utf-8") as f:
         f.write(header + events)
-    
-    print(f"📄 Generated ASS file: {ass_path.stat().st_size} bytes with {len(chunks)} chunks")
+
+    print(
+        f"📄 Generated ASS file: {ass_path.stat().st_size} bytes with {len(chunks)} chunks"
+    )
 
 
 def format_ass_time(seconds: float) -> str:
@@ -237,12 +250,15 @@ def format_ass_time(seconds: float) -> str:
 
 
 def generate_simple_srt(text: str, srt_path: Path):
-    """Format seconds as SRT timestamp (HH:MM:SS,mmm)."""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    millis = int((seconds % 1) * 1000)
-    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+    # This was a stub, but let's fix the internal helper if it were called
+    def format_srt_time(seconds: float) -> str:
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        secs = int(seconds % 60)
+        millis = int((seconds % 1) * 1000)
+        return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+
+    pass
 
 
 def format_vtt_time(seconds: float) -> str:
@@ -413,10 +429,20 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                         f"vidstabtransform=input={transforms_path}:smoothing=10:crop=black:zoom=1,unsharp=5:5:0.8:3:3:0.4",
                         "-c:v",
                         "libx264",
+                        "-profile:v",
+                        "high",
+                        "-r",
+                        "30",
                         "-preset",
                         "medium",
                         "-crf",
-                        "18",
+                        "17",
+                        "-b:v",
+                        "10M",
+                        "-maxrate",
+                        "12M",
+                        "-bufsize",
+                        "20M",
                         "-c:a",
                         "copy",
                         str(stabilized_path),
@@ -455,8 +481,15 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         has_original_audio = False
         try:
             probe_cmd = [
-                "ffprobe", "-v", "error", "-select_streams", "a:0",
-                "-show_entries", "stream=codec_type", "-of", "csv=p=0",
+                "ffprobe",
+                "-v",
+                "error",
+                "-select_streams",
+                "a:0",
+                "-show_entries",
+                "stream=codec_type",
+                "-of",
+                "csv=p=0",
                 str(input_video_path),
             ]
             probe_out = subprocess.check_output(probe_cmd).decode().strip()
@@ -469,7 +502,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         # 0: Video (already added)
         # 1: Music (optional)
         # 2: TTS (optional)
-        
+
         input_count = 1
         music_idx = -1
         tts_idx = -1
@@ -478,7 +511,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             cmd.extend(["-i", str(input_audio_path)])
             music_idx = input_count
             input_count += 1
-        
+
         if has_tts:
             cmd.extend(["-i", str(tts_audio_path)])
             tts_idx = input_count
@@ -486,13 +519,13 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
 
         # --- Filter Complex Construction ---
         fc_parts = []
-        
+
         # A. Video Chain
         # 1. Scale & Crop to Fill 1080x1920 (Vertical Reel)
         # [0:v] -> [v_processed]
         # Using 'increase' + 'crop' to ensure full screen coverage without black bars
         video_filters_str = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,unsharp=5:5:0.8:3:3:0.4"
-        
+
         # 2. Text Overlay
         if request.text and request.draw_text:
             text_filter = ""
@@ -503,14 +536,16 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 text_filter = f"subtitles='{ass_path_str}'"
             else:
                 # Standard Text (without TTS)
-                print(f"🎬 Overlaying subtitles from standard text: {request.text[:30]}...")
+                print(
+                    f"🎬 Overlaying subtitles from standard text: {request.text[:30]}..."
+                )
                 std_ass_path = job_dir / "std_text.ass"
                 # Use fontsize 40 by default for standard text
                 generate_simple_ass(request.text, std_ass_path, font_size=40)
-                
+
                 ass_path_str = str(std_ass_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f"subtitles='{ass_path_str}'"
-            
+
             # Combine formatting + text
             video_filters_str += f",{text_filter}"
 
@@ -519,57 +554,61 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
 
         # B. Audio Chain
         audio_mapped = False
-        
+
         inputs_for_mix = 0
         audio_mix_str = ""
 
         # Strategy:
         # If no music and no TTS -> Copy original audio (if exists) or silent
         # If music or TTS -> Mix everything
-        
+
         if has_music or has_tts:
             # Prepare inputs
             if has_original_audio:
                 audio_mix_str += "[0:a]"
                 inputs_for_mix += 1
-            
+
             if has_music:
                 # Adjust volume
-                fc_parts.append(f"[{music_idx}:a]volume={request.music_volume}[a_music]")
+                fc_parts.append(
+                    f"[{music_idx}:a]volume={request.music_volume}[a_music]"
+                )
                 audio_mix_str += "[a_music]"
                 inputs_for_mix += 1
-            
+
             if has_tts:
                 # TTS louder
                 fc_parts.append(f"[{tts_idx}:a]volume=1.5[a_tts]")
                 audio_mix_str += "[a_tts]"
                 inputs_for_mix += 1
-            
+
             # Mix
             if inputs_for_mix > 0:
-                fc_parts.append(f"{audio_mix_str}amix=inputs={inputs_for_mix}:duration=first:dropout_transition=2:normalize=0[aout]")
+                fc_parts.append(
+                    f"{audio_mix_str}amix=inputs={inputs_for_mix}:duration=first:dropout_transition=2:normalize=0[aout]"
+                )
                 audio_mapped = True
         else:
             # No external audio added
             if has_original_audio:
                 # Just pass through original audio
                 # We can map 0:a directly, no filter needed for audio
-                audio_mapped = False 
+                audio_mapped = False
             else:
                 # No audio at all
                 audio_mapped = False
 
         # Apply Filter Complex
         cmd.extend(["-filter_complex", ";".join(fc_parts)])
-        
+
         # Maps
-        cmd.extend(["-map", "[vout]"]) # Map processed video
-        
+        cmd.extend(["-map", "[vout]"])  # Map processed video
+
         if audio_mapped:
-            cmd.extend(["-map", "[aout]"]) # Map mixed audio
+            cmd.extend(["-map", "[aout]"])  # Map mixed audio
         elif has_original_audio:
-            cmd.extend(["-map", "0:a"]) # Map original audio directly
-        
+            cmd.extend(["-map", "0:a"])  # Map original audio directly
+
         cmd.extend(["-shortest"])
 
         # Quality settings
@@ -577,10 +616,20 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             [
                 "-c:v",
                 "libx264",
+                "-profile:v",
+                "high",
+                "-r",
+                "30",
                 "-preset",
                 "slow",
                 "-crf",
                 "17",
+                "-b:v",
+                "10M",
+                "-maxrate",
+                "12M",
+                "-bufsize",
+                "20M",
                 "-c:a",
                 "aac",
                 "-b:a",
@@ -603,7 +652,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             print(f"❌ FFmpeg failed. Stderr:\n{process.stderr.decode()}")
         else:
             # Check stderr for font warnings even on success
-            stderr_last_lines = '\n'.join(process.stderr.decode().splitlines()[-20:])
+            stderr_last_lines = "\n".join(process.stderr.decode().splitlines()[-20:])
             print(f"✅ FFmpeg executed. Stderr (last 20 lines):\n{stderr_last_lines}")
 
         stats["encoding_duration"] = time.time() - start_step

@@ -21,9 +21,9 @@ interface QualityConfig {
 }
 
 const QUALITY_CONFIGS: Record<VideoQuality, QualityConfig> = {
-    "4k": { label: "4K Ultra HD", width: 3840, height: 2160, bitrate: 50000000 },
-    "1080p": { label: "Full HD", width: 1920, height: 1080, bitrate: 25000000 },
-    "720p": { label: "HD 720p", width: 1280, height: 720, bitrate: 12000000 },
+    "4k": { label: "4K Vertical", width: 2160, height: 3840, bitrate: 40000000 },
+    "1080p": { label: "Full HD (Reel)", width: 1080, height: 1920, bitrate: 12000000 }, // Align with 12Mbps max spec
+    "720p": { label: "HD Vertical", width: 720, height: 1280, bitrate: 8000000 },
 };
 
 export function CameraRecorder({ onCapture, onCancel }: CameraRecorderProps) {
