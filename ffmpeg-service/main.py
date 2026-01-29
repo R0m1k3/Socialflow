@@ -443,13 +443,17 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             transforms_path = job_dir / "transforms.trf"
 
             # Run detection pass
+            # Aggressive stabilization settings:
+            # - shakiness=10: Max sensitivity to shake
+            # - accuracy=15: High accuracy
+            # - stepsize=32: Larger search window for bigger shakes
             detect_cmd = [
                 "ffmpeg",
                 "-y",
                 "-i",
                 str(input_video_path),
                 "-vf",
-                f"vidstabdetect=stepsize=6:shakiness=8:accuracy=9:result={transforms_path}",
+                f"vidstabdetect=stepsize=32:shakiness=10:accuracy=15:result={transforms_path}",
                 "-f",
                 "null",
                 "-",
@@ -466,7 +470,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 # We will add vidstabtransform to the video chain below
                 # optzoom=2 -> Adaptive zoom to avoid black borders
                 # zoom=0 -> Auto zoom
-                vidstab_filter = f"vidstabtransform=input={transforms_path}:smoothing=10:optzoom=2:zoom=0:interpol=bicubic,unsharp=5:5:0.8:3:3:0.4,"
+                # smoothing=30 -> Heavy smoothing (default is 10) for handheld feel
+                vidstab_filter = f"vidstabtransform=input={transforms_path}:smoothing=30:optzoom=2:zoom=0:interpol=bicubic,unsharp=5:5:0.8:3:3:0.4,"
             else:
                 print(
                     f"⚠️ Stabilization Pass 1 failed: {detect_proc.stderr.decode()[:500]}"
