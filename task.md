@@ -118,6 +118,7 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [x] Ajouter une flèche ou une animation pour attirer l'œil sur le Switch de stabilisation
   - [x] S'assurer que le bouton "Suivant" est bien visible sous le Switch
   - [x] Renommer toggle stabilisation pour clarté (Anti-tremblements)
+  - [x] Déplacer le toggle en bas de page (UX)
 - [x] **Phase 12: Optimisation Safari (Bypass Compression)** ✅
   - [x] Ajouter l'attribut `multiple` à l'input file pour forcer l'envoi du fichier original (Bypass Safari downscaling)
   - [x] Mettre à jour les MIME types pour inclure `video/quicktime` (iPhone natif)
