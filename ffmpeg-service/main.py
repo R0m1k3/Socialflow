@@ -122,7 +122,11 @@ def clean_text_for_tts(text: str) -> str:
 
 
 async def generate_tts_with_subs(
-    text: str, voice: str, audio_path: Path, ass_path: Path
+    text: str,
+    voice: str,
+    audio_path: Path,
+    ass_path: Path,
+    display_text: Optional[str] = None,
 ):
     """Generate TTS audio with subtitles, with retry and fallback voices."""
     import asyncio
@@ -185,7 +189,11 @@ async def generate_tts_with_subs(
                     audio_duration = None
 
                 # Generate a high-quality ASS file with sync
-                generate_simple_ass(text, ass_path, total_duration=audio_duration)
+                # Use display_text (with emojis) if provided, otherwise standard text
+                text_to_display = display_text if display_text else text
+                generate_simple_ass(
+                    text_to_display, ass_path, total_duration=audio_duration
+                )
 
                 print(f"✅ TTS success with voice: {attempt_voice}")
                 return  # Success!
@@ -410,8 +418,13 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
 
                 if tts_clean_text:
                     print(f"🔊 Generating TTS audio to: {tts_audio_path}")
+                    # Pass original text (with emojis) for subtitles, cleaned text for audio
                     await generate_tts_with_subs(
-                        tts_clean_text, voice, tts_audio_path, tts_ass_path
+                        tts_clean_text,
+                        voice,
+                        tts_audio_path,
+                        tts_ass_path,
+                        display_text=request.text,
                     )
 
                     # Verify files were created
@@ -421,7 +434,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                         )
                         has_tts = True
                     else:
-                        print(f"❌ TTS audio file missing or empty!")
+                        print("❌ TTS audio file missing or empty!")
                 else:
                     print("⚠️ TTS text is empty after cleaning, skipping.")
             except Exception as e:
@@ -739,7 +752,10 @@ async def preview_tts(request: ReelRequest, x_api_key: str = Header(None)):
         elif not voice or "Neural" not in voice:
             voice = "fr-FR-VivienneMultilingualNeural"
 
-        await generate_tts_with_subs(clean_text, voice, tts_audio_path, tts_srt_path)
+        # Pass original text for subtitles (implied in SRT for preview too if needed, though mostly audio)
+        await generate_tts_with_subs(
+            clean_text, voice, tts_audio_path, tts_srt_path, display_text=request.text
+        )
 
         if not tts_audio_path.exists():
             raise Exception("TTS generation failed (file missing)")

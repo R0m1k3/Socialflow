@@ -84,7 +84,6 @@ export default function MobileNewReel() {
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
     const [musicOffset, setMusicOffset] = useState(0);
     const [stabilize, setStabilize] = useState(true); // Activé par défaut pour les Reels
-    const [force1080p, setForce1080p] = useState(true); // Activé par défaut
 
 
     const { data: pages = [] } = useQuery<SocialPage[]>({
@@ -277,9 +276,9 @@ export default function MobileNewReel() {
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-0.5">
                                         <div className="text-sm font-medium flex items-center gap-2">
-                                            <Sparkles className="w-4 h-4 text-primary" /> Stabilisation & Qualité 1080p
+                                            <Sparkles className="w-4 h-4 text-primary" /> Stabilisation Vidéo (Anti-tremblements)
                                         </div>
-                                        <div className="text-xs text-muted-foreground">Application automatique après capture</div>
+                                        <div className="text-xs text-muted-foreground">Corrige les secousses (Recommandé main levée). Désactiver sur trépied.</div>
                                     </div>
                                     <Switch
                                         checked={stabilize}

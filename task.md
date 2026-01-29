@@ -112,10 +112,12 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [x] Fix: Synchronisation parfaite Texte/Voix (TTS dynamique)
   - [x] Fix: Stabilisation optimisée (Zoom adaptatif + Single Pass)
   - [x] Amélioration: Stabilisation Aggressive (Smoothing 30, Shakiness 10)
+  - [x] Fix: Emojis supportés dans le texte (mais ignorés par TTS)
 - [x] **Phase 11: Clarification UX Mobile** ✅
   - [x] Modifier l'alerte iOS pour prévenir que les réglages se font après
   - [x] Ajouter une flèche ou une animation pour attirer l'œil sur le Switch de stabilisation
   - [x] S'assurer que le bouton "Suivant" est bien visible sous le Switch
+  - [x] Renommer toggle stabilisation pour clarté (Anti-tremblements)
 - [x] **Phase 12: Optimisation Safari (Bypass Compression)** ✅
   - [x] Ajouter l'attribut `multiple` à l'input file pour forcer l'envoi du fichier original (Bypass Safari downscaling)
   - [x] Mettre à jour les MIME types pour inclure `video/quicktime` (iPhone natif)
