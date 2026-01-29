@@ -433,93 +433,47 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         stats["tts_duration"] = time.time() - start_step
         start_step = time.time()
 
-        # 3.5 Stabilize video if requested (vidstab two-pass)
+        # 4. Build FFmpeg Command with Unified filter_complex
+        cmd = ["ffmpeg", "-y", "-i", str(input_video_path)]
+
+        # --- Stability Pass 1 (if requested) ---
+        vidstab_filter = ""
         if request.stabilize:
-            print("📐 Starting video stabilization (vidstab)...")
+            print("📐 Starting video stabilization (Pass 1: Detection)...")
             transforms_path = job_dir / "transforms.trf"
-            stabilized_path = job_dir / "stabilized.mp4"
 
-            try:
-                # Pass 1: Detect motion/shakiness
-                print("📐 Pass 1: Detecting motion...")
-                detect_cmd = [
-                    "ffmpeg",
-                    "-y",
-                    "-i",
-                    str(input_video_path),
-                    "-vf",
-                    f"vidstabdetect=stepsize=6:shakiness=8:accuracy=9:result={transforms_path}",
-                    "-f",
-                    "null",
-                    "-",
-                ]
-                detect_proc = subprocess.run(
-                    detect_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            # Run detection pass
+            detect_cmd = [
+                "ffmpeg",
+                "-y",
+                "-i",
+                str(input_video_path),
+                "-vf",
+                f"vidstabdetect=stepsize=6:shakiness=8:accuracy=9:result={transforms_path}",
+                "-f",
+                "null",
+                "-",
+            ]
+
+            detect_proc = subprocess.run(
+                detect_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+
+            if detect_proc.returncode == 0 and transforms_path.exists():
+                print(
+                    "✅ Stabilization Pass 1 complete. Integrating Pass 2 into main filter chain."
                 )
-
-                if detect_proc.returncode != 0:
-                    print(
-                        f"⚠️ Stabilization pass 1 failed: {detect_proc.stderr.decode()[:500]}"
-                    )
-                elif transforms_path.exists():
-                    # Pass 2: Apply stabilization transform
-                    print("📐 Pass 2: Applying stabilization...")
-                    transform_cmd = [
-                        "ffmpeg",
-                        "-y",
-                        "-i",
-                        str(input_video_path),
-                        "-vf",
-                        f"vidstabtransform=input={transforms_path}:smoothing=10:crop=black:zoom=1,unsharp=5:5:0.8:3:3:0.4",
-                        "-c:v",
-                        "libx264",
-                        "-profile:v",
-                        "high",
-                        "-r",
-                        "30",
-                        "-preset",
-                        "medium",
-                        "-crf",
-                        "17",
-                        "-b:v",
-                        "10M",
-                        "-maxrate",
-                        "12M",
-                        "-bufsize",
-                        "20M",
-                        "-c:a",
-                        "copy",
-                        str(stabilized_path),
-                    ]
-                    transform_proc = subprocess.run(
-                        transform_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE
-                    )
-
-                    if transform_proc.returncode == 0 and stabilized_path.exists():
-                        # Use stabilized video for further processing
-                        input_video_path = stabilized_path
-                        print("✅ Video stabilization complete!")
-                    else:
-                        print(
-                            f"⚠️ Stabilization pass 2 failed: {transform_proc.stderr.decode()[:500]}"
-                        )
-                else:
-                    print("⚠️ Transforms file not created, skipping stabilization")
-
-            except Exception as e:
-                print(f"⚠️ Stabilization error (continuing without): {e}")
+                # We will add vidstabtransform to the video chain below
+                # optzoom=2 -> Adaptive zoom to avoid black borders
+                # zoom=0 -> Auto zoom
+                vidstab_filter = f"vidstabtransform=input={transforms_path}:smoothing=10:optzoom=2:zoom=0:interpol=bicubic,unsharp=5:5:0.8:3:3:0.4,"
+            else:
+                print(
+                    f"⚠️ Stabilization Pass 1 failed: {detect_proc.stderr.decode()[:500]}"
+                )
 
         stats["stabilize_duration"] = time.time() - start_step
         start_step = time.time()
-
-        # 4. Build FFmpeg Command
-        cmd = ["ffmpeg", "-y", "-i", str(input_video_path)]
-
-        video_filters = []
-        audio_filters = []
-
-        # 4. Build FFmpeg Command with Unified filter_complex
-        cmd = ["ffmpeg", "-y", "-i", str(input_video_path)]
 
         # --- Audio Checks ---
         has_original_audio = False
@@ -565,10 +519,20 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         fc_parts = []
 
         # A. Video Chain
-        # 1. Scale & Crop to Fill 1080x1920 (Vertical Reel)
-        # [0:v] -> [v_processed]
-        # Using 'increase' + 'crop' to ensure full screen coverage without black bars
-        video_filters_str = "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,unsharp=5:5:0.8:3:3:0.4"
+        # Chain: [0:v] -> [stabilize] -> [scale/crop] -> [text] -> [vout]
+
+        # 1. Stabilization (if enabled) + Scaling/Cropping
+        # We apply stabilization FIRST on raw video, THEN crop to 9:16
+
+        # Start of video chain
+        v_chain = "[0:v]"
+
+        if vidstab_filter:
+            v_chain += vidstab_filter
+            # Note: vidstabtransform output is same res as input
+
+        # Scale & Crop to Fill 1080x1920 (Vertical Reel)
+        v_chain += "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920"
 
         # 2. Text Overlay
         if request.text and request.draw_text:
@@ -577,7 +541,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 # Subtitles (TikTok style) using ASS (already generated in TTS block)
                 print(f"🎬 Overlaying subtitles from TTS ASS: {tts_ass_path}")
                 ass_path_str = str(tts_ass_path).replace("\\", "/").replace(":", "\\:")
-                text_filter = f"subtitles='{ass_path_str}'"
+                text_filter = f",subtitles='{ass_path_str}'"
             else:
                 # Standard Text (without TTS)
                 print(
@@ -588,13 +552,14 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 generate_simple_ass(request.text, std_ass_path, font_size=40)
 
                 ass_path_str = str(std_ass_path).replace("\\", "/").replace(":", "\\:")
-                text_filter = f"subtitles='{ass_path_str}'"
+                text_filter = f",subtitles='{ass_path_str}'"
 
             # Combine formatting + text
-            video_filters_str += f",{text_filter}"
+            v_chain += text_filter
 
-        # Define Video Chain
-        fc_parts.append(f"[0:v]{video_filters_str}[vout]")
+        # End of video chain
+        v_chain += "[vout]"
+        fc_parts.append(v_chain)
 
         # B. Audio Chain
         audio_mapped = False
