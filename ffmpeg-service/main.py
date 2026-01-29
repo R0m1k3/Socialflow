@@ -163,8 +163,29 @@ async def generate_tts_with_subs(
             if audio_path.exists() and audio_path.stat().st_size > 0:
                 print(f"✅ TTS audio saved: {audio_path.stat().st_size} bytes")
 
-                # Generate a high-quality ASS file
-                generate_simple_ass(text, ass_path)
+                # Measure audio duration for perfect sync
+                try:
+                    duration_cmd = [
+                        "ffprobe",
+                        "-v",
+                        "error",
+                        "-show_entries",
+                        "format=duration",
+                        "-of",
+                        "default=noprint_wrappers=1:nokey=1",
+                        str(audio_path),
+                    ]
+                    dur_proc = subprocess.run(
+                        duration_cmd, stdout=subprocess.PIPE, text=True
+                    )
+                    audio_duration = float(dur_proc.stdout.strip())
+                    print(f"⏱️ TTS Audio Duration: {audio_duration:.2f}s")
+                except Exception as e:
+                    print(f"⚠️ Could not measure TTS duration, using fallback: {e}")
+                    audio_duration = None
+
+                # Generate a high-quality ASS file with sync
+                generate_simple_ass(text, ass_path, total_duration=audio_duration)
 
                 print(f"✅ TTS success with voice: {attempt_voice}")
                 return  # Success!
@@ -182,7 +203,9 @@ async def generate_tts_with_subs(
     raise Exception(f"All TTS voices failed. Last error: {last_error}")
 
 
-def generate_simple_ass(text: str, ass_path: Path, font_size: int = 50):
+def generate_simple_ass(
+    text: str, ass_path: Path, font_size: int = 50, total_duration: float = None
+):
     """Generate a high-quality ASS subtitle file with embedded styling."""
     # Split text into chunks
     words = text.split()
@@ -217,9 +240,30 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     events = ""
     current_time = 0.0
 
+    # Calculate timing strategy
+    if total_duration:
+        # Dynamic timing based on characters count (more accurate than word count)
+        total_chars = sum(len(chunk) for chunk in chunks)
+        # Avoid division by zero
+        if total_chars == 0:
+            total_chars = 1
+        time_per_char = total_duration / total_chars
+    else:
+        # Fallback static timing using word count
+        time_per_char = None
+
     for i, chunk in enumerate(chunks):
-        word_count = len(chunk.split())
-        duration = word_count * 0.4
+        if time_per_char:
+            # Duration proportional to character length including spaces
+            # Ensure minimum readability of 0.5s per chunk
+            chunk_len = len(chunk)
+            duration = chunk_len * time_per_char
+            # Optional: Enforce min duration, but we must respect total_duration
+            # So purely proportional is safer for sync
+        else:
+            # Fallback: 0.4s per word
+            word_count = len(chunk.split())
+            duration = word_count * 0.4
 
         start_time = format_ass_time(current_time)
         end_time = format_ass_time(current_time + duration)

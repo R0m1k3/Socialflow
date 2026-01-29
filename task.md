@@ -109,6 +109,7 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [x] FFmpeg: Positionner texte plus bas (proportionnel 1080p)
   - [x] FFmpeg: Profil H.264 High, 30fps et bitrate 10Mbps
   - [x] Frontend: Ajouter toggle Stabilisation et Qualité
+  - [x] Fix: Synchronisation parfaite Texte/Voix (TTS dynamique)
 - [x] **Phase 11: Clarification UX Mobile** ✅
   - [x] Modifier l'alerte iOS pour prévenir que les réglages se font après
   - [x] Ajouter une flèche ou une animation pour attirer l'œil sur le Switch de stabilisation
