@@ -59,6 +59,18 @@ export class FacebookService {
 
       // Return all story IDs joined together
       return storyIds.join(',');
+    } else if (postType === 'reel') {
+      // Publish as Reel
+      if (mediaList.length === 0) {
+        throw new Error('Reels require a video');
+      }
+
+      const videoMedia = mediaList.find(m => m.type === 'video');
+      if (!videoMedia) {
+        throw new Error('Reels require a video media');
+      }
+
+      return await this.publishReel(page, videoMedia.originalUrl, post.content);
     } else {
       // Default to feed
       const imageMedia = mediaList.filter(m => m.type === 'image');

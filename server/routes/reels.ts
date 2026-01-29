@@ -356,7 +356,20 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
 
         console.log('✅ Reel uploaded to Cloudinary:', cloudinaryResult.originalUrl);
 
-        // Créer le post en base
+        // Create Media record for the processed video
+        const processedMedia = await storage.createMedia({
+            userId: user.id,
+            type: 'video',
+            cloudinaryPublicId: cloudinaryResult.publicId,
+            originalUrl: cloudinaryResult.originalUrl,
+            facebookFeedUrl: cloudinaryResult.facebookFeedUrl || null,
+            instagramFeedUrl: cloudinaryResult.instagramFeedUrl || null,
+            instagramStoryUrl: cloudinaryResult.instagramStoryUrl || null,
+            fileName: `reel-${Date.now()}.mp4`,
+            fileSize: videoBuffer.length,
+        });
+
+        // Creates post in DB
         const post = await storage.createPost({
             userId: user.id,
             content: description || overlayText || '',
@@ -364,6 +377,9 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             status: scheduledFor ? 'scheduled' : 'draft',
             scheduledFor: scheduledFor ? new Date(scheduledFor) : undefined,
         });
+
+        // Link media to post
+        await storage.updatePostMedia(post.id, [processedMedia.id]);
 
         // Publier sur chaque page sélectionnée
         const results: { pageId: string; success: boolean; reelId?: string; error?: string }[] = [];
