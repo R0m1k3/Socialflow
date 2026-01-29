@@ -128,6 +128,10 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [x] **Fix Font Issue** : Ajout de `fontconfig`, `fc-cache`, et utilisation de police générique "Sans".
   - [x] **Refactor FFmpeg** : Passage à un pipeline `filter_complex` unifié pour éviter les conflits et garantir l'overlay.
   - [x] **Fix Indentation** : Correction de l'erreur de syntaxe Python introduite.
+- [x] **Phase 13: Polissage Final Texte & Emojis** ✅
+  - [x] Filtrer les hashtags de l'affichage vidéo (clean_text_for_display)
+  - [x] Forcer la police "Noto Color Emoji" pour les emojis en couleur
+  - [x] Vérifier la logique de stabilisation (Toggle fonctionnel)
   - [x] **Fix F-String Syntax** : Correction de l'erreur `f-string expression part cannot include a backslash`.
   - [x] **Final Robust Fix** : Switch complet vers le filtre `subtitles` et format `.srt` pour contourner l'absence de `drawtext` dans l'environnement.
   - [x] **Style Adjustment** : Réduction de la taille du texte à 30 pour un rendu plus élégant.

@@ -112,6 +112,17 @@ class ReelRequest(BaseModel):
     stabilize: bool = False  # Stabilisation vidéo via vidstab
 
 
+def clean_text_for_display(text: str) -> str:
+    """Removes hashtags but keeps emojis and punctuation for display."""
+    if not text:
+        return ""
+    # Remove hashtags (e.g. #viral #fyp)
+    text = re.sub(r"#\w+", "", text)
+    # Collapse multiple spaces
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
 def clean_text_for_tts(text: str) -> str:
     # 1. Remove emojis
     text = emoji.replace_emoji(text, replace="")
@@ -231,6 +242,7 @@ def generate_simple_ass(
 
     # ASS Header with explicit resolution and style
     # Alignment 5 = Middle Center
+    # Font: Priority to Noto Color Emoji for emojis support
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
@@ -239,7 +251,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,DejaVu Sans,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,2,0,5,50,50,0,1
+Style: Default,Noto Color Emoji,Arial,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H00000000,1,0,0,0,100,100,0,0,1,2,0,5,50,50,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -424,7 +436,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                         voice,
                         tts_audio_path,
                         tts_ass_path,
-                        display_text=request.text,
+                        display_text=clean_text_for_display(request.text),
                     )
 
                     # Verify files were created
@@ -754,7 +766,11 @@ async def preview_tts(request: ReelRequest, x_api_key: str = Header(None)):
 
         # Pass original text for subtitles (implied in SRT for preview too if needed, though mostly audio)
         await generate_tts_with_subs(
-            clean_text, voice, tts_audio_path, tts_srt_path, display_text=request.text
+            clean_text,
+            voice,
+            tts_audio_path,
+            tts_srt_path,
+            display_text=clean_text_for_display(request.text),
         )
 
         if not tts_audio_path.exists():
