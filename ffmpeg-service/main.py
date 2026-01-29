@@ -65,8 +65,57 @@ async def debug_ffmpeg():
         return {"error": str(e)}
 
 
+# ... (existing imports)
+
+
+def ensure_fonts():
+    """Ensure Noto Color Emoji and other essential fonts are available."""
+    print("🎨 Checking for Emoji fonts...")
+
+    # Target directory for user fonts
+    font_dir = Path("/usr/share/fonts/truetype/noto")
+    if not font_dir.exists():
+        try:
+            # Fallback to local user fonts if system dir is not writable
+            font_dir = Path("/tmp/.fonts")
+            font_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            font_dir = Path("/tmp/.fonts")
+            font_dir.mkdir(parents=True, exist_ok=True)
+
+    emoji_font_path = font_dir / "NotoColorEmoji.ttf"
+
+    if not emoji_font_path.exists():
+        print("📥 Downloading Noto Color Emoji font...")
+        try:
+            url = "https://github.com/googlefonts/noto-emoji/raw/main/fonts/NotoColorEmoji.ttf"
+            response = requests.get(url, stream=True)
+            response.raise_for_status()
+            with open(emoji_font_path, "wb") as f:
+                shutil.copyfileobj(response.raw, f)
+            print(f"✅ Downloaded to {emoji_font_path}")
+
+            # Update font cache
+            print("🔄 Updating font cache...")
+            subprocess.run(
+                ["fc-cache", "-f", "-v"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            print("✅ Font cache updated")
+        except Exception as e:
+            print(f"⚠️ Failed to download emoji font: {e}")
+    else:
+        print(f"✅ Emoji font already present at {emoji_font_path}")
+
+
+# Run font setup
+ensure_fonts()
+
+
 # Robust font detection
 def get_font_path():
+    # ...
     possible_paths = [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/dejavu-core/DejaVuSans.ttf",
@@ -251,7 +300,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,DejaVu Sans,Arial,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,0,5,50,50,0,1
+Style: Default,Sans,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,0,5,50,50,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
