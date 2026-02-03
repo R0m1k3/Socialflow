@@ -5,7 +5,7 @@
 import { Router, Request, Response } from 'express';
 import type { User, Media, SocialPage } from '@shared/schema';
 import { storage } from '../storage';
-import { freeSoundService, type MusicTrack } from '../services/freesound';
+import { jamendoService, type MusicTrack } from '../services/jamendo';
 import { ffmpegService } from '../services/ffmpeg';
 import { facebookService } from '../services/facebook';
 import { cloudinaryService } from '../services/cloudinary';
@@ -32,7 +32,7 @@ reelsRouter.get('/music/search', async (req: Request, res: Response) => {
             search,
         } = req.query;
 
-        const tracks = await freeSoundService.searchMusicByDuration({
+        const tracks = await jamendoService.searchMusicByDuration({
             minDuration: parseInt(minDuration as string),
             maxDuration: parseInt(maxDuration as string),
             genre: genre as string | undefined,
@@ -70,7 +70,7 @@ reelsRouter.get('/music/more', async (req: Request, res: Response) => {
             search,
         } = req.query;
 
-        const tracks = await freeSoundService.searchMusicByDuration({
+        const tracks = await jamendoService.searchMusicByDuration({
             minDuration: parseInt(minDuration as string),
             maxDuration: parseInt(maxDuration as string),
             genre: genre as string | undefined,
@@ -100,13 +100,123 @@ reelsRouter.get('/music/more', async (req: Request, res: Response) => {
 reelsRouter.get('/music/popular', async (req: Request, res: Response) => {
     try {
         const limit = parseInt(req.query.limit as string) || 10;
-        const tracks = await freeSoundService.getPopularTracks(limit);
+        const tracks = await jamendoService.getPopularTracks(limit);
         res.json({ tracks });
     } catch (error) {
         console.error('❌ Error fetching popular music:', error);
         res.status(500).json({ error: 'Erreur lors de la récupération des musiques populaires' });
     }
 });
+
+// ============================================
+// ROUTES FAVORIS MUSIQUE
+// ============================================
+
+/**
+ * Obtenir les favoris de l'utilisateur
+ * GET /api/music/favorites
+ */
+reelsRouter.get('/music/favorites', async (req: Request, res: Response) => {
+    try {
+        const user = req.user as User;
+        const favorites = await storage.getMusicFavorites(user.id);
+
+        // Convertir en format MusicTrack pour le client
+        const tracks: MusicTrack[] = favorites.map(f => ({
+            id: f.trackId,
+            title: f.title,
+            artist: f.artist,
+            albumName: f.albumName || '',
+            duration: f.duration,
+            previewUrl: f.previewUrl,
+            downloadUrl: f.downloadUrl,
+            imageUrl: f.imageUrl || '',
+            license: f.license || '',
+        }));
+
+        res.json({ tracks, isFavorites: true });
+    } catch (error) {
+        console.error('❌ Error fetching music favorites:', error);
+        res.status(500).json({ error: 'Erreur lors de la récupération des favoris' });
+    }
+});
+
+/**
+ * Vérifier si un track est en favori
+ * GET /api/music/favorites/check/:trackId
+ */
+reelsRouter.get('/music/favorites/check/:trackId', async (req: Request, res: Response) => {
+    try {
+        const user = req.user as User;
+        const { trackId } = req.params;
+
+        const isFavorite = await storage.isMusicFavorite(user.id, trackId);
+        res.json({ isFavorite });
+    } catch (error) {
+        console.error('❌ Error checking music favorite:', error);
+        res.status(500).json({ error: 'Erreur lors de la vérification du favori' });
+    }
+});
+
+/**
+ * Ajouter un favori
+ * POST /api/music/favorites
+ */
+reelsRouter.post('/music/favorites', async (req: Request, res: Response) => {
+    try {
+        const user = req.user as User;
+        const { trackId, title, artist, albumName, duration, previewUrl, downloadUrl, imageUrl, license } = req.body;
+
+        if (!trackId || !title) {
+            return res.status(400).json({ error: 'trackId et title requis' });
+        }
+
+        // Vérifier si déjà en favori
+        const alreadyFavorite = await storage.isMusicFavorite(user.id, trackId);
+        if (alreadyFavorite) {
+            return res.json({ success: true, message: 'Déjà en favori' });
+        }
+
+        await storage.addMusicFavorite({
+            userId: user.id,
+            trackId,
+            title,
+            artist: artist || '',
+            albumName: albumName || null,
+            duration: duration || 0,
+            previewUrl: previewUrl || '',
+            downloadUrl: downloadUrl || '',
+            imageUrl: imageUrl || null,
+            license: license || null,
+        });
+
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ Error adding music favorite:', error);
+        res.status(500).json({ error: 'Erreur lors de l\'ajout du favori' });
+    }
+});
+
+/**
+ * Supprimer un favori
+ * DELETE /api/music/favorites/:trackId
+ */
+reelsRouter.delete('/music/favorites/:trackId', async (req: Request, res: Response) => {
+    try {
+        const user = req.user as User;
+        const { trackId } = req.params;
+
+        await storage.removeMusicFavorite(user.id, trackId);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('❌ Error removing music favorite:', error);
+        res.status(500).json({ error: 'Erreur lors de la suppression du favori' });
+    }
+});
+
+// ============================================
+// ROUTE DÉTAILS TRACK (après les routes /music/favorites et /music/popular)
+// ============================================
 
 /**
  * Détails d'un track
@@ -115,7 +225,7 @@ reelsRouter.get('/music/popular', async (req: Request, res: Response) => {
 reelsRouter.get('/music/:trackId', async (req: Request, res: Response) => {
     try {
         const { trackId } = req.params;
-        const track = await freeSoundService.getMusicDetails(trackId);
+        const track = await jamendoService.getMusicDetails(trackId);
 
         if (!track) {
             return res.status(404).json({ error: 'Musique non trouvée' });
@@ -204,7 +314,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
         // Récupérer l'URL de la musique si trackId fourni
         let finalMusicUrl = musicUrl;
         if (musicTrackId && !musicUrl) {
-            const track = await freeSoundService.getMusicDetails(musicTrackId);
+            const track = await jamendoService.getMusicDetails(musicTrackId);
             if (track) {
                 finalMusicUrl = track.downloadUrl;
             }
@@ -309,7 +419,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
         // Récupérer l'URL de la musique si trackId fourni
         let finalMusicUrl = musicUrl;
         if (musicTrackId && !musicUrl) {
-            const track = await freeSoundService.getMusicDetails(musicTrackId);
+            const track = await jamendoService.getMusicDetails(musicTrackId);
             if (track) {
                 finalMusicUrl = track.downloadUrl;
             }
@@ -460,7 +570,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
  */
 reelsRouter.get('/reels/config', async (req: Request, res: Response) => {
     try {
-        const jamendoConfigured = await freeSoundService.testConnection().catch(() => false);
+        const jamendoConfigured = await jamendoService.testConnection().catch(() => false);
         const ffmpegConfigured = await ffmpegService.healthCheck().catch(() => false);
 
         res.json({

@@ -505,6 +505,230 @@ CREATE TABLE instagram_accounts (
 
 ---
 
+## Evolution REEL - Amélioration Qualité Vidéo & Musique
+
+### Contexte
+
+Suite à l'implémentation initiale des Reels Facebook, deux axes d'amélioration majeurs ont été identifiés :
+1. **Qualité vidéo** : Stabilisation et optimisation pour Facebook
+2. **Système musique** : Remplacement de FreeSound par un vrai catalogue musical avec favoris
+
+### Phase 1 : Amélioration Qualité Vidéo & Stabilisation
+
+#### Objectif
+Produire des Reels de qualité professionnelle optimisés pour Facebook avec stabilisation avancée et texte style TikTok.
+
+#### Modifications Techniques Implémentées
+
+**1. Stabilisation Vidéo VidStab (2 passes)**
+
+Fichier : `ffmpeg-service/main.py`
+
+| Paramètre | Valeur | Justification |
+|-----------|--------|---------------|
+| **Pass 1 : Détection** | | |
+| `shakiness` | 10 | Sensibilité maximale aux tremblements |
+| `accuracy` | 15 | Haute précision d'analyse |
+| `stepsize` | 32 | Grande fenêtre de recherche pour gros tremblements |
+| **Pass 2 : Transformation** | | |
+| `smoothing` | 30 | Lissage lourd pour effet professionnel |
+| `relative` | 1 | Transformations relatives au frame précédent |
+| `zoom` | 5 | Zoom fixe 5% pour éviter les bords noirs |
+| `unsharp` | 5:5:1.0:5:5:0.0 | Netteté renforcée pour compenser le lissage |
+
+**2. Optimisation Encodage Facebook**
+
+| Paramètre | Avant | Après | Raison |
+|-----------|-------|-------|--------|
+| CRF | 17 | 18 | Sweet spot qualité/taille pour Facebook |
+| Level H.264 | *(absent)* | 4.1 | Compatibilité profil High |
+| Audio bitrate | 192k | 128k | Standard Facebook |
+| Brightness/Contrast | *(absent)* | `eq=brightness=0.05:contrast=1.1` | Rehausse les vidéos ternes |
+
+**3. Texte Style TikTok Karaoke**
+
+Implémentation d'un effet karaoke avec surbrillance mot par mot :
+
+- **Style visuel** :
+  - Couleur avant : Blanc (`&H00FFFFFF`)
+  - Couleur highlight : Jaune (`&H0000FFFF`)
+  - Contour noir épais (3px) pour lisibilité
+  - Ombre portée pour profondeur
+
+- **Synchronisation** :
+  - Tags ASS `\kf` (karaoke fill) par mot
+  - Timing proportionnel à la longueur du mot
+  - Chunks de 3 mots max pour lisibilité mobile
+
+- **Résultat** : Chaque mot se remplit progressivement de blanc vers jaune au rythme de la voix TTS, exactement comme TikTok.
+
+**Code snippet (main.py:276-362)** :
+```python
+# ASS Karaoke Style
+# PrimaryColour = Yellow (highlighted/spoken)
+# SecondaryColour = White (before highlight)
+Style: Default,Sans,{font_size},&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,5,50,50,0,1
+
+# Karaoke tags per word
+for word in chunk_words:
+    word_dur_cs = int((len(word) / chunk_chars) * chunk_duration * 100)
+    karaoke_parts.append(f"{{\\kf{word_dur_cs}}}{sanitized}")
+```
+
+#### Résultat Final
+
+**Chaîne de traitement vidéo complète** :
+```
+[Input Video]
+  → VidStab Pass 1 (Analyse tremblements)
+  → VidStab Pass 2 (Stabilisation + unsharp)
+  → Scale/Crop 1080x1920
+  → Brightness/Contrast enhancement
+  → Texte Karaoke TikTok (ASS)
+  → Encodage H.264 High 4.1, CRF 18
+  → Audio AAC 128k
+  → [Output Reel Facebook-ready]
+```
+
+### Phase 2 : Système Musique Jamendo & Favoris
+
+#### Objectif
+Remplacer FreeSound (banque de sons) par Jamendo (vraie musique avec genres) et ajouter un système de favoris utilisateur.
+
+#### Architecture Implémentée
+
+**1. Remplacement FreeSound → Jamendo**
+
+Fichiers modifiés :
+- `server/routes/reels.ts` : Import `jamendoService` au lieu de `freeSoundService`
+- `server/index.ts` : Configuration Jamendo avec client ID
+
+**Service Jamendo** (`server/services/jamendo.ts`) :
+- API : `https://api.jamendo.com/v3.0`
+- Format audio : MP3 320kbps
+- Genres supportés : pop, rock, electronic, hiphop, jazz, classical, ambient, chill, dance, indie
+- License : Creative Commons
+- Tri : `popularity_total` ou `popularity_week`
+
+**2. Base de Données : Table Favoris**
+
+Nouvelle table `music_favorites` :
+
+```sql
+CREATE TABLE music_favorites (
+  id UUID PRIMARY KEY,
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  track_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  artist TEXT NOT NULL,
+  album_name TEXT,
+  duration INTEGER NOT NULL,
+  preview_url TEXT NOT NULL,
+  download_url TEXT NOT NULL,
+  image_url TEXT,
+  license TEXT,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+```
+
+Fichiers modifiés :
+- `shared/schema.ts` : Définition table + relations + types TypeScript
+- `server/migrate.ts` : Migration automatique
+- `server/storage.ts` : 4 nouvelles méthodes CRUD
+
+**3. API Endpoints Favoris**
+
+Routes dans `server/routes/reels.ts` :
+
+| Endpoint | Méthode | Description |
+|----------|---------|-------------|
+| `/api/music/favorites` | GET | Liste les favoris de l'utilisateur |
+| `/api/music/favorites/check/:trackId` | GET | Vérifie si un track est en favori |
+| `/api/music/favorites` | POST | Ajoute un track aux favoris |
+| `/api/music/favorites/:trackId` | DELETE | Supprime un favori |
+
+**Ordre des routes** (critique pour le routing Express) :
+1. `/api/music/search`
+2. `/api/music/popular`
+3. `/api/music/favorites` ← avant le wildcard
+4. `/api/music/favorites/check/:trackId`
+5. `/api/music/:trackId` ← wildcard en dernier
+
+**4. Méthodes Storage**
+
+Interface `IStorage` étendue :
+
+```typescript
+interface IStorage {
+  // Music Favorites
+  getMusicFavorites(userId: string): Promise<MusicFavorite[]>;
+  addMusicFavorite(favorite: InsertMusicFavorite): Promise<MusicFavorite>;
+  removeMusicFavorite(userId: string, trackId: string): Promise<void>;
+  isMusicFavorite(userId: string, trackId: string): Promise<boolean>;
+}
+```
+
+Implémentation utilise Drizzle ORM avec tri par `createdAt DESC`.
+
+#### Functional Requirements Ajoutés
+
+**Qualité Vidéo :**
+- **FR-REEL-1** : Le système doit stabiliser automatiquement les vidéos tremblantes avec VidStab 2-pass
+- **FR-REEL-2** : Le système doit optimiser l'encodage vidéo pour Facebook (H.264 High 4.1, CRF 18, 128k audio)
+- **FR-REEL-3** : Le système doit rehausser légèrement la luminosité/contraste des vidéos ternes
+- **FR-REEL-4** : Le texte doit s'afficher en style karaoke TikTok (highlight mot par mot synchronisé avec TTS)
+
+**Musique & Favoris :**
+- **FR-REEL-5** : L'utilisateur peut rechercher de la musique par genre (pop, rock, chill, etc.) via Jamendo
+- **FR-REEL-6** : L'utilisateur peut ajouter des tracks Jamendo à ses favoris
+- **FR-REEL-7** : L'utilisateur peut voir la liste de ses musiques favorites
+- **FR-REEL-8** : L'utilisateur peut supprimer un favori
+- **FR-REEL-9** : Le système affiche visuellement si un track est en favori (icône cœur)
+- **FR-REEL-10** : Les favoris sont persistés par utilisateur (isolation des données)
+
+#### Non-Functional Requirements
+
+**Performance :**
+- **NFR-REEL-1** : La stabilisation 2-pass ne doit pas dépasser 3x la durée de la vidéo
+- **NFR-REEL-2** : Les favoris doivent se charger en < 500ms
+
+**Qualité :**
+- **NFR-REEL-3** : Les vidéos stabilisées doivent avoir un score de stabilité > 80% (métrique VidStab)
+- **NFR-REEL-4** : Le texte karaoke doit être synchronisé avec une précision de ±100ms par mot
+
+**Sécurité :**
+- **NFR-REEL-5** : Un utilisateur ne peut accéder qu'à ses propres favoris
+- **NFR-REEL-6** : Les URLs de téléchargement Jamendo ne doivent jamais être exposées côté client
+
+#### Impact Utilisateur
+
+**Avant** :
+- Vidéos tremblantes
+- Musique limitée (sons FreeSound, pas de vraie musique)
+- Pas de favoris → recherche répétitive
+- Texte basique statique
+
+**Après** :
+- Vidéos stables et professionnelles
+- Catalogue musical riche (Jamendo) avec genres
+- Système de favoris pour retrouver facilement les musiques aimées
+- Texte dynamique style TikTok avec effet karaoke
+
+#### Technical Debt & Future Work
+
+**Optimisations futures** :
+1. **Cache Jamendo** : Mettre en cache les résultats de recherche (30 min TTL)
+2. **UI Favoris** : Implémenter l'interface client (bouton cœur, onglet favoris)
+3. **Playlist** : Permettre de créer des playlists de favoris
+4. **Recommandations** : Suggérer des musiques basées sur l'historique
+
+**Monitoring** :
+- Logs FFmpeg : Durée de stabilisation, taux de succès
+- API Jamendo : Rate limits, temps de réponse
+- Favoris : Nombre moyen par utilisateur, tracks les plus favoris
+
+---
+
 ## Non-Functional Requirements
 
 ### Security & Data Protection

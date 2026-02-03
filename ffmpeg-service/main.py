@@ -276,24 +276,31 @@ async def generate_tts_with_subs(
 def generate_simple_ass(
     text: str, ass_path: Path, font_size: int = 65, total_duration: float = None
 ):
-    """Generate a high-quality ASS subtitle file with embedded styling."""
-    # Split text into chunks
-    words = text.split()
-    chunks = []
+    """Generate TikTok-style ASS subtitle file with karaoke highlight effect.
+
+    Each word fills from white to yellow as it is spoken, with thick outline
+    for readability on any background.
+    """
+    # Split text into word lists (3 words max per chunk for TikTok readability)
+    all_words = text.split()
+    chunks = []  # Each chunk is a list of words
     current_chunk = []
 
-    for word in words:
+    for word in all_words:
         current_chunk.append(word)
-        if len(current_chunk) >= 5 or word.endswith((".", "!", "?", ":")):
-            chunks.append(" ".join(current_chunk))
+        if len(current_chunk) >= 3 or word.endswith((".", "!", "?", ":")):
+            chunks.append(current_chunk)
             current_chunk = []
 
     if current_chunk:
-        chunks.append(" ".join(current_chunk))
+        chunks.append(current_chunk)
 
-    # ASS Header with explicit resolution and style
-    # Alignment 5 = Middle Center
-    # Font: Priority to Noto Color Emoji for emojis support
+    # ASS Header — TikTok Karaoke Style
+    # PrimaryColour = Yellow (highlighted/spoken) &H0000FFFF (ASS BGR: 00,FF,FF = RGB FF,FF,00)
+    # SecondaryColour = White (before highlight) &H00FFFFFF
+    # OutlineColour = Black &H00000000
+    # BackColour = Semi-transparent black &H80000000
+    # Bold=-1, Outline=3, Shadow=1, Alignment=5 (center middle)
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
@@ -302,7 +309,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Sans,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,0,5,50,50,0,1
+Style: Default,Sans,{font_size},&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,5,50,50,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -311,47 +318,47 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     events = ""
     current_time = 0.0
 
-    # Calculate timing strategy
+    # Calculate total characters across all chunks for proportional timing
+    total_chars = sum(len(w) for chunk in chunks for w in chunk)
+    if total_chars == 0:
+        total_chars = 1
+
     if total_duration:
-        # Dynamic timing based on characters count (more accurate than word count)
-        total_chars = sum(len(chunk) for chunk in chunks)
-        # Avoid division by zero
-        if total_chars == 0:
-            total_chars = 1
         time_per_char = total_duration / total_chars
     else:
-        # Fallback static timing using word count
-        time_per_char = None
+        # Fallback: ~80ms per character
+        time_per_char = 0.08
 
-    for i, chunk in enumerate(chunks):
-        if time_per_char:
-            # Duration proportional to character length including spaces
-            # Ensure minimum readability of 0.5s per chunk
-            chunk_len = len(chunk)
-            duration = chunk_len * time_per_char
-            # Optional: Enforce min duration, but we must respect total_duration
-            # So purely proportional is safer for sync
-        else:
-            # Fallback: 0.4s per word
-            word_count = len(chunk.split())
-            duration = word_count * 0.4
+    for chunk_words in chunks:
+        # Calculate chunk duration from its characters
+        chunk_chars = sum(len(w) for w in chunk_words)
+        chunk_duration = chunk_chars * time_per_char
 
         start_time = format_ass_time(current_time)
-        end_time = format_ass_time(current_time + duration)
+        end_time = format_ass_time(current_time + chunk_duration)
 
-        # Escape special characters if any
-        sanitized_chunk = chunk.replace("{", "(").replace("}", ")")
+        # Build karaoke text with \kf tags per word
+        # \kf = smooth fill from SecondaryColour (white) to PrimaryColour (yellow)
+        karaoke_parts = []
+        for word in chunk_words:
+            # Word duration in centiseconds, proportional to character length
+            word_dur_cs = int((len(word) / chunk_chars) * chunk_duration * 100)
+            word_dur_cs = max(word_dur_cs, 10)  # Min 0.1s per word
+            sanitized = word.replace("{", "(").replace("}", ")")
+            karaoke_parts.append(f"{{\\kf{word_dur_cs}}}{sanitized}")
+
+        karaoke_text = " ".join(karaoke_parts)
         events += (
-            f"Dialogue: 0,{start_time},{end_time},Default,,0,0,0,,{sanitized_chunk}\n"
+            f"Dialogue: 0,{start_time},{end_time},Default,,0,0,0,,{karaoke_text}\n"
         )
 
-        current_time += duration
+        current_time += chunk_duration
 
     with open(ass_path, "w", encoding="utf-8") as f:
         f.write(header + events)
 
     print(
-        f"📄 Generated ASS file: {ass_path.stat().st_size} bytes with {len(chunks)} chunks"
+        f"📄 Generated ASS file (karaoke): {ass_path.stat().st_size} bytes, {len(chunks)} chunks, {len(all_words)} words"
     )
 
 
@@ -544,10 +551,10 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                     "✅ Stabilization Pass 1 complete. Integrating Pass 2 into main filter chain."
                 )
                 # We will add vidstabtransform to the video chain below
-                # optzoom=2 -> Adaptive zoom to avoid black borders
-                # zoom=0 -> Auto zoom
                 # smoothing=30 -> Heavy smoothing (default is 10) for handheld feel
-                vidstab_filter = f"vidstabtransform=input={transforms_path}:smoothing=30:optzoom=2:zoom=0:interpol=bicubic,unsharp=5:5:0.8:3:3:0.4,"
+                # relative=1 -> Transforms relative to previous frame
+                # zoom=5 -> Fixed 5% zoom to avoid black borders from stabilization
+                vidstab_filter = f"vidstabtransform=input={transforms_path}:smoothing=30:relative=1:zoom=5,unsharp=5:5:1.0:5:5:0.0,"
             else:
                 print(
                     f"⚠️ Stabilization Pass 1 failed: {detect_proc.stderr.decode()[:500]}"
@@ -613,7 +620,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             # Note: vidstabtransform output is same res as input
 
         # Scale & Crop to Fill 1080x1920 (Vertical Reel)
-        v_chain += "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920"
+        # Then enhance brightness/contrast slightly for Facebook optimization
+        v_chain += "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,eq=brightness=0.05:contrast=1.1"
 
         # 2. Text Overlay
         if request.text and request.draw_text:
@@ -712,8 +720,10 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 "30",
                 "-preset",
                 "slow",
+                "-level",
+                "4.1",
                 "-crf",
-                "17",
+                "18",
                 "-b:v",
                 "10M",
                 "-maxrate",
@@ -723,7 +733,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 "-c:a",
                 "aac",
                 "-b:a",
-                "192k",
+                "128k",
                 "-pix_fmt",
                 "yuv420p",
                 "-movflags",

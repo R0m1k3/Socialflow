@@ -28,6 +28,9 @@ import {
   type InsertOpenrouterConfig,
   type UserPagePermission,
   type InsertUserPagePermission,
+  musicFavorites,
+  type MusicFavorite,
+  type InsertMusicFavorite,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, asc, isNull, inArray } from "drizzle-orm";
@@ -98,6 +101,12 @@ export interface IStorage {
   deletePagePermission(userId: string, pageId: string): Promise<void>;
   deleteAllUserPagePermissions(userId: string): Promise<void>;
   getUserAccessiblePages(userId: string): Promise<SocialPage[]>;
+
+  // Music Favorites
+  getMusicFavorites(userId: string): Promise<MusicFavorite[]>;
+  addMusicFavorite(favorite: InsertMusicFavorite): Promise<MusicFavorite>;
+  removeMusicFavorite(userId: string, trackId: string): Promise<void>;
+  isMusicFavorite(userId: string, trackId: string): Promise<boolean>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -448,6 +457,37 @@ export class DatabaseStorage implements IStorage {
       .where(eq(userPagePermissions.userId, userId));
 
     return permissions.map(p => p.social_pages);
+  }
+
+  // Music Favorites
+  async getMusicFavorites(userId: string): Promise<MusicFavorite[]> {
+    return db.select().from(musicFavorites)
+      .where(eq(musicFavorites.userId, userId))
+      .orderBy(desc(musicFavorites.createdAt));
+  }
+
+  async addMusicFavorite(favorite: InsertMusicFavorite): Promise<MusicFavorite> {
+    const [created] = await db.insert(musicFavorites).values(favorite).returning();
+    return created;
+  }
+
+  async removeMusicFavorite(userId: string, trackId: string): Promise<void> {
+    await db.delete(musicFavorites).where(
+      and(
+        eq(musicFavorites.userId, userId),
+        eq(musicFavorites.trackId, trackId)
+      )
+    );
+  }
+
+  async isMusicFavorite(userId: string, trackId: string): Promise<boolean> {
+    const [fav] = await db.select().from(musicFavorites).where(
+      and(
+        eq(musicFavorites.userId, userId),
+        eq(musicFavorites.trackId, trackId)
+      )
+    );
+    return !!fav;
   }
 }
 

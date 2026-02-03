@@ -63,6 +63,24 @@ export async function migrate() {
       ADD COLUMN IF NOT EXISTS "last_token_check" timestamp;
     `);
 
+    // music_favorites
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "music_favorites" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+        "track_id" text NOT NULL,
+        "title" text NOT NULL,
+        "artist" text NOT NULL,
+        "album_name" text,
+        "duration" integer NOT NULL,
+        "preview_url" text NOT NULL,
+        "download_url" text NOT NULL,
+        "image_url" text,
+        "license" text,
+        "created_at" timestamp DEFAULT now()
+      );
+    `);
+
     console.log("[Migration] Safe migration completed.");
   } catch (error) {
     console.error("[Migration] Error during migration:", error);

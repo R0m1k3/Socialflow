@@ -185,6 +185,21 @@ export const aiGenerations = pgTable("ai_generations", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const musicFavorites = pgTable("music_favorites", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  trackId: text("track_id").notNull(),
+  title: text("title").notNull(),
+  artist: text("artist").notNull(),
+  albumName: text("album_name"),
+  duration: integer("duration").notNull(),
+  previewUrl: text("preview_url").notNull(),
+  downloadUrl: text("download_url").notNull(),
+  imageUrl: text("image_url"),
+  license: text("license"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const userPagePermissions = pgTable("user_page_permissions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -292,6 +307,13 @@ export const aiGenerationsRelations = relations(aiGenerations, ({ one }) => ({
   }),
 }));
 
+export const musicFavoritesRelations = relations(musicFavorites, ({ one }) => ({
+  user: one(users, {
+    fields: [musicFavorites.userId],
+    references: [users.id],
+  }),
+}));
+
 export const userPagePermissionsRelations = relations(userPagePermissions, ({ one }) => ({
   user: one(users, {
     fields: [userPagePermissions.userId],
@@ -365,6 +387,11 @@ export const insertPostMediaSchema = createInsertSchema(postMedia).omit({
   id: true,
 });
 
+export const insertMusicFavoriteSchema = createInsertSchema(musicFavorites).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -394,5 +421,8 @@ export type UpdateOpenrouterConfig = z.infer<typeof updateOpenrouterConfigSchema
 
 export type PostMedia = typeof postMedia.$inferSelect;
 export type InsertPostMedia = z.infer<typeof insertPostMediaSchema>;
+
+export type MusicFavorite = typeof musicFavorites.$inferSelect;
+export type InsertMusicFavorite = z.infer<typeof insertMusicFavoriteSchema>;
 
 
