@@ -131,6 +131,15 @@ export const openrouterConfig = pgTable("openrouter_config", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const freesoundConfig = pgTable("freesound_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  clientId: text("client_id").notNull(),
+  clientSecret: text("client_secret").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const media = pgTable("media", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -250,6 +259,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   pagePermissions: many(userPagePermissions),
   cloudinaryConfig: one(cloudinaryConfig),
   openrouterConfig: one(openrouterConfig),
+  freesoundConfig: one(freesoundConfig),
 }));
 
 export const cloudinaryConfigRelations = relations(cloudinaryConfig, ({ one }) => ({
@@ -424,5 +434,20 @@ export type InsertPostMedia = z.infer<typeof insertPostMediaSchema>;
 
 export type MusicFavorite = typeof musicFavorites.$inferSelect;
 export type InsertMusicFavorite = z.infer<typeof insertMusicFavoriteSchema>;
+
+export const insertFreesoundConfigSchema = createInsertSchema(freesoundConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateFreesoundConfigSchema = insertFreesoundConfigSchema.partial({
+  clientId: true,
+  clientSecret: true,
+});
+
+export type FreesoundConfig = typeof freesoundConfig.$inferSelect;
+export type InsertFreesoundConfig = z.infer<typeof insertFreesoundConfigSchema>;
+export type UpdateFreesoundConfig = z.infer<typeof updateFreesoundConfigSchema>;
 
 

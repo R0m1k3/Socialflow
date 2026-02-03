@@ -10,8 +10,9 @@ import passport from "./auth";
 import { z } from "zod";
 import { openRouterService } from "./services/openrouter";
 import { cloudinaryService } from "./services/cloudinary";
-import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
-import type { User, InsertUser, ScheduledPost } from "@shared/schema";
+import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertFreesoundConfigSchema, updateFreesoundConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
+import type { User, InsertUser, ScheduledPost, FreesoundConfig } from "@shared/schema";
+import { freeSoundService } from "./services/freesound";
 import { analyticsRouter } from "./routes/analytics";
 import { reelsRouter } from "./routes/reels";
 
@@ -345,6 +346,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Analytics Routes
   app.use("/api/analytics", requireAuth, analyticsRouter);
+
+  // Freesound Configuration Routes
+  app.get("/api/freesound/config", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const config = await storage.getFreesoundConfig(user.id);
+      if (!config) {
+        return res.json(null);
+      }
+      return res.json({
+        ...config,
+        clientSecret: config.clientSecret ? "********" : "",
+      });
+    } catch (error) {
+      console.error("Error fetching Freesound config:", error);
+      res.status(500).json({ error: "Failed to fetch configuration" });
+    }
+  });
+
+  app.post("/api/freesound/config", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const data = updateFreesoundConfigSchema.parse(req.body);
+
+      let config = await storage.getFreesoundConfig(user.id);
+      const updateData: any = { ...data };
+
+      if (!updateData.clientSecret || updateData.clientSecret === "********") {
+        delete updateData.clientSecret;
+      }
+
+      if (config) {
+        config = await storage.updateFreesoundConfig(user.id, updateData);
+      } else {
+        if (!data.clientId || !data.clientSecret) {
+          return res.status(400).json({ error: "Client ID and Secret are required" });
+        }
+        config = await storage.createFreesoundConfig({
+          ...data as any,
+          userId: user.id
+        });
+      }
+
+      if (config && config.clientId && config.clientSecret) {
+        freeSoundService.configure(config.clientId, config.clientSecret);
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving Freesound config:", error);
+      res.status(500).json({ error: "Failed to save configuration" });
+    }
+  });
 
   // Reels & Music Routes
   app.use("/api", requireAuth, reelsRouter);

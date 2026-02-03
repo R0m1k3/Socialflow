@@ -31,6 +31,9 @@ import {
   musicFavorites,
   type MusicFavorite,
   type InsertMusicFavorite,
+  freesoundConfig,
+  type FreesoundConfig,
+  type InsertFreesoundConfig,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, asc, isNull, inArray } from "drizzle-orm";
@@ -107,6 +110,11 @@ export interface IStorage {
   addMusicFavorite(favorite: InsertMusicFavorite): Promise<MusicFavorite>;
   removeMusicFavorite(userId: string, trackId: string): Promise<void>;
   isMusicFavorite(userId: string, trackId: string): Promise<boolean>;
+
+  // Freesound Config
+  getFreesoundConfig(userId: string): Promise<FreesoundConfig | undefined>;
+  createFreesoundConfig(config: InsertFreesoundConfig): Promise<FreesoundConfig>;
+  updateFreesoundConfig(userId: string, config: Partial<InsertFreesoundConfig>): Promise<FreesoundConfig>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -488,6 +496,25 @@ export class DatabaseStorage implements IStorage {
       )
     );
     return !!fav;
+  }
+
+  // Freesound Config
+  async getFreesoundConfig(userId: string): Promise<FreesoundConfig | undefined> {
+    const [config] = await db.select().from(freesoundConfig).where(eq(freesoundConfig.userId, userId));
+    return config || undefined;
+  }
+
+  async createFreesoundConfig(config: InsertFreesoundConfig): Promise<FreesoundConfig> {
+    const [newConfig] = await db.insert(freesoundConfig).values(config).returning();
+    return newConfig;
+  }
+
+  async updateFreesoundConfig(userId: string, config: Partial<InsertFreesoundConfig>): Promise<FreesoundConfig> {
+    const [updated] = await db.update(freesoundConfig)
+      .set({ ...config, updatedAt: new Date() })
+      .where(eq(freesoundConfig.userId, userId))
+      .returning();
+    return updated;
   }
 }
 

@@ -187,6 +187,34 @@ app.use((req, res, next) => {
   const jamendoClientId = process.env.JAMENDO_CLIENT_ID || '5b6bba49';
   jamendoService.configure(jamendoClientId);
 
+  // Configurer le service FreeSound pour les Reels
+  // 1. Essayer de charger depuis la DB (suppose un utilisateur admin ou premier utilisateur)
+  // Note: Dans un contexte multi-utilisateur, cela devrait être fait par requête.
+  // Pour l'instant, on charge la config du premier user trouvé ou via variable d'env.
+
+  let freesoundConfigured = false;
+  try {
+    const { storage } = await import("./storage");
+    const allUsers = await storage.getAllUsers();
+    if (allUsers.length > 0) {
+      const dbConfig = await storage.getFreesoundConfig(allUsers[0].id);
+      if (dbConfig && dbConfig.clientId && dbConfig.clientSecret) {
+        freeSoundService.configure(dbConfig.clientId, dbConfig.clientSecret);
+        freesoundConfigured = true;
+        log('🎵 FreeSound configured from Database');
+      }
+    }
+  } catch (err) {
+    console.warn('Failed to load Freesound config from DB:', err);
+  }
+
+  if (!freesoundConfigured && process.env.FREESOUND_CLIENT_ID && process.env.FREESOUND_CLIENT_SECRET) {
+    freeSoundService.configure(process.env.FREESOUND_CLIENT_ID, process.env.FREESOUND_CLIENT_SECRET);
+    log('🎵 FreeSound configured from Environment Variables');
+  } else if (!freesoundConfigured) {
+    log('⚠️ FreeSound credentials not found - music search will be disabled');
+  }
+
   // Configurer le service FFmpeg pour le traitement vidéo (si configuré)
   if (process.env.FFMPEG_API_URL && process.env.FFMPEG_API_KEY) {
     ffmpegService.configure(process.env.FFMPEG_API_URL, process.env.FFMPEG_API_KEY);

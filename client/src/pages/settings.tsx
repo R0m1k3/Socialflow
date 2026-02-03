@@ -56,8 +56,58 @@ export default function Settings() {
         const logoPublicId = (cloudinaryConfig as any).logoPublicId;
         setLogoPreview(`https://res.cloudinary.com/${cloudName}/image/upload/${logoPublicId}`);
       }
+      if ((cloudinaryConfig as any).logoPublicId) {
+        const cloudName = (cloudinaryConfig as any).cloudName;
+        const logoPublicId = (cloudinaryConfig as any).logoPublicId;
+        setLogoPreview(`https://res.cloudinary.com/${cloudName}/image/upload/${logoPublicId}`);
+      }
     }
   }, [cloudinaryConfig]);
+
+  const { data: freesoundConfig } = useQuery({
+    queryKey: ['/api/freesound/config'],
+  });
+
+  const [freesoundClientId, setFreesoundClientId] = useState("");
+  const [freesoundClientSecret, setFreesoundClientSecret] = useState("");
+
+  useEffect(() => {
+    if (freesoundConfig) {
+      setFreesoundClientId((freesoundConfig as any).clientId || "");
+      setFreesoundClientSecret((freesoundConfig as any).clientSecret || ""); // Usually masked
+    }
+  }, [freesoundConfig]);
+
+  const hasExistingFreesoundConfig = !!freesoundConfig;
+
+  const saveFreesoundMutation = useMutation({
+    mutationFn: () => {
+      const payload: any = {
+        clientId: freesoundClientId,
+      };
+
+      if (freesoundClientSecret && freesoundClientSecret.trim() !== "" && freesoundClientSecret !== "********") {
+        payload.clientSecret = freesoundClientSecret;
+      }
+
+      return apiRequest('POST', '/api/freesound/config', payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/freesound/config'] });
+      toast({
+        title: "Configuration sauvegardée",
+        description: "Vos paramètres Freesound ont été enregistrés",
+      });
+      // On garde l'affichage tel quel ou on remet masked si retourné
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder la configuration Freesound",
+        variant: "destructive",
+      });
+    },
+  });
 
   useEffect(() => {
     if (openrouterConfig) {
@@ -455,6 +505,60 @@ export default function Settings() {
                   className="w-full"
                 >
                   {saveCloudinaryMutation.isPending ? "Enregistrement..." : "Enregistrer Cloudinary"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border-border/50 shadow-lg">
+              <CardHeader className="p-6">
+                <CardTitle className="flex items-center gap-2">
+                  <SettingsIcon className="w-5 h-5" />
+                  Configuration Freesound (Musique)
+                </CardTitle>
+                <CardDescription>
+                  Configurez l'API Freesound pour la recherche de musique dans les Reels
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="freesoundClientId">Client ID</Label>
+                  <Input
+                    id="freesoundClientId"
+                    type="text"
+                    value={freesoundClientId}
+                    onChange={(e) => setFreesoundClientId(e.target.value)}
+                    placeholder="Votre Client ID Freesound"
+                    data-testid="input-freesound-client-id"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Disponible dans vos paramètres d'API Freesound
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="freesoundClientSecret">Client Secret</Label>
+                  <Input
+                    id="freesoundClientSecret"
+                    type="password"
+                    value={freesoundClientSecret}
+                    onChange={(e) => setFreesoundClientSecret(e.target.value)}
+                    placeholder={hasExistingFreesoundConfig ? "••••••••" : "Votre Client Secret"}
+                    data-testid="input-freesound-client-secret"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {hasExistingFreesoundConfig ? (
+                      <span className="text-green-600 dark:text-green-400">✓ Configuré (Laissez vide pour conserver)</span>
+                    ) : (
+                      "Votre clé secrète ne sera jamais exposée"
+                    )}
+                  </p>
+                </div>
+                <Button
+                  onClick={() => saveFreesoundMutation.mutate()}
+                  disabled={saveFreesoundMutation.isPending || !freesoundClientId}
+                  data-testid="button-save-freesound"
+                  className="w-full"
+                >
+                  {saveFreesoundMutation.isPending ? "Enregistrement..." : "Enregistrer Freesound"}
                 </Button>
               </CardContent>
             </Card>
