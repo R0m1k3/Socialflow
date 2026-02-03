@@ -437,7 +437,10 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             pageCount: pageIds.length,
         });
 
+        const startTime = Date.now();
+
         // Traiter la vidéo via FFmpeg
+        console.time('ffmpegProcessing');
         const ffmpegResult = await ffmpegService.processReelFromUrl(media.originalUrl, {
             text: overlayText,
             musicUrl: finalMusicUrl,
@@ -448,6 +451,8 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             musicVolume,
             drawText,
         });
+        console.timeEnd('ffmpegProcessing');
+        console.log(`⏱️ FFmpeg processing took ${(Date.now() - startTime) / 1000}s`);
 
         if (!ffmpegResult.success || !ffmpegResult.videoBase64) {
             return res.status(500).json({
@@ -456,6 +461,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
         }
 
         // Upload la vidéo traitée sur Cloudinary
+        console.time('cloudinaryUpload');
         const videoBuffer = Buffer.from(ffmpegResult.videoBase64, 'base64');
         const cloudinaryResult = await cloudinaryService.uploadMedia(
             videoBuffer,
@@ -463,7 +469,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             user.id,
             'video/mp4'
         );
-
+        console.timeEnd('cloudinaryUpload');
         console.log('✅ Reel uploaded to Cloudinary:', cloudinaryResult.originalUrl);
 
         // Create Media record for the processed video
