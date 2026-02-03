@@ -79,6 +79,20 @@ export async function migrate() {
         "license" text,
         "created_at" timestamp DEFAULT now()
       );
+      );
+    `);
+
+    // freesound_config
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "freesound_config" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+        "client_id" text NOT NULL,
+        "client_secret" text NOT NULL,
+        "created_at" timestamp DEFAULT now(),
+        "updated_at" timestamp DEFAULT now(),
+        CONSTRAINT freesound_config_user_id_unique UNIQUE ("user_id")
+      );
     `);
 
     console.log("[Migration] Safe migration completed.");
