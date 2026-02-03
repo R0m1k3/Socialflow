@@ -441,7 +441,9 @@ export const insertFreesoundConfigSchema = createInsertSchema(freesoundConfig).o
   updatedAt: true,
 });
 
-export const updateFreesoundConfigSchema = insertFreesoundConfigSchema.partial({
+export const updateFreesoundConfigSchema = insertFreesoundConfigSchema.omit({
+  userId: true
+}).partial({
   clientId: true,
   clientSecret: true,
 });
