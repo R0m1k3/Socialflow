@@ -190,7 +190,7 @@ async def generate_tts_with_subs(
     ass_path: Path,
     display_text: Optional[str] = None,
 ):
-    """Generate TTS audio with subtitles, with retry and fallback voices."""
+    """Generate TTS audio with subtitles, utilizing precise WordBoundary events."""
     import asyncio
 
     # Determine gender of requested voice to choose appropriate fallbacks
@@ -211,8 +211,6 @@ async def generate_tts_with_subs(
 
     # Always add English fallback as last resort
     fallback_voices.append("en-US-JennyNeural")
-
-    # Remove duplicates while preserving order
     fallback_voices = list(dict.fromkeys(fallback_voices))
 
     last_error = None
@@ -221,56 +219,134 @@ async def generate_tts_with_subs(
         try:
             print(f"🔊 TTS attempt with voice: {attempt_voice}")
             communicate = edge_tts.Communicate(text, attempt_voice)
-
-            # Use the simple save() method which is more reliable
-            await asyncio.wait_for(communicate.save(str(audio_path)), timeout=60.0)
+            
+            # Words capturing for precise sync
+            word_timings = []
+            
+            # Open file for writing audio stream
+            with open(audio_path, "wb") as audio_file:
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        audio_file.write(chunk["data"])
+                    elif chunk["type"] == "WordBoundary":
+                        # edge-tts provides offset/duration in 100ns units (ticks)
+                        # We convert to seconds immediately
+                        word_timings.append({
+                            "text": chunk["text"],
+                            "offset": chunk["offset"] / 10_000_000,
+                            "duration": chunk["duration"] / 10_000_000
+                        })
 
             # Check if file was created and has content
             if audio_path.exists() and audio_path.stat().st_size > 0:
                 print(f"✅ TTS audio saved: {audio_path.stat().st_size} bytes")
+                print(f"📊 Collected {len(word_timings)} precise word timings")
 
-                # Measure audio duration for perfect sync
-                try:
-                    duration_cmd = [
-                        "ffprobe",
-                        "-v",
-                        "error",
-                        "-show_entries",
-                        "format=duration",
-                        "-of",
-                        "default=noprint_wrappers=1:nokey=1",
-                        str(audio_path),
-                    ]
-                    dur_proc = subprocess.run(
-                        duration_cmd, stdout=subprocess.PIPE, text=True
-                    )
-                    audio_duration = float(dur_proc.stdout.strip())
-                    print(f"⏱️ TTS Audio Duration: {audio_duration:.2f}s")
-                except Exception as e:
-                    print(f"⚠️ Could not measure TTS duration, using fallback: {e}")
-                    audio_duration = None
-
-                # Generate a high-quality ASS file with sync
-                # Use display_text (with emojis) if provided, otherwise standard text
+                # Generate a high-quality ASS file with PRECISE sync
+                # If we have timings, use them. If not (some voices don't support it?), fallback.
                 text_to_display = display_text if display_text else text
-                generate_simple_ass(
-                    text_to_display, ass_path, total_duration=audio_duration
-                )
+                
+                if word_timings:
+                    generate_precise_ass(word_timings, ass_path)
+                else:
+                    # Fallback to estimation if no events received
+                    print("⚠️ No WordBoundary events received. Falling back to simple estimation.")
+                    # Measure audio duration for fallback sync
+                    audio_duration = 0
+                    try:
+                        duration_cmd = ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path)]
+                        dur_proc = subprocess.run(duration_cmd, stdout=subprocess.PIPE, text=True)
+                        audio_duration = float(dur_proc.stdout.strip())
+                    except:
+                        pass
+                    
+                    generate_simple_ass(text_to_display, ass_path, total_duration=audio_duration)
 
                 print(f"✅ TTS success with voice: {attempt_voice}")
                 return  # Success!
             else:
                 print(f"⚠️ Audio file empty or missing with voice: {attempt_voice}")
 
-        except asyncio.TimeoutError:
-            print(f"⚠️ TTS timeout with voice: {attempt_voice}")
-            last_error = "Timeout"
         except Exception as e:
             print(f"⚠️ TTS failed with voice {attempt_voice}: {e}")
             last_error = e
 
-    # If all voices failed, raise the last error
+    # If all voices failed
     raise Exception(f"All TTS voices failed. Last error: {last_error}")
+
+
+def generate_precise_ass(word_timings: list, ass_path: Path, font_size: int = 65):
+    """Generate TikTok-style ASS subtitle file using PRECISE word timestamps."""
+    
+    # ASS Header
+    header = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Sans,{font_size},&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,5,50,50,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    events = ""
+    
+    # Group words into chunks (3-4 words max)
+    # But we must respect the Timeline.
+    chunks = []
+    current_chunk = []
+    
+    for timing in word_timings:
+        current_chunk.append(timing)
+        # Break chunk on punctuation or length
+        is_end_sentence = timing["text"].endswith((".", "!", "?", ":", ";"))
+        if len(current_chunk) >= 3 or is_end_sentence:
+            chunks.append(current_chunk)
+            current_chunk = []
+    
+    if current_chunk:
+        chunks.append(current_chunk)
+        
+    for chunk in chunks:
+        if not chunk: continue
+        
+        # Chunk Start = Start of first word
+        # Chunk End = End of last word
+        start_time = chunk[0]["offset"]
+        end_time = chunk[-1]["offset"] + chunk[-1]["duration"]
+        
+        # Add a tiny buffer to end time to prevent flickering between chunks
+        end_time += 0.1
+        
+        s_time_str = format_ass_time(start_time)
+        e_time_str = format_ass_time(end_time)
+        
+        # Build karaoke text
+        karaoke_parts = []
+        
+        # We need to calculate relative duration for \kf in centiseconds
+        # \kf uses duration relative to the start of the line/event
+        # BUT standard \kf accumulates.
+        # Format: {\kf80}Word1 {\kf40}Word2
+        
+        for timing in chunk:
+            duration_cs = int(timing["duration"] * 100) # seconds to centiseconds
+            # Ensure at least 1cs
+            duration_cs = max(duration_cs, 1)
+            
+            sanitized = timing["text"].replace("{", "(").replace("}", ")")
+            karaoke_parts.append(f"{{\\kf{duration_cs}}}{sanitized}")
+            
+        karaoke_text = " ".join(karaoke_parts)
+        events += f"Dialogue: 0,{s_time_str},{e_time_str},Default,,0,0,0,,{karaoke_text}\n"
+
+    with open(ass_path, "w", encoding="utf-8") as f:
+        f.write(header + events)
+        
+    print(f"📄 Generated PRECISE ASS file: {len(chunks)} chunks from {len(word_timings)} words")
 
 
 def generate_simple_ass(
