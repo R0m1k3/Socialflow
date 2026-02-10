@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Facebook, Instagram, Clock, CheckCircle2, XCircle, Eye, Image as ImageIcon, Smartphone } from "lucide-react";
+import { Facebook, Instagram, Clock, CheckCircle2, XCircle, Eye, Image as ImageIcon, Smartphone, Clapperboard } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { ScheduledPost, SocialPage, Post, Media } from "@shared/schema";
@@ -35,21 +35,21 @@ export default function RecentPublications() {
       const response = await fetch(`/api/posts/${scheduledPost.postId}`, {
         credentials: "include",
       });
-      
+
       if (!response.ok) {
         throw new Error("Failed to fetch post");
       }
-      
+
       const postWithMedia = await response.json();
       const mediaIds = postWithMedia.media?.map((m: Media) => m.id) || [];
       const allMedia = postWithMedia.media || [];
-      
+
       setPreviewData({
         postText: postWithMedia.post.content || '',
         mediaIds: mediaIds,
         allMedia: allMedia,
       });
-      
+
       setPreviewModalOpen(true);
     } catch (error) {
       toast({
@@ -65,6 +65,8 @@ export default function RecentPublications() {
       return <ImageIcon className="w-3.5 h-3.5" />;
     } else if (postType === 'story') {
       return <Smartphone className="w-3.5 h-3.5" />;
+    } else if (postType === 'reel') {
+      return <Clapperboard className="w-3.5 h-3.5" />;
     } else if (postType === 'both') {
       return (
         <div className="flex gap-0.5">
@@ -105,11 +107,10 @@ export default function RecentPublications() {
                 data-testid={`publication-${scheduledPost.id}`}
               >
                 {/* Platform icon */}
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-                  scheduledPost.page?.platform === 'facebook' 
-                    ? 'bg-blue-500' 
+                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${scheduledPost.page?.platform === 'facebook'
+                    ? 'bg-blue-500'
                     : 'bg-gradient-to-br from-purple-500 to-pink-500'
-                }`}>
+                  }`}>
                   {scheduledPost.page?.platform === 'facebook' ? (
                     <Facebook className="w-5 h-5 text-white" />
                   ) : (
@@ -150,12 +151,13 @@ export default function RecentPublications() {
                       )}
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
                     <span className="flex items-center gap-1 capitalize">
                       {getPostTypeIcon(scheduledPost.postType)}
-                      {scheduledPost.postType === 'feed' ? 'Feed' : 
-                       scheduledPost.postType === 'story' ? 'Story' : 'Feed & Story'}
+                      {scheduledPost.postType === 'feed' ? 'Feed' :
+                        scheduledPost.postType === 'story' ? 'Story' :
+                          scheduledPost.postType === 'reel' ? 'Reel' : 'Feed & Story'}
                     </span>
                     <span>•</span>
                     <span>
@@ -181,7 +183,7 @@ export default function RecentPublications() {
         postText={previewData.postText}
         selectedMedia={previewData.mediaIds}
         mediaList={previewData.allMedia}
-        onPublish={() => {}}
+        onPublish={() => { }}
         isPublishing={false}
         readOnly={true}
       />

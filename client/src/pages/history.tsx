@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, CheckCircle, XCircle, Calendar, History as HistoryIcon, Eye, Image as ImageIcon, Smartphone, Loader2 } from "lucide-react";
+import { Clock, CheckCircle, XCircle, Calendar, History as HistoryIcon, Eye, Image as ImageIcon, Smartphone, Loader2, Clapperboard } from "lucide-react";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -69,6 +69,8 @@ export default function History() {
       return <ImageIcon className="w-4 h-4" />;
     } else if (postType === 'story') {
       return <Smartphone className="w-4 h-4" />;
+    } else if (postType === 'reel') {
+      return <Clapperboard className="w-4 h-4" />;
     } else if (postType === 'both') {
       return (
         <div className="flex gap-0.5">
@@ -138,8 +140,8 @@ export default function History() {
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-3">
                             <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md ${hasError ? 'bg-gradient-to-br from-destructive to-destructive/80' :
-                                isPending ? 'bg-gradient-to-br from-blue-500 to-blue-600' :
-                                  'bg-gradient-to-br from-green-500 to-green-600'
+                              isPending ? 'bg-gradient-to-br from-blue-500 to-blue-600' :
+                                'bg-gradient-to-br from-green-500 to-green-600'
                               }`}>
                               {hasError ? (
                                 <XCircle className="w-5 h-5 text-white" />
@@ -170,10 +172,10 @@ export default function History() {
                           </Button>
                           <Badge
                             className={`${hasError
-                                ? 'bg-destructive/20 text-destructive hover:bg-destructive/30'
-                                : isPending
-                                  ? 'bg-blue-500/20 text-blue-500 hover:bg-blue-500/30'
-                                  : 'bg-success/20 text-success hover:bg-success/30'
+                              ? 'bg-destructive/20 text-destructive hover:bg-destructive/30'
+                              : isPending
+                                ? 'bg-blue-500/20 text-blue-500 hover:bg-blue-500/30'
+                                : 'bg-success/20 text-success hover:bg-success/30'
                               }`}
                           >
                             {hasError ? (
@@ -202,7 +204,8 @@ export default function History() {
                           {getPostTypeIcon(scheduledPost.postType)}
                           <span className="font-medium capitalize">
                             {scheduledPost.postType === 'feed' ? 'Feed' :
-                              scheduledPost.postType === 'story' ? 'Story' : 'Feed & Story'}
+                              scheduledPost.postType === 'story' ? 'Story' :
+                                scheduledPost.postType === 'reel' ? 'Reel' : 'Feed & Story'}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
