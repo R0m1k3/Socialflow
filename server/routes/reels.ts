@@ -330,6 +330,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             fontSize,
             musicVolume,
             drawText,
+            stabilize,
         });
 
         if (!result.success) {
@@ -374,7 +375,206 @@ reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
 });
 
 /**
- * Créer et publier un Reel
+ * Traitement d'arrière-plan pour les Reels
+ * Gère le pipeline FFmpeg -> Cloudinary -> Facebook de manière asynchrone
+ */
+async function processReelBackground(
+    userId: string,
+    postId: string,
+    data: {
+        videoMediaId: string;
+        musicTrackId?: string;
+        musicUrl?: string;
+        overlayText?: string;
+        description?: string;
+        ttsEnabled?: boolean;
+        ttsVoice?: string;
+        pageIds: string[];
+        scheduledFor?: string;
+        wordDuration?: number;
+        fontSize?: number;
+        musicVolume?: number;
+        drawText?: boolean;
+        stabilize?: boolean;
+    }
+) {
+    const {
+        videoMediaId,
+        musicTrackId,
+        musicUrl,
+        overlayText,
+        description,
+        ttsEnabled,
+        ttsVoice,
+        pageIds,
+        scheduledFor,
+        wordDuration,
+        fontSize,
+        musicVolume,
+        drawText,
+        stabilize,
+    } = data;
+
+    console.log(`🔄 [Background] Starting processing for Post ${postId}`);
+
+    try {
+        // 1. Récupérer le média vidéo source
+        const media = await storage.getMediaById(videoMediaId);
+        if (!media || media.type !== 'video') {
+            throw new Error('Vidéo source introuvable ou invalide');
+        }
+
+        // 2. Récupérer l'URL de la musique
+        let finalMusicUrl = musicUrl;
+        if (musicTrackId && !musicUrl) {
+            const track = await freeSoundService.getMusicDetails(musicTrackId);
+            if (track) {
+                finalMusicUrl = track.downloadUrl;
+            }
+        }
+
+        console.log('🎬 [Background] FFmpeg Processing:', {
+            postId,
+            videoUrl: media.originalUrl,
+            hasMusic: !!finalMusicUrl, // Log boolean to avoid long URL
+            hasText: !!overlayText
+        });
+
+        // 3. Traiter la vidéo via FFmpeg
+        const startTime = Date.now();
+        const ffmpegResult = await ffmpegService.processReelFromUrl(media.originalUrl, {
+            text: overlayText,
+            musicUrl: finalMusicUrl,
+            ttsEnabled,
+            ttsVoice,
+            wordDuration,
+            fontSize,
+            musicVolume,
+            drawText,
+            stabilize,
+        });
+
+        console.log(`⏱️ [Background] FFmpeg took ${(Date.now() - startTime) / 1000}s`);
+
+        if (!ffmpegResult.success || !ffmpegResult.videoBase64) {
+            throw new Error(ffmpegResult.error || 'Erreur de traitement vidéo FFmpeg');
+        }
+
+        // 4. Upload sur Cloudinary
+        console.log('☁️ [Background] Uploading to Cloudinary...');
+        const videoBuffer = Buffer.from(ffmpegResult.videoBase64, 'base64');
+        const cloudinaryResult = await cloudinaryService.uploadMedia(
+            videoBuffer,
+            `reel-${Date.now()}.mp4`,
+            userId,
+            'video/mp4'
+        );
+        console.log('✅ [Background] Uploaded:', cloudinaryResult.originalUrl);
+
+        // 5. Créer l'enregistrement Media pour la vidéo traitée
+        const processedMedia = await storage.createMedia({
+            userId: userId,
+            type: 'video',
+            cloudinaryPublicId: cloudinaryResult.publicId,
+            originalUrl: cloudinaryResult.originalUrl,
+            facebookFeedUrl: cloudinaryResult.facebookFeedUrl || null,
+            instagramFeedUrl: cloudinaryResult.instagramFeedUrl || null,
+            instagramStoryUrl: cloudinaryResult.instagramStoryUrl || null,
+            fileName: `reel-processed-${Date.now()}.mp4`,
+            fileSize: videoBuffer.length,
+        });
+
+        // 6. Lier le média traité au Post existant
+        await storage.updatePostMedia(postId, [processedMedia.id]);
+
+        // 7. Publier sur les pages
+        const results: { pageId: string; success: boolean; reelId?: string; error?: string }[] = [];
+
+        for (const pageId of pageIds) {
+            try {
+                const page = await storage.getSocialPage(pageId);
+                if (!page) {
+                    results.push({ pageId, success: false, error: 'Page non trouvée' });
+                    continue;
+                }
+
+                if (page.platform !== 'facebook') {
+                    results.push({ pageId, success: false, error: 'Seules les pages Facebook sont supportées' });
+                    continue;
+                }
+
+                // Créer l'entrée scheduled_post (log de publication)
+                const scheduledPost = await storage.createScheduledPost({
+                    postId: postId,
+                    pageId: page.id,
+                    postType: 'reel',
+                    scheduledAt: scheduledFor ? new Date(scheduledFor) : new Date(),
+                });
+
+                if (!scheduledFor) {
+                    // Publication immédiate
+                    console.log(`🚀 [Background] Publishing to Page ${page.pageName}...`);
+                    const finalDescription = description || overlayText || '';
+
+                    const reelId = await facebookService.publishReel(
+                        page,
+                        cloudinaryResult.originalUrl,
+                        finalDescription
+                    );
+
+                    // Mise à jour succès
+                    await storage.updateScheduledPost(scheduledPost.id, {
+                        publishedAt: new Date(),
+                        externalPostId: reelId,
+                    });
+
+                    results.push({ pageId, success: true, reelId });
+                } else {
+                    // Planifié
+                    results.push({ pageId, success: true, reelId: 'scheduled' });
+                }
+
+            } catch (pageError: any) {
+                console.error(`❌ [Background] Error publishing to page ${pageId}:`, pageError);
+                results.push({
+                    pageId,
+                    success: false,
+                    error: pageError.message || 'Erreur inconnue',
+                });
+            }
+        }
+
+        // 8. Mettre à jour le statut global du Post
+        const allSuccess = results.every(r => r.success);
+        const anySuccess = results.some(r => r.success);
+
+        // Si au moins une réussite, on considère "published" (ou partial), sinon "failed"
+        // Si planifié, reste "scheduled".
+        let finalStatus = 'failed';
+        if (scheduledFor) {
+            finalStatus = 'scheduled';
+        } else if (allSuccess) {
+            finalStatus = 'published';
+        } else if (anySuccess) {
+            finalStatus = 'published'; // Partiellement publié
+        }
+
+        await storage.updatePost(postId, {
+            status: finalStatus,
+        });
+
+        console.log(`✅ [Background] Processing complete for Post ${postId}. Status: ${finalStatus}`);
+
+    } catch (error: any) {
+        console.error(`❌ [Background] Critical error for Post ${postId}:`, error);
+        await storage.updatePost(postId, {
+            status: 'failed',
+        });
+    }
+}
+
+/**
+ * Créer et publier un Reel (Asynchrone)
  * POST /api/reels
  */
 reelsRouter.post('/reels', async (req: Request, res: Response) => {
@@ -397,7 +597,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             stabilize = false,
         } = req.body;
 
-        // Validation
+        // Validation immédiate
         if (!videoMediaId) {
             return res.status(400).json({ error: 'Vidéo requise' });
         }
@@ -406,166 +606,38 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Au moins une page requise' });
         }
 
-        // Récupérer le média vidéo
-        const media = await storage.getMediaById(videoMediaId);
-        if (!media) {
-            return res.status(404).json({ error: 'Vidéo non trouvée' });
-        }
-
-        if (media.type !== 'video') {
-            return res.status(400).json({ error: 'Le média doit être une vidéo' });
-        }
-
-        // Récupérer l'URL de la musique si trackId fourni
-        let finalMusicUrl = musicUrl;
-        if (musicTrackId && !musicUrl) {
-            const track = await freeSoundService.getMusicDetails(musicTrackId);
-            if (track) {
-                finalMusicUrl = track.downloadUrl;
-            }
-        }
-
-        console.log('🎬 Processing Reel:', {
-            videoMediaId,
-            hasMusic: !!finalMusicUrl,
-            hasText: !!overlayText,
-            textPreview: overlayText?.substring(0, 50),
-            ttsEnabled: ttsEnabled,
-            ttsVoice: ttsVoice,
-            drawText: drawText,
-            stabilize: stabilize,
-            pageCount: pageIds.length,
-        });
-
-        const startTime = Date.now();
-
-        // Traiter la vidéo via FFmpeg
-        console.time('ffmpegProcessing');
-        const ffmpegResult = await ffmpegService.processReelFromUrl(media.originalUrl, {
-            text: overlayText,
-            musicUrl: finalMusicUrl,
-            ttsEnabled,
-            ttsVoice,
-            wordDuration,
-            fontSize,
-            musicVolume,
-            drawText,
-        });
-        console.timeEnd('ffmpegProcessing');
-        console.log(`⏱️ FFmpeg processing took ${(Date.now() - startTime) / 1000}s`);
-
-        if (!ffmpegResult.success || !ffmpegResult.videoBase64) {
-            return res.status(500).json({
-                error: ffmpegResult.error || 'Erreur de traitement vidéo',
-            });
-        }
-
-        // Upload la vidéo traitée sur Cloudinary
-        console.time('cloudinaryUpload');
-        const videoBuffer = Buffer.from(ffmpegResult.videoBase64, 'base64');
-        const cloudinaryResult = await cloudinaryService.uploadMedia(
-            videoBuffer,
-            `reel-${Date.now()}.mp4`,
-            user.id,
-            'video/mp4'
-        );
-        console.timeEnd('cloudinaryUpload');
-        console.log('✅ Reel uploaded to Cloudinary:', cloudinaryResult.originalUrl);
-
-        // Create Media record for the processed video
-        const processedMedia = await storage.createMedia({
-            userId: user.id,
-            type: 'video',
-            cloudinaryPublicId: cloudinaryResult.publicId,
-            originalUrl: cloudinaryResult.originalUrl,
-            facebookFeedUrl: cloudinaryResult.facebookFeedUrl || null,
-            instagramFeedUrl: cloudinaryResult.instagramFeedUrl || null,
-            instagramStoryUrl: cloudinaryResult.instagramStoryUrl || null,
-            fileName: `reel-${Date.now()}.mp4`,
-            fileSize: videoBuffer.length,
-        });
-
-        // Creates post in DB
+        // Créer immédiatement le Post en base (Statut Draft/Scheduled)
+        // Cela permet de retourner un ID tout de suite et d'éviter le timeout
         const post = await storage.createPost({
             userId: user.id,
             content: description || overlayText || '',
             aiGenerated: 'false',
-            status: scheduledFor ? 'scheduled' : 'draft',
+            status: scheduledFor ? 'scheduled' : 'draft', // 'draft' servira de 'processing' temporaire
             scheduledFor: scheduledFor ? new Date(scheduledFor) : undefined,
         });
 
-        // Link media to post
-        await storage.updatePostMedia(post.id, [processedMedia.id]);
+        console.log(`✨ Reel Request accepted. Post ID: ${post.id}. Starting background processing.`);
 
-        // Publier sur chaque page sélectionnée
-        const results: { pageId: string; success: boolean; reelId?: string; error?: string }[] = [];
-
-        for (const pageId of pageIds) {
-            try {
-                const page = await storage.getSocialPage(pageId);
-                if (!page) {
-                    results.push({ pageId, success: false, error: 'Page non trouvée' });
-                    continue;
-                }
-
-                if (page.platform !== 'facebook') {
-                    results.push({ pageId, success: false, error: 'Seules les pages Facebook sont supportées pour les Reels' });
-                    continue;
-                }
-
-                // Créer l'entrée scheduled_post
-                const scheduledPost = await storage.createScheduledPost({
-                    postId: post.id,
-                    pageId: page.id,
-                    postType: 'reel',
-                    scheduledAt: scheduledFor ? new Date(scheduledFor) : new Date(),
-                });
-
-                // Si pas de planification, publier immédiatement
-                if (!scheduledFor) {
-                    const finalDescription = description || overlayText || '';
-                    const reelId = await facebookService.publishReel(
-                        page,
-                        cloudinaryResult.originalUrl,
-                        finalDescription
-                    );
-
-                    // Mettre à jour le scheduled_post avec l'ID externe
-                    await storage.updateScheduledPost(scheduledPost.id, {
-                        publishedAt: new Date(),
-                        externalPostId: reelId,
-                    });
-
-                    results.push({ pageId, success: true, reelId });
-                } else {
-                    results.push({ pageId, success: true, reelId: 'scheduled' });
-                }
-            } catch (pageError) {
-                console.error(`❌ Error publishing Reel to page ${pageId}:`, pageError);
-                results.push({
-                    pageId,
-                    success: false,
-                    error: pageError instanceof Error ? pageError.message : 'Erreur inconnue',
-                });
-            }
-        }
-
-        // Mettre à jour le statut du post
-        const allSuccess = results.every(r => r.success);
-        await storage.updatePost(post.id, {
-            status: scheduledFor ? 'scheduled' : (allSuccess ? 'published' : 'failed'),
+        // Démarrer le traitement en arrière-plan (Fire & Forget)
+        // On ne met pas 'await' ici pour ne pas bloquer la réponse HTTP
+        processReelBackground(user.id, post.id, req.body).catch(err => {
+            console.error('🔥 Unhandled background error:', err);
         });
 
+        // Réponse immédiate au client
         res.json({
-            success: allSuccess,
+            success: true,
             postId: post.id,
-            results,
-            videoUrl: cloudinaryResult.originalUrl,
+            message: "Traitement démarré en arrière-plan. La publication apparaîtra bientôt.",
+            // On retourne des valeurs placeholder pour la compatibilité frontend
+            results: [],
+            videoUrl: ""
         });
+
     } catch (error) {
-        console.error('❌ Error creating Reel:', error);
+        console.error('❌ Error initiating Reel:', error);
         res.status(500).json({
-            error: error instanceof Error ? error.message : 'Erreur lors de la création du Reel',
+            error: error instanceof Error ? error.message : 'Erreur lors de l\'initialisation du Reel',
         });
     }
 });

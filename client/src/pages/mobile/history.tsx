@@ -3,7 +3,7 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
     Calendar, CheckCircle, XCircle, Clock,
-    MoreHorizontal, Filter, Search
+    MoreHorizontal, Filter, Search, Loader2
 } from "lucide-react";
 import { useState } from "react";
 import Sidebar from "@/components/sidebar";
@@ -22,9 +22,10 @@ import {
 export default function MobileHistory() {
     const [searchTerm, setSearchTerm] = useState("");
 
-    // Fetch posts history
+    // Fetch posts history with polling to see status updates
     const { data: posts } = useQuery<any[]>({
         queryKey: ['/api/posts'],
+        refetchInterval: 3000, // Poll every 3 seconds
     });
 
     const getStatusIcon = (status: string) => {
@@ -32,6 +33,7 @@ export default function MobileHistory() {
             case 'published': return <CheckCircle className="w-5 h-5 text-green-500" />;
             case 'failed': return <XCircle className="w-5 h-5 text-red-500" />;
             case 'scheduled': return <Clock className="w-5 h-5 text-amber-500" />;
+            case 'draft': return <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />;
             default: return <Clock className="w-5 h-5 text-muted-foreground" />;
         }
     };
@@ -41,6 +43,7 @@ export default function MobileHistory() {
             case 'published': return "Publié";
             case 'failed': return "Échec";
             case 'scheduled': return "Programmé";
+            case 'draft': return "Traitement...";
             default: return "Brouillon";
         }
     };
@@ -96,7 +99,8 @@ export default function MobileHistory() {
                                 <CardContent className="p-0">
                                     <div className="flex items-stretch">
                                         <div className={`w-1.5 ${post.status === 'published' ? 'bg-green-500' :
-                                                post.status === 'failed' ? 'bg-red-500' : 'bg-amber-500'
+                                            post.status === 'failed' ? 'bg-red-500' :
+                                                post.status === 'draft' ? 'bg-blue-500' : 'bg-amber-500'
                                             }`} />
 
                                         <div className="flex-1 p-3">

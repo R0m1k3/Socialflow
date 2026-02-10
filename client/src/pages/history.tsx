@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, CheckCircle, XCircle, Calendar, History as HistoryIcon, Eye, Image as ImageIcon, Smartphone } from "lucide-react";
+import { Clock, CheckCircle, XCircle, Calendar, History as HistoryIcon, Eye, Image as ImageIcon, Smartphone, Loader2 } from "lucide-react";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +25,7 @@ export default function History() {
 
   const { data: scheduledPosts = [], isLoading } = useQuery<ScheduledPostWithRelations[]>({
     queryKey: ['/api/scheduled-posts'],
+    refetchInterval: 3000,
   });
 
   // Filter attempted posts (scheduled in the past)
@@ -38,21 +39,21 @@ export default function History() {
       const response = await fetch(`/api/posts/${scheduledPost.postId}`, {
         credentials: "include",
       });
-      
+
       if (!response.ok) {
         throw new Error("Failed to fetch post");
       }
-      
+
       const postWithMedia = await response.json();
       const mediaIds = postWithMedia.media?.map((m: Media) => m.id) || [];
       const allMedia = postWithMedia.media || [];
-      
+
       setPreviewData({
         postText: postWithMedia.post.content || '',
         mediaIds: mediaIds,
         allMedia: allMedia,
       });
-      
+
       setPreviewModalOpen(true);
     } catch (error) {
       toast({
@@ -82,12 +83,12 @@ export default function History() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
-      
+
       <div className={`
         fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -97,7 +98,7 @@ export default function History() {
 
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-        
+
         <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Historique</h1>
@@ -129,19 +130,21 @@ export default function History() {
               {publishedPosts.map((scheduledPost) => {
                 const isPending = !scheduledPost.publishedAt;
                 const hasError = !!scheduledPost.error;
-                
+
                 return (
                   <Card key={scheduledPost.id} className="rounded-2xl border-border/50 shadow-lg overflow-hidden" data-testid={`card-post-${scheduledPost.id}`}>
                     <CardHeader className="border-b border-border/50 bg-gradient-to-r from-muted/20 to-muted/10 p-6">
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md ${
-                              hasError ? 'bg-gradient-to-br from-destructive to-destructive/80' :
-                              'bg-gradient-to-br from-green-500 to-green-600'
-                            }`}>
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md ${hasError ? 'bg-gradient-to-br from-destructive to-destructive/80' :
+                                isPending ? 'bg-gradient-to-br from-blue-500 to-blue-600' :
+                                  'bg-gradient-to-br from-green-500 to-green-600'
+                              }`}>
                               {hasError ? (
                                 <XCircle className="w-5 h-5 text-white" />
+                              ) : isPending ? (
+                                <Loader2 className="w-5 h-5 text-white animate-spin" />
                               ) : (
                                 <CheckCircle className="w-5 h-5 text-white fill-white" />
                               )}
@@ -165,17 +168,23 @@ export default function History() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
-                          <Badge 
-                            className={`${
-                              hasError 
-                                ? 'bg-destructive/20 text-destructive hover:bg-destructive/30' 
-                                : 'bg-success/20 text-success hover:bg-success/30'
-                            }`}
+                          <Badge
+                            className={`${hasError
+                                ? 'bg-destructive/20 text-destructive hover:bg-destructive/30'
+                                : isPending
+                                  ? 'bg-blue-500/20 text-blue-500 hover:bg-blue-500/30'
+                                  : 'bg-success/20 text-success hover:bg-success/30'
+                              }`}
                           >
                             {hasError ? (
                               <>
                                 <XCircle className="w-3 h-3 mr-1" />
                                 Échoué
+                              </>
+                            ) : isPending ? (
+                              <>
+                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                                Traitement...
                               </>
                             ) : (
                               <>
@@ -192,14 +201,14 @@ export default function History() {
                         <div className="flex items-center gap-2">
                           {getPostTypeIcon(scheduledPost.postType)}
                           <span className="font-medium capitalize">
-                            {scheduledPost.postType === 'feed' ? 'Feed' : 
-                             scheduledPost.postType === 'story' ? 'Story' : 'Feed & Story'}
+                            {scheduledPost.postType === 'feed' ? 'Feed' :
+                              scheduledPost.postType === 'story' ? 'Story' : 'Feed & Story'}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <Calendar className="w-4 h-4" />
                           <span className="font-medium">
-                            {scheduledPost.scheduledAt 
+                            {scheduledPost.scheduledAt
                               ? format(new Date(scheduledPost.scheduledAt), "d MMM yyyy 'à' HH:mm", { locale: fr })
                               : 'Date inconnue'
                             }
@@ -226,7 +235,7 @@ export default function History() {
           postText={previewData.postText}
           selectedMedia={previewData.mediaIds}
           mediaList={previewData.allMedia}
-          onPublish={() => {}}
+          onPublish={() => { }}
           isPublishing={false}
           readOnly={true}
         />
