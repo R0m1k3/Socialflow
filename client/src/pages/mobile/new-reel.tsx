@@ -6,7 +6,7 @@ import {
     Send, Sparkles, Video, Music, Type, Calendar,
     Upload, Camera, Play, Pause, Volume2,
     ChevronRight, Loader2, Check, RefreshCw, ChevronLeft,
-    Menu
+    Menu, Mic
 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import Sidebar from "@/components/sidebar";
@@ -423,6 +423,75 @@ export default function MobileNewReel() {
                                 className="text-lg"
                                 rows={3}
                             />
+                            <div className="flex items-center space-x-2 mt-4">
+                                <Switch
+                                    id="tts-mode"
+                                    checked={ttsEnabled}
+                                    onCheckedChange={setTtsEnabled}
+                                />
+                                <Label htmlFor="tts-mode" className="font-medium cursor-pointer">
+                                    Activer la lecture voix (TTS)
+                                </Label>
+                            </div>
+
+                            {ttsEnabled && (
+                                <div className="mt-4 space-y-2 ml-1 p-3 bg-muted/30 rounded-lg border border-border/50">
+                                    <Label className="flex items-center gap-2 mb-2">
+                                        <Mic className="w-4 h-4" />
+                                        Voix du narrateur
+                                    </Label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {[
+                                            { id: "fr-FR-VivienneMultilingualNeural", label: "Vivienne", type: "Femme", style: "bg-pink-500/10 border-pink-500/50" },
+                                            { id: "fr-FR-RemyMultilingualNeural", label: "Rémy", type: "Homme", style: "bg-blue-500/10 border-blue-500/50" },
+                                            { id: "fr-FR-DeniseNeural", label: "Denise", type: "Femme", style: "bg-purple-500/10 border-purple-500/50" },
+                                            { id: "fr-FR-HenriNeural", label: "Henri", type: "Homme", style: "bg-slate-500/10 border-slate-500/50" },
+                                            { id: "fr-FR-EloiseNeural", label: "Éloïse", type: "Enfant", style: "bg-orange-500/10 border-orange-500/50" }
+                                        ].map((voice) => (
+                                            <div
+                                                key={voice.id}
+                                                onClick={() => setTtsVoice(voice.id)}
+                                                className={`cursor-pointer p-3 rounded-md border-2 transition-all hover:bg-accent ${ttsVoice === voice.id || (ttsVoice === 'female' && voice.id === 'fr-FR-VivienneMultilingualNeural')
+                                                    ? `border-primary ${voice.style}`
+                                                    : 'border-transparent bg-muted/30'
+                                                    }`}
+                                            >
+                                                <div className="font-semibold flex items-center justify-between text-sm">
+                                                    {voice.label}
+                                                    {(ttsVoice === voice.id || (ttsVoice === 'female' && voice.id === 'fr-FR-VivienneMultilingualNeural')) && <Check className="w-3 h-3 text-primary" />}
+                                                </div>
+                                                <div className="text-[10px] text-muted-foreground">{voice.type}</div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="mt-3">
+                                        <Button
+                                            size="sm"
+                                            variant="secondary"
+                                            className="w-full h-8 text-xs"
+                                            onClick={async (e) => {
+                                                e.stopPropagation();
+                                                const textToTest = overlayText || "Ceci est un test de voix.";
+                                                try {
+                                                    const response = await apiRequest('POST', '/api/reels/tts-preview', {
+                                                        text: textToTest,
+                                                        voice: ttsVoice
+                                                    });
+                                                    const data = await response.json();
+                                                    if (data.success && data.audioBase64) {
+                                                        const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
+                                                        audio.play();
+                                                    }
+                                                } catch (err) {
+                                                    toast({ title: "Erreur", description: "Impossible de lire la voix", variant: "destructive" });
+                                                }
+                                            }}
+                                        >
+                                            <Play className="w-3 h-3 mr-1" /> Tester la voix
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         <div className="flex gap-3 sticky bottom-4">
