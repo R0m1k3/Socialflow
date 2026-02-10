@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { getVideoThumbnailUrl } from "@/lib/media-utils";
 import { CloudUpload, Image as ImageIcon, Video, X, Upload, Loader2, ZoomIn, Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SiFacebook, SiInstagram } from "react-icons/si";
@@ -41,7 +42,7 @@ export default function MediaUpload() {
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
-    
+
     setUploadingCount(acceptedFiles.length);
     let successCount = 0;
     let errorCount = 0;
@@ -67,7 +68,7 @@ export default function MediaUpload() {
     try {
       await Promise.all(uploadPromises);
       queryClient.invalidateQueries({ queryKey: ["/api/media"] });
-      
+
       toast({
         title: "Succès",
         description: `${successCount} média(s) téléchargé(s) avec succès`,
@@ -186,7 +187,7 @@ export default function MediaUpload() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button 
+            <Button
               onClick={() => cameraInputRef.current?.click()}
               disabled={uploadMutation.isPending}
               variant="outline"
@@ -195,7 +196,7 @@ export default function MediaUpload() {
             >
               <Camera className="w-4 h-4" />
             </Button>
-            <Button 
+            <Button
               onClick={open}
               className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 rounded-xl"
               data-testid="button-browse"
@@ -273,12 +274,27 @@ export default function MediaUpload() {
                       data-testid={`media-item-${media.id}`}
                     >
                       {media.type === "video" ? (
-                        <div className="w-full h-full bg-muted/30 flex items-center justify-center">
-                          <Video className="w-12 h-12 text-secondary" />
-                        </div>
+                        <>
+                          <img
+                            src={getVideoThumbnailUrl(media.originalUrl)}
+                            alt={media.fileName}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            onError={(e) => {
+                              // Fallback: replace broken img with Video icon
+                              const target = e.currentTarget;
+                              target.style.display = 'none';
+                              const fallback = target.parentElement?.querySelector('.video-fallback');
+                              if (fallback) (fallback as HTMLElement).style.display = 'flex';
+                            }}
+                          />
+                          <div className="video-fallback w-full h-full bg-muted/30 flex items-center justify-center absolute inset-0" style={{ display: 'none' }}>
+                            <Video className="w-12 h-12 text-secondary" />
+                          </div>
+                        </>
                       ) : (
-                        <img 
-                          src={media.facebookFeedUrl || media.originalUrl} 
+                        <img
+                          src={media.facebookFeedUrl || media.originalUrl}
                           alt={media.fileName}
                           className="w-full h-full object-cover"
                           loading="lazy"
@@ -311,7 +327,7 @@ export default function MediaUpload() {
                     </div>
                   ))}
                 </div>
-                
+
                 {/* Élément sentinelle pour le scroll infini */}
                 {(mediaList && visibleCount < (mediaList as any[]).length) ? (
                   <div ref={loadMoreRef} className="flex justify-center py-4 mt-3">
@@ -324,7 +340,7 @@ export default function MediaUpload() {
 
           <div className="space-y-6">
             <h4 className="text-sm font-semibold text-foreground">Aperçu et recadrage automatique</h4>
-            
+
             <div className="space-y-5">
               <div className="border border-border/50 rounded-xl p-5 bg-card shadow-sm">
                 <div className="flex items-center justify-between mb-4">

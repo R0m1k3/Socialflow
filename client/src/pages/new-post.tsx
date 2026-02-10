@@ -32,19 +32,20 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { getVideoThumbnailUrl } from "@/lib/media-utils";
 import type { SocialPage, Media, ScheduledPost } from "@shared/schema";
 import { PreviewModal } from "@/components/preview-modal";
 import { DateTimePicker } from "@/components/datetime-picker";
 
-function SortableMediaItem({ 
-  media, 
-  index, 
-  isSelected, 
-  onToggle 
-}: { 
-  media: Media; 
-  index: number; 
-  isSelected: boolean; 
+function SortableMediaItem({
+  media,
+  index,
+  isSelected,
+  onToggle
+}: {
+  media: Media;
+  index: number;
+  isSelected: boolean;
   onToggle: () => void;
 }) {
   const {
@@ -66,11 +67,10 @@ function SortableMediaItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-        isSelected
+      className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${isSelected
           ? 'border-primary ring-2 ring-primary'
           : 'border-transparent hover:border-muted-foreground'
-      }`}
+        }`}
     >
       <button
         onClick={onToggle}
@@ -78,16 +78,15 @@ function SortableMediaItem({
         data-testid={`button-select-media-${media.id}`}
       >
         {isVideo ? (
-          <video 
-            src={media.originalUrl} 
+          <img
+            src={getVideoThumbnailUrl(media.originalUrl)}
+            alt={media.fileName}
             className="w-full h-full object-cover"
-            muted
-            playsInline
-            preload="metadata"
+            loading="lazy"
           />
         ) : (
-          <img 
-            src={media.facebookFeedUrl || media.originalUrl} 
+          <img
+            src={media.facebookFeedUrl || media.originalUrl}
             alt={media.fileName}
             className="w-full h-full object-cover"
             loading="lazy"
@@ -99,7 +98,7 @@ function SortableMediaItem({
           <div className="absolute top-1 right-1 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
             {index + 1}
           </div>
-          <div 
+          <div
             {...attributes}
             {...listeners}
             className="absolute top-1 left-1 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center cursor-move hover:bg-black/70 transition-colors"
@@ -117,7 +116,7 @@ export default function NewPost() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const cameraInputRef = useRef<HTMLInputElement>(null);
-  
+
   const [productInfo, setProductInfo] = useState('');
   const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
@@ -211,9 +210,9 @@ export default function NewPost() {
   const generateTextMutation = useMutation({
     mutationFn: async (productInfoText: string) => {
       const productInfo = {
-        name: productInfoText.match(/Produit:\s*(.+?)(?:\n|$)/i)?.[1] || 
-              productInfoText.match(/Nom:\s*(.+?)(?:\n|$)/i)?.[1] || 
-              productInfoText,
+        name: productInfoText.match(/Produit:\s*(.+?)(?:\n|$)/i)?.[1] ||
+          productInfoText.match(/Nom:\s*(.+?)(?:\n|$)/i)?.[1] ||
+          productInfoText,
         price: productInfoText.match(/Prix:\s*(.+?)(?:\n|$)/i)?.[1] || "",
         description: productInfoText.match(/Description:\s*(.+?)(?:\n|$)/i)?.[1] || "",
         features: productInfoText.match(/Caractéristiques:\s*(.+?)(?:\n|$)/i)?.[1]?.split(",") || [],
@@ -240,7 +239,7 @@ export default function NewPost() {
   });
 
   const createPostMutation = useMutation({
-    mutationFn: (data: any) => 
+    mutationFn: (data: any) =>
       apiRequest('POST', '/api/posts', data),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['/api/scheduled-posts'], refetchType: 'all' });
@@ -375,12 +374,12 @@ export default function NewPost() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
-      
+
       <div className={`
         fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -390,7 +389,7 @@ export default function NewPost() {
 
       <main className="flex-1 overflow-y-auto">
         <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-        
+
         <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Nouvelle publication</h1>
@@ -409,7 +408,7 @@ export default function NewPost() {
                       <CardDescription>Sélectionnez ou uploadez une image/vidéo</CardDescription>
                     </div>
                     <div className="flex gap-2">
-                      <Button 
+                      <Button
                         onClick={() => cameraInputRef.current?.click()}
                         disabled={uploadMutation.isPending}
                         size="sm"
@@ -419,7 +418,7 @@ export default function NewPost() {
                       >
                         <Camera className="w-4 h-4" />
                       </Button>
-                      <Button 
+                      <Button
                         onClick={open}
                         disabled={uploadMutation.isPending}
                         size="sm"
@@ -450,7 +449,7 @@ export default function NewPost() {
                           {isDragActive ? "Déposez votre photo ici" : "Aucun média disponible"}
                         </p>
                         <div className="flex gap-2 justify-center">
-                          <Button 
+                          <Button
                             onClick={() => cameraInputRef.current?.click()}
                             disabled={uploadMutation.isPending}
                             size="sm"
@@ -461,7 +460,7 @@ export default function NewPost() {
                             <Camera className="w-4 h-4 mr-2" />
                             Prendre une photo
                           </Button>
-                          <Button 
+                          <Button
                             onClick={open}
                             disabled={uploadMutation.isPending}
                             size="sm"
@@ -479,12 +478,12 @@ export default function NewPost() {
                             <div className="text-sm font-medium text-muted-foreground mb-2">
                               Photos sélectionnées ({selectedMedia.length}/10)
                             </div>
-                            <DndContext 
+                            <DndContext
                               sensors={sensors}
                               collisionDetection={closestCenter}
                               onDragEnd={handleDragEnd}
                             >
-                              <SortableContext 
+                              <SortableContext
                                 items={selectedMedia}
                                 strategy={rectSortingStrategy}
                               >
@@ -492,7 +491,7 @@ export default function NewPost() {
                                   {selectedMedia.map((mediaId, index) => {
                                     const media = mediaList.find(m => m.id === mediaId);
                                     if (!media) return null;
-                                    
+
                                     return (
                                       <SortableMediaItem
                                         key={media.id}
@@ -518,7 +517,7 @@ export default function NewPost() {
                             {mediaList.map((media) => {
                               const isSelected = selectedMedia.includes(media.id);
                               const isVideo = media.type === 'video';
-                              
+
                               return (
                                 <button
                                   key={media.id}
@@ -537,24 +536,22 @@ export default function NewPost() {
                                       });
                                     }
                                   }}
-                                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${
-                                    isSelected
+                                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${isSelected
                                       ? 'border-primary ring-2 ring-primary opacity-50'
                                       : 'border-transparent hover:border-muted-foreground'
-                                  }`}
+                                    }`}
                                   data-testid={`button-select-media-${media.id}`}
                                 >
                                   {isVideo ? (
-                                    <video 
-                                      src={media.originalUrl} 
+                                    <img
+                                      src={getVideoThumbnailUrl(media.originalUrl)}
+                                      alt={media.fileName}
                                       className="w-full h-full object-cover"
-                                      muted
-                                      playsInline
-                                      preload="metadata"
+                                      loading="lazy"
                                     />
                                   ) : (
-                                    <img 
-                                      src={media.facebookFeedUrl || media.originalUrl} 
+                                    <img
+                                      src={media.facebookFeedUrl || media.originalUrl}
                                       alt={media.fileName}
                                       className="w-full h-full object-cover"
                                       loading="lazy"
@@ -593,7 +590,7 @@ export default function NewPost() {
                       data-testid="input-product-info"
                     />
                   </div>
-                  <Button 
+                  <Button
                     onClick={handleGenerateText}
                     disabled={generateTextMutation.isPending}
                     className="w-full"
@@ -613,7 +610,7 @@ export default function NewPost() {
                   </CardHeader>
                   <CardContent className="space-y-3">
                     {generatedVariants.map((variant, index) => (
-                      <div 
+                      <div
                         key={index}
                         className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
                       >
@@ -667,8 +664,8 @@ export default function NewPost() {
                   {pages.length === 0 ? (
                     <div className="text-center py-8">
                       <p className="text-muted-foreground mb-2">Aucune page connectée</p>
-                      <Button 
-                        variant="link" 
+                      <Button
+                        variant="link"
                         onClick={() => navigate('/pages')}
                         data-testid="link-add-pages"
                       >
@@ -754,7 +751,7 @@ export default function NewPost() {
                 </CardContent>
               </Card>
 
-              <Button 
+              <Button
                 onClick={() => setPreviewModalOpen(true)}
                 disabled={createPostMutation.isPending}
                 className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 shadow-lg"
@@ -768,7 +765,7 @@ export default function NewPost() {
           </div>
         </div>
       </main>
-      
+
       <Dialog open={uploadMutation.isPending}>
         <DialogContent className="sm:max-w-md [&>button]:hidden">
           <div className="flex flex-col items-center justify-center py-8">
