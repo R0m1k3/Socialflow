@@ -519,93 +519,37 @@ export class FacebookService {
       throw new Error('No access token found for this page');
     }
 
-    const accessToken = page.accessToken;
-
-    console.log('🎬 Publishing Reel to Facebook:', {
+    console.log('🎬 Publishing Reel to Facebook Feed & Reels via /videos endpoint:', {
       pageId: page.pageId,
       pageName: page.pageName,
       hasDescription: !!description,
     });
 
-    // Phase 1: START - Initialize the upload
-    const startParams = new URLSearchParams({
-      access_token: accessToken,
-      upload_phase: 'start',
+    // Use the /videos endpoint instead of /video_reels
+    // This ensures the video appears on the Page Timeline (Feed) AND in Reels (if 9:16)
+    const params = new URLSearchParams({
+      access_token: page.accessToken,
+      description: description || '',
+      file_url: videoUrl,
     });
 
-    const startUrl = `${this.baseUrl}/${page.pageId}/video_reels?${startParams.toString()}`;
+    const url = `${this.baseUrl}/${page.pageId}/videos?${params.toString()}`;
 
-    console.log('📤 Phase 1: START - Initializing Reel upload');
-    const startResponse = await fetch(startUrl, {
+    const response = await fetch(url, {
       method: 'POST',
     });
 
-    if (!startResponse.ok) {
-      const error = await startResponse.json() as FacebookError;
-      throw new Error(`Facebook Reel API error (START phase): ${error.error.message} (code: ${error.error.code})`);
+    if (!response.ok) {
+      const error = await response.json() as FacebookError;
+      throw new Error(`Facebook API error publishing video/reel: ${error.error.message} (code: ${error.error.code})`);
     }
 
-    const startData = await startResponse.json() as { video_id: string; upload_url: string };
-    const videoId = startData.video_id;
-    const uploadUrl = startData.upload_url;
+    const data = await response.json() as FacebookVideoResponse;
+    const postId = data.post_id || data.id;
 
-    console.log('✅ START phase complete, video_id:', videoId);
+    console.log('✅ Reel published successfully to Feed & Reels! ID:', postId);
 
-    // Phase 2: UPLOAD - Upload the video to rupload.facebook.com
-    // IMPORTANT: file_url must be passed as a header for URL-based uploads
-    console.log('📤 Phase 2: UPLOAD - Uploading video to:', uploadUrl);
-
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `OAuth ${accessToken}`,
-        'file_url': videoUrl,
-      },
-    });
-
-    if (!uploadResponse.ok) {
-      const errorText = await uploadResponse.text();
-      console.error('❌ UPLOAD phase failed:', errorText);
-      throw new Error(`Facebook Reel API error (UPLOAD phase): ${errorText}`);
-    }
-
-    console.log('✅ UPLOAD phase complete');
-
-    // Phase 3: FINISH - Finalize and publish the Reel
-    const finishParams = new URLSearchParams({
-      access_token: accessToken,
-      upload_phase: 'finish',
-      video_id: videoId,
-      video_state: 'PUBLISHED',
-    });
-
-    // Add description if provided
-    if (description) {
-      finishParams.append('description', description);
-    }
-
-    const finishUrl = `${this.baseUrl}/${page.pageId}/video_reels?${finishParams.toString()}`;
-
-    console.log('📤 Phase 3: FINISH - Publishing Reel');
-    const finishResponse = await fetch(finishUrl, {
-      method: 'POST',
-    });
-
-    if (!finishResponse.ok) {
-      const error = await finishResponse.json() as FacebookError;
-      throw new Error(`Facebook Reel API error (FINISH phase): ${error.error.message} (code: ${error.error.code})`);
-    }
-
-    const finishData = await finishResponse.json() as { success: boolean; post_id?: string };
-
-    if (!finishData.success) {
-      throw new Error('Facebook Reel publishing failed - success was false');
-    }
-
-    const reelId = finishData.post_id || videoId;
-    console.log('✅ Reel published successfully! ID:', reelId);
-
-    return reelId;
+    return postId;
   }
 
   /**
