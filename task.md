@@ -6,7 +6,7 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 ## Current Focus
 
-**Phase: EXECUTION** - Optimisation qualité iPhone Safari (Bypass compression).
+**Phase: EXECUTION** - Activation de l'agent BMad Master et interface de commande.
 
 ## Master Plan
 
@@ -138,14 +138,22 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [x] **Final Robust Fix** : Switch complet vers le filtre `subtitles` et format `.srt` pour contourner l'absence de `drawtext` dans l'environnement.
   - [x] **Style Adjustment** : Réduction de la taille du texte à 30 pour un rendu plus élégant.
 
-### Phase 13: Activation Agent BMad ⏳
+### Phase 14: Synchronisation Parfaite Texte/Voix ⏳
+
+- [x] Récupérer les Word Boundaries via `edge_tts`
+- [x] Générer le fichier `.ass` avec des timestamps précis
+- [ ] Rebuild Docker et valider la synchronisation sur un Reel de test
+
+### Phase 13: Activation Agent BMad ✅
 
 - [x] Activer l'agent `bmad-master.md`
 - [x] Charger la configuration `_bmad/core/config.yaml`
 - [x] Afficher le menu de l'agent en français
+- [x] Ré-activation de l'agent bmad-master.md (11 Fev 2026)
 
 ## Progress Log
 
+- **11 Fev 2026** - Ré-activation de l'agent BMad Master, chargement de la configuration et affichage du menu.
 - **22 Jan 2026** - Analyse complète et PRD créé
 - **22 Jan 2026** - Spécifications confirmées
 - **22 Jan 2026** - Backend complet : ffmpeg.ts, freesound.ts, facebook.ts
