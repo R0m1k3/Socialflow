@@ -79,7 +79,6 @@ export async function migrate() {
         "license" text,
         "created_at" timestamp DEFAULT now()
       );
-      );
     `);
 
     // freesound_config
