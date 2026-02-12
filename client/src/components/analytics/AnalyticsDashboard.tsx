@@ -31,6 +31,11 @@ export function AnalyticsDashboard() {
         }
     }, [pages, selectedPageId]);
 
+    // Reset auto-refresh flag when switching pages
+    useEffect(() => {
+        autoRefreshDone.current = false;
+    }, [selectedPageId]);
+
     // Fetch History for selected page (with polling every 30s)
     const { data: history = [], isLoading: isLoadingHistory } = useQuery<any[]>({
         queryKey: [`/api/analytics/pages/${selectedPageId}/history`],
