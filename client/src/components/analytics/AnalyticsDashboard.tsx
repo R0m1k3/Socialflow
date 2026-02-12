@@ -10,8 +10,8 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-/** Maximum staleness before triggering an auto-refresh (6 hours in ms). */
-const STALE_THRESHOLD_MS = 6 * 60 * 60 * 1000;
+/** Maximum staleness before triggering an auto-refresh (12 hours in ms). */
+const STALE_THRESHOLD_MS = 12 * 60 * 60 * 1000;
 
 export function AnalyticsDashboard() {
     const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
@@ -40,7 +40,6 @@ export function AnalyticsDashboard() {
     const { data: history = [], isLoading: isLoadingHistory } = useQuery<any[]>({
         queryKey: [`/api/analytics/pages/${selectedPageId}/history`],
         enabled: !!selectedPageId,
-        refetchInterval: 30_000, // Poll every 30 seconds
     });
 
     // Refresh Mutation

@@ -10,8 +10,8 @@ export function startTokenCron() {
     });
     console.log('[Cron] Token refresh job scheduled (0 0 * * *).');
 
-    // Run every 6 hours — Analytics sync for all pages
-    cron.schedule('0 */6 * * *', async () => {
+    // Run twice daily (08:00 and 20:00) — Analytics sync for all pages
+    cron.schedule('0 8,20 * * *', async () => {
         console.log('[Cron] Running analytics sync for all pages...');
         try {
             await AnalyticsService.syncAllPages();
@@ -19,5 +19,5 @@ export function startTokenCron() {
             console.error('[Cron] Analytics sync failed:', error);
         }
     });
-    console.log('[Cron] Analytics sync job scheduled (0 */6 * * *).');
+    console.log('[Cron] Analytics sync job scheduled (0 8,20 * * *).');
 }
