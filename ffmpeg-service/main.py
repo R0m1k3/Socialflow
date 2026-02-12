@@ -334,9 +334,9 @@ def generate_ass_from_word_boundaries(
     for i, wb in enumerate(word_boundaries):
         current_words.append(wb["text"])
         is_last = i == len(word_boundaries) - 1
-        # Split at punctuation or every 5 words
+        # Split at punctuation or every 3 words (tighter sync with voice)
         ends_sentence = wb["text"].rstrip().endswith((".", "!", "?", ":", ","))
-        at_limit = len(current_words) >= 5
+        at_limit = len(current_words) >= 3
 
         if is_last or ends_sentence or at_limit:
             # End time = this word's offset + its duration
@@ -358,6 +358,10 @@ def generate_ass_from_word_boundaries(
     if total_duration and chunks:
         chunks[-1]["end"] = max(chunks[-1]["end"], total_duration)
 
+    # Add 50ms overlap between consecutive chunks to prevent flickering
+    for i in range(len(chunks) - 1):
+        chunks[i]["end"] = max(chunks[i]["end"], chunks[i + 1]["start"] + 0.05)
+
     # ASS Header
     header = f"""[Script Info]
 ScriptType: v4.00+
@@ -367,7 +371,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Sans,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,2,0,5,50,50,0,1
+Style: Default,Sans,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,5,50,50,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -400,7 +404,7 @@ def generate_simple_ass(
 
     for word in words:
         current_chunk.append(word)
-        if len(current_chunk) >= 5 or word.endswith((".", "!", "?", ":")):
+        if len(current_chunk) >= 3 or word.endswith((".", "!", "?", ":")):
             chunks.append(" ".join(current_chunk))
             current_chunk = []
 
@@ -418,7 +422,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Sans,{font_size},&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,5,50,50,0,1
+Style: Default,Sans,{font_size},&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,5,50,50,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -521,7 +525,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Sans,{font_size},&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,3,1,5,50,50,0,1
+Style: Default,Sans,{font_size},&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,5,50,50,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

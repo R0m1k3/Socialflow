@@ -1,10 +1,9 @@
-import { useState, useCallback, useRef, useMemo } from "react";
-import { CameraRecorder } from "@/components/camera-recorder";
+import { useState, useCallback, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
     Send, Sparkles, Video, Music, Type, Calendar,
-    Upload, Camera, Play, Pause, Volume2,
+    Upload, Play, Pause, Volume2,
     ChevronRight, Loader2, Check, RefreshCw, ChevronLeft,
     Menu, Mic
 } from "lucide-react";
@@ -41,26 +40,7 @@ type Step = 'video' | 'music' | 'text' | 'publish';
 export default function MobileNewReel() {
     const [, navigate] = useLocation();
     const { toast } = useToast();
-    const cameraInputRef = useRef<HTMLInputElement>(null);
     const audioRef = useRef<HTMLAudioElement>(null);
-
-    const [showCamera, setShowCamera] = useState(false);
-
-    // Détection iOS pour utiliser la caméra native (meilleure qualité + stabilisation)
-    const isIOS = useMemo(() => {
-        if (typeof navigator === 'undefined') return false;
-        return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-            (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    }, []);
-
-    // Handler pour le bouton caméra - iOS utilise l'input natif, Android utilise WebRTC
-    const handleCameraButtonClick = useCallback(() => {
-        if (isIOS) {
-            cameraInputRef.current?.click();
-        } else {
-            setShowCamera(true);
-        }
-    }, [isIOS]);
 
     // État du workflow
     const [currentStep, setCurrentStep] = useState<Step>('video');
@@ -192,10 +172,7 @@ export default function MobileNewReel() {
         noKeyboard: true,
     });
 
-    const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) uploadMutation.mutate(file);
-    };
+
 
     const togglePlayPreview = async (track: MusicTrack) => {
         if (isPlaying === track.id) {
@@ -274,27 +251,12 @@ export default function MobileNewReel() {
 
                         <div {...getRootProps()} className={`border-2 border-dashed rounded-xl p-6 text-center ${isDragActive ? 'border-primary bg-primary/5' : 'border-muted'}`}>
                             <input {...getInputProps()} />
-                            <input ref={cameraInputRef} type="file" accept="video/*" capture="environment" onChange={handleCameraCapture} className="hidden" />
 
-                            <div className="flex gap-2 justify-center mb-6">
-                                <Button onClick={handleCameraButtonClick} variant="outline" size="lg" className="h-12">
-                                    <Camera className="mr-2 h-5 w-5" /> {isIOS ? 'Filmer (Haute Qualité)' : 'Capturer'}
-                                </Button>
+                            <div className="flex justify-center mb-6">
                                 <Button onClick={open} variant="outline" size="lg" className="h-12">
                                     <Upload className="mr-2 h-5 w-5" /> Galerie
                                 </Button>
                             </div>
-
-                            {/* CameraRecorder pour Android uniquement */}
-                            {showCamera && !isIOS && (
-                                <CameraRecorder
-                                    onCapture={(file) => {
-                                        uploadMutation.mutate(file);
-                                        setShowCamera(false);
-                                    }}
-                                    onCancel={() => setShowCamera(false)}
-                                />
-                            )}
 
 
                             {selectedVideo ? (
