@@ -7,7 +7,7 @@ import {
     socialPages,
     tokenStatusEnum
 } from '../../shared/schema';
-import { eq, and, isNotNull, desc } from 'drizzle-orm';
+import { eq, and, isNotNull, desc, gte, lt } from 'drizzle-orm';
 import { GraphAPIClient } from '../utils/graph_client';
 import { TokenManager } from './token_manager';
 
@@ -232,15 +232,42 @@ export class AnalyticsService {
             })
             .where(eq(socialPages.id, pageId));
 
-        // 4. Insert History snapshot
-        await db.insert(pageAnalyticsHistory).values({
-            pageId,
-            date: new Date(),
-            followersCount: followers,
-            pageReach,
-            pageViews,
-            pageEngagement,
+        // 4. Upsert History snapshot — one entry per day per page
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const existingEntry = await db.query.pageAnalyticsHistory.findFirst({
+            where: and(
+                eq(pageAnalyticsHistory.pageId, pageId),
+                gte(pageAnalyticsHistory.date, today),
+                lt(pageAnalyticsHistory.date, tomorrow)
+            )
         });
+
+        if (existingEntry) {
+            // Update today's existing entry with latest values
+            await db.update(pageAnalyticsHistory)
+                .set({
+                    followersCount: followers,
+                    pageReach,
+                    pageViews,
+                    pageEngagement,
+                    date: new Date(),
+                })
+                .where(eq(pageAnalyticsHistory.id, existingEntry.id));
+        } else {
+            // Insert new entry for today
+            await db.insert(pageAnalyticsHistory).values({
+                pageId,
+                date: new Date(),
+                followersCount: followers,
+                pageReach,
+                pageViews,
+                pageEngagement,
+            });
+        }
 
         console.log(`[AnalyticsService] Synced page ${pageId}: ${followers} followers, ${pageReach} reach, ${pageEngagement} engagement, ${pageViews} views`);
     }
