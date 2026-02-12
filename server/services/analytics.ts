@@ -138,7 +138,8 @@ export class AnalyticsService {
     }
 
     /**
-     * Syncs page-level analytics (Followers, Reach, etc.)
+     * Syncs page-level analytics (Followers, Reach, Engagement, Views)
+     * Each metric is fetched independently for maximum resilience.
      */
     static async syncPageAnalytics(pageId: string) {
         console.log(`[AnalyticsService] Syncing page ${pageId}`);
@@ -154,8 +155,8 @@ export class AnalyticsService {
             try { accessToken = TokenManager.decrypt(accessToken); } catch { }
         }
 
-        // 1. Fetch Basic Page Info (Followers/Fans) - Essential
-        // If this fails, the whole sync fails (because token might be bad)
+        // 1. Fetch Basic Page Info (Followers/Fans) — Essential
+        // If this fails, the token is likely invalid → abort
         let followers = page.followersCount || 0;
         try {
             const basicInfo = await GraphAPIClient.get<any>(page.pageId, {
@@ -168,13 +169,10 @@ export class AnalyticsService {
         } catch (error: any) {
             console.error(`[AnalyticsService] Failed to fetch basic info for ${pageId}:`, error);
 
-            // DEBUG: Log key details to diagnose token issues
             const tokenPreview = accessToken ? `${accessToken.substring(0, 10)}...` : 'undefined';
             console.log(`[AnalyticsService] DEBUG: Token used: ${tokenPreview}`);
-            console.log(`[AnalyticsService] DEBUG: Full Error Object:`, JSON.stringify(error, null, 2));
 
-            // Check if it's an Auth Error (Token invalid/expired)
-            // Codes: 190 (Invalid OAuth), 102 (API Session), 10 (Permission), 463 (Expired), 467 (Invalid)
+            // Auth errors → mark token as expired and abort
             if (error.code === 190 || error.code === 463 || error.code === 467) {
                 console.log(`[AnalyticsService] Marking token as EXPIRED for page ${pageId}`);
                 await db.update(socialPages)
@@ -183,63 +181,86 @@ export class AnalyticsService {
                         lastTokenCheck: new Date()
                     })
                     .where(eq(socialPages.id, pageId));
-
-                // Return gracefully so the UI sees the updated status
                 return;
             }
 
             throw new Error(`Failed to fetch Basic Info: ${error.message || error}`);
         }
 
-        // 2. Fetch Insights (Reach, Engagement) - Optional/Secondary
-        // If this fails, we catch it but still save the follower count
-        let pageReach = 0;
-        let pageViews = 0;
-
-        try {
-            const fields = 'insights.metric(page_impressions,page_post_engagements).period(day)';
-            const result = await GraphAPIClient.get<any>(page.pageId, {
-                accessToken,
-                params: { fields }
-            });
-
-            const insights = result.insights?.data || [];
-            const findMetric = (name: string) => {
-                const m = insights.find((i: any) => i.name === name);
-                // period(day) returns values array. We take the latest (yesterday usually)
-                return m ? (m.values[m.values.length - 1]?.value || 0) : 0;
-            };
-
-            pageReach = findMetric('page_impressions');
-        } catch (error: any) {
-            // Code 100: Invalid Parameter (often means metric not available for this page type)
-            if (error.code === 100) {
-                console.warn(`[AnalyticsService] Metrics unavailable for ${pageId} (Code 100). This is likely due to page type restrictions. Skipping insights.`);
-            } else {
-                console.warn(`[AnalyticsService] Failed to fetch insights for ${pageId}:`, error.message);
+        // Helper: fetch a single page insight metric safely
+        const fetchInsight = async (metricName: string): Promise<number> => {
+            try {
+                const result = await GraphAPIClient.get<any>(
+                    `${page.pageId}/insights/${metricName}`,
+                    {
+                        accessToken,
+                        params: { period: 'day' }
+                    }
+                );
+                const data = result.data || [];
+                if (data.length > 0) {
+                    const values = data[0].values || [];
+                    // Take the most recent value (last entry = yesterday)
+                    return values.length > 0
+                        ? (values[values.length - 1]?.value || 0)
+                        : 0;
+                }
+                return 0;
+            } catch (error: any) {
+                if (error.code === 100) {
+                    console.warn(`[AnalyticsService] Metric "${metricName}" unavailable for ${pageId} (Code 100). Skipping.`);
+                } else {
+                    console.warn(`[AnalyticsService] Failed to fetch "${metricName}" for ${pageId}:`, error.message || error);
+                }
+                return 0;
             }
-            // Continue execution to save at least the follower count
-        }
+        };
 
-        // Update Page - Auto-heal status if sync works
+        // 2. Fetch each insight independently (resilient)
+        const pageReach = await fetchInsight('page_impressions_unique');
+        const pageEngagement = await fetchInsight('page_post_engagements');
+        const pageViews = await fetchInsight('page_views_total');
+
+        console.log(`[AnalyticsService] Metrics: followers=${followers}, reach=${pageReach}, engagement=${pageEngagement}, views=${pageViews}`);
+
+        // 3. Update Page — auto-heal token status
         await db.update(socialPages)
             .set({
                 followersCount: followers,
-                tokenStatus: 'valid', // If we got here, the token worked!
+                tokenStatus: 'valid',
                 lastTokenCheck: new Date()
             })
             .where(eq(socialPages.id, pageId));
 
-        // Insert History
+        // 4. Insert History snapshot
         await db.insert(pageAnalyticsHistory).values({
             pageId,
             date: new Date(),
             followersCount: followers,
             pageReach,
-            pageViews
+            pageViews,
+            pageEngagement,
         });
 
-        console.log(`[AnalyticsService] Synced page ${pageId}: ${followers} followers, ${pageReach} reach`);
+        console.log(`[AnalyticsService] Synced page ${pageId}: ${followers} followers, ${pageReach} reach, ${pageEngagement} engagement, ${pageViews} views`);
+    }
 
+    /**
+     * Syncs analytics for ALL active pages.
+     * Called by the CRON job.
+     */
+    static async syncAllPages(): Promise<void> {
+        console.log('[AnalyticsService] Starting sync for all pages...');
+        const allPages = await db.query.socialPages.findMany();
+
+        for (const page of allPages) {
+            try {
+                await this.syncPageAnalytics(page.id);
+            } catch (error: any) {
+                console.error(`[AnalyticsService] Failed to sync page ${page.id}:`, error.message);
+            }
+        }
+
+        console.log(`[AnalyticsService] Sync complete for ${allPages.length} pages.`);
     }
 }

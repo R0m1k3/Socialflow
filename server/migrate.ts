@@ -111,6 +111,11 @@ export async function migrate() {
       ALTER TABLE "posts"
       ADD COLUMN IF NOT EXISTS "generation_error" text;
     `);
+    // page_analytics_history.page_engagement
+    await client.query(`
+      ALTER TABLE "page_analytics_history"
+      ADD COLUMN IF NOT EXISTS "page_engagement" integer DEFAULT 0;
+    `);
 
     console.log("[Migration] Safe migration completed.");
   } catch (error) {

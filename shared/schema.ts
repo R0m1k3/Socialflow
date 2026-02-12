@@ -69,6 +69,7 @@ export const pageAnalyticsHistory = pgTable("page_analytics_history", {
   followersCount: integer("followers_count").default(0),
   pageViews: integer("page_views").default(0),
   pageReach: integer("page_reach").default(0),
+  pageEngagement: integer("page_engagement").default(0),
 
   createdAt: timestamp("created_at").defaultNow(),
 });
