@@ -68,6 +68,7 @@ export interface IStorage {
   getPostWithMedia(id: string): Promise<{ post: Post; media: Media[] } | undefined>;
   createPost(post: InsertPost): Promise<Post>;
   updatePost(id: string, post: Partial<InsertPost>): Promise<Post>;
+  updatePostGenerationStatus(id: string, status: string, progress: number, error?: string): Promise<Post>;
   deletePost(id: string): Promise<void>;
   updatePostMedia(postId: string, mediaIds: string[]): Promise<void>;
 
@@ -255,6 +256,28 @@ export class DatabaseStorage implements IStorage {
 
   async deletePost(id: string): Promise<void> {
     await db.delete(posts).where(eq(posts.id, id));
+  }
+
+  async updatePostGenerationStatus(
+    id: string,
+    status: string,
+    progress: number,
+    error?: string
+  ): Promise<Post> {
+    const updateData: Record<string, unknown> = {
+      generationStatus: status,
+      generationProgress: progress,
+      updatedAt: new Date(),
+    };
+    if (error !== undefined) {
+      updateData.generationError = error;
+    }
+    const [updated] = await db
+      .update(posts)
+      .set(updateData)
+      .where(eq(posts.id, id))
+      .returning();
+    return updated;
   }
 
   async updatePostMedia(postId: string, mediaIds: string[]): Promise<void> {

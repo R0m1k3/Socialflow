@@ -417,7 +417,17 @@ async function processReelBackground(
 
     console.log(`🔄 [Background] Starting processing for Post ${postId}`);
 
+    // Helper to update generation progress
+    const updateProgress = async (progress: number, status: string = 'processing') => {
+        try {
+            await storage.updatePostGenerationStatus(postId, status, progress);
+        } catch (e) {
+            console.error(`⚠️ [Background] Failed to update progress for ${postId}:`, e);
+        }
+    };
+
     try {
+        await updateProgress(5);
         // 1. Récupérer le média vidéo source
         const media = await storage.getMediaById(videoMediaId);
         if (!media || media.type !== 'video') {
@@ -441,6 +451,7 @@ async function processReelBackground(
         });
 
         // 3. Traiter la vidéo via FFmpeg
+        await updateProgress(15);
         const startTime = Date.now();
         const ffmpegResult = await ffmpegService.processReelFromUrl(media.originalUrl, {
             text: overlayText,
@@ -461,6 +472,7 @@ async function processReelBackground(
         }
 
         // 4. Upload sur Cloudinary
+        await updateProgress(65);
         console.log('☁️ [Background] Uploading to Cloudinary...');
         const videoBuffer = Buffer.from(ffmpegResult.videoBase64, 'base64');
         const cloudinaryResult = await cloudinaryService.uploadMedia(
@@ -486,8 +498,10 @@ async function processReelBackground(
 
         // 6. Lier le média traité au Post existant
         await storage.updatePostMedia(postId, [processedMedia.id]);
+        await updateProgress(85);
 
         // 7. Publier sur les pages
+        await updateProgress(90);
         const results: { pageId: string; success: boolean; reelId?: string; error?: string }[] = [];
 
         for (const pageId of pageIds) {
@@ -562,6 +576,7 @@ async function processReelBackground(
         await storage.updatePost(postId, {
             status: finalStatus,
         });
+        await updateProgress(100, 'completed');
 
         console.log(`✅ [Background] Processing complete for Post ${postId}. Status: ${finalStatus}`);
 
@@ -570,6 +585,14 @@ async function processReelBackground(
         await storage.updatePost(postId, {
             status: 'failed',
         });
+        try {
+            await storage.updatePostGenerationStatus(
+                postId, 'failed', 0,
+                error?.message || 'Erreur inconnue lors du traitement'
+            );
+        } catch (e) {
+            console.error(`⚠️ [Background] Failed to update error status for ${postId}:`, e);
+        }
     }
 }
 
@@ -612,8 +635,10 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             userId: user.id,
             content: description || overlayText || '',
             aiGenerated: 'false',
-            status: scheduledFor ? 'scheduled' : 'draft', // 'draft' servira de 'processing' temporaire
+            status: scheduledFor ? 'scheduled' : 'draft',
             scheduledFor: scheduledFor ? new Date(scheduledFor) : undefined,
+            generationStatus: 'processing',
+            generationProgress: 0,
         });
 
         console.log(`✨ Reel Request accepted. Post ID: ${post.id}. Starting background processing.`);
@@ -659,5 +684,23 @@ reelsRouter.get('/reels/config', async (req: Request, res: Response) => {
     } catch (error) {
         console.error('❌ Error fetching Reels config:', error);
         res.status(500).json({ error: 'Erreur lors de la récupération de la configuration' });
+    }
+});
+
+/**
+ * Reels en cours de génération
+ * GET /api/reels/ongoing
+ */
+reelsRouter.get('/reels/ongoing', async (req: Request, res: Response) => {
+    try {
+        const user = req.user as User;
+        const allPosts = await storage.getPosts(user.id);
+        const ongoing = allPosts.filter(
+            (p) => p.generationStatus === 'processing' || p.generationStatus === 'pending'
+        );
+        res.json(ongoing);
+    } catch (error) {
+        console.error('❌ Error fetching ongoing reels:', error);
+        res.status(500).json({ error: 'Erreur lors de la récupération des reels en cours' });
     }
 });

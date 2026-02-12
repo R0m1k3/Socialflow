@@ -163,6 +163,10 @@ export const posts = pgTable("posts", {
   productInfo: jsonb("product_info"),
   status: postStatusEnum("status").notNull().default("draft"),
   scheduledFor: timestamp("scheduled_for"),
+  // Reel generation tracking
+  generationStatus: text("generation_status"),  // 'pending' | 'processing' | 'completed' | 'failed'
+  generationProgress: integer("generation_progress").default(0),
+  generationError: text("generation_error"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

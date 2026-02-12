@@ -1,6 +1,7 @@
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import StatsCards from "@/components/stats-cards";
+import OngoingReels from "@/components/ongoing-reels";
 import RecentPublications from "@/components/recent-publications";
 import ManagedPages from "@/components/managed-pages";
 import { useState } from "react";
@@ -30,6 +31,8 @@ export default function DashboardMobile() {
         {/* MOBILE: Reduced padding, single column layout with better spacing */}
         <div className="p-4 space-y-6">
           <StatsCards />
+
+          <OngoingReels compact />
 
           <RecentPublications />
 

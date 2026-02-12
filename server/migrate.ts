@@ -95,6 +95,24 @@ export async function migrate() {
       );
     `);
 
+    // posts.generation_status (Reel progress tracking)
+    await client.query(`
+      ALTER TABLE "posts"
+      ADD COLUMN IF NOT EXISTS "generation_status" text;
+    `);
+
+    // posts.generation_progress
+    await client.query(`
+      ALTER TABLE "posts"
+      ADD COLUMN IF NOT EXISTS "generation_progress" integer DEFAULT 0;
+    `);
+
+    // posts.generation_error
+    await client.query(`
+      ALTER TABLE "posts"
+      ADD COLUMN IF NOT EXISTS "generation_error" text;
+    `);
+
     console.log("[Migration] Safe migration completed.");
   } catch (error) {
     console.error("[Migration] Error during migration:", error);
