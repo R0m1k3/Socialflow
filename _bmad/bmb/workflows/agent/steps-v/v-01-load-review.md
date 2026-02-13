@@ -34,26 +34,34 @@ Load the existing agent file and initialize a validation report to track all fin
 - 💾 Create validation report document
 - 🚫 FORBIDDEN to proceed without user confirmation
 
-## Sequence of Instructions:
+## MANDATORY SEQUENCE
+
+**CRITICAL:** Follow this sequence exactly. Do not skip, reorder, or improvise unless user explicitly requests a change.
 
 ### 1. Load Agent File
 
 Read the complete YAML from the agent file path provided by the user.
+
+Check the metadata to determine agent configuration:
+- **module**: `stand-alone` or module code (bmm, cis, bmgd, etc.)
+- **hasSidecar**: `true` or `false`
 
 ### 2. Display Agent Summary
 
 ```markdown
 ## Agent to Validate: {agent-name}
 
-**Type:** {simple|expert|module}
-**Version:** {version}
+**Configuration:** Agent {WITH|WITHOUT} sidecar
+**hasSidecar:** {true|false}
+**module:** {module-value}
 **File:** {agent-file-path}
 
 ### Current Structure:
 
 **Persona:** {character count} characters
 **Commands:** {count} commands
-**Critical Actions:** {count} actions
+**Critical Actions:** {count} actions (if hasSidecar: true)
+**Sidecar:** {present|not present}
 ```
 
 ### 3. Create Validation Report
@@ -63,7 +71,8 @@ Initialize the validation report:
 ```markdown
 ---
 agentName: '{agent-name}'
-agentType: '{simple|expert|module}'
+hasSidecar: {true|false}
+module: '{module-value}'
 agentFile: '{agent-file-path}'
 validationDate: '{YYYY-MM-DD}'
 stepsCompleted:
@@ -75,8 +84,8 @@ stepsCompleted:
 ## Agent Overview
 
 **Name:** {agent-name}
-**Type:** {simple|expert|module}
-**Version:** {version}
+**hasSidecar:** {true|false}
+**module:** {module-value}
 **File:** {agent-file-path}
 
 ---
@@ -90,7 +99,7 @@ Write to `{validationReport}`.
 
 ### 4. Present MENU OPTIONS
 
-Display: "**Is this the correct agent to validate?** [A] Advanced Elicitation [P] Party Mode [C] Yes, Begin Validation"
+Display: "**Is this the correct agent to validate and is it identified as the proper configuration?** [A] Advanced Elicitation [P] Party Mode [C] Yes, Begin Validation"
 
 #### Menu Handling Logic:
 

@@ -6,7 +6,7 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 ## Current Focus
 
-**Phase: EXECUTION** - Activation de l'agent BMad Master et interface de commande.
+**Phase: EXECUTION** - Running Party Mode Workflow (`_bmad/core/workflows/party-mode/workflow.md`).
 
 ## Master Plan
 
@@ -144,6 +144,15 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] Générer le fichier `.ass` avec des timestamps précis
 - [ ] Rebuild Docker et valider la synchronisation sur un Reel de test
 
+### Phase 15: Améliorations UX & Fixes (Mobile TTS, Clean Text, Delete Reel) 🚀
+
+- [ ] **Mobile UX**: Activer TTS par défaut sur mobile (`new-reel.tsx`)
+- [ ] **Fix Text Rendering**: Nettoyer le texte (BOM removal) dans `ffmpeg-service/main.py` pour éviter le carré blanc
+- [ ] **Feature**: Suppression de Reels
+  - [ ] Backend: Route `DELETE /api/reels/:id`
+  - [ ] Storage: Méthode `deleteReel`
+  - [ ] Frontend: Bouton suppression avec confirmation sur les cartes de Reels
+
 ### Phase 13: Activation Agent BMad ✅
 
 - [x] Activer l'agent `bmad-master.md`
@@ -153,7 +162,14 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 ## Progress Log
 
-- **11 Fev 2026** - Ré-activation de l'agent BMad Master, chargement de la configuration et affichage du menu.
+- [x] Analyze `ffmpeg-service/main.py` for text encoding issues <!-- id: 5 -->
+- [x] Analyze `server/routes.ts` and `server/storage.ts` for deletion logic <!-- id: 6 -->
+- [x] Create `implementation_plan.md` <!-- id: 7 -->
+- [x] Implement text cleaning in `ffmpeg-service/main.py` <!-- id: 8 -->
+- [x] Add `DELETE /api/reels/:id` route in `server/routes/reels.ts` <!-- id: 9 -->
+- [x] Add delete button to `RecentPublications` component <!-- id: 10 -->
+- [x] Enable TTS by default on mobile in `new-reel.tsx` <!-- id: 11 -->
+- [ ] Verify changes <!-- id: 12 -->
 - **22 Jan 2026** - Analyse complète et PRD créé
 - **22 Jan 2026** - Spécifications confirmées
 - **22 Jan 2026** - Backend complet : ffmpeg.ts, freesound.ts, facebook.ts

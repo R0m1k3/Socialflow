@@ -1,5 +1,5 @@
 ---
-name: 'step-04-commands-menu'
+name: 'step-05-commands-menu'
 description: 'Build capabilities and command structure'
 
 # File References
@@ -8,8 +8,8 @@ agentPlan: '{bmb_creations_output_folder}/agent-plan-{agent_name}.md'
 agentMenuPatterns: ../data/agent-menu-patterns.md
 
 # Example Menus (for reference)
-simpleExample: ../data/reference/simple-examples/commit-poet.agent.yaml
-expertExample: ../data/reference/expert-examples/journal-keeper/journal-keeper.agent.yaml
+simpleExample: ../data/reference/without-sidecar/commit-poet.agent.yaml
+expertExample: ../data/reference/with-sidecar/journal-keeper/journal-keeper.agent.yaml
 
 # Task References
 advancedElicitationTask: '{project-root}/_bmad/core/workflows/advanced-elicitation/workflow.xml'
@@ -121,7 +121,9 @@ menu:
 - **User-facing perspective** - triggers should feel natural
 - **Capability alignment** - every command maps to a capability
 
-# EXECUTION SEQUENCE
+## MANDATORY SEQUENCE
+
+**CRITICAL:** Follow this sequence exactly. Do not skip, reorder, or improvise unless user explicitly requests a change.
 
 1. Load agent-menu-patterns.md to understand structure
 2. Review capabilities from agent-plan step 3

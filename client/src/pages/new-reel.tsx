@@ -69,6 +69,14 @@ export default function NewReel() {
     const [drawText, setDrawText] = useState(true);
     const [stabilize, setStabilize] = useState(true); // default to true
 
+    // Enable TTS by default on mobile
+    useEffect(() => {
+        const isMobile = window.innerWidth < 768;
+        if (isMobile) {
+            setTtsEnabled(true);
+        }
+    }, []);
+
 
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);

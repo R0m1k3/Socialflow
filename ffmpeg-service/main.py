@@ -162,9 +162,11 @@ class ReelRequest(BaseModel):
 
 
 def clean_text_for_display(text: str) -> str:
-    """Removes emojis and hashtags for display (text only)."""
+    """Removes emojis, hashtags, and hidden chars for display (text only)."""
     if not text:
         return ""
+    # 0. Remove BOM and other hidden characters
+    text = text.replace("\ufeff", "").replace("\u200b", "")
     # 1. Remove emojis
     text = emoji.replace_emoji(text, replace="")
     # 2. Remove hashtags (e.g. #viral #fyp)
@@ -175,6 +177,10 @@ def clean_text_for_display(text: str) -> str:
 
 
 def clean_text_for_tts(text: str) -> str:
+    if not text:
+        return ""
+    # 0. Remove BOM and other hidden characters
+    text = text.replace("\ufeff", "").replace("\u200b", "")
     # 1. Remove emojis
     text = emoji.replace_emoji(text, replace="")
     # 2. Remove hashtags (e.g. #viral #reels)
@@ -390,102 +396,6 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     print(
         f"📄 Generated synced ASS: {ass_path.stat().st_size} bytes, "
         f"{len(chunks)} chunks from {len(word_boundaries)} words"
-    )
-
-
-def generate_simple_ass(
-    text: str, ass_path: Path, font_size: int = 65, total_duration: float = None
-):
-    """Generate a high-quality ASS subtitle file with embedded styling."""
-    # Split text into chunks
-    words = text.split()
-    chunks = []
-    current_chunk = []
-
-    for word in words:
-        current_chunk.append(word)
-        if len(current_chunk) >= 3 or word.endswith((".", "!", "?", ":")):
-            chunks.append(" ".join(current_chunk))
-            current_chunk = []
-
-    if current_chunk:
-        chunks.append(" ".join(current_chunk))
-
-    # ASS Header with explicit resolution and style
-    # Alignment 5 = Middle Center
-    # Font: Priority to Noto Color Emoji for emojis support
-    header = f"""[Script Info]
-ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
-ScaledBorderAndShadow: yes
-
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Sans,{font_size},&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,5,50,50,0,1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
-    events = ""
-
-    # Group words into chunks (3-4 words max)
-    # But we must respect the Timeline.
-    chunks = []
-    current_chunk = []
-
-    for timing in word_timings:
-        current_chunk.append(timing)
-        # Break chunk on punctuation or length
-        is_end_sentence = timing["text"].endswith((".", "!", "?", ":", ";"))
-        if len(current_chunk) >= 3 or is_end_sentence:
-            chunks.append(current_chunk)
-            current_chunk = []
-
-    if current_chunk:
-        chunks.append(current_chunk)
-
-    for chunk in chunks:
-        if not chunk:
-            continue
-
-        # Chunk Start = Start of first word
-        # Chunk End = End of last word
-        start_time = chunk[0]["offset"]
-        end_time = chunk[-1]["offset"] + chunk[-1]["duration"]
-
-        # Add a tiny buffer to end time to prevent flickering between chunks
-        end_time += 0.1
-
-        s_time_str = format_ass_time(start_time)
-        e_time_str = format_ass_time(end_time)
-
-        # Build karaoke text
-        karaoke_parts = []
-
-        # We need to calculate relative duration for \kf in centiseconds
-        # \kf uses duration relative to the start of the line/event
-        # BUT standard \kf accumulates.
-        # Format: {\kf80}Word1 {\kf40}Word2
-
-        for timing in chunk:
-            duration_cs = int(timing["duration"] * 100)  # seconds to centiseconds
-            # Ensure at least 1cs
-            duration_cs = max(duration_cs, 1)
-
-            sanitized = timing["text"].replace("{", "(").replace("}", ")")
-            karaoke_parts.append(f"{{\\kf{duration_cs}}}{sanitized}")
-
-        karaoke_text = " ".join(karaoke_parts)
-        events += (
-            f"Dialogue: 0,{s_time_str},{e_time_str},Default,,0,0,0,,{karaoke_text}\n"
-        )
-
-    with open(ass_path, "w", encoding="utf-8") as f:
-        f.write(header + events)
-
-    print(
-        f"📄 Generated PRECISE ASS file: {len(chunks)} chunks from {len(word_timings)} words"
     )
 
 

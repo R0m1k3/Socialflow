@@ -704,3 +704,33 @@ reelsRouter.get('/reels/ongoing', async (req: Request, res: Response) => {
         res.status(500).json({ error: 'Erreur lors de la récupération des reels en cours' });
     }
 });
+
+/**
+ * Supprimer un Reel
+ * DELETE /api/reels/:id
+ */
+reelsRouter.delete('/reels/:id', async (req: Request, res: Response) => {
+    try {
+        const user = req.user as User;
+        const { id } = req.params;
+
+        // Vérifier si le post existe
+        const post = await storage.getPost(id);
+        if (!post) {
+            return res.status(404).json({ error: 'Reel non trouvé' });
+        }
+
+        // Vérifier les permissions (admin ou propriétaire)
+        if (user.role !== 'admin' && post.userId !== user.id) {
+            return res.status(403).json({ error: 'Non autorisé à supprimer ce Reel' });
+        }
+
+        // Supprimer le post (cascade supprimera scheduled_posts et liens media)
+        await storage.deletePost(id);
+
+        res.json({ success: true, message: 'Reel supprimé avec succès' });
+    } catch (error) {
+        console.error('❌ Error deleting Reel:', error);
+        res.status(500).json({ error: 'Erreur lors de la suppression du Reel' });
+    }
+});
