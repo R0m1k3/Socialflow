@@ -378,6 +378,52 @@ reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
  * Traitement d'arrière-plan pour les Reels
  * Gère le pipeline FFmpeg -> Cloudinary -> Facebook de manière asynchrone
  */
+
+/**
+ * Vérifie la file d'attente et lance le prochain job si disponible
+ */
+async function checkQueueAndProcessNext() {
+    try {
+        const nextPost = await storage.getNextPendingReel();
+        if (nextPost) {
+            console.log(`📥 [Queue] Found pending job: ${nextPost.id}. Starting processing...`);
+
+            // Marquer comme processing immédiatement
+            await storage.updatePostGenerationStatus(nextPost.id, 'processing', 0);
+
+            // Reconstruire le payload depuis les données stockées (si stockées) ou les defaults
+            // Note: En mode "pending", on a perdu le body de la requête initiale car on ne stocke pas tout dans Post.
+            // Pour une solution robuste, il faudrait stocker les paramètres de génération dans une table 'reel_jobs'.
+            // ICI: HACK PROVISOIRE -> On suppose que les données sont stockées dans 'content' ou 'productInfo' mais ce n'est pas le cas.
+            // SOLUTION: On ne peut pas relancer processReelBackground sans les arguments (ttsVoice, music, etc).
+            //
+            // FIX: Pour le MVP, comme on n'a pas de table 'jobs', on va devoir stocker les paramètres requis dans 'productInfo' (jsonb) du Post
+            // lors de la création en mode 'pending'.
+
+            // Récupérer les paramètres stockés
+            const jobData = nextPost.productInfo as any;
+
+            if (!jobData || !jobData.videoMediaId) {
+                console.error(`❌ [Queue] Job ${nextPost.id} has no stored job data in productInfo.`);
+                await storage.updatePostGenerationStatus(nextPost.id, 'failed', 0, "Données de job manquantes");
+                return;
+            }
+
+            // Lancer le traitement
+            processReelBackground(nextPost.userId, nextPost.id, jobData)
+                .catch(err => console.error('🔥 [Queue] Unhandled error starting queued job:', err));
+        } else {
+            console.log('🏁 [Queue] No more pending jobs.');
+        }
+    } catch (error) {
+        console.error('❌ [Queue] Error checking queue:', error);
+    }
+}
+
+/**
+ * Traitement d'arrière-plan pour les Reels
+ * Gère le pipeline FFmpeg -> Cloudinary -> Facebook de manière asynchrone
+ */
 async function processReelBackground(
     userId: string,
     postId: string,
@@ -593,11 +639,14 @@ async function processReelBackground(
         } catch (e) {
             console.error(`⚠️ [Background] Failed to update error status for ${postId}:`, e);
         }
+    } finally {
+        // IMPORTANT: Toujours vérifier la file d'attente à la fin (succès ou échec)
+        await checkQueueAndProcessNext();
     }
 }
 
 /**
- * Créer et publier un Reel (Asynchrone)
+ * Créer et publier un Reel (Asynchrone avec File d'Attente)
  * POST /api/reels
  */
 reelsRouter.post('/reels', async (req: Request, res: Response) => {
@@ -629,32 +678,47 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Au moins une page requise' });
         }
 
-        // Créer immédiatement le Post en base (Statut Draft/Scheduled)
-        // Cela permet de retourner un ID tout de suite et d'éviter le timeout
+        // Vérifier le nombre de jobs en cours
+        const processingCount = await storage.countProcessingReels();
+        // MAX_CONCURRENT = 1
+        const isQueueBusy = processingCount >= 1;
+
+        const initialStatus = isQueueBusy ? 'pending' : 'processing';
+        const initialMessage = isQueueBusy
+            ? "File d'attente pleine. Votre vidéo sera traitée dès que possible."
+            : "Traitement démarré en arrière-plan.";
+
+        // Créer immédiatement le Post en base
+        // ON STOCKE LES PARAMS DU JOB DANS productInfo POUR POUVOIR LE REPRENDRE PLUS TARD
+        // C'est un hack car on n'a pas de table params_job, mais ça marche car productInfo est jsonb
         const post = await storage.createPost({
             userId: user.id,
             content: description || overlayText || '',
             aiGenerated: 'false',
             status: scheduledFor ? 'scheduled' : 'draft',
             scheduledFor: scheduledFor ? new Date(scheduledFor) : undefined,
-            generationStatus: 'processing',
+            generationStatus: initialStatus,
             generationProgress: 0,
+            productInfo: req.body, // Stockage complet des paramètres
         });
 
-        console.log(`✨ Reel Request accepted. Post ID: ${post.id}. Starting background processing.`);
+        console.log(`✨ Reel Request accepted. Post ID: ${post.id}. Status: ${initialStatus}`);
 
-        // Démarrer le traitement en arrière-plan (Fire & Forget)
-        // On ne met pas 'await' ici pour ne pas bloquer la réponse HTTP
-        processReelBackground(user.id, post.id, req.body).catch(err => {
-            console.error('🔥 Unhandled background error:', err);
-        });
+        if (!isQueueBusy) {
+            // Démarrer le traitement en arrière-plan (Fire & Forget)
+            processReelBackground(user.id, post.id, req.body).catch(err => {
+                console.error('🔥 Unhandled background error:', err);
+            });
+        } else {
+            console.log(`⏳ [Queue] Worker busy (count=${processingCount}). Job ${post.id} is queued.`);
+        }
 
         // Réponse immédiate au client
         res.json({
             success: true,
             postId: post.id,
-            message: "Traitement démarré en arrière-plan. La publication apparaîtra bientôt.",
-            // On retourne des valeurs placeholder pour la compatibilité frontend
+            message: initialMessage,
+            queued: isQueueBusy,
             results: [],
             videoUrl: ""
         });

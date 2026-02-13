@@ -71,6 +71,8 @@ export interface IStorage {
   updatePostGenerationStatus(id: string, status: string, progress: number, error?: string): Promise<Post>;
   deletePost(id: string): Promise<void>;
   updatePostMedia(postId: string, mediaIds: string[]): Promise<void>;
+  countProcessingReels(): Promise<number>;
+  getNextPendingReel(): Promise<Post | undefined>;
 
   // Scheduled Posts
   getScheduledPosts(userId: string, startDate?: Date, endDate?: Date): Promise<ScheduledPost[]>;
@@ -291,6 +293,24 @@ export class DatabaseStorage implements IStorage {
       }));
       await db.insert(postMedia).values(postMediaEntries);
     }
+  }
+
+  async countProcessingReels(): Promise<number> {
+    const processing = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.generationStatus, "processing"));
+    return processing.length;
+  }
+
+  async getNextPendingReel(): Promise<Post | undefined> {
+    const [post] = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.generationStatus, "pending"))
+      .orderBy(asc(posts.createdAt))
+      .limit(1);
+    return post || undefined;
   }
 
   // Scheduled Posts

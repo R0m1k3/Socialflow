@@ -6,7 +6,7 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 ## Current Focus
 
-**Phase: EXECUTION** - Running Party Mode Workflow (`_bmad/core/workflows/party-mode/workflow.md`).
+**Phase: DONE** - Mobile Dashboard Simplification Complete.
 
 ## Master Plan
 
@@ -146,12 +146,30 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 ### Phase 15: Améliorations UX & Fixes (Mobile TTS, Clean Text, Delete Reel) 🚀
 
-- [ ] **Mobile UX**: Activer TTS par défaut sur mobile (`new-reel.tsx`)
-- [ ] **Fix Text Rendering**: Nettoyer le texte (BOM removal) dans `ffmpeg-service/main.py` pour éviter le carré blanc
-- [ ] **Feature**: Suppression de Reels
-  - [ ] Backend: Route `DELETE /api/reels/:id`
-  - [ ] Storage: Méthode `deleteReel`
-  - [ ] Frontend: Bouton suppression avec confirmation sur les cartes de Reels
+- [x] **Mobile UX**: Activer TTS par défaut sur mobile (`new-reel.tsx`)
+- [x] **Fix Text Rendering**: Nettoyer le texte (BOM removal) dans `ffmpeg-service/main.py` pour éviter le carré blanc
+- [x] **Feature**: Suppression de Reels
+  - [x] Backend: Route `DELETE /api/reels/:id`
+  - [x] Storage: Méthode `deleteReel`
+  - [x] Frontend: Bouton suppression avec confirmation sur les cartes de Reels
+
+### Phase 16: Queue Management & Dashboard ⏳
+
+- [x] **Backend**: Implement Queue Logic (Single Worker Pattern)
+  - [x] Helper `processNextJob()`
+  - [x] Modify `POST /api/reels` to queue if busy
+  - [x] Trigger next job on completion/failure
+- [x] **Frontend**: Queue Visualization
+  - [x] Create `QueueStatus` widget
+  - [x] Display "En attente (Position X)" in progress component
+
+### Phase 17: Mobile Dashboard Simplification 📱
+
+- [x] **Mobile Dashboard**: Redesign `pages/mobile/dashboard.tsx`
+  - [x] Keep `OngoingReels` widget
+  - [x] Create Main Action Grid (New Post, Reel, Calendar, Analytics)
+  - [x] Create Secondary Menu List
+  - [x] Remove `StatsCards` and `RecentPublications` from main view
 
 ### Phase 13: Activation Agent BMad ✅
 
@@ -169,7 +187,7 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] Add `DELETE /api/reels/:id` route in `server/routes/reels.ts` <!-- id: 9 -->
 - [x] Add delete button to `RecentPublications` component <!-- id: 10 -->
 - [x] Enable TTS by default on mobile in `new-reel.tsx` <!-- id: 11 -->
-- [ ] Verify changes <!-- id: 12 -->
+- [x] Verify changes <!-- id: 12 -->
 - **22 Jan 2026** - Analyse complète et PRD créé
 - **22 Jan 2026** - Spécifications confirmées
 - **22 Jan 2026** - Backend complet : ffmpeg.ts, freesound.ts, facebook.ts
