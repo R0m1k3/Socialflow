@@ -171,6 +171,11 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
   - [x] Create Secondary Menu List
   - [x] Remove `StatsCards` and `RecentPublications` from main view
 
+### Phase 18: Mobile Hub Polish ✨
+
+- [x] **Entry Point**: Verify no forced redirects to `/new`.
+- [x] **Hub Design**: Refactor `DashboardMobile` with `Card` components and consistent styling.
+
 ### Phase 13: Activation Agent BMad ✅
 
 - [x] Activer l'agent `bmad-master.md`
