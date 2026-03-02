@@ -38,6 +38,8 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       SESSION_SECRET: ${SESSION_SECRET:-your-secret-key-change-me}
       APP_URL: ${APP_URL:-http://localhost:5555}
+      # URL interne Docker pour que ffmpeg-api puisse télécharger les fichiers audio
+      INTERNAL_APP_URL: http://socialflow-app:5555
       # Configuration FFmpeg Service
       FFMPEG_API_URL: http://ffmpeg-api:8000
       FFMPEG_API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}

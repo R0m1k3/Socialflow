@@ -321,11 +321,14 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
                 const internalId = musicTrackId.replace('internal_', '');
                 const track = await storage.getAudioTrack(internalId);
                 if (track) {
-                    // track.url est relatif (/uploads/audio/...) → on le rend absolu pour le service ffmpeg
-                    const appUrl = process.env.APP_URL || 'http://localhost:5555';
+                    // Utiliser INTERNAL_APP_URL pour que le container ffmpeg (réseau Docker interne)
+                    // puisse télécharger le fichier audio. APP_URL (HTTPS public) n'est pas accessible  
+                    // depuis le réseau internal Docker.
+                    const internalBaseUrl = process.env.INTERNAL_APP_URL || process.env.APP_URL || 'http://localhost:5555';
                     finalMusicUrl = track.url.startsWith('http')
                         ? track.url
-                        : `${appUrl}${track.url}`;
+                        : `${internalBaseUrl}${track.url}`;
+                    console.log(`🎵 Audio URL for ffmpeg: ${finalMusicUrl}`);
                 }
             } else {
                 const track = await freeSoundService.getMusicDetails(musicTrackId);
@@ -513,10 +516,11 @@ async function processReelBackground(
                     const internalId = musicTrackId.replace('internal_', '');
                     const track = await storage.getAudioTrack(internalId);
                     if (track) {
-                        const appUrl = process.env.APP_URL || 'http://localhost:5555';
+                        const internalBaseUrl = process.env.INTERNAL_APP_URL || process.env.APP_URL || 'http://localhost:5555';
                         finalMusicUrl = track.url.startsWith('http')
                             ? track.url
-                            : `${appUrl}${track.url}`;
+                            : `${internalBaseUrl}${track.url}`;
+                        console.log(`🎵 [Background] Audio URL for ffmpeg: ${finalMusicUrl}`);
                     }
                 } catch (e) { console.error('Error fetching internal track', e); }
             } else {
