@@ -269,7 +269,7 @@ export default function MobileNewReel() {
                             ) : (
                                 <div className="grid grid-cols-2 gap-3 mt-4">
                                     {videoList.map((media) => (
-                                        <div key={media.id} onClick={() => setSelectedVideoId(media.id) || setSelectedVideo(media)} className={`relative aspect-[9/16] bg-black rounded-lg overflow-hidden border-2 transition-all ${selectedVideoId === media.id ? 'border-primary' : 'border-transparent'}`}>
+                                        <div key={media.id} onClick={() => { setSelectedVideoId(media.id); setSelectedVideo(media); }} className={`relative aspect-[9/16] bg-black rounded-lg overflow-hidden border-2 transition-all ${selectedVideoId === media.id ? 'border-primary' : 'border-transparent'}`}>
                                             <video src={media.originalUrl} className="w-full h-full object-cover" muted />
                                         </div>
                                     ))}

@@ -1514,11 +1514,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Page non trouvée" });
       }
 
-      let pageData = insertSocialPageSchema.partial().parse(req.body);
+      let parsedData = insertSocialPageSchema.partial().parse(req.body);
+      let pageData: Partial<SocialPage> = { ...parsedData };
 
       // If accessToken is being updated, recalculate expiration date (60 days from now)
       // AND reset the status to valid so the UI updates immediately
-      if (pageData.accessToken) {
+      if (parsedData.accessToken) {
         const tokenExpiresAt = new Date();
         tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 60);
         pageData = {

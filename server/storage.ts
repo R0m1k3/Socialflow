@@ -55,7 +55,7 @@ export interface IStorage {
   getSocialPages(userId: string): Promise<SocialPage[]>;
   getSocialPage(id: string): Promise<SocialPage | undefined>;
   createSocialPage(page: InsertSocialPage): Promise<SocialPage>;
-  updateSocialPage(id: string, page: Partial<InsertSocialPage>): Promise<SocialPage>;
+  updateSocialPage(id: string, page: Partial<SocialPage>): Promise<SocialPage>;
   deleteSocialPage(id: string): Promise<void>;
 
   // Media
@@ -190,7 +190,7 @@ export class DatabaseStorage implements IStorage {
     return newPage;
   }
 
-  async updateSocialPage(id: string, page: Partial<InsertSocialPage>): Promise<SocialPage> {
+  async updateSocialPage(id: string, page: Partial<SocialPage>): Promise<SocialPage> {
     // Chiffrer le token si présent dans la mise à jour
     const updateData = page.accessToken
       ? { ...page, accessToken: encrypt(page.accessToken) }

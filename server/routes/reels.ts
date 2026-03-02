@@ -333,7 +333,8 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
 
         let watermarkUrl: string | undefined = undefined;
         if (req.user) {
-            const [userCloudinary] = await db.select().from(cloudinaryConfig).where(eq(cloudinaryConfig.userId, req.user.id));
+            const user = req.user as User;
+            const [userCloudinary] = await db.select().from(cloudinaryConfig).where(eq(cloudinaryConfig.userId, user.id));
             if (userCloudinary && userCloudinary.logoPublicId) {
                 watermarkUrl = `https://res.cloudinary.com/${userCloudinary.cloudName}/image/upload/${userCloudinary.logoPublicId}`;
             }
@@ -656,7 +657,7 @@ async function processReelBackground(
 
         // Si au moins une réussite, on considère "published" (ou partial), sinon "failed"
         // Si planifié, reste "scheduled".
-        let finalStatus = 'failed';
+        let finalStatus: 'failed' | 'scheduled' | 'published' = 'failed';
         if (scheduledFor) {
             finalStatus = 'scheduled';
         } else if (allSuccess) {

@@ -456,9 +456,7 @@ export type OpenrouterConfig = typeof openrouterConfig.$inferSelect;
 export type InsertOpenrouterConfig = z.infer<typeof insertOpenrouterConfigSchema>;
 export type UpdateOpenrouterConfig = z.infer<typeof updateOpenrouterConfigSchema>;
 
-export const insertPostMediaSchema = createInsertSchema(postMedia).omit({
-  id: true,
-});
+
 
 export type PostMedia = typeof postMedia.$inferSelect;
 export type InsertPostMedia = z.infer<typeof insertPostMediaSchema>;
