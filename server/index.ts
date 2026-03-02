@@ -39,19 +39,19 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
 }));
 
-// Rate limiting global - 100 requêtes par 15 minutes par IP
+// Rate limiting global - 1000 requêtes par 15 minutes par IP
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: 1000,
   message: { error: 'Trop de requêtes, réessayez plus tard' },
   standardHeaders: true,
   legacyHeaders: false,
 });
 
-// Rate limiting strict pour l'authentification - 5 tentatives par 15 minutes
+// Rate limiting pour l'authentification - 30 tentatives par 15 minutes
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 5,
+  max: 30,
   message: { error: 'Trop de tentatives de connexion, réessayez dans 15 minutes' },
   standardHeaders: true,
   legacyHeaders: false,
