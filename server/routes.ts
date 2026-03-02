@@ -56,9 +56,16 @@ const upload = multer({
 });
 
 // Setup audio upload with different filters
+// Files saved directly to the persistent local folder
+const AUDIO_UPLOAD_DIR = process.env.AUDIO_UPLOAD_DIR || '/app/uploads/audio';
+
+// Ensure the directory exists at startup
+import { mkdirSync } from 'fs';
+try { mkdirSync(AUDIO_UPLOAD_DIR, { recursive: true }); } catch { /* already exists */ }
+
 const audioUpload = multer({
   storage: multer.diskStorage({
-    destination: os.tmpdir(),
+    destination: AUDIO_UPLOAD_DIR,
     filename: (req, file, cb) => {
       const safeName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
       const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -67,7 +74,7 @@ const audioUpload = multer({
   }),
   limits: {
     fileSize: 50 * 1024 * 1024, // 50MB max for audio
-    files: 5
+    files: 20
   },
   fileFilter: (req, file, cb) => {
     if (ALLOWED_AUDIO_MIME_TYPES.includes(file.mimetype) || file.originalname.match(/\.(mp3|wav|ogg)$/i)) {
@@ -977,7 +984,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Audio Tracks Management (Admin Only) - Multi-file upload
+  // Audio Tracks Management (Admin Only) - Multi-file upload (stored locally)
   app.post("/api/audio-tracks", requireAdmin, audioUpload.array("files", 20), async (req, res) => {
     try {
       const files = req.files as Express.Multer.File[];
@@ -990,41 +997,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       for (const file of files) {
         try {
-          console.log(`🎵 Processing audio upload: ${file.originalname} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+          console.log(`🎵 Audio saved locally: ${file.originalname} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
 
-          // Upload to Cloudinary; audio is categorized as "video" in Cloudinary
-          const uploadResult = await cloudinaryService.uploadMedia(
-            file.path,
-            file.originalname,
-            user.id,
-            "video"
-          );
-
-          // Clean up temp file immediately after upload
-          await fs.promises.unlink(file.path).catch(err => console.error("Failed to cleanup temp audio file:", err));
-
-          const title = file.originalname.replace(/\.[^/.]+$/, "");
+          // Build a public URL served by Express at /uploads/audio/<filename>
+          const publicUrl = `/uploads/audio/${file.filename}`;
 
           const track = await storage.createAudioTrack({
             userId: user.id,
-            title: title,
+            title: file.originalname.replace(/\.[^/.]+$/, ""),
             fileName: file.originalname,
-            url: uploadResult.originalUrl,
+            url: publicUrl,
             duration: 0,
           });
 
           results.push({ success: true, track });
         } catch (fileError) {
-          // Clean up on per-file error
+          // Remove the file if DB insert fails
           await fs.promises.unlink(file.path).catch(() => { });
-          results.push({ success: false, fileName: file.originalname, error: fileError instanceof Error ? fileError.message : "Upload failed" });
+          results.push({ success: false, fileName: file.originalname, error: fileError instanceof Error ? fileError.message : "Save failed" });
         }
       }
 
       res.json({ results });
     } catch (error) {
       console.error("Error uploading audio tracks:", error);
-      // Cleanup all remaining temp files
       if (req.files) {
         for (const file of req.files as Express.Multer.File[]) {
           await fs.promises.unlink(file.path).catch(() => { });

@@ -49,6 +49,7 @@ services:
         condition: service_healthy
     volumes:
       - encryption_key:/app/.encryption-key-data
+      - audio_uploads:/app/uploads/audio
     command: npm run start
 
   # Service FFmpeg dédié
@@ -69,6 +70,8 @@ volumes:
   postgres_data:
     driver: local
   encryption_key:
+    driver: local
+  audio_uploads:
     driver: local
 
 networks:

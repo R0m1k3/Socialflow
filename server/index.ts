@@ -60,6 +60,10 @@ const authLimiter = rateLimit({
 app.use('/api/', globalLimiter);
 app.use('/api/auth/login', authLimiter);
 
+// Serve locally stored audio files
+const AUDIO_UPLOAD_DIR = process.env.AUDIO_UPLOAD_DIR || '/app/uploads/audio';
+app.use('/uploads/audio', express.static(AUDIO_UPLOAD_DIR));
+
 declare module 'http' {
   interface IncomingMessage {
     rawBody: unknown
