@@ -15,11 +15,17 @@ import type { User, InsertUser, ScheduledPost, FreesoundConfig } from "@shared/s
 import { freeSoundService } from "./services/freesound";
 import { analyticsRouter } from "./routes/analytics";
 import { reelsRouter } from "./routes/reels";
+import { insertAudioTrackSchema } from "@shared/schema";
 
 // Types MIME autorisés pour les uploads
 const ALLOWED_MIME_TYPES = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
   'video/mp4', 'video/quicktime', 'video/webm'
+];
+
+// Types MIME autorisés pour l'audio
+const ALLOWED_AUDIO_MIME_TYPES = [
+  'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg'
 ];
 
 // Configuration multer avec validation de taille et type
@@ -45,6 +51,29 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error(`Type de fichier non autorisé: ${file.mimetype}`));
+    }
+  }
+});
+
+// Setup audio upload with different filters
+const audioUpload = multer({
+  storage: multer.diskStorage({
+    destination: os.tmpdir(),
+    filename: (req, file, cb) => {
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + '-' + safeName);
+    }
+  }),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB max for audio
+    files: 5
+  },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_AUDIO_MIME_TYPES.includes(file.mimetype) || file.originalname.match(/\.(mp3|wav|ogg)$/i)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Type de fichier audio non autorisé: ${file.mimetype}`));
     }
   }
 });
@@ -945,6 +974,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting media:", error);
       res.status(500).json({ error: "Failed to delete media" });
+    }
+  });
+
+  // Audio Tracks Management (Admin Only)
+  app.post("/api/audio-tracks", requireAdmin, audioUpload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No audio file uploaded" });
+      }
+
+      console.log(`🎵 Processing audio upload: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
+
+      const user = req.user as User;
+
+      // Upload to Cloudinary using file path (streamed from disk) as resource_type: "video" (audio is categorized as video in cloudinary)
+      const uploadResult = await cloudinaryService.uploadMedia(
+        req.file.path,
+        req.file.originalname,
+        user.id,
+        "video"
+      );
+
+      // Clean up temp file immediately after upload to free disk space
+      await fs.promises.unlink(req.file.path).catch(err => console.error("Failed to cleanup temp audio file:", err));
+
+      const title = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, ""); // Use provided title or fallback to filename w/o ext
+
+      const track = await storage.createAudioTrack({
+        userId: user.id,
+        title: title,
+        fileName: req.file.originalname,
+        url: uploadResult.originalUrl,
+        duration: 0, // We could extract duration, but 0 is default
+      });
+
+      res.json(track);
+    } catch (error) {
+      console.error("Error uploading audio track:", error);
+
+      // Attempt cleanup on error
+      if (req.file && req.file.path) {
+        await fs.promises.unlink(req.file.path).catch(() => { });
+      }
+
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload audio track";
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
+  app.get("/api/audio-tracks", requireAuth, async (req, res) => {
+    try {
+      // Both admin and regular users can list audio tracks (to pick them for reels)
+      const tracks = await storage.getAudioTracks();
+      res.json(tracks);
+    } catch (error) {
+      console.error("Error fetching audio tracks:", error);
+      res.status(500).json({ error: "Failed to fetch audio tracks" });
+    }
+  });
+
+  app.delete("/api/audio-tracks/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const track = await storage.getAudioTrack(id);
+      if (!track) {
+        return res.status(404).json({ error: "Audio track not found" });
+      }
+
+      // Try to extract publicId from cloudinary url to delete it from there too
+      // e.g. https://res.cloudinary.com/demo/video/upload/v123456789/user_id/audio_name.mp3
+      const urlParts = track.url.split('/upload/');
+      if (urlParts.length > 1) {
+        const afterUpload = urlParts[1];
+        // Remove version number (v12345...)
+        let pathWithoutVersion = afterUpload;
+        if (afterUpload.match(/^v\d+\//)) {
+          pathWithoutVersion = afterUpload.replace(/^v\d+\//, '');
+        }
+        // Remove extension
+        const publicId = pathWithoutVersion.replace(/\.[^/.]+$/, "");
+
+        try {
+          await cloudinaryService.deleteMedia(publicId, track.userId || '', 'video');
+        } catch (cloudinaryError) {
+          console.warn(`Failed to delete audio from cloudinary: ${publicId}`, cloudinaryError);
+        }
+      }
+
+      await storage.deleteAudioTrack(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting audio track:", error);
+      res.status(500).json({ error: "Failed to delete audio track" });
     }
   });
 

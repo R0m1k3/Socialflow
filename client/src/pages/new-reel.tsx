@@ -97,6 +97,24 @@ export default function NewReel() {
     // État pour stocker les musiques chargées manuellement
     const [loadedTracks, setLoadedTracks] = useState<MusicTrack[]>([]);
 
+    // --- Added for Internal Audio Tracks ---
+    const { data: internalTracksResponse = [], isLoading: internalTracksLoading } = useQuery<any[]>({
+        queryKey: ['/api/audio-tracks'],
+    });
+
+    const internalTracks: MusicTrack[] = (internalTracksResponse || []).map(t => ({
+        id: `internal_${t.id}`,
+        title: t.title,
+        artist: "Bibliothèque Interne",
+        albumName: "Upload",
+        duration: t.duration || 0,
+        previewUrl: t.url,
+        downloadUrl: t.url,
+        imageUrl: "",
+        license: "Internal"
+    }));
+    // --- End Internal Tracks ---
+
     // Recherche de musiques par durée
     const { data: musicData, isLoading: musicLoading, refetch: refetchMusic } = useQuery<{ tracks: MusicTrack[] }>({
         queryKey: ['/api/music/search', selectedVideo?.id, musicOffset],
@@ -538,6 +556,54 @@ export default function NewReel() {
                                     </CardHeader>
                                     <CardContent>
                                         <audio ref={audioRef} onEnded={() => setIsPlaying(null)} />
+
+                                        {/* INTERNAL TRACKS SECTION */}
+                                        <div className="mb-6 space-y-2">
+                                            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider px-1">Bibliothèque Interne</h3>
+                                            {internalTracksLoading ? (
+                                                <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+                                            ) : internalTracks.length === 0 ? (
+                                                <p className="text-sm text-muted-foreground italic px-1 bg-muted/30 p-3 rounded-lg">Aucune musique n'a été ajoutée par les administrateurs.</p>
+                                            ) : (
+                                                internalTracks.map((track) => (
+                                                    <div
+                                                        key={track.id}
+                                                        onClick={() => handleSelectTrack(track)}
+                                                        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${selectedTrack?.id === track.id
+                                                            ? 'bg-primary/10 border border-primary'
+                                                            : 'bg-muted/50 hover:bg-muted'
+                                                            }`}
+                                                    >
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                togglePlayPreview(track);
+                                                            }}
+                                                            className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center hover:bg-primary/30 shrink-0"
+                                                        >
+                                                            {isPlaying === track.id ? (
+                                                                <Pause className="w-5 h-5" />
+                                                            ) : (
+                                                                <Play className="w-5 h-5 ml-0.5" />
+                                                            )}
+                                                        </button>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-medium truncate">{track.title}</p>
+                                                            <p className="text-xs text-primary truncate font-medium flex items-center gap-1">
+                                                                <Music className="w-3 h-3" />
+                                                                {track.artist}
+                                                            </p>
+                                                        </div>
+                                                        {selectedTrack?.id === track.id && (
+                                                            <Check className="w-5 h-5 text-primary shrink-0" />
+                                                        )}
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                        {/* END INTERNAL TRACKS SECTION */}
+
+                                        <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider px-1 mb-2">Recherche FreeSound</h3>
 
                                         {musicLoading ? (
                                             <div className="flex items-center justify-center py-8">

@@ -214,6 +214,16 @@ export const musicFavorites = pgTable("music_favorites", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const audioTracks = pgTable("audio_tracks", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // Nullable if uploaded by system/admin globally
+  title: text("title").notNull(),
+  fileName: text("file_name").notNull(),
+  url: text("url").notNull(),
+  duration: integer("duration").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 export const userPagePermissions = pgTable("user_page_permissions", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -340,6 +350,13 @@ export const userPagePermissionsRelations = relations(userPagePermissions, ({ on
   }),
 }));
 
+export const audioTracksRelations = relations(audioTracks, ({ one }) => ({
+  user: one(users, {
+    fields: [audioTracks.userId],
+    references: [users.id],
+  }),
+}));
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
@@ -407,6 +424,11 @@ export const insertMusicFavoriteSchema = createInsertSchema(musicFavorites).omit
   createdAt: true,
 });
 
+export const insertAudioTrackSchema = createInsertSchema(audioTracks).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -434,11 +456,18 @@ export type OpenrouterConfig = typeof openrouterConfig.$inferSelect;
 export type InsertOpenrouterConfig = z.infer<typeof insertOpenrouterConfigSchema>;
 export type UpdateOpenrouterConfig = z.infer<typeof updateOpenrouterConfigSchema>;
 
+export const insertPostMediaSchema = createInsertSchema(postMedia).omit({
+  id: true,
+});
+
 export type PostMedia = typeof postMedia.$inferSelect;
 export type InsertPostMedia = z.infer<typeof insertPostMediaSchema>;
 
 export type MusicFavorite = typeof musicFavorites.$inferSelect;
 export type InsertMusicFavorite = z.infer<typeof insertMusicFavoriteSchema>;
+
+export type AudioTrack = typeof audioTracks.$inferSelect;
+export type InsertAudioTrack = z.infer<typeof insertAudioTrackSchema>;
 
 export const insertFreesoundConfigSchema = createInsertSchema(freesoundConfig).omit({
   id: true,

@@ -18,6 +18,7 @@ interface FFmpegReelRequest {
     music_volume?: number;      // Volume musique (default: 0.25)
     draw_text?: boolean;        // Dessiner le texte sur la vidéo (default: true)
     stabilize?: boolean;        // Stabilisation vidéo via vidstab (default: false)
+    watermark_url?: string;     // URL du logo
 }
 
 interface FFmpegReelResponse {
@@ -73,6 +74,7 @@ export class FFmpegService {
             musicVolume?: number;
             drawText?: boolean;
             stabilize?: boolean;
+            watermarkUrl?: string;
         } = {}
     ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string }> {
         const config = this.ensureConfigured();
@@ -89,6 +91,7 @@ export class FFmpegService {
             music_volume: options.musicVolume ?? 0.25,
             draw_text: options.drawText ?? true,
             stabilize: options.stabilize ?? false,
+            watermark_url: options.watermarkUrl,
         };
 
         // Remove undefined values
@@ -168,6 +171,7 @@ export class FFmpegService {
             musicVolume?: number;
             drawText?: boolean;
             stabilize?: boolean;
+            watermarkUrl?: string;
         } = {}
     ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string }> {
         const config = this.ensureConfigured();
@@ -184,6 +188,7 @@ export class FFmpegService {
             music_volume: options.musicVolume ?? 0.25,
             draw_text: options.drawText ?? true,
             stabilize: options.stabilize ?? false,
+            watermark_url: options.watermarkUrl,
         };
 
         // Remove undefined values

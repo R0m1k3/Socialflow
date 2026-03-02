@@ -152,6 +152,7 @@ class ReelRequest(BaseModel):
     text: Optional[str] = None
     music_id: Optional[str] = None
     music_url: Optional[str] = None
+    watermark_url: Optional[str] = None
     word_duration: float = 0.6
     font_size: int = 64
     music_volume: float = 0.25
@@ -586,6 +587,19 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 print(f"Failed to download music: {e}")
                 # We continue without music if it fails
 
+        has_watermark = False
+        if request.watermark_url:
+            try:
+                # Add User-Agent to avoid 403 on some CDNs
+                headers = {"User-Agent": "Mozilla/5.0"}
+                response = requests.get(request.watermark_url, headers=headers, stream=True)
+                response.raise_for_status()
+                with open(job_dir / "watermark.png", "wb") as f:
+                    shutil.copyfileobj(response.raw, f)
+                has_watermark = True
+            except Exception as e:
+                print(f"Failed to download watermark: {e}")
+
         stats["download_duration"] = time.time() - start_step
         start_step = time.time()
 
@@ -729,6 +743,12 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             tts_idx = input_count
             input_count += 1
 
+        watermark_idx = -1
+        if has_watermark:
+            cmd.extend(["-i", str(job_dir / "watermark.png")])
+            watermark_idx = input_count
+            input_count += 1
+
         # --- Filter Complex Construction ---
         fc_parts = []
 
@@ -771,6 +791,10 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
 
             # Combine formatting + text
             v_chain += text_filter
+
+        if has_watermark:
+            fc_parts.append(f"[{watermark_idx}:v]scale=150:-1[wm]")
+            v_chain += "[v_pre_wm];[v_pre_wm][wm]overlay=W-w-20:H-h-20"
 
         # End of video chain
         v_chain += "[vout]"

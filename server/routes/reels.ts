@@ -10,6 +10,9 @@ import { ffmpegService } from '../services/ffmpeg';
 import { facebookService } from '../services/facebook';
 import { cloudinaryService } from '../services/cloudinary';
 import { openRouterService } from '../services/openrouter';
+import { db } from '../db';
+import { cloudinaryConfig } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 export const reelsRouter = Router();
 
@@ -314,9 +317,25 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
         // Récupérer l'URL de la musique si trackId fourni
         let finalMusicUrl = musicUrl;
         if (musicTrackId && !musicUrl) {
-            const track = await freeSoundService.getMusicDetails(musicTrackId);
-            if (track) {
-                finalMusicUrl = track.downloadUrl;
+            if (musicTrackId.startsWith('internal_')) {
+                const internalId = musicTrackId.replace('internal_', '');
+                const track = await storage.getAudioTrack(internalId);
+                if (track) {
+                    finalMusicUrl = track.url;
+                }
+            } else {
+                const track = await freeSoundService.getMusicDetails(musicTrackId);
+                if (track) {
+                    finalMusicUrl = track.downloadUrl;
+                }
+            }
+        }
+
+        let watermarkUrl: string | undefined = undefined;
+        if (req.user) {
+            const [userCloudinary] = await db.select().from(cloudinaryConfig).where(eq(cloudinaryConfig.userId, req.user.id));
+            if (userCloudinary && userCloudinary.logoPublicId) {
+                watermarkUrl = `https://res.cloudinary.com/${userCloudinary.cloudName}/image/upload/${userCloudinary.logoPublicId}`;
             }
         }
 
@@ -331,6 +350,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             musicVolume,
             drawText,
             stabilize,
+            watermarkUrl,
         });
 
         if (!result.success) {
@@ -483,9 +503,23 @@ async function processReelBackground(
         // 2. Récupérer l'URL de la musique
         let finalMusicUrl = musicUrl;
         if (musicTrackId && !musicUrl) {
-            const track = await freeSoundService.getMusicDetails(musicTrackId);
-            if (track) {
-                finalMusicUrl = track.downloadUrl;
+            if (musicTrackId.startsWith('internal_')) {
+                try {
+                    const internalId = musicTrackId.replace('internal_', '');
+                    const track = await storage.getAudioTrack(internalId);
+                    if (track) {
+                        finalMusicUrl = track.url;
+                    }
+                } catch (e) { console.error('Error fetching internal track', e); }
+            } else {
+                try {
+                    const track = await freeSoundService.getMusicDetails(musicTrackId);
+                    if (track) {
+                        finalMusicUrl = track.downloadUrl;
+                    }
+                } catch (e) {
+                    console.error(`⚠️ [Background] Failed to fetch music details for ${musicTrackId}`, e);
+                }
             }
         }
 
@@ -499,6 +533,17 @@ async function processReelBackground(
         // 3. Traiter la vidéo via FFmpeg
         await updateProgress(15);
         const startTime = Date.now();
+
+        let watermarkUrl: string | undefined = undefined;
+        try {
+            const [userCloudinary] = await db.select().from(cloudinaryConfig).where(eq(cloudinaryConfig.userId, media.userId));
+            if (userCloudinary && userCloudinary.logoPublicId) {
+                watermarkUrl = `https://res.cloudinary.com/${userCloudinary.cloudName}/image/upload/${userCloudinary.logoPublicId}`;
+            }
+        } catch (e) {
+            console.error('Error fetching watermark configuration', e);
+        }
+
         const ffmpegResult = await ffmpegService.processReelFromUrl(media.originalUrl, {
             text: overlayText,
             musicUrl: finalMusicUrl,
@@ -509,6 +554,7 @@ async function processReelBackground(
             musicVolume,
             drawText,
             stabilize,
+            watermarkUrl,
         });
 
         console.log(`⏱️ [Background] FFmpeg took ${(Date.now() - startTime) / 1000}s`);

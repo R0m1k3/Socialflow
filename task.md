@@ -6,7 +6,7 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 ## Current Focus
 
-**Phase: DONE** - Mobile Dashboard Simplification Complete.
+**Phase: EXECUTION** - Implémentation de la gestion interne des musiques (MP3) et incrustation du logo existant sur les Reels.
 
 ## Master Plan
 
@@ -176,6 +176,23 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] **Entry Point**: Verify no forced redirects to `/new`.
 - [x] **Hub Design**: Refactor `DashboardMobile` with `Card` components and consistent styling.
 
+### Phase 19: Internal MP3 Management & Logo Overlay 🎵🖼️
+
+- [x] **Database & Routing**
+  - [x] Add `AudioTrack` table to schema (`id`, `title`, `url`, `createdAt`)
+  - [x] Create API routes for managing audio tracks (Upload, List, Delete)
+- [x] **Admin UI**
+  - [x] Create an "Assets" or "Resources" admin page
+  - [x] Implement MP3 upload functionality
+  - [x] Display list of uploaded audio tracks with delete option
+- [x] **Reel Creation UI**
+  - [x] Replace FreeSound search with a selector/list of internal MP3s
+  - [x] Maintain audio preview functionality
+- [ ] **FFmpeg Integration**
+  - [ ] Pass the appropriate `audio_url` (local/hosted MP3) and `logo_url` (from existing settings/image editor) to the FFmpeg service
+  - [ ] Update `ffmpeg-service/main.py` to download/read the logo image
+  - [ ] Implement `overlay` filter in the video processing pipeline to scale (max width 150px) and position the logo in the bottom right corner (e.g., `W-w-20:H-h-20`)
+
 ### Phase 13: Activation Agent BMad ✅
 
 - [x] Activer l'agent `bmad-master.md`
@@ -184,6 +201,9 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] Ré-activation de l'agent bmad-master.md (11 Fev 2026)
 
 ## Progress Log
+
+- [x] Activation du mode Party et salutation de l'utilisateur. En attente du sujet de discussion.
+- [x] Définition des spécifications pour la gestion interne des MP3 et l'incrustation du logo de l'Éditeur d'image. Fin du Mode Party.
 
 - [x] Analyze `ffmpeg-service/main.py` for text encoding issues <!-- id: 5 -->
 - [x] Analyze `server/routes.ts` and `server/storage.ts` for deletion logic <!-- id: 6 -->

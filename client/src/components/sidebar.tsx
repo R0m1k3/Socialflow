@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Calendar, Images, Users, Bot, Clock, Settings, Database, UserCog, LogOut, ChevronLeft, ChevronRight, Wand2, BarChart3, Video } from "lucide-react";
+import { Home, PlusCircle, Calendar, Images, Users, Bot, Clock, Settings, Database, UserCog, LogOut, ChevronLeft, ChevronRight, Wand2, BarChart3, Video, Music } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
