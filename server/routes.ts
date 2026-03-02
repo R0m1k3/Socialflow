@@ -999,13 +999,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           console.log(`🎵 Audio saved locally: ${file.originalname} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
 
-          // Build a public URL served by Express at /uploads/audio/<filename>
+          // Multer/busboy reçoit le nom en latin1, mais le navigateur l'envoie en UTF-8 → on reconvertit
+          const decodedName = Buffer.from(file.originalname, 'latin1').toString('utf8');
           const publicUrl = `/uploads/audio/${file.filename}`;
 
           const track = await storage.createAudioTrack({
             userId: user.id,
-            title: file.originalname.replace(/\.[^/.]+$/, ""),
-            fileName: file.originalname,
+            title: decodedName.replace(/\.[^/.]+$/, ""),
+            fileName: decodedName,
             url: publicUrl,
             duration: 0,
           });
