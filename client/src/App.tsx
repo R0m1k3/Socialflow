@@ -139,7 +139,7 @@ function Router() {
       <Route path="/history">{() => <ProtectedRoute component={History} />}</Route>
       <Route path="/settings">{() => <ProtectedRoute component={Settings} adminOnly />}</Route>
       <Route path="/sql">{() => <ProtectedRoute component={SqlAdmin} adminOnly />}</Route>
-      <Route path="/audio">{() => <ProtectedRoute component={AudioAdmin} adminOnly />}</Route>
+      <Route path="/audio-admin">{() => <ProtectedRoute component={AudioAdmin} adminOnly />}</Route>
       <Route path="/users">{() => <ProtectedRoute component={UsersAdmin} adminOnly />}</Route>
       <Route path="/analytics">{() => <ProtectedRoute component={Analytics} />}</Route>
       <Route path="/test-camera" component={TestCamera} />
