@@ -977,48 +977,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Audio Tracks Management (Admin Only)
-  app.post("/api/audio-tracks", requireAdmin, audioUpload.single("file"), async (req, res) => {
+  // Audio Tracks Management (Admin Only) - Multi-file upload
+  app.post("/api/audio-tracks", requireAdmin, audioUpload.array("files", 20), async (req, res) => {
     try {
-      if (!req.file) {
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
         return res.status(400).json({ error: "No audio file uploaded" });
       }
 
-      console.log(`🎵 Processing audio upload: ${req.file.originalname} (${(req.file.size / 1024 / 1024).toFixed(2)} MB)`);
-
       const user = req.user as User;
+      const results = [];
 
-      // Upload to Cloudinary using file path (streamed from disk) as resource_type: "video" (audio is categorized as video in cloudinary)
-      const uploadResult = await cloudinaryService.uploadMedia(
-        req.file.path,
-        req.file.originalname,
-        user.id,
-        "video"
-      );
+      for (const file of files) {
+        try {
+          console.log(`🎵 Processing audio upload: ${file.originalname} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
 
-      // Clean up temp file immediately after upload to free disk space
-      await fs.promises.unlink(req.file.path).catch(err => console.error("Failed to cleanup temp audio file:", err));
+          // Upload to Cloudinary; audio is categorized as "video" in Cloudinary
+          const uploadResult = await cloudinaryService.uploadMedia(
+            file.path,
+            file.originalname,
+            user.id,
+            "video"
+          );
 
-      const title = req.body.title || req.file.originalname.replace(/\.[^/.]+$/, ""); // Use provided title or fallback to filename w/o ext
+          // Clean up temp file immediately after upload
+          await fs.promises.unlink(file.path).catch(err => console.error("Failed to cleanup temp audio file:", err));
 
-      const track = await storage.createAudioTrack({
-        userId: user.id,
-        title: title,
-        fileName: req.file.originalname,
-        url: uploadResult.originalUrl,
-        duration: 0, // We could extract duration, but 0 is default
-      });
+          const title = file.originalname.replace(/\.[^/.]+$/, "");
 
-      res.json(track);
-    } catch (error) {
-      console.error("Error uploading audio track:", error);
+          const track = await storage.createAudioTrack({
+            userId: user.id,
+            title: title,
+            fileName: file.originalname,
+            url: uploadResult.originalUrl,
+            duration: 0,
+          });
 
-      // Attempt cleanup on error
-      if (req.file && req.file.path) {
-        await fs.promises.unlink(req.file.path).catch(() => { });
+          results.push({ success: true, track });
+        } catch (fileError) {
+          // Clean up on per-file error
+          await fs.promises.unlink(file.path).catch(() => { });
+          results.push({ success: false, fileName: file.originalname, error: fileError instanceof Error ? fileError.message : "Upload failed" });
+        }
       }
 
-      const errorMessage = error instanceof Error ? error.message : "Failed to upload audio track";
+      res.json({ results });
+    } catch (error) {
+      console.error("Error uploading audio tracks:", error);
+      // Cleanup all remaining temp files
+      if (req.files) {
+        for (const file of req.files as Express.Multer.File[]) {
+          await fs.promises.unlink(file.path).catch(() => { });
+        }
+      }
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload audio tracks";
       res.status(500).json({ error: errorMessage });
     }
   });

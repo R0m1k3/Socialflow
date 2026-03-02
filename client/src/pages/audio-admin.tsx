@@ -32,9 +32,11 @@ export default function AudioAdmin() {
     });
 
     const uploadMutation = useMutation({
-        mutationFn: async (file: File) => {
+        mutationFn: async (files: File[]) => {
             const formData = new FormData();
-            formData.append("file", file);
+            for (const file of files) {
+                formData.append("files", file);
+            }
 
             const res = await fetch("/api/audio-tracks", {
                 method: "POST",
@@ -48,11 +50,15 @@ export default function AudioAdmin() {
 
             return res.json();
         },
-        onSuccess: () => {
+        onSuccess: (data) => {
             queryClient.invalidateQueries({ queryKey: ["/api/audio-tracks"] });
+            const successCount = data.results?.filter((r: any) => r.success).length ?? 0;
+            const failCount = data.results?.filter((r: any) => !r.success).length ?? 0;
             toast({
-                title: "Succès",
-                description: "La piste audio a été ajoutée à la bibliothèque",
+                title: "Upload terminé",
+                description: failCount > 0
+                    ? `${successCount} fichier(s) ajouté(s), ${failCount} échec(s)`
+                    : `${successCount} fichier(s) ajouté(s) à la bibliothèque`,
             });
         },
         onError: (error: Error) => {
@@ -94,20 +100,21 @@ export default function AudioAdmin() {
     });
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
 
-        if (!file.type.startsWith("audio/")) {
+        const invalidFiles = files.filter(f => !f.type.startsWith("audio/"));
+        if (invalidFiles.length > 0) {
             toast({
                 title: "Format invalide",
-                description: "Veuillez sélectionner un fichier audio (MP3, WAV, etc.)",
+                description: "Certains fichiers ne sont pas des fichiers audio (MP3, WAV, etc.)",
                 variant: "destructive",
             });
             return;
         }
 
         setIsUploading(true);
-        uploadMutation.mutate(file);
+        uploadMutation.mutate(files);
 
         // Reset input
         if (e.target) {
@@ -173,6 +180,7 @@ export default function AudioAdmin() {
                                 id="audio-upload"
                                 className="hidden"
                                 accept="audio/*"
+                                multiple
                                 onChange={handleFileUpload}
                                 disabled={isUploading}
                             />

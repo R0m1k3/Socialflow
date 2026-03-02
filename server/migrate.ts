@@ -117,6 +117,19 @@ export async function migrate() {
       ADD COLUMN IF NOT EXISTS "page_engagement" integer DEFAULT 0;
     `);
 
+    // audio_tracks (bibliothèque audio interne)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "audio_tracks" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "user_id" varchar REFERENCES "users"("id") ON DELETE cascade,
+        "title" text NOT NULL,
+        "file_name" text NOT NULL,
+        "url" text NOT NULL,
+        "duration" integer DEFAULT 0,
+        "created_at" timestamp DEFAULT now()
+      );
+    `);
+
     console.log("[Migration] Safe migration completed.");
   } catch (error) {
     console.error("[Migration] Error during migration:", error);
