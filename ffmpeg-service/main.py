@@ -592,7 +592,9 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             try:
                 # Add User-Agent to avoid 403 on some CDNs
                 headers = {"User-Agent": "Mozilla/5.0"}
-                response = requests.get(request.watermark_url, headers=headers, stream=True)
+                response = requests.get(
+                    request.watermark_url, headers=headers, stream=True
+                )
                 response.raise_for_status()
                 with open(job_dir / "watermark.png", "wb") as f:
                     shutil.copyfileobj(response.raw, f)
@@ -793,7 +795,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             v_chain += text_filter
 
         if has_watermark:
-            fc_parts.append(f"[{watermark_idx}:v]scale=150:-1[wm]")
+            fc_parts.append(f"[{watermark_idx}:v]scale=200:-1[wm]")
             v_chain += "[v_pre_wm];[v_pre_wm][wm]overlay=W-w-20:H-h-20"
 
         # End of video chain
