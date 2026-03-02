@@ -287,6 +287,30 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
               )}
             </a>
             <a
+              href="/audio-admin"
+              onClick={(e) => handleLinkClick("/audio-admin", e)}
+              className={`
+                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
+                ${location === "/audio-admin"
+                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
+                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+                }
+                ${isCollapsed ? 'justify-center' : ''}
+              `}
+              data-testid="link-audio-admin"
+            >
+              {location === "/audio-admin" && (
+                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 gradient-primary rounded-r-full" />
+              )}
+              <Music className="w-5 h-5" />
+              {!isCollapsed && <span>Bibliothèque Audio</span>}
+              {isCollapsed && (
+                <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
+                  Bibliothèque Audio
+                </div>
+              )}
+            </a>
+            <a
               href="/settings"
               onClick={(e) => handleLinkClick("/settings", e)}
               className={`

@@ -34,7 +34,7 @@ export default function AudioAdmin() {
     const uploadMutation = useMutation({
         mutationFn: async (file: File) => {
             const formData = new FormData();
-            formData.append("audio", file);
+            formData.append("file", file);
 
             const res = await fetch("/api/audio-tracks", {
                 method: "POST",

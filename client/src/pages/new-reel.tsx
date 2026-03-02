@@ -80,7 +80,6 @@ export default function NewReel() {
 
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
-    const [musicOffset, setMusicOffset] = useState(0);
 
     // Récupérer les pages disponibles
     const { data: pages = [] } = useQuery<SocialPage[]>({
@@ -94,9 +93,6 @@ export default function NewReel() {
 
     const videoList = allMedia.filter(m => m.type === 'video').slice(0, 12);
 
-    // État pour stocker les musiques chargées manuellement
-    const [loadedTracks, setLoadedTracks] = useState<MusicTrack[]>([]);
-
     // --- Added for Internal Audio Tracks ---
     const { data: internalTracksResponse = [], isLoading: internalTracksLoading } = useQuery<any[]>({
         queryKey: ['/api/audio-tracks'],
@@ -105,8 +101,8 @@ export default function NewReel() {
     const internalTracks: MusicTrack[] = (internalTracksResponse || []).map(t => ({
         id: `internal_${t.id}`,
         title: t.title,
-        artist: "Bibliothèque Interne",
-        albumName: "Upload",
+        artist: t.fileName || t.title,
+        albumName: "Bibliothèque Interne",
         duration: t.duration || 0,
         previewUrl: t.url,
         downloadUrl: t.url,
@@ -114,29 +110,6 @@ export default function NewReel() {
         license: "Internal"
     }));
     // --- End Internal Tracks ---
-
-    // Recherche de musiques par durée
-    const { data: musicData, isLoading: musicLoading, refetch: refetchMusic } = useQuery<{ tracks: MusicTrack[] }>({
-        queryKey: ['/api/music/search', selectedVideo?.id, musicOffset],
-        queryFn: async () => {
-            // Estimer la durée vidéo (on prend une marge de ±10 secondes)
-            const minDuration = 10;
-            const maxDuration = 120; // On prend toutes les musiques courtes
-            const response = await fetch(
-                `/api/music/search?minDuration=${minDuration}&maxDuration=${maxDuration}&limit=10&offset=${musicOffset}`
-            );
-            const data = await response.json();
-            setLoadedTracks(data.tracks || []);
-            return data;
-        },
-        enabled: currentStep === 'music' && !!selectedVideo,
-    });
-
-    // Charger 10 nouvelles musiques
-    const handleLoadNewMusic = () => {
-        setMusicOffset(prev => prev + 10);
-        refetchMusic();
-    };
 
     // Upload vidéo
     const uploadMutation = useMutation({
@@ -557,13 +530,18 @@ export default function NewReel() {
                                     <CardContent>
                                         <audio ref={audioRef} onEnded={() => setIsPlaying(null)} />
 
-                                        {/* INTERNAL TRACKS SECTION */}
-                                        <div className="mb-6 space-y-2">
-                                            <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider px-1">Bibliothèque Interne</h3>
+                                        {/* BIBLIOTHÈQUE INTERNE */}
+                                        <div className="space-y-2">
                                             {internalTracksLoading ? (
-                                                <div className="flex justify-center py-4"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+                                                <div className="flex items-center justify-center py-8">
+                                                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                                </div>
                                             ) : internalTracks.length === 0 ? (
-                                                <p className="text-sm text-muted-foreground italic px-1 bg-muted/30 p-3 rounded-lg">Aucune musique n'a été ajoutée par les administrateurs.</p>
+                                                <div className="text-center py-10 border-2 border-dashed border-border rounded-xl">
+                                                    <Music className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-40" />
+                                                    <p className="text-muted-foreground font-medium">Aucune musique disponible</p>
+                                                    <p className="text-sm text-muted-foreground mt-1">Un administrateur peut ajouter des MP3 via la Bibliothèque Audio.</p>
+                                                </div>
                                             ) : (
                                                 internalTracks.map((track) => (
                                                     <div
@@ -589,9 +567,8 @@ export default function NewReel() {
                                                         </button>
                                                         <div className="flex-1 min-w-0">
                                                             <p className="font-medium truncate">{track.title}</p>
-                                                            <p className="text-xs text-primary truncate font-medium flex items-center gap-1">
-                                                                <Music className="w-3 h-3" />
-                                                                {track.artist}
+                                                            <p className="text-xs text-muted-foreground truncate">
+                                                                {Math.floor(track.duration / 60)}:{String(track.duration % 60).padStart(2, '0')}
                                                             </p>
                                                         </div>
                                                         {selectedTrack?.id === track.id && (
@@ -601,122 +578,41 @@ export default function NewReel() {
                                                 ))
                                             )}
                                         </div>
-                                        {/* END INTERNAL TRACKS SECTION */}
 
-                                        <h3 className="font-semibold text-sm text-muted-foreground uppercase tracking-wider px-1 mb-2">Recherche FreeSound</h3>
-
-                                        {musicLoading ? (
-                                            <div className="flex items-center justify-center py-8">
-                                                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+                                        {/* Slider volume + navigation */}
+                                        {selectedTrack && (
+                                            <div className="mt-4">
+                                                <Label className="flex items-center gap-2">
+                                                    <Volume2 className="w-4 h-4" />
+                                                    Volume musique: {musicVolume[0]}%
+                                                </Label>
+                                                <Slider
+                                                    value={musicVolume}
+                                                    onValueChange={setMusicVolume}
+                                                    max={100}
+                                                    step={5}
+                                                    className="mt-2"
+                                                />
                                             </div>
-                                        ) : (
-                                            <>
-                                                <div className="space-y-2">
-                                                    {(!musicData?.tracks || musicData.tracks.length === 0) && (
-                                                        <div className="text-center py-8 border-2 border-dashed border-border rounded-lg">
-                                                            <Music className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                                                            <p className="text-muted-foreground mb-2">
-                                                                Aucune musique disponible
-                                                            </p>
-                                                            <p className="text-xs text-muted-foreground mb-4">
-                                                                Service FreeSound non configuré ou aucun résultat trouvé
-                                                            </p>
-                                                            <a
-                                                                href="https://freesound.org/apiv2/apply/"
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="text-sm text-primary hover:underline"
-                                                            >
-                                                                Obtenir des credentials FreeSound →
-                                                            </a>
-                                                        </div>
-                                                    )}
-                                                    {musicData?.tracks?.map((track) => (
-                                                        <div
-                                                            key={track.id}
-                                                            onClick={() => handleSelectTrack(track)}
-                                                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${selectedTrack?.id === track.id
-                                                                ? 'bg-primary/10 border border-primary'
-                                                                : 'bg-muted/50 hover:bg-muted'
-                                                                }`}
-                                                        >
-                                                            <button
-                                                                onClick={(e) => {
-                                                                    e.stopPropagation();
-                                                                    togglePlayPreview(track);
-                                                                }}
-                                                                className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center hover:bg-primary/30"
-                                                            >
-                                                                {isPlaying === track.id ? (
-                                                                    <Pause className="w-5 h-5" />
-                                                                ) : (
-                                                                    <Play className="w-5 h-5 ml-0.5" />
-                                                                )}
-                                                            </button>
-                                                            <div className="flex-1 min-w-0">
-                                                                <p className="font-medium truncate">{track.title}</p>
-                                                                <p className="text-sm text-muted-foreground truncate">{track.artist}</p>
-                                                            </div>
-                                                            <span className="text-sm text-muted-foreground">
-                                                                {formatDuration(track.duration)}
-                                                            </span>
-                                                            {selectedTrack?.id === track.id && (
-                                                                <Check className="w-5 h-5 text-primary" />
-                                                            )}
-                                                        </div>
-                                                    ))}
-
-                                                    {/* Bouton pour charger 10 nouvelles musiques */}
-                                                    {musicData?.tracks && musicData.tracks.length > 0 && (
-                                                        <Button
-                                                            variant="outline"
-                                                            className="w-full mt-4"
-                                                            onClick={handleLoadNewMusic}
-                                                            disabled={musicLoading}
-                                                        >
-                                                            <RefreshCw className={`w-4 h-4 mr-2 ${musicLoading ? 'animate-spin' : ''}`} />
-                                                            10 nouvelles musiques
-                                                        </Button>
-                                                    )}
-                                                </div>
-
-                                                {selectedTrack && (
-                                                    <div className="mt-4 space-y-4">
-                                                        <div>
-                                                            <Label className="flex items-center gap-2">
-                                                                <Volume2 className="w-4 h-4" />
-                                                                Volume musique: {musicVolume[0]}%
-                                                            </Label>
-                                                            <Slider
-                                                                value={musicVolume}
-                                                                onValueChange={setMusicVolume}
-                                                                max={100}
-                                                                step={5}
-                                                                className="mt-2"
-                                                            />
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                <div className="mt-4 flex justify-between">
-                                                    <Button variant="outline" onClick={() => setCurrentStep('video')}>
-                                                        Retour
-                                                    </Button>
-                                                    <div className="flex gap-2">
-                                                        <Button variant="ghost" onClick={() => {
-                                                            setSelectedTrack(null);
-                                                            setCurrentStep('text');
-                                                        }}>
-                                                            Passer
-                                                        </Button>
-                                                        <Button onClick={() => setCurrentStep('text')}>
-                                                            Continuer
-                                                            <ChevronRight className="w-4 h-4 ml-2" />
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </>
                                         )}
+
+                                        <div className="mt-4 flex justify-between">
+                                            <Button variant="outline" onClick={() => setCurrentStep('video')}>
+                                                Retour
+                                            </Button>
+                                            <div className="flex gap-2">
+                                                <Button variant="ghost" onClick={() => {
+                                                    setSelectedTrack(null);
+                                                    setCurrentStep('text');
+                                                }}>
+                                                    Passer
+                                                </Button>
+                                                <Button onClick={() => setCurrentStep('text')}>
+                                                    Continuer
+                                                    <ChevronRight className="w-4 h-4 ml-2" />
+                                                </Button>
+                                            </div>
+                                        </div>
                                     </CardContent>
                                 </Card>
                             )}
