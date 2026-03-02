@@ -321,7 +321,11 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
                 const internalId = musicTrackId.replace('internal_', '');
                 const track = await storage.getAudioTrack(internalId);
                 if (track) {
-                    finalMusicUrl = track.url;
+                    // track.url est relatif (/uploads/audio/...) → on le rend absolu pour le service ffmpeg
+                    const appUrl = process.env.APP_URL || 'http://localhost:5555';
+                    finalMusicUrl = track.url.startsWith('http')
+                        ? track.url
+                        : `${appUrl}${track.url}`;
                 }
             } else {
                 const track = await freeSoundService.getMusicDetails(musicTrackId);
@@ -509,7 +513,10 @@ async function processReelBackground(
                     const internalId = musicTrackId.replace('internal_', '');
                     const track = await storage.getAudioTrack(internalId);
                     if (track) {
-                        finalMusicUrl = track.url;
+                        const appUrl = process.env.APP_URL || 'http://localhost:5555';
+                        finalMusicUrl = track.url.startsWith('http')
+                            ? track.url
+                            : `${appUrl}${track.url}`;
                     }
                 } catch (e) { console.error('Error fetching internal track', e); }
             } else {
