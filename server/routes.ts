@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import fs from "fs";
 import os from "os";
 import { storage } from "./storage";
-import { db } from "./db";
+import { db, pool } from "./db";
 import multer from "multer";
 import bcrypt from "bcrypt";
 import passport from "./auth";
@@ -1029,6 +1029,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       const errorMessage = error instanceof Error ? error.message : "Failed to upload audio tracks";
       res.status(500).json({ error: errorMessage });
+    }
+  });
+
+  // Route admin : correction des titres corrompus (latin1 lu comme UTF-8)
+  // Se déclenche aussi automatiquement au démarrage
+  const fixAudioTrackEncoding = async () => {
+    try {
+      const tracks = await storage.getAudioTracks();
+      let fixed = 0;
+      for (const track of tracks) {
+        // Détecte les séquences typiques latin1/utf8 mal interprétées (ex: Ã©, Ã , Ã¨)
+        if (/[\xC0-\xC3][\x80-\xBF]/.test(track.title)) {
+          const corrected = Buffer.from(track.title, 'latin1').toString('utf8');
+          const correctedFileName = Buffer.from(track.fileName, 'latin1').toString('utf8');
+          await pool.query(
+            `UPDATE audio_tracks SET title = $1, file_name = $2 WHERE id = $3`,
+            [corrected, correctedFileName, track.id]
+          );
+          fixed++;
+        }
+      }
+      if (fixed > 0) console.log(`🎵 Fixed encoding for ${fixed} audio track(s).`);
+    } catch (e) {
+      console.error('Error fixing audio track encoding:', e);
+    }
+  };
+  // Lancer la correction au démarrage
+  fixAudioTrackEncoding().catch(() => { });
+
+  app.post("/api/audio-tracks/fix-encoding", requireAdmin, async (req, res) => {
+    try {
+      await fixAudioTrackEncoding();
+      const tracks = await storage.getAudioTracks();
+      res.json({ success: true, tracks });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fix encoding" });
     }
   });
 
