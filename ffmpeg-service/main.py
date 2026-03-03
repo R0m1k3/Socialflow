@@ -869,8 +869,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 fc_parts.append(f"[{watermark_idx}:v]scale=200:-1,split=2[wm_small_base][wm_large_base]")
                 fc_parts.append(f"[wm_large_base]scale=-1:300[wm_large]")
 
-                # 1. Place small logo in bottom right throughout the whole video
-                v_chain += "[v_pre_small];[v_pre_small][wm_small_base]overlay=W-w-20:H-h-20"
+                # 1. Place small logo in bottom right until logo_start_time (5s before the end)
+                v_chain += f"[v_pre_small];[v_pre_small][wm_small_base]overlay=W-w-20:H-h-20:enable='between(t,0,{logo_start_time})'"
                 
                 # 2. Place large logo in the center, and fading it IN during the last 5 seconds
                 v_chain += f"[v_pre_large];[v_pre_large][wm_large]overlay=(W-w)/2:(H-h)/2-100:enable='between(t,{logo_start_time},{video_duration})'"
