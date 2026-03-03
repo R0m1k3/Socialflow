@@ -6,9 +6,16 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 ## Current Focus
 
-**Phase: EXECUTION** - Implémentation de la gestion interne des musiques (MP3) et incrustation du logo existant sur les Reels.
+**Phase: EXECUTION** - Implémenter l'effet Outro (Logo central + nom du magasin) à la fin des Réels via le Party Mode.
 
 ## Master Plan
+
+### Party Mode & Outro (Nouvelle fonctionnalité)
+
+- [x] Créer l'Implementation Plan basé sur la réflexion du Party Mode
+- [/] `server/routes/reels.ts` : Passer `storeName` à FFmpeg (le nom de la page).
+- [/] `ffmpeg-service/main.py` : Ajouter le scale du logo et `drawtext` du `storeName` centrés.
+- [/] Appliquer ces filtres avec un fondu d'entrée correspondant à la durée du fondu de sortie global.
 
 ### Phase 0: Clarifications ✅
 

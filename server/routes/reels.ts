@@ -470,7 +470,8 @@ async function processReelBackground(
         musicVolume?: number;
         drawText?: boolean;
         stabilize?: boolean;
-    }
+    },
+    storeName?: string
 ) {
     const {
         videoMediaId,
@@ -567,6 +568,7 @@ async function processReelBackground(
             drawText,
             stabilize,
             watermarkUrl,
+            storeName,
         });
 
         console.log(`⏱️ [Background] FFmpeg took ${(Date.now() - startTime) / 1000}s`);
@@ -746,6 +748,17 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             ? "File d'attente pleine. Votre vidéo sera traitée dès que possible."
             : "Traitement démarré en arrière-plan.";
 
+        // Récupérer le nom de la première page pour l'utiliser comme storeName
+        let storeName: string | undefined = undefined;
+        try {
+            const page = await storage.getSocialPage(pageIds[0]);
+            if (page) {
+                storeName = page.pageName;
+            }
+        } catch (e) {
+            console.error('Erreur récupération nom de page', e);
+        }
+
         // Créer immédiatement le Post en base
         // ON STOCKE LES PARAMS DU JOB DANS productInfo POUR POUVOIR LE REPRENDRE PLUS TARD
         // C'est un hack car on n'a pas de table params_job, mais ça marche car productInfo est jsonb
@@ -764,7 +777,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
 
         if (!isQueueBusy) {
             // Démarrer le traitement en arrière-plan (Fire & Forget)
-            processReelBackground(user.id, post.id, req.body).catch(err => {
+            processReelBackground(user.id, post.id, req.body, storeName).catch(err => {
                 console.error('🔥 Unhandled background error:', err);
             });
         } else {

@@ -153,6 +153,7 @@ class ReelRequest(BaseModel):
     music_id: Optional[str] = None
     music_url: Optional[str] = None
     watermark_url: Optional[str] = None
+    store_name: Optional[str] = None
     word_duration: float = 0.6
     font_size: int = 64
     music_volume: float = 0.25
@@ -819,8 +820,21 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             v_chain += text_filter
 
         if has_watermark:
-            fc_parts.append(f"[{watermark_idx}:v]scale=200:-1[wm]")
-            v_chain += "[v_pre_wm];[v_pre_wm][wm]overlay=W-w-20:H-h-20"
+            if request.store_name:
+                # Ouro Party Mode
+                # 1. Scaling the logo large for the center
+                fc_parts.append(f"[{watermark_idx}:v]scale=-1:300[wm]")
+                # 2. Placing it in the center, and fading it IN during the last 2 seconds
+                v_chain += f"[v_pre_wm];[v_pre_wm][wm]overlay=(W-w)/2:(H-h)/2-100:enable='between(t,{fade_start},{video_duration})'"
+                # 3. Drawing the Store Name below the logo, with a fade in as well
+                escaped_store_name = request.store_name.replace("'", "\\'").replace(
+                    ":", "\\:"
+                )
+                v_chain += f",drawtext=text='{escaped_store_name}':x=(w-text_w)/2:y=(h-text_h)/2+150:fontsize=70:fontcolor=white:shadowcolor=black:shadowx=3:shadowy=3:enable='between(t,{fade_start},{video_duration})'"
+            else:
+                # Normal watermark (bottom right)
+                fc_parts.append(f"[{watermark_idx}:v]scale=200:-1[wm]")
+                v_chain += "[v_pre_wm];[v_pre_wm][wm]overlay=W-w-20:H-h-20"
 
         # Add Video Fade Out
         v_chain += f",fade=t=out:st={fade_start}:d={fade_duration}"

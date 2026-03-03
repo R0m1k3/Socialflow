@@ -19,6 +19,7 @@ interface FFmpegReelRequest {
     draw_text?: boolean;        // Dessiner le texte sur la vidéo (default: true)
     stabilize?: boolean;        // Stabilisation vidéo via vidstab (default: false)
     watermark_url?: string;     // URL du logo
+    store_name?: string;        // Nom du magasin pour l'outro
 }
 
 interface FFmpegReelResponse {
@@ -75,6 +76,7 @@ export class FFmpegService {
             drawText?: boolean;
             stabilize?: boolean;
             watermarkUrl?: string;
+            storeName?: string;
         } = {}
     ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string }> {
         const config = this.ensureConfigured();
@@ -92,6 +94,7 @@ export class FFmpegService {
             draw_text: options.drawText ?? true,
             stabilize: options.stabilize ?? false,
             watermark_url: options.watermarkUrl,
+            store_name: options.storeName,
         };
 
         // Remove undefined values
@@ -172,6 +175,7 @@ export class FFmpegService {
             drawText?: boolean;
             stabilize?: boolean;
             watermarkUrl?: string;
+            storeName?: string;
         } = {}
     ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string }> {
         const config = this.ensureConfigured();
@@ -189,6 +193,7 @@ export class FFmpegService {
             draw_text: options.drawText ?? true,
             stabilize: options.stabilize ?? false,
             watermark_url: options.watermarkUrl,
+            store_name: options.storeName,
         };
 
         // Remove undefined values
