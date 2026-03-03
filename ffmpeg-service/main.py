@@ -197,6 +197,7 @@ async def generate_tts_with_subs(
     audio_path: Path,
     ass_path: Path,
     display_text: Optional[str] = None,
+    delay: float = 0.0,
 ):
     """Generate TTS audio with word-level synchronized subtitles.
 
@@ -291,13 +292,13 @@ async def generate_tts_with_subs(
 
                 if word_boundaries:
                     # Precise synchronization using real word timings
-                    # Add 2 seconds delay to TTS start
+                    # Add delay to TTS start
                     generate_ass_from_word_boundaries(
                         word_boundaries,
                         text_to_display,
                         ass_path,
                         total_duration=audio_duration,
-                        delay=2.0,
+                        delay=delay,
                     )
                 else:
                     # Fallback to linear estimation if no boundaries captured
@@ -305,7 +306,7 @@ async def generate_tts_with_subs(
                         "⚠️ No word boundaries captured, falling back to linear timing"
                     )
                     generate_simple_ass(
-                        text_to_display, ass_path, total_duration=audio_duration, delay=2.0
+                        text_to_display, ass_path, total_duration=audio_duration, delay=delay
                     )
 
                 print(f"✅ TTS success with voice: {attempt_voice}")
