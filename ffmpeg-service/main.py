@@ -305,7 +305,7 @@ async def generate_tts_with_subs(
                         "⚠️ No word boundaries captured, falling back to linear timing"
                     )
                     generate_simple_ass(
-                        text_to_display, ass_path, total_duration=audio_duration
+                        text_to_display, ass_path, total_duration=audio_duration, delay=2.0
                     )
 
                 print(f"✅ TTS success with voice: {attempt_voice}")
@@ -701,6 +701,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                         tts_audio_path,
                         tts_ass_path,
                         display_text=clean_text_for_display(request.text),
+                        delay=2.0,
                     )
 
                     # Verify files were created
@@ -1068,6 +1069,8 @@ async def preview_tts(request: ReelRequest, x_api_key: str = Header(None)):
             voice = "fr-FR-VivienneMultilingualNeural"
 
         # Pass original text for subtitles (implied in SRT for preview too if needed, though mostly audio)
+        # Preview TTS generation doesn't technically need the full 2s video delay, but if the frontend plays it against standard timing it might.
+        # Adding delay=0.0 here explicitly since it's just audio preview, or delay=2.0 if previewing video directly.
         await generate_tts_with_subs(
             clean_text,
             voice,
