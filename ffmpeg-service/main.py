@@ -859,12 +859,12 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 # Ouro Party Mode
                 # 1. Scaling the logo large for the center
                 fc_parts.append(f"[{watermark_idx}:v]scale=-1:300[wm]")
-                # 2. Placing it in the center, and fading it IN during the last 2 seconds
-                v_chain += f"[v_pre_wm];[v_pre_wm][wm]overlay=(W-w)/2:(H-h)/2-100:enable='between(t,{fade_start},{video_duration})'"
+                # 2. Placing it in the center, and fading it IN during the last 5 seconds
+                v_chain += f"[v_pre_wm];[v_pre_wm][wm]overlay=(W-w)/2:(H-h)/2-100:enable='between(t,{logo_start_time},{video_duration})'"
                 # 3. Drawing the Store Name below the logo using ASS subtitles instead of drawtext!
                 outro_ass_path = job_dir / "outro.ass"
                 generate_outro_ass(
-                    request.store_name, outro_ass_path, fade_start, video_duration
+                    request.store_name, outro_ass_path, logo_start_time, video_duration
                 )
                 ass_path_str_2 = (
                     str(outro_ass_path).replace("\\", "/").replace(":", "\\:")
@@ -907,10 +907,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 inputs_for_mix += 1
 
             if has_tts:
-                # TTS louder and delayed by 2 seconds (2000ms) on all channels
-                fc_parts.append(
-                    f"[{tts_idx}:a]adelay=delays=2000|2000,volume=1.5[a_tts]"
-                )
+                # TTS louder and delayed by 2 seconds (2s) on all channels
+                fc_parts.append(f"[{tts_idx}:a]adelay=2s:all=1,volume=1.5[a_tts]")
                 audio_mix_str += "[a_tts]"
                 inputs_for_mix += 1
 
