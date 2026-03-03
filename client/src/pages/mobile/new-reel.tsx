@@ -62,7 +62,6 @@ export default function MobileNewReel() {
 
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
-    const [musicOffset, setMusicOffset] = useState(0);
     const [stabilize, setStabilize] = useState(true); // Activé par défaut pour les Reels
 
 
@@ -75,27 +74,24 @@ export default function MobileNewReel() {
     });
 
     const videoList = allMedia.filter(m => m.type === 'video').slice(0, 12);
-    const [loadedTracks, setLoadedTracks] = useState<MusicTrack[]>([]);
 
-    const { data: musicData, isLoading: musicLoading, refetch: refetchMusic } = useQuery<{ tracks: MusicTrack[] }>({
-        queryKey: ['/api/music/search', selectedVideo?.id, musicOffset],
-        queryFn: async () => {
-            const minDuration = 10;
-            const maxDuration = 120;
-            const response = await fetch(
-                `/api/music/search?minDuration=${minDuration}&maxDuration=${maxDuration}&limit=10&offset=${musicOffset}`
-            );
-            const data = await response.json();
-            setLoadedTracks(data.tracks || []);
-            return data;
-        },
-        enabled: currentStep === 'music' && !!selectedVideo,
+    // --- Added for Internal Audio Tracks ---
+    const { data: internalTracksResponse = [], isLoading: internalTracksLoading } = useQuery<any[]>({
+        queryKey: ['/api/audio-tracks'],
     });
 
-    const handleLoadNewMusic = () => {
-        setMusicOffset(prev => prev + 10);
-        refetchMusic();
-    };
+    const internalTracks: MusicTrack[] = (internalTracksResponse || []).map(t => ({
+        id: `internal_${t.id}`,
+        title: t.title,
+        artist: t.fileName || t.title,
+        albumName: "Bibliothèque Interne",
+        duration: t.duration || 0,
+        previewUrl: t.url,
+        downloadUrl: t.url,
+        imageUrl: "",
+        license: "Internal"
+    }));
+    // --- End Internal Tracks ---
 
     const uploadMutation = useMutation({
         mutationFn: async (file: File) => {
@@ -314,18 +310,32 @@ export default function MobileNewReel() {
                         )}
 
                         <div className="space-y-2">
-                            {musicData?.tracks?.map((track) => (
-                                <div key={track.id} onClick={() => setSelectedTrack(track)} className={`flex items-center gap-3 p-3 rounded-xl border ${selectedTrack?.id === track.id ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}>
-                                    <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full bg-primary/10" onClick={(e) => { e.stopPropagation(); togglePlayPreview(track); }}>
-                                        {isPlaying === track.id ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
-                                    </Button>
-                                    <div className="flex-1 min-w-0">
-                                        <p className="font-medium truncate">{track.title}</p>
-                                        <p className="text-xs text-muted-foreground truncate">{track.artist}</p>
-                                    </div>
-                                    {selectedTrack?.id === track.id && <Check className="h-5 w-5 text-primary" />}
+                            {internalTracksLoading ? (
+                                <div className="flex items-center justify-center py-8">
+                                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
                                 </div>
-                            ))}
+                            ) : internalTracks.length === 0 ? (
+                                <div className="text-center py-10 border-2 border-dashed border-border rounded-xl">
+                                    <Music className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-40" />
+                                    <p className="text-muted-foreground font-medium">Aucune musique disponible</p>
+                                    <p className="text-sm text-muted-foreground mt-1">Un administrateur peut ajouter des MP3 via la Bibliothèque Audio.</p>
+                                </div>
+                            ) : (
+                                internalTracks.map((track) => (
+                                    <div key={track.id} onClick={() => setSelectedTrack(track)} className={`flex items-center gap-3 p-3 rounded-xl border ${selectedTrack?.id === track.id ? 'border-primary bg-primary/5' : 'border-border bg-card'}`}>
+                                        <Button size="icon" variant="ghost" className="h-10 w-10 rounded-full bg-primary/10" onClick={(e) => { e.stopPropagation(); togglePlayPreview(track); }}>
+                                            {isPlaying === track.id ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5 ml-0.5" />}
+                                        </Button>
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-medium truncate">{track.title}</p>
+                                            <p className="text-xs text-muted-foreground truncate">
+                                                {Math.floor(track.duration / 60)}:{String(track.duration % 60).padStart(2, '0')}
+                                            </p>
+                                        </div>
+                                        {selectedTrack?.id === track.id && <Check className="h-5 w-5 text-primary" />}
+                                    </div>
+                                ))
+                            )}
                         </div>
 
                         {selectedTrack && (
