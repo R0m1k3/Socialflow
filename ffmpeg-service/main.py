@@ -404,7 +404,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 
 def generate_simple_ass(
-    text: str, ass_path: Path, font_size: int = 65, total_duration: float = None
+    text: str,
+    ass_path: Path,
+    font_size: int = 65,
+    total_duration: float = None,
+    delay: float = 0.0,
 ):
     """Generate TikTok-style ASS subtitle file with karaoke highlight effect.
 
@@ -446,7 +450,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
     events = ""
-    current_time = 0.0
+    current_time = delay
 
     # Calculate total characters across all chunks for proportional timing
     total_chars = sum(len(w) for chunk in chunks for w in chunk)
@@ -846,7 +850,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 )
                 std_ass_path = job_dir / "std_text.ass"
                 # Use fontsize 40 by default for standard text
-                generate_simple_ass(request.text, std_ass_path, font_size=40)
+                generate_simple_ass(request.text, std_ass_path, font_size=40, delay=2.0)
 
                 ass_path_str = str(std_ass_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f",subtitles='{ass_path_str}'"

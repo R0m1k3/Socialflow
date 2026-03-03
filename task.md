@@ -6,7 +6,7 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 ## Current Focus
 
-**Phase: EXECUTION** - Implémenter l'effet Outro (Logo central + nom du magasin) à la fin des Réels via le Party Mode.
+**Phase: EXECUTION** - Conversation libre avec l'Agent BMad Master (Chat with the Agent).
 
 ## Master Plan
 
@@ -206,6 +206,20 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] Charger la configuration `_bmad/core/config.yaml`
 - [x] Afficher le menu de l'agent en français
 - [x] Ré-activation de l'agent bmad-master.md (11 Fev 2026)
+
+### Phase 20: Activation BMad Master Agent (Mars 2026) ⏳
+
+- [x] Charger la configuration et le persona
+- [x] Saluer l'utilisateur en français et afficher le menu
+- [x] Attendre la sélection de l'utilisateur
+- [x] Utilisateur a choisi `[CH]` : Discuter avec l'agent de n'importe quel sujet.
+
+### Phase 21: Correction Synchronisation Texte/Audio Reel ⏳
+
+- [x] Diagnostiquer : L'audio TTS a été décalé de 2s (`adelay=2s:all=1` dans FFmpeg), mais le timing des mots dans `.ass` n'a pas été ajusté proportionnellement.
+- [x] Modifier `ffmpeg-service/main.py` pour passer le délai au générateur ASS.
+- [x] Mettre à jour `generate_ass_from_word_boundaries` pour inclure le délai de 2s dans `start` et `end`.
+- [x] Valider que les tags `Dialogue` dans le `.ass` commencent à `T+2.0s`.
 
 ## Progress Log
 
