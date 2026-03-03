@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronLeft, ChevronRight, Send, Facebook, Instagram, Heart, MessageCircle, Share2, Bookmark } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Send, Facebook, Instagram, Heart, MessageCircle, Share2, Bookmark, Loader2, Video } from 'lucide-react';
 import type { Media } from '@shared/schema';
 import { removeHashtags } from '@shared/emoji';
 import { EmojiText } from '@/components/emoji-text';
@@ -16,6 +16,8 @@ interface PreviewModalProps {
   onPublish: () => void;
   isPublishing: boolean;
   readOnly?: boolean;
+  generationStatus?: string;
+  generationProgress?: number;
 }
 
 type PreviewFormat = 'facebook-feed' | 'facebook-story' | 'instagram-feed' | 'instagram-story';
@@ -28,7 +30,9 @@ export function PreviewModal({
   mediaList,
   onPublish,
   isPublishing,
-  readOnly = false
+  readOnly = false,
+  generationStatus,
+  generationProgress
 }: PreviewModalProps) {
   const [previewFormat, setPreviewFormat] = useState<PreviewFormat>('facebook-feed');
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
@@ -68,7 +72,7 @@ export function PreviewModal({
 
   const renderMedia = (media: Media, className: string = "w-full h-auto") => {
     const url = getMediaUrl(media);
-    
+
     if (media.type === 'video') {
       return (
         <video
@@ -80,7 +84,7 @@ export function PreviewModal({
         />
       );
     }
-    
+
     return (
       <img
         src={url}
@@ -110,6 +114,25 @@ export function PreviewModal({
         </div>
       )}
 
+      {/* Is Generating Status Overlay */}
+      {orderedMedia.length === 0 && (generationStatus === 'processing' || generationStatus === 'pending') && (
+        <div className="relative bg-black aspect-video flex flex-col items-center justify-center text-white">
+          <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
+          <h3 className="text-lg font-semibold">Génération vidéo en cours...</h3>
+          <p className="text-sm text-gray-300 mt-2 text-center px-4">
+            FFmpeg assemble votre vidéo. <br /> Elle s'affichera ici une fois terminée.
+          </p>
+          {generationProgress !== undefined && (
+            <div className="w-64 h-2 bg-gray-800 rounded-full mt-4 overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-500 ease-out"
+                style={{ width: `${generationProgress}%` }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Media Carousel */}
       {orderedMedia.length > 0 && (
         <div className="relative bg-black">
@@ -135,9 +158,8 @@ export function PreviewModal({
                   <button
                     key={idx}
                     onClick={() => goToPhoto(idx)}
-                    className={`w-2 h-2 rounded-full transition-colors ${
-                      idx === currentPhotoIndex ? 'bg-white' : 'bg-white/50'
-                    }`}
+                    className={`w-2 h-2 rounded-full transition-colors ${idx === currentPhotoIndex ? 'bg-white' : 'bg-white/50'
+                      }`}
                     data-testid={`button-photo-indicator-${idx}`}
                   />
                 ))}
@@ -168,6 +190,23 @@ export function PreviewModal({
         </div>
       </div>
 
+      {/* Is Generating Status Overlay */}
+      {orderedMedia.length === 0 && (generationStatus === 'processing' || generationStatus === 'pending') && (
+        <div className="relative bg-black aspect-square flex flex-col items-center justify-center text-white">
+          <Loader2 className="w-10 h-10 animate-spin text-primary mb-4" />
+          <h3 className="text-lg font-semibold">Génération en cours...</h3>
+          <p className="text-sm text-gray-300 mt-2">Veuillez patienter.</p>
+          {generationProgress !== undefined && (
+            <div className="w-48 h-2 bg-gray-800 rounded-full mt-4 overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-500 ease-out"
+                style={{ width: `${generationProgress}%` }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Media Carousel */}
       {orderedMedia.length > 0 && (
         <div className="relative bg-black aspect-square">
@@ -193,9 +232,8 @@ export function PreviewModal({
                   <button
                     key={idx}
                     onClick={() => goToPhoto(idx)}
-                    className={`h-1 flex-1 transition-colors rounded ${
-                      idx === currentPhotoIndex ? 'bg-white' : 'bg-white/50'
-                    }`}
+                    className={`h-1 flex-1 transition-colors rounded ${idx === currentPhotoIndex ? 'bg-white' : 'bg-white/50'
+                      }`}
                     style={{ width: '40px' }}
                     data-testid={`button-photo-indicator-${idx}`}
                   />
@@ -239,12 +277,12 @@ export function PreviewModal({
     for (const word of words) {
       const testLine = currentLine ? `${currentLine} ${word}` : word;
       const metrics = ctx.measureText(testLine);
-      
+
       if (metrics.width > maxWidth && currentLine) {
         // Current line would exceed width, push it and start new line
         lines.push(currentLine);
         currentLine = word;
-        
+
         // Check if the word itself is too long for a single line
         const wordMetrics = ctx.measureText(word);
         if (wordMetrics.width > maxWidth) {
@@ -266,7 +304,7 @@ export function PreviewModal({
         currentLine = testLine;
       }
     }
-    
+
     if (currentLine) {
       lines.push(currentLine);
     }
@@ -280,12 +318,12 @@ export function PreviewModal({
   const breakLongWord = (ctx: CanvasRenderingContext2D, word: string, maxWidth: number): string[] => {
     const chunks: string[] = [];
     let currentChunk = '';
-    
+
     for (let i = 0; i < word.length; i++) {
       const char = word[i];
       const testChunk = currentChunk + char;
       const metrics = ctx.measureText(testChunk);
-      
+
       if (metrics.width > maxWidth && currentChunk) {
         chunks.push(currentChunk);
         currentChunk = char;
@@ -293,11 +331,11 @@ export function PreviewModal({
         currentChunk = testChunk;
       }
     }
-    
+
     if (currentChunk) {
       chunks.push(currentChunk);
     }
-    
+
     return chunks.length > 0 ? chunks : [word];
   };
 
@@ -305,31 +343,31 @@ export function PreviewModal({
     const MIN_FONT_SIZE = 12;
     const MAX_FONT_SIZE = 72;
     const LINE_HEIGHT_MULTIPLIER = 1.2;
-    
+
     let fontSize = MAX_FONT_SIZE;
     let lines: string[] = [];
     let totalTextHeight = 0;
-    
+
     while (fontSize >= MIN_FONT_SIZE) {
       lines = wrapText(text, containerWidth, fontSize);
       const lineHeight = fontSize * LINE_HEIGHT_MULTIPLIER;
       totalTextHeight = lines.length * lineHeight;
-      
+
       if (totalTextHeight <= containerHeight) {
         break;
       }
-      
+
       fontSize -= 2;
     }
 
     let isTruncated = false;
-    
+
     if (fontSize < MIN_FONT_SIZE) {
       fontSize = MIN_FONT_SIZE;
       lines = wrapText(text, containerWidth, fontSize);
       const lineHeight = fontSize * LINE_HEIGHT_MULTIPLIER;
       totalTextHeight = lines.length * lineHeight;
-      
+
       const maxLines = Math.floor(containerHeight / lineHeight);
       if (lines.length > maxLines) {
         lines = lines.slice(0, maxLines);
@@ -348,12 +386,12 @@ export function PreviewModal({
     const STORY_HEIGHT = 640;
     const TEXT_BOX_HEIGHT_RATIO = 0.25;
     const PADDING = 16;
-    
+
     const textBoxHeight = STORY_HEIGHT * TEXT_BOX_HEIGHT_RATIO;
     const maxTextWidth = STORY_WIDTH - (PADDING * 2);
     const maxTextHeight = textBoxHeight - (PADDING * 2);
 
-    const { fontSize, lines } = postText 
+    const { fontSize, lines } = postText
       ? calculateAdaptiveFontSize(postText, maxTextWidth, maxTextHeight)
       : { fontSize: 24, lines: [] };
 
@@ -375,6 +413,26 @@ export function PreviewModal({
           </div>
         </div>
 
+        {/* Is Generating Status Overlay */}
+        {orderedMedia.length === 0 && (generationStatus === 'processing' || generationStatus === 'pending') && (
+          <div className="relative w-full h-full flex flex-col items-center justify-center text-white bg-black">
+            <Loader2 className="w-12 h-12 animate-spin text-primary mb-6" />
+            <h3 className="text-2xl font-semibold px-8 text-center drop-shadow-md">Création de votre Reel...</h3>
+            <p className="text-base text-gray-300 mt-4 text-center px-10 drop-shadow-md">
+              Montage vidéo en cours via FFmpeg. Le résultat apparaîtra ici lorsqu'il sera prêt (environ 1-2 min).
+            </p>
+            {generationProgress !== undefined && (
+              <div className="w-64 h-3 bg-gray-800 rounded-full mt-8 overflow-hidden shadow-inner">
+                <div
+                  className="h-full bg-primary transition-all duration-500 ease-out"
+                  style={{ width: `${generationProgress}%` }}
+                />
+              </div>
+            )}
+            <div className="mt-2 text-primary font-medium">{generationProgress || 0}%</div>
+          </div>
+        )}
+
         {/* Media */}
         {orderedMedia.length > 0 && (
           <div className="relative w-full h-full">
@@ -386,9 +444,8 @@ export function PreviewModal({
                     <button
                       key={idx}
                       onClick={() => goToPhoto(idx)}
-                      className={`h-1 flex-1 transition-colors rounded-full ${
-                        idx === currentPhotoIndex ? 'bg-white' : 'bg-white/50'
-                      }`}
+                      className={`h-1 flex-1 transition-colors rounded-full ${idx === currentPhotoIndex ? 'bg-white' : 'bg-white/50'
+                        }`}
                       data-testid={`button-photo-indicator-${idx}`}
                     />
                   ))}
@@ -409,17 +466,17 @@ export function PreviewModal({
                 </button>
               </>
             )}
-            
+
             {/* Text overlay box - matching exact server rendering */}
             {postText && (
-              <div 
+              <div
                 className="absolute bottom-0 left-0 right-0 flex items-center justify-center z-10"
                 style={{ height: `${TEXT_BOX_HEIGHT_RATIO * 100}%` }}
               >
                 <div className="absolute inset-0 bg-black/60" />
-                <div 
+                <div
                   className="relative text-white text-center font-bold leading-tight"
-                  style={{ 
+                  style={{
                     fontSize: `${fontSize}px`,
                     padding: `${PADDING}px`,
                     lineHeight: '1.2'

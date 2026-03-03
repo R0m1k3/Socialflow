@@ -572,6 +572,30 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         else:
             raise HTTPException(status_code=400, detail="No video source provided")
 
+        # --- Get Video Duration for Fade Out ---
+        try:
+            video_dur_cmd = [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(input_video_path),
+            ]
+            dur_proc = subprocess.run(video_dur_cmd, stdout=subprocess.PIPE, text=True)
+            video_duration = float(dur_proc.stdout.strip() or 0)
+        except Exception as e:
+            print(f"⚠️ Could not measure original video duration: {e}")
+            video_duration = 30.0  # Fallback
+
+        fade_duration = 2.0
+        fade_start = max(0, video_duration - fade_duration)
+        print(
+            f"🎬 Video Duration: {video_duration:.2f}s | Fade Out Start: {fade_start:.2f}s"
+        )
+
         # 2. Download Music (if present)
         has_music = False
         if request.music_url:
@@ -798,6 +822,9 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             fc_parts.append(f"[{watermark_idx}:v]scale=200:-1[wm]")
             v_chain += "[v_pre_wm];[v_pre_wm][wm]overlay=W-w-20:H-h-20"
 
+        # Add Video Fade Out
+        v_chain += f",fade=t=out:st={fade_start}:d={fade_duration}"
+
         # End of video chain
         v_chain += "[vout]"
         fc_parts.append(v_chain)
@@ -835,15 +862,20 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             # Mix
             if inputs_for_mix > 0:
                 fc_parts.append(
-                    f"{audio_mix_str}amix=inputs={inputs_for_mix}:duration=first:dropout_transition=2:normalize=0[aout]"
+                    f"{audio_mix_str}amix=inputs={inputs_for_mix}:duration=first:dropout_transition=2:normalize=0[amixout]"
+                )
+                fc_parts.append(
+                    f"[amixout]afade=t=out:st={fade_start}:d={fade_duration}[aout]"
                 )
                 audio_mapped = True
         else:
             # No external audio added
             if has_original_audio:
-                # Just pass through original audio
-                # We can map 0:a directly, no filter needed for audio
-                audio_mapped = False
+                # Add audio fade out to original audio
+                fc_parts.append(
+                    f"[0:a]afade=t=out:st={fade_start}:d={fade_duration}[aout]"
+                )
+                audio_mapped = True
             else:
                 # No audio at all
                 audio_mapped = False
@@ -859,7 +891,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         elif has_original_audio:
             cmd.extend(["-map", "0:a"])  # Map original audio directly
 
-        cmd.extend(["-shortest"])
+        # Cut EXACTLY at video length (better than -shortest which can cause issues with amix)
+        cmd.extend(["-t", str(video_duration)])
 
         # Quality settings
         cmd.extend(

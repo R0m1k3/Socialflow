@@ -18,7 +18,7 @@ export default function CalendarView() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [selectedPost, setSelectedPost] = useState<any>(null);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [previewData, setPreviewData] = useState<{ postText: string; mediaIds: string[]; allMedia: Media[] }>({ postText: '', mediaIds: [], allMedia: [] });
+  const [previewData, setPreviewData] = useState<{ postText: string; mediaIds: string[]; allMedia: Media[]; generationStatus?: string; generationProgress?: number }>({ postText: '', mediaIds: [], allMedia: [] });
   const { toast } = useToast();
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
@@ -28,7 +28,7 @@ export default function CalendarView() {
   });
 
   const deletePostMutation = useMutation({
-    mutationFn: (postId: string) => 
+    mutationFn: (postId: string) =>
       apiRequest('DELETE', `/api/scheduled-posts/${postId}`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/scheduled-posts'] });
@@ -61,26 +61,28 @@ export default function CalendarView() {
 
   const handlePreviewPost = async (scheduledPost: any, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-    
+
     try {
       const response = await fetch(`/api/posts/${scheduledPost.postId}`, {
         credentials: "include",
       });
-      
+
       if (!response.ok) {
         throw new Error("Failed to fetch post");
       }
-      
+
       const postWithMedia = await response.json();
       const mediaIds = postWithMedia.media?.map((m: Media) => m.id) || [];
       const allMedia = postWithMedia.media || [];
-      
+
       setPreviewData({
         postText: postWithMedia.post.content || '',
         mediaIds: mediaIds,
         allMedia: allMedia,
+        generationStatus: postWithMedia.post.generationStatus,
+        generationProgress: postWithMedia.post.generationProgress,
       });
-      
+
       setPreviewModalOpen(true);
     } catch (error) {
       toast({
@@ -111,11 +113,11 @@ export default function CalendarView() {
     return (scheduledPosts || []).filter(post => {
       if (!post.scheduledAt) return false;
       const postDate = new Date(post.scheduledAt);
-      
+
       // Compare using local date components to avoid timezone issues
       return postDate.getFullYear() === date.getFullYear() &&
-             postDate.getMonth() === date.getMonth() &&
-             postDate.getDate() === date.getDate();
+        postDate.getMonth() === date.getMonth() &&
+        postDate.getDate() === date.getDate();
     });
   };
 
@@ -181,9 +183,9 @@ export default function CalendarView() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={goToPreviousMonth}
               className="rounded-xl"
               data-testid="button-prev-month"
@@ -194,9 +196,9 @@ export default function CalendarView() {
             <span className="text-sm font-semibold text-foreground min-w-[140px] text-center px-4 py-2 bg-muted/30 rounded-xl">
               {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
             </span>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={goToNextMonth}
               className="rounded-xl"
               data-testid="button-next-month"
@@ -219,192 +221,192 @@ export default function CalendarView() {
           </div>
 
           <div className="grid grid-cols-7 gap-2">
-          {days.map((day, index) => (
-            <div
-              key={index}
-              className={`
+            {days.map((day, index) => (
+              <div
+                key={index}
+                className={`
                 bg-card border border-border/50 rounded-xl p-4 min-h-[140px] transition-all hover:shadow-md
                 ${isToday(day.date) ? "ring-2 ring-primary shadow-lg" : ""}
                 ${!day.isCurrentMonth ? "opacity-40" : ""}
               `}
-              data-testid={`calendar-day-${index}`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <span
-                  className={`
+                data-testid={`calendar-day-${index}`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <span
+                    className={`
                     text-sm font-semibold
                     ${!day.isCurrentMonth ? "text-muted-foreground" : "text-foreground"}
                     ${isToday(day.date) ? "text-primary" : ""}
                   `}
-                >
-                  {day.date.getDate()}
-                </span>
-                {isToday(day.date) && (
-                  <span className="text-[10px] bg-gradient-to-r from-primary to-secondary text-white px-2 py-0.5 rounded-full font-semibold">
-                    Aujourd'hui
+                  >
+                    {day.date.getDate()}
                   </span>
-                )}
-              </div>
-              
-              {(() => {
-                if (!day.isCurrentMonth) return null;
-                const postsForDay = getPostsForDate(day.date);
-                if (postsForDay.length === 0) return null;
-                
-                return (
-                  <div className="space-y-2">
-                    {postsForDay.slice(0, 2).map((post: any, idx) => {
-                      const time = post.scheduledAt ? new Date(post.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
-                      const isPending = !post.publishedAt;
-                      const isPublished = !!post.publishedAt;
-                      const pageName = post.page?.pageName || 'Page inconnue';
-                      const platform = post.page?.platform || 'facebook';
-                      const PlatformIcon = platform === 'instagram' ? SiInstagram : SiFacebook;
-                      
-                      return (
-                        <div 
-                          key={idx}
-                          className={`
+                  {isToday(day.date) && (
+                    <span className="text-[10px] bg-gradient-to-r from-primary to-secondary text-white px-2 py-0.5 rounded-full font-semibold">
+                      Aujourd'hui
+                    </span>
+                  )}
+                </div>
+
+                {(() => {
+                  if (!day.isCurrentMonth) return null;
+                  const postsForDay = getPostsForDate(day.date);
+                  if (postsForDay.length === 0) return null;
+
+                  return (
+                    <div className="space-y-2">
+                      {postsForDay.slice(0, 2).map((post: any, idx) => {
+                        const time = post.scheduledAt ? new Date(post.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+                        const isPending = !post.publishedAt;
+                        const isPublished = !!post.publishedAt;
+                        const pageName = post.page?.pageName || 'Page inconnue';
+                        const platform = post.page?.platform || 'facebook';
+                        const PlatformIcon = platform === 'instagram' ? SiInstagram : SiFacebook;
+
+                        return (
+                          <div
+                            key={idx}
+                            className={`
                             px-3 py-2 rounded-lg text-xs transition-all font-medium shadow-sm group relative
                             ${isPending ? 'bg-blue-500/20 text-blue-600 hover:bg-blue-500/30' : ''}
                             ${isPublished ? 'bg-green-500/20 text-green-600 hover:bg-green-500/30' : ''}
                           `}
-                          data-testid={`calendar-post-${post.id}`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-1 font-semibold">
-                                {getPostTypeIcon(post.postType)}
-                                <span>{time}</span>
+                            data-testid={`calendar-post-${post.id}`}
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1 font-semibold">
+                                  {getPostTypeIcon(post.postType)}
+                                  <span>{time}</span>
+                                </div>
+                                <div className="flex items-center gap-1 truncate opacity-90">
+                                  <PlatformIcon className="w-3 h-3 flex-shrink-0" />
+                                  <span className="truncate">{pageName}</span>
+                                </div>
                               </div>
-                              <div className="flex items-center gap-1 truncate opacity-90">
-                                <PlatformIcon className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">{pageName}</span>
+                              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button
+                                  onClick={(e) => handlePreviewPost(post, e)}
+                                  className={`p-1 rounded ${isPending ? 'hover:bg-blue-500/20' : 'hover:bg-green-500/20'}`}
+                                  data-testid={`button-preview-post-${post.id}`}
+                                  title="Prévisualiser"
+                                >
+                                  <Eye className={`w-3 h-3 ${isPending ? 'text-blue-500' : 'text-green-500'}`} />
+                                </button>
+                                {isPending && (
+                                  <>
+                                    <button
+                                      onClick={(e) => handleEditPost(post, e)}
+                                      className="p-1 hover:bg-blue-500/20 rounded"
+                                      data-testid={`button-edit-post-${post.id}`}
+                                      title="Modifier"
+                                    >
+                                      <Edit className="w-3 h-3 text-blue-500" />
+                                    </button>
+                                    <button
+                                      onClick={(e) => handleDeletePost(post.id, e)}
+                                      className="p-1 hover:bg-red-500/20 rounded"
+                                      data-testid={`button-delete-post-${post.id}`}
+                                      title="Supprimer"
+                                    >
+                                      <Trash2 className="w-3 h-3 text-red-500" />
+                                    </button>
+                                  </>
+                                )}
                               </div>
-                            </div>
-                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <button
-                                onClick={(e) => handlePreviewPost(post, e)}
-                                className={`p-1 rounded ${isPending ? 'hover:bg-blue-500/20' : 'hover:bg-green-500/20'}`}
-                                data-testid={`button-preview-post-${post.id}`}
-                                title="Prévisualiser"
-                              >
-                                <Eye className={`w-3 h-3 ${isPending ? 'text-blue-500' : 'text-green-500'}`} />
-                              </button>
-                              {isPending && (
-                                <>
-                                  <button
-                                    onClick={(e) => handleEditPost(post, e)}
-                                    className="p-1 hover:bg-blue-500/20 rounded"
-                                    data-testid={`button-edit-post-${post.id}`}
-                                    title="Modifier"
-                                  >
-                                    <Edit className="w-3 h-3 text-blue-500" />
-                                  </button>
-                                  <button
-                                    onClick={(e) => handleDeletePost(post.id, e)}
-                                    className="p-1 hover:bg-red-500/20 rounded"
-                                    data-testid={`button-delete-post-${post.id}`}
-                                    title="Supprimer"
-                                  >
-                                    <Trash2 className="w-3 h-3 text-red-500" />
-                                  </button>
-                                </>
-                              )}
                             </div>
                           </div>
-                        </div>
-                      );
-                    })}
-                    {postsForDay.length > 2 && (
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <button 
-                            className="w-full text-left text-[11px] text-primary hover:text-primary/80 pl-2 font-medium transition-colors flex items-center gap-1"
-                            data-testid="button-show-more-posts"
-                          >
-                            <MoreHorizontal className="w-3 h-3" />
-                            +{postsForDay.length - 2} autre(s)
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80 p-3" align="start">
-                          <div className="space-y-2">
-                            <h4 className="font-semibold text-sm mb-3">
-                              Tous les posts du {day.date.getDate()} {monthNames[day.date.getMonth()]}
-                            </h4>
-                            {postsForDay.slice(2).map((post: any, idx) => {
-                              const time = post.scheduledAt ? new Date(post.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
-                              const isPending = !post.publishedAt;
-                              const isPublished = !!post.publishedAt;
-                              const pageName = post.page?.pageName || 'Page inconnue';
-                              const platform = post.page?.platform || 'facebook';
-                              const PlatformIcon = platform === 'instagram' ? SiInstagram : SiFacebook;
-                              
-                              return (
-                                <div 
-                                  key={idx}
-                                  className={`
+                        );
+                      })}
+                      {postsForDay.length > 2 && (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              className="w-full text-left text-[11px] text-primary hover:text-primary/80 pl-2 font-medium transition-colors flex items-center gap-1"
+                              data-testid="button-show-more-posts"
+                            >
+                              <MoreHorizontal className="w-3 h-3" />
+                              +{postsForDay.length - 2} autre(s)
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80 p-3" align="start">
+                            <div className="space-y-2">
+                              <h4 className="font-semibold text-sm mb-3">
+                                Tous les posts du {day.date.getDate()} {monthNames[day.date.getMonth()]}
+                              </h4>
+                              {postsForDay.slice(2).map((post: any, idx) => {
+                                const time = post.scheduledAt ? new Date(post.scheduledAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
+                                const isPending = !post.publishedAt;
+                                const isPublished = !!post.publishedAt;
+                                const pageName = post.page?.pageName || 'Page inconnue';
+                                const platform = post.page?.platform || 'facebook';
+                                const PlatformIcon = platform === 'instagram' ? SiInstagram : SiFacebook;
+
+                                return (
+                                  <div
+                                    key={idx}
+                                    className={`
                                     px-3 py-2 rounded-lg text-xs transition-all font-medium shadow-sm group relative
                                     ${isPending ? 'bg-blue-500/20 text-blue-600 hover:bg-blue-500/30' : ''}
                                     ${isPublished ? 'bg-green-500/20 text-green-600 hover:bg-green-500/30' : ''}
                                   `}
-                                  data-testid={`popover-post-${post.id}`}
-                                >
-                                  <div className="flex items-start justify-between gap-2">
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-1 font-semibold">
-                                        {getPostTypeIcon(post.postType)}
-                                        <span>{time}</span>
+                                    data-testid={`popover-post-${post.id}`}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="flex-1 min-w-0">
+                                        <div className="flex items-center gap-1 font-semibold">
+                                          {getPostTypeIcon(post.postType)}
+                                          <span>{time}</span>
+                                        </div>
+                                        <div className="flex items-center gap-1 truncate opacity-90">
+                                          <PlatformIcon className="w-3 h-3 flex-shrink-0" />
+                                          <span className="truncate">{pageName}</span>
+                                        </div>
                                       </div>
-                                      <div className="flex items-center gap-1 truncate opacity-90">
-                                        <PlatformIcon className="w-3 h-3 flex-shrink-0" />
-                                        <span className="truncate">{pageName}</span>
+                                      <div className="flex gap-1">
+                                        <button
+                                          onClick={(e) => handlePreviewPost(post, e)}
+                                          className={`p-1 rounded ${isPending ? 'hover:bg-blue-500/20' : 'hover:bg-green-500/20'}`}
+                                          data-testid={`button-preview-popover-post-${post.id}`}
+                                          title="Prévisualiser"
+                                        >
+                                          <Eye className={`w-3 h-3 ${isPending ? 'text-blue-500' : 'text-green-500'}`} />
+                                        </button>
+                                        {isPending && (
+                                          <>
+                                            <button
+                                              onClick={(e) => handleEditPost(post, e)}
+                                              className="p-1 hover:bg-blue-500/20 rounded"
+                                              data-testid={`button-edit-popover-post-${post.id}`}
+                                              title="Modifier"
+                                            >
+                                              <Edit className="w-3 h-3 text-blue-500" />
+                                            </button>
+                                            <button
+                                              onClick={(e) => handleDeletePost(post.id, e)}
+                                              className="p-1 hover:bg-red-500/20 rounded"
+                                              data-testid={`button-delete-popover-post-${post.id}`}
+                                              title="Supprimer"
+                                            >
+                                              <Trash2 className="w-3 h-3 text-red-500" />
+                                            </button>
+                                          </>
+                                        )}
                                       </div>
-                                    </div>
-                                    <div className="flex gap-1">
-                                      <button
-                                        onClick={(e) => handlePreviewPost(post, e)}
-                                        className={`p-1 rounded ${isPending ? 'hover:bg-blue-500/20' : 'hover:bg-green-500/20'}`}
-                                        data-testid={`button-preview-popover-post-${post.id}`}
-                                        title="Prévisualiser"
-                                      >
-                                        <Eye className={`w-3 h-3 ${isPending ? 'text-blue-500' : 'text-green-500'}`} />
-                                      </button>
-                                      {isPending && (
-                                        <>
-                                          <button
-                                            onClick={(e) => handleEditPost(post, e)}
-                                            className="p-1 hover:bg-blue-500/20 rounded"
-                                            data-testid={`button-edit-popover-post-${post.id}`}
-                                            title="Modifier"
-                                          >
-                                            <Edit className="w-3 h-3 text-blue-500" />
-                                          </button>
-                                          <button
-                                            onClick={(e) => handleDeletePost(post.id, e)}
-                                            className="p-1 hover:bg-red-500/20 rounded"
-                                            data-testid={`button-delete-popover-post-${post.id}`}
-                                            title="Supprimer"
-                                          >
-                                            <Trash2 className="w-3 h-3 text-red-500" />
-                                          </button>
-                                        </>
-                                      )}
                                     </div>
                                   </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
-                    )}
-                  </div>
-                );
-              })()}
-            </div>
-          ))}
-        </div>
+                                );
+                              })}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            ))}
+          </div>
 
           <div className="mt-8 flex items-center justify-center gap-8 flex-wrap">
             <div className="flex items-center gap-3">
@@ -438,9 +440,11 @@ export default function CalendarView() {
         postText={previewData.postText}
         selectedMedia={previewData.mediaIds}
         mediaList={previewData.allMedia}
-        onPublish={() => {}}
+        onPublish={() => { }}
         isPublishing={false}
         readOnly={true}
+        generationStatus={previewData.generationStatus}
+        generationProgress={previewData.generationProgress}
       />
     </div>
   );
