@@ -490,6 +490,36 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     )
 
 
+def generate_outro_ass(
+    text: str, ass_path: Path, start_time: float, end_time: float, font_size: int = 70
+):
+    """Generate a simple ASS subtitle for the store name outro, fading in at the end."""
+    header = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Sans,{font_size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,4,2,0,0,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    events = ""
+    start_str = format_ass_time(start_time)
+    end_str = format_ass_time(end_time)
+
+    # Alignment 2 is bottom center. MarginV = 700 pushes it up appropriately below the center logo.
+    # \fad(2000,0) fades in over 2000ms.
+    sanitized = text.replace("{", "(").replace("}", ")")
+    events += f"Dialogue: 0,{start_str},{end_str},Default,,0,0,700,,{{\\fad(2000,0)}}{sanitized}\n"
+
+    with open(ass_path, "w", encoding="utf-8") as f:
+        f.write(header + events)
+
+
 def format_ass_time(seconds: float) -> str:
     """Format seconds as ASS timestamp (H:MM:SS.ss)."""
     hours = int(seconds // 3600)
@@ -826,11 +856,15 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 fc_parts.append(f"[{watermark_idx}:v]scale=-1:300[wm]")
                 # 2. Placing it in the center, and fading it IN during the last 2 seconds
                 v_chain += f"[v_pre_wm];[v_pre_wm][wm]overlay=(W-w)/2:(H-h)/2-100:enable='between(t,{fade_start},{video_duration})'"
-                # 3. Drawing the Store Name below the logo, with a fade in as well
-                escaped_store_name = request.store_name.replace("'", "\\'").replace(
-                    ":", "\\:"
+                # 3. Drawing the Store Name below the logo using ASS subtitles instead of drawtext!
+                outro_ass_path = job_dir / "outro.ass"
+                generate_outro_ass(
+                    request.store_name, outro_ass_path, fade_start, video_duration
                 )
-                v_chain += f",drawtext=text='{escaped_store_name}':x=(w-text_w)/2:y=(h-text_h)/2+150:fontsize=70:fontcolor=white:shadowcolor=black:shadowx=3:shadowy=3:enable='between(t,{fade_start},{video_duration})'"
+                ass_path_str_2 = (
+                    str(outro_ass_path).replace("\\", "/").replace(":", "\\:")
+                )
+                v_chain += f",subtitles='{ass_path_str_2}'"
             else:
                 # Normal watermark (bottom right)
                 fc_parts.append(f"[{watermark_idx}:v]scale=200:-1[wm]")
