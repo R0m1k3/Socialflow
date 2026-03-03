@@ -203,7 +203,6 @@ async def generate_tts_with_subs(
     Uses edge_tts.Communicate.stream() to capture WordBoundary events,
     providing millisecond-accurate subtitle timing instead of linear estimation.
     """
-    import asyncio
 
     # Determine gender of requested voice to choose appropriate fallbacks
     is_male = any(name in voice for name in ["Remi", "Henri", "Paul"])
@@ -292,11 +291,13 @@ async def generate_tts_with_subs(
 
                 if word_boundaries:
                     # Precise synchronization using real word timings
+                    # Add 2 seconds delay to TTS start
                     generate_ass_from_word_boundaries(
                         word_boundaries,
                         text_to_display,
                         ass_path,
                         total_duration=audio_duration,
+                        delay=2.0,
                     )
                 else:
                     # Fallback to linear estimation if no boundaries captured
@@ -325,6 +326,7 @@ def generate_ass_from_word_boundaries(
     ass_path: Path,
     font_size: int = 65,
     total_duration: float = None,
+    delay: float = 0.0,
 ):
     """Generate ASS subtitles using precise word-level timing from TTS engine.
 
@@ -352,8 +354,8 @@ def generate_ass_from_word_boundaries(
             chunks.append(
                 {
                     "text": " ".join(current_words),
-                    "start": current_start,
-                    "end": chunk_end,
+                    "start": current_start + delay,
+                    "end": chunk_end + delay,
                 }
             )
             current_words = []
@@ -623,8 +625,11 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
 
         fade_duration = 2.0
         fade_start = max(0, video_duration - fade_duration)
+
+        # Le logo doit apparaitre à 5 secondes de la fin (3 secondes avant le fondu au noir)
+        logo_start_time = max(0, video_duration - 5.0)
         print(
-            f"🎬 Video Duration: {video_duration:.2f}s | Fade Out Start: {fade_start:.2f}s"
+            f"🎬 Video Duration: {video_duration:.2f}s | Logo Start: {logo_start_time:.2f}s | Fade Out Start: {fade_start:.2f}s"
         )
 
         # 2. Download Music (if present)
@@ -902,8 +907,10 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 inputs_for_mix += 1
 
             if has_tts:
-                # TTS louder
-                fc_parts.append(f"[{tts_idx}:a]volume=1.5[a_tts]")
+                # TTS louder and delayed by 2 seconds (2000ms) on all channels
+                fc_parts.append(
+                    f"[{tts_idx}:a]adelay=delays=2000|2000,volume=1.5[a_tts]"
+                )
                 audio_mix_str += "[a_tts]"
                 inputs_for_mix += 1
 
