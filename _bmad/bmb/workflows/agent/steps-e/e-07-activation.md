@@ -1,14 +1,12 @@
 ---
 name: 'e-07-activation'
-description: 'Review critical_actions and route to type-specific edit'
+description: 'Review critical_actions and route to edit step'
 
 editPlan: '{bmb_creations_output_folder}/edit-plan-{agent-name}.md'
 criticalActions: ../data/critical-actions.md
 
-# Type-specific edit routes
-simpleEdit: './e-08a-edit-simple.md'
-expertEdit: './e-08b-edit-expert.md'
-moduleEdit: './e-08c-edit-module.md'
+# Edit step route (determined by hasSidecar)
+agentEdit: './e-08-edit-agent.md'
 
 advancedElicitationTask: '{project-root}/_bmad/core/workflows/advanced-elicitation/workflow.xml'
 partyModeWorkflow: '{project-root}/_bmad/core/workflows/party-mode/workflow.md'
@@ -18,51 +16,55 @@ partyModeWorkflow: '{project-root}/_bmad/core/workflows/party-mode/workflow.md'
 
 ## STEP GOAL:
 
-Review critical_actions and route to the appropriate type-specific edit step (Simple/Expert/Module).
+Review critical_actions and route to the agent edit step based on hasSidecar value.
 
 ## MANDATORY EXECUTION RULES:
 
 - 📖 CRITICAL: Read the complete step file before taking any action
 - 🔄 CRITICAL: Load criticalActions and editPlan first
-- ✅ YOU MUST ALWAYS SPEAK OUTPUT In your Agent communication style with the config `{communication_language}}`
+- ✅ YOU MUST ALWAYS SPEAK OUTPUT In your Agent communication style with the config `{communication_language}`
 
 ### Step-Specific Rules:
 
 - 🎯 Load criticalActions.md before discussing activation
-- 📊 Determine target type for routing
-- 💬 Route based on POST-EDIT agent type
+- 📊 Determine hasSidecar for routing
+- 💬 Route based on POST-EDIT hasSidecar value
 
 ## EXECUTION PROTOCOLS:
 
 - 🎯 Load criticalActions.md
-- 📊 Check editPlan for target agent type
-- 💾 Route to appropriate type-specific edit step
-- ➡️ Auto-advance to type-specific edit on [C]
+- 📊 Check editPlan for target hasSidecar value
+- 💾 Route to agent edit step
+- ➡️ Auto-advance to edit step on [C]
 
-## Sequence of Instructions:
+## MANDATORY SEQUENCE
+
+**CRITICAL:** Follow this sequence exactly. Do not skip, reorder, or improvise unless user explicitly requests a change.
 
 ### 1. Load Reference Documents
 
 Read `{criticalActions}` and `{editPlan}` to understand:
 - Current critical_actions (if any)
-- Target agent type after edits
+- Target hasSidecar value after edits
 
 ### 2. Review Critical Actions
 
 If user wants to add/modify critical_actions:
 - Reference patterns from criticalActions.md
 - Define action name, description, invocation
-- For Expert agents: specify sidecar-folder and file paths
+- For hasSidecar: true — specify sidecar-folder and file paths
 
 ### 3. Determine Routing
 
-Check `{editPlan}` metadataEdits.typeConversion.to or current agentType:
+Check `{editPlan}` for agent metadata (hasSidecar):
 
 ```yaml
-agentType: simple → route to e-08a-edit-simple.md
-agentType: expert → route to e-08b-edit-expert.md
-agentType: module → route to e-08c-edit-module.md
+# Simple routing based on hasSidecar
+hasSidecar: true → route to e-08-edit-agent.md (create sidecar structure)
+hasSidecar: false → route to e-08-edit-agent.md (single YAML file)
 ```
+
+The edit step handles both cases based on hasSidecar value.
 
 ### 4. Document to Edit Plan
 
@@ -74,19 +76,19 @@ activationEdits:
     additions: []
     modifications: []
 routing:
-  destinationEdit: {e-08a|e-08b|e-08c}
-  targetType: {simple|expert|module}
+  destinationEdit: e-08-edit-agent.md
+  hasSidecar: {true|false}  # Derived from edit plan
 ```
 
 ### 5. Present MENU OPTIONS
 
-Display: "**Select an Option:** [A] Advanced Elicitation [P] Party Mode [C] Continue to Type-Specific Edit"
+Display: "**Select an Option:** [A] Advanced Elicitation [P] Party Mode [C] Continue to Edit Agent"
 
 #### Menu Handling Logic:
 
 - IF A: Execute {advancedElicitationTask}, and when finished redisplay the menu
 - IF P: Execute {partyModeWorkflow}, and when finished redisplay the menu
-- IF C: Save to {editPlan}, determine routing based on targetType, then only then load and execute the appropriate type-specific edit step
+- IF C: Save to {editPlan}, then only then load and execute the agent edit step
 - IF Any other comments or queries: help user respond then [Redisplay Menu Options](#5-present-menu-options)
 
 #### EXECUTION RULES:
@@ -97,11 +99,10 @@ Display: "**Select an Option:** [A] Advanced Elicitation [P] Party Mode [C] Cont
 
 ## CRITICAL STEP COMPLETION NOTE
 
-This is the **ROUTING HUB** for edit flow. ONLY WHEN [C continue option] is selected and [routing determined], load and execute the appropriate type-specific edit step:
+This is the **ROUTING HUB** for edit flow. ONLY WHEN [C continue option] is selected and [routing determined], load and execute the agent edit step:
 
-- targetType: simple → e-08a-edit-simple.md
-- targetType: expert → e-08b-edit-expert.md
-- targetType: module → e-08c-edit-module.md
+- hasSidecar: false → Single YAML file edit
+- hasSidecar: true → YAML + sidecar folder structure edit
 
 ---
 
@@ -110,13 +111,13 @@ This is the **ROUTING HUB** for edit flow. ONLY WHEN [C continue option] is sele
 ### ✅ SUCCESS:
 
 - criticalActions.md loaded
-- Routing determined based on target type
+- Routing determined based on hasSidecar
 - Edit plan updated with routing info
 
 ### ❌ SYSTEM FAILURE:
 
 - Proceeded without loading reference documents
 - Routing not determined
-- Wrong type-specific edit step selected
+- Wrong edit step selected
 
 **Master Rule:** Skipping steps, optimizing sequences, or not following exact instructions is FORBIDDEN and constitutes SYSTEM FAILURE.

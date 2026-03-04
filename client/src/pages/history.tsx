@@ -20,7 +20,7 @@ type ScheduledPostWithRelations = ScheduledPost & {
 export default function History() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
-  const [previewData, setPreviewData] = useState<{ postText: string; mediaIds: string[]; allMedia: Media[] }>({ postText: '', mediaIds: [], allMedia: [] });
+  const [previewData, setPreviewData] = useState<{ postText: string; mediaIds: string[]; allMedia: Media[]; generationStatus?: string; generationProgress?: number }>({ postText: '', mediaIds: [], allMedia: [] });
   const { toast } = useToast();
 
   const { data: scheduledPosts = [], isLoading } = useQuery<ScheduledPostWithRelations[]>({
@@ -52,6 +52,8 @@ export default function History() {
         postText: postWithMedia.post.content || '',
         mediaIds: mediaIds,
         allMedia: allMedia,
+        generationStatus: postWithMedia.post.generationStatus,
+        generationProgress: postWithMedia.post.generationProgress,
       });
 
       setPreviewModalOpen(true);
@@ -241,6 +243,8 @@ export default function History() {
           onPublish={() => { }}
           isPublishing={false}
           readOnly={true}
+          generationStatus={previewData.generationStatus}
+          generationProgress={previewData.generationProgress}
         />
       </main>
     </div>

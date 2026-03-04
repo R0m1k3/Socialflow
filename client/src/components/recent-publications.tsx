@@ -14,10 +14,27 @@ type ScheduledPostWithRelations = ScheduledPost & {
   page?: SocialPage;
 };
 
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Trash2 } from "lucide-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+
 export default function RecentPublications() {
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [previewData, setPreviewData] = useState<{ postText: string; mediaIds: string[]; allMedia: Media[] }>({ postText: '', mediaIds: [], allMedia: [] });
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [postToDelete, setPostToDelete] = useState<string | null>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: scheduledPosts = [], isLoading } = useQuery<ScheduledPostWithRelations[]>({
     queryKey: ['/api/scheduled-posts'],
@@ -57,6 +74,42 @@ export default function RecentPublications() {
         description: "Impossible de charger la prévisualisation",
         variant: "destructive",
       });
+    }
+  };
+
+  const deleteReelMutation = useMutation({
+    mutationFn: async (postId: string) => {
+      // Pour les Reels/Posts, l'ID est le même. La route DELETE /api/reels/:id
+      // gère la suppression du Post sous-jacent.
+      const res = await apiRequest("DELETE", `/api/reels/${postId}`);
+      return await res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Succès",
+        description: "Publication supprimée avec succès",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/scheduled-posts'] });
+      setDeleteDialogOpen(false);
+      setPostToDelete(null);
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erreur",
+        description: error.message || "Impossible de supprimer la publication",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteClick = (postId: string) => {
+    setPostToDelete(postId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (postToDelete) {
+      deleteReelMutation.mutate(postToDelete);
     }
   };
 
@@ -108,8 +161,8 @@ export default function RecentPublications() {
               >
                 {/* Platform icon */}
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${scheduledPost.page?.platform === 'facebook'
-                    ? 'bg-blue-500'
-                    : 'bg-gradient-to-br from-purple-500 to-pink-500'
+                  ? 'bg-blue-500'
+                  : 'bg-gradient-to-br from-purple-500 to-pink-500'
                   }`}>
                   {scheduledPost.page?.platform === 'facebook' ? (
                     <Facebook className="w-5 h-5 text-white" />
@@ -143,6 +196,16 @@ export default function RecentPublications() {
                         title="Prévisualiser"
                       >
                         <Eye className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleDeleteClick(scheduledPost.postId)}
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive transition-colors"
+                        data-testid={`button-delete-post-${scheduledPost.id}`}
+                        title="Supprimer"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </Button>
                       {scheduledPost.error ? (
                         <XCircle className="w-4 h-4 text-destructive" />
@@ -187,6 +250,30 @@ export default function RecentPublications() {
         isPublishing={false}
         readOnly={true}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Êtes-vous sûr ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est irréversible. Cela supprimera définitivement cette publication de votre historique et des statistiques associées.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleteReelMutation.isPending}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                confirmDelete();
+              }}
+              disabled={deleteReelMutation.isPending}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleteReelMutation.isPending ? "Suppression..." : "Supprimer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

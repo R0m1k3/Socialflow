@@ -10,6 +10,9 @@ import { ffmpegService } from '../services/ffmpeg';
 import { facebookService } from '../services/facebook';
 import { cloudinaryService } from '../services/cloudinary';
 import { openRouterService } from '../services/openrouter';
+import { db } from '../db';
+import { cloudinaryConfig } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 export const reelsRouter = Router();
 
@@ -314,9 +317,33 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
         // Récupérer l'URL de la musique si trackId fourni
         let finalMusicUrl = musicUrl;
         if (musicTrackId && !musicUrl) {
-            const track = await freeSoundService.getMusicDetails(musicTrackId);
-            if (track) {
-                finalMusicUrl = track.downloadUrl;
+            if (musicTrackId.startsWith('internal_')) {
+                const internalId = musicTrackId.replace('internal_', '');
+                const track = await storage.getAudioTrack(internalId);
+                if (track) {
+                    // Utiliser INTERNAL_APP_URL pour que le container ffmpeg (réseau Docker interne)
+                    // puisse télécharger le fichier audio. APP_URL (HTTPS public) n'est pas accessible  
+                    // depuis le réseau internal Docker.
+                    const internalBaseUrl = process.env.INTERNAL_APP_URL || process.env.APP_URL || 'http://localhost:5555';
+                    finalMusicUrl = track.url.startsWith('http')
+                        ? track.url
+                        : `${internalBaseUrl}${track.url}`;
+                    console.log(`🎵 Audio URL for ffmpeg: ${finalMusicUrl}`);
+                }
+            } else {
+                const track = await freeSoundService.getMusicDetails(musicTrackId);
+                if (track) {
+                    finalMusicUrl = track.downloadUrl;
+                }
+            }
+        }
+
+        let watermarkUrl: string | undefined = undefined;
+        if (req.user) {
+            const user = req.user as User;
+            const [userCloudinary] = await db.select().from(cloudinaryConfig).where(eq(cloudinaryConfig.userId, user.id));
+            if (userCloudinary && userCloudinary.logoPublicId) {
+                watermarkUrl = `https://res.cloudinary.com/${userCloudinary.cloudName}/image/upload/${userCloudinary.logoPublicId}`;
             }
         }
 
@@ -331,6 +358,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             musicVolume,
             drawText,
             stabilize,
+            watermarkUrl,
         });
 
         if (!result.success) {
@@ -378,6 +406,52 @@ reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
  * Traitement d'arrière-plan pour les Reels
  * Gère le pipeline FFmpeg -> Cloudinary -> Facebook de manière asynchrone
  */
+
+/**
+ * Vérifie la file d'attente et lance le prochain job si disponible
+ */
+async function checkQueueAndProcessNext() {
+    try {
+        const nextPost = await storage.getNextPendingReel();
+        if (nextPost) {
+            console.log(`📥 [Queue] Found pending job: ${nextPost.id}. Starting processing...`);
+
+            // Marquer comme processing immédiatement
+            await storage.updatePostGenerationStatus(nextPost.id, 'processing', 0);
+
+            // Reconstruire le payload depuis les données stockées (si stockées) ou les defaults
+            // Note: En mode "pending", on a perdu le body de la requête initiale car on ne stocke pas tout dans Post.
+            // Pour une solution robuste, il faudrait stocker les paramètres de génération dans une table 'reel_jobs'.
+            // ICI: HACK PROVISOIRE -> On suppose que les données sont stockées dans 'content' ou 'productInfo' mais ce n'est pas le cas.
+            // SOLUTION: On ne peut pas relancer processReelBackground sans les arguments (ttsVoice, music, etc).
+            //
+            // FIX: Pour le MVP, comme on n'a pas de table 'jobs', on va devoir stocker les paramètres requis dans 'productInfo' (jsonb) du Post
+            // lors de la création en mode 'pending'.
+
+            // Récupérer les paramètres stockés
+            const jobData = nextPost.productInfo as any;
+
+            if (!jobData || !jobData.videoMediaId) {
+                console.error(`❌ [Queue] Job ${nextPost.id} has no stored job data in productInfo.`);
+                await storage.updatePostGenerationStatus(nextPost.id, 'failed', 0, "Données de job manquantes");
+                return;
+            }
+
+            // Lancer le traitement
+            processReelBackground(nextPost.userId, nextPost.id, jobData)
+                .catch(err => console.error('🔥 [Queue] Unhandled error starting queued job:', err));
+        } else {
+            console.log('🏁 [Queue] No more pending jobs.');
+        }
+    } catch (error) {
+        console.error('❌ [Queue] Error checking queue:', error);
+    }
+}
+
+/**
+ * Traitement d'arrière-plan pour les Reels
+ * Gère le pipeline FFmpeg -> Cloudinary -> Facebook de manière asynchrone
+ */
 async function processReelBackground(
     userId: string,
     postId: string,
@@ -396,7 +470,8 @@ async function processReelBackground(
         musicVolume?: number;
         drawText?: boolean;
         stabilize?: boolean;
-    }
+    },
+    storeName?: string
 ) {
     const {
         videoMediaId,
@@ -437,9 +512,27 @@ async function processReelBackground(
         // 2. Récupérer l'URL de la musique
         let finalMusicUrl = musicUrl;
         if (musicTrackId && !musicUrl) {
-            const track = await freeSoundService.getMusicDetails(musicTrackId);
-            if (track) {
-                finalMusicUrl = track.downloadUrl;
+            if (musicTrackId.startsWith('internal_')) {
+                try {
+                    const internalId = musicTrackId.replace('internal_', '');
+                    const track = await storage.getAudioTrack(internalId);
+                    if (track) {
+                        const internalBaseUrl = process.env.INTERNAL_APP_URL || process.env.APP_URL || 'http://localhost:5555';
+                        finalMusicUrl = track.url.startsWith('http')
+                            ? track.url
+                            : `${internalBaseUrl}${track.url}`;
+                        console.log(`🎵 [Background] Audio URL for ffmpeg: ${finalMusicUrl}`);
+                    }
+                } catch (e) { console.error('Error fetching internal track', e); }
+            } else {
+                try {
+                    const track = await freeSoundService.getMusicDetails(musicTrackId);
+                    if (track) {
+                        finalMusicUrl = track.downloadUrl;
+                    }
+                } catch (e) {
+                    console.error(`⚠️ [Background] Failed to fetch music details for ${musicTrackId}`, e);
+                }
             }
         }
 
@@ -453,6 +546,17 @@ async function processReelBackground(
         // 3. Traiter la vidéo via FFmpeg
         await updateProgress(15);
         const startTime = Date.now();
+
+        let watermarkUrl: string | undefined = undefined;
+        try {
+            const [userCloudinary] = await db.select().from(cloudinaryConfig).where(eq(cloudinaryConfig.userId, media.userId));
+            if (userCloudinary && userCloudinary.logoPublicId) {
+                watermarkUrl = `https://res.cloudinary.com/${userCloudinary.cloudName}/image/upload/${userCloudinary.logoPublicId}`;
+            }
+        } catch (e) {
+            console.error('Error fetching watermark configuration', e);
+        }
+
         const ffmpegResult = await ffmpegService.processReelFromUrl(media.originalUrl, {
             text: overlayText,
             musicUrl: finalMusicUrl,
@@ -463,6 +567,8 @@ async function processReelBackground(
             musicVolume,
             drawText,
             stabilize,
+            watermarkUrl,
+            storeName,
         });
 
         console.log(`⏱️ [Background] FFmpeg took ${(Date.now() - startTime) / 1000}s`);
@@ -564,7 +670,7 @@ async function processReelBackground(
 
         // Si au moins une réussite, on considère "published" (ou partial), sinon "failed"
         // Si planifié, reste "scheduled".
-        let finalStatus = 'failed';
+        let finalStatus: 'failed' | 'scheduled' | 'published' = 'failed';
         if (scheduledFor) {
             finalStatus = 'scheduled';
         } else if (allSuccess) {
@@ -593,11 +699,14 @@ async function processReelBackground(
         } catch (e) {
             console.error(`⚠️ [Background] Failed to update error status for ${postId}:`, e);
         }
+    } finally {
+        // IMPORTANT: Toujours vérifier la file d'attente à la fin (succès ou échec)
+        await checkQueueAndProcessNext();
     }
 }
 
 /**
- * Créer et publier un Reel (Asynchrone)
+ * Créer et publier un Reel (Asynchrone avec File d'Attente)
  * POST /api/reels
  */
 reelsRouter.post('/reels', async (req: Request, res: Response) => {
@@ -629,32 +738,58 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Au moins une page requise' });
         }
 
-        // Créer immédiatement le Post en base (Statut Draft/Scheduled)
-        // Cela permet de retourner un ID tout de suite et d'éviter le timeout
+        // Vérifier le nombre de jobs en cours
+        const processingCount = await storage.countProcessingReels();
+        // MAX_CONCURRENT = 1
+        const isQueueBusy = processingCount >= 1;
+
+        const initialStatus = isQueueBusy ? 'pending' : 'processing';
+        const initialMessage = isQueueBusy
+            ? "File d'attente pleine. Votre vidéo sera traitée dès que possible."
+            : "Traitement démarré en arrière-plan.";
+
+        // Récupérer le nom de la première page pour l'utiliser comme storeName
+        let storeName: string | undefined = undefined;
+        try {
+            const page = await storage.getSocialPage(pageIds[0]);
+            if (page) {
+                storeName = page.pageName;
+            }
+        } catch (e) {
+            console.error('Erreur récupération nom de page', e);
+        }
+
+        // Créer immédiatement le Post en base
+        // ON STOCKE LES PARAMS DU JOB DANS productInfo POUR POUVOIR LE REPRENDRE PLUS TARD
+        // C'est un hack car on n'a pas de table params_job, mais ça marche car productInfo est jsonb
         const post = await storage.createPost({
             userId: user.id,
             content: description || overlayText || '',
             aiGenerated: 'false',
             status: scheduledFor ? 'scheduled' : 'draft',
             scheduledFor: scheduledFor ? new Date(scheduledFor) : undefined,
-            generationStatus: 'processing',
+            generationStatus: initialStatus,
             generationProgress: 0,
+            productInfo: req.body, // Stockage complet des paramètres
         });
 
-        console.log(`✨ Reel Request accepted. Post ID: ${post.id}. Starting background processing.`);
+        console.log(`✨ Reel Request accepted. Post ID: ${post.id}. Status: ${initialStatus}`);
 
-        // Démarrer le traitement en arrière-plan (Fire & Forget)
-        // On ne met pas 'await' ici pour ne pas bloquer la réponse HTTP
-        processReelBackground(user.id, post.id, req.body).catch(err => {
-            console.error('🔥 Unhandled background error:', err);
-        });
+        if (!isQueueBusy) {
+            // Démarrer le traitement en arrière-plan (Fire & Forget)
+            processReelBackground(user.id, post.id, req.body, storeName).catch(err => {
+                console.error('🔥 Unhandled background error:', err);
+            });
+        } else {
+            console.log(`⏳ [Queue] Worker busy (count=${processingCount}). Job ${post.id} is queued.`);
+        }
 
         // Réponse immédiate au client
         res.json({
             success: true,
             postId: post.id,
-            message: "Traitement démarré en arrière-plan. La publication apparaîtra bientôt.",
-            // On retourne des valeurs placeholder pour la compatibilité frontend
+            message: initialMessage,
+            queued: isQueueBusy,
             results: [],
             videoUrl: ""
         });
@@ -702,5 +837,35 @@ reelsRouter.get('/reels/ongoing', async (req: Request, res: Response) => {
     } catch (error) {
         console.error('❌ Error fetching ongoing reels:', error);
         res.status(500).json({ error: 'Erreur lors de la récupération des reels en cours' });
+    }
+});
+
+/**
+ * Supprimer un Reel
+ * DELETE /api/reels/:id
+ */
+reelsRouter.delete('/reels/:id', async (req: Request, res: Response) => {
+    try {
+        const user = req.user as User;
+        const { id } = req.params;
+
+        // Vérifier si le post existe
+        const post = await storage.getPost(id);
+        if (!post) {
+            return res.status(404).json({ error: 'Reel non trouvé' });
+        }
+
+        // Vérifier les permissions (admin ou propriétaire)
+        if (user.role !== 'admin' && post.userId !== user.id) {
+            return res.status(403).json({ error: 'Non autorisé à supprimer ce Reel' });
+        }
+
+        // Supprimer le post (cascade supprimera scheduled_posts et liens media)
+        await storage.deletePost(id);
+
+        res.json({ success: true, message: 'Reel supprimé avec succès' });
+    } catch (error) {
+        console.error('❌ Error deleting Reel:', error);
+        res.status(500).json({ error: 'Erreur lors de la suppression du Reel' });
     }
 });

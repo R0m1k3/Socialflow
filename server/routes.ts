@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import fs from "fs";
 import os from "os";
 import { storage } from "./storage";
-import { db } from "./db";
+import { db, pool } from "./db";
 import multer from "multer";
 import bcrypt from "bcrypt";
 import passport from "./auth";
@@ -15,11 +15,17 @@ import type { User, InsertUser, ScheduledPost, FreesoundConfig } from "@shared/s
 import { freeSoundService } from "./services/freesound";
 import { analyticsRouter } from "./routes/analytics";
 import { reelsRouter } from "./routes/reels";
+import { insertAudioTrackSchema } from "@shared/schema";
 
 // Types MIME autorisés pour les uploads
 const ALLOWED_MIME_TYPES = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
   'video/mp4', 'video/quicktime', 'video/webm'
+];
+
+// Types MIME autorisés pour l'audio
+const ALLOWED_AUDIO_MIME_TYPES = [
+  'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg'
 ];
 
 // Configuration multer avec validation de taille et type
@@ -45,6 +51,36 @@ const upload = multer({
       cb(null, true);
     } else {
       cb(new Error(`Type de fichier non autorisé: ${file.mimetype}`));
+    }
+  }
+});
+
+// Setup audio upload with different filters
+// Files saved directly to the persistent local folder
+const AUDIO_UPLOAD_DIR = process.env.AUDIO_UPLOAD_DIR || '/app/uploads/audio';
+
+// Ensure the directory exists at startup
+import { mkdirSync } from 'fs';
+try { mkdirSync(AUDIO_UPLOAD_DIR, { recursive: true }); } catch { /* already exists */ }
+
+const audioUpload = multer({
+  storage: multer.diskStorage({
+    destination: AUDIO_UPLOAD_DIR,
+    filename: (req, file, cb) => {
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      cb(null, uniqueSuffix + '-' + safeName);
+    }
+  }),
+  limits: {
+    fileSize: 50 * 1024 * 1024, // 50MB max for audio
+    files: 20
+  },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_AUDIO_MIME_TYPES.includes(file.mimetype) || file.originalname.match(/\.(mp3|wav|ogg)$/i)) {
+      cb(null, true);
+    } else {
+      cb(new Error(`Type de fichier audio non autorisé: ${file.mimetype}`));
     }
   }
 });
@@ -948,6 +984,138 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Audio Tracks Management (Admin Only) - Multi-file upload (stored locally)
+  app.post("/api/audio-tracks", requireAdmin, audioUpload.array("files", 20), async (req, res) => {
+    try {
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({ error: "No audio file uploaded" });
+      }
+
+      const user = req.user as User;
+      const results = [];
+
+      for (const file of files) {
+        try {
+          console.log(`🎵 Audio saved locally: ${file.originalname} (${(file.size / 1024 / 1024).toFixed(2)} MB)`);
+
+          // Multer/busboy reçoit le nom en latin1, mais le navigateur l'envoie en UTF-8 → on reconvertit
+          const decodedName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+          const publicUrl = `/uploads/audio/${file.filename}`;
+
+          const track = await storage.createAudioTrack({
+            userId: user.id,
+            title: decodedName.replace(/\.[^/.]+$/, ""),
+            fileName: decodedName,
+            url: publicUrl,
+            duration: 0,
+          });
+
+          results.push({ success: true, track });
+        } catch (fileError) {
+          // Remove the file if DB insert fails
+          await fs.promises.unlink(file.path).catch(() => { });
+          results.push({ success: false, fileName: file.originalname, error: fileError instanceof Error ? fileError.message : "Save failed" });
+        }
+      }
+
+      res.json({ results });
+    } catch (error) {
+      console.error("Error uploading audio tracks:", error);
+      if (req.files) {
+        for (const file of req.files as Express.Multer.File[]) {
+          await fs.promises.unlink(file.path).catch(() => { });
+        }
+      }
+      const errorMessage = error instanceof Error ? error.message : "Failed to upload audio tracks";
+      res.status(500).json({ error: errorMessage });
+    }
+  });
+
+  // Route admin : correction des titres corrompus (latin1 lu comme UTF-8)
+  // Se déclenche aussi automatiquement au démarrage
+  const fixAudioTrackEncoding = async () => {
+    try {
+      const tracks = await storage.getAudioTracks();
+      let fixed = 0;
+      for (const track of tracks) {
+        // Détecte les séquences typiques latin1/utf8 mal interprétées (ex: Ã©, Ã , Ã¨)
+        if (/[\xC0-\xC3][\x80-\xBF]/.test(track.title)) {
+          const corrected = Buffer.from(track.title, 'latin1').toString('utf8');
+          const correctedFileName = Buffer.from(track.fileName, 'latin1').toString('utf8');
+          await pool.query(
+            `UPDATE audio_tracks SET title = $1, file_name = $2 WHERE id = $3`,
+            [corrected, correctedFileName, track.id]
+          );
+          fixed++;
+        }
+      }
+      if (fixed > 0) console.log(`🎵 Fixed encoding for ${fixed} audio track(s).`);
+    } catch (e) {
+      console.error('Error fixing audio track encoding:', e);
+    }
+  };
+  // Lancer la correction au démarrage
+  fixAudioTrackEncoding().catch(() => { });
+
+  app.post("/api/audio-tracks/fix-encoding", requireAdmin, async (req, res) => {
+    try {
+      await fixAudioTrackEncoding();
+      const tracks = await storage.getAudioTracks();
+      res.json({ success: true, tracks });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fix encoding" });
+    }
+  });
+
+  app.get("/api/audio-tracks", requireAuth, async (req, res) => {
+    try {
+      // Both admin and regular users can list audio tracks (to pick them for reels)
+      const tracks = await storage.getAudioTracks();
+      res.json(tracks);
+    } catch (error) {
+      console.error("Error fetching audio tracks:", error);
+      res.status(500).json({ error: "Failed to fetch audio tracks" });
+    }
+  });
+
+  app.delete("/api/audio-tracks/:id", requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const track = await storage.getAudioTrack(id);
+      if (!track) {
+        return res.status(404).json({ error: "Audio track not found" });
+      }
+
+      // Try to extract publicId from cloudinary url to delete it from there too
+      // e.g. https://res.cloudinary.com/demo/video/upload/v123456789/user_id/audio_name.mp3
+      const urlParts = track.url.split('/upload/');
+      if (urlParts.length > 1) {
+        const afterUpload = urlParts[1];
+        // Remove version number (v12345...)
+        let pathWithoutVersion = afterUpload;
+        if (afterUpload.match(/^v\d+\//)) {
+          pathWithoutVersion = afterUpload.replace(/^v\d+\//, '');
+        }
+        // Remove extension
+        const publicId = pathWithoutVersion.replace(/\.[^/.]+$/, "");
+
+        try {
+          await cloudinaryService.deleteMedia(publicId, track.userId || '', 'video');
+        } catch (cloudinaryError) {
+          console.warn(`Failed to delete audio from cloudinary: ${publicId}`, cloudinaryError);
+        }
+      }
+
+      await storage.deleteAudioTrack(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting audio track:", error);
+      res.status(500).json({ error: "Failed to delete audio track" });
+    }
+  });
+
   // Posts
   app.get("/api/posts", requireAuth, async (req, res) => {
     try {
@@ -1391,11 +1559,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Page non trouvée" });
       }
 
-      let pageData = insertSocialPageSchema.partial().parse(req.body);
+      let parsedData = insertSocialPageSchema.partial().parse(req.body);
+      let pageData: Partial<SocialPage> = { ...parsedData };
 
       // If accessToken is being updated, recalculate expiration date (60 days from now)
       // AND reset the status to valid so the UI updates immediately
-      if (pageData.accessToken) {
+      if (parsedData.accessToken) {
         const tokenExpiresAt = new Date();
         tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 60);
         pageData = {

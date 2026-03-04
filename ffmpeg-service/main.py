@@ -152,6 +152,8 @@ class ReelRequest(BaseModel):
     text: Optional[str] = None
     music_id: Optional[str] = None
     music_url: Optional[str] = None
+    watermark_url: Optional[str] = None
+    store_name: Optional[str] = None
     word_duration: float = 0.6
     font_size: int = 64
     music_volume: float = 0.25
@@ -162,9 +164,11 @@ class ReelRequest(BaseModel):
 
 
 def clean_text_for_display(text: str) -> str:
-    """Removes emojis and hashtags for display (text only)."""
+    """Removes emojis, hashtags, and hidden chars for display (text only)."""
     if not text:
         return ""
+    # 0. Remove BOM and other hidden characters
+    text = text.replace("\ufeff", "").replace("\u200b", "")
     # 1. Remove emojis
     text = emoji.replace_emoji(text, replace="")
     # 2. Remove hashtags (e.g. #viral #fyp)
@@ -175,6 +179,10 @@ def clean_text_for_display(text: str) -> str:
 
 
 def clean_text_for_tts(text: str) -> str:
+    if not text:
+        return ""
+    # 0. Remove BOM and other hidden characters
+    text = text.replace("\ufeff", "").replace("\u200b", "")
     # 1. Remove emojis
     text = emoji.replace_emoji(text, replace="")
     # 2. Remove hashtags (e.g. #viral #reels)
@@ -189,13 +197,13 @@ async def generate_tts_with_subs(
     audio_path: Path,
     ass_path: Path,
     display_text: Optional[str] = None,
+    delay: float = 0.0,
 ):
     """Generate TTS audio with word-level synchronized subtitles.
 
     Uses edge_tts.Communicate.stream() to capture WordBoundary events,
     providing millisecond-accurate subtitle timing instead of linear estimation.
     """
-    import asyncio
 
     # Determine gender of requested voice to choose appropriate fallbacks
     is_male = any(name in voice for name in ["Remi", "Henri", "Paul"])
@@ -284,11 +292,13 @@ async def generate_tts_with_subs(
 
                 if word_boundaries:
                     # Precise synchronization using real word timings
+                    # Add delay to TTS start
                     generate_ass_from_word_boundaries(
                         word_boundaries,
                         text_to_display,
                         ass_path,
                         total_duration=audio_duration,
+                        delay=delay,
                     )
                 else:
                     # Fallback to linear estimation if no boundaries captured
@@ -296,7 +306,7 @@ async def generate_tts_with_subs(
                         "⚠️ No word boundaries captured, falling back to linear timing"
                     )
                     generate_simple_ass(
-                        text_to_display, ass_path, total_duration=audio_duration
+                        text_to_display, ass_path, total_duration=audio_duration, delay=delay
                     )
 
                 print(f"✅ TTS success with voice: {attempt_voice}")
@@ -317,6 +327,7 @@ def generate_ass_from_word_boundaries(
     ass_path: Path,
     font_size: int = 65,
     total_duration: float = None,
+    delay: float = 0.0,
 ):
     """Generate ASS subtitles using precise word-level timing from TTS engine.
 
@@ -344,8 +355,8 @@ def generate_ass_from_word_boundaries(
             chunks.append(
                 {
                     "text": " ".join(current_words),
-                    "start": current_start,
-                    "end": chunk_end,
+                    "start": current_start + delay,
+                    "end": chunk_end + delay,
                 }
             )
             current_words = []
@@ -394,103 +405,11 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 
 
 def generate_simple_ass(
-    text: str, ass_path: Path, font_size: int = 65, total_duration: float = None
-):
-    """Generate a high-quality ASS subtitle file with embedded styling."""
-    # Split text into chunks
-    words = text.split()
-    chunks = []
-    current_chunk = []
-
-    for word in words:
-        current_chunk.append(word)
-        if len(current_chunk) >= 3 or word.endswith((".", "!", "?", ":")):
-            chunks.append(" ".join(current_chunk))
-            current_chunk = []
-
-    if current_chunk:
-        chunks.append(" ".join(current_chunk))
-
-    # ASS Header with explicit resolution and style
-    # Alignment 5 = Middle Center
-    # Font: Priority to Noto Color Emoji for emojis support
-    header = f"""[Script Info]
-ScriptType: v4.00+
-PlayResX: 1080
-PlayResY: 1920
-ScaledBorderAndShadow: yes
-
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Sans,{font_size},&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,5,50,50,0,1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
-    events = ""
-
-    # Group words into chunks (3-4 words max)
-    # But we must respect the Timeline.
-    chunks = []
-    current_chunk = []
-
-    for timing in word_timings:
-        current_chunk.append(timing)
-        # Break chunk on punctuation or length
-        is_end_sentence = timing["text"].endswith((".", "!", "?", ":", ";"))
-        if len(current_chunk) >= 3 or is_end_sentence:
-            chunks.append(current_chunk)
-            current_chunk = []
-
-    if current_chunk:
-        chunks.append(current_chunk)
-
-    for chunk in chunks:
-        if not chunk:
-            continue
-
-        # Chunk Start = Start of first word
-        # Chunk End = End of last word
-        start_time = chunk[0]["offset"]
-        end_time = chunk[-1]["offset"] + chunk[-1]["duration"]
-
-        # Add a tiny buffer to end time to prevent flickering between chunks
-        end_time += 0.1
-
-        s_time_str = format_ass_time(start_time)
-        e_time_str = format_ass_time(end_time)
-
-        # Build karaoke text
-        karaoke_parts = []
-
-        # We need to calculate relative duration for \kf in centiseconds
-        # \kf uses duration relative to the start of the line/event
-        # BUT standard \kf accumulates.
-        # Format: {\kf80}Word1 {\kf40}Word2
-
-        for timing in chunk:
-            duration_cs = int(timing["duration"] * 100)  # seconds to centiseconds
-            # Ensure at least 1cs
-            duration_cs = max(duration_cs, 1)
-
-            sanitized = timing["text"].replace("{", "(").replace("}", ")")
-            karaoke_parts.append(f"{{\\kf{duration_cs}}}{sanitized}")
-
-        karaoke_text = " ".join(karaoke_parts)
-        events += (
-            f"Dialogue: 0,{s_time_str},{e_time_str},Default,,0,0,0,,{karaoke_text}\n"
-        )
-
-    with open(ass_path, "w", encoding="utf-8") as f:
-        f.write(header + events)
-
-    print(
-        f"📄 Generated PRECISE ASS file: {len(chunks)} chunks from {len(word_timings)} words"
-    )
-
-
-def generate_simple_ass(
-    text: str, ass_path: Path, font_size: int = 65, total_duration: float = None
+    text: str,
+    ass_path: Path,
+    font_size: int = 65,
+    total_duration: float = None,
+    delay: float = 0.0,
 ):
     """Generate TikTok-style ASS subtitle file with karaoke highlight effect.
 
@@ -532,7 +451,7 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 """
 
     events = ""
-    current_time = 0.0
+    current_time = delay
 
     # Calculate total characters across all chunks for proportional timing
     total_chars = sum(len(w) for chunk in chunks for w in chunk)
@@ -576,6 +495,36 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     print(
         f"📄 Generated ASS file (karaoke): {ass_path.stat().st_size} bytes, {len(chunks)} chunks, {len(all_words)} words"
     )
+
+
+def generate_outro_ass(
+    text: str, ass_path: Path, start_time: float, end_time: float, font_size: int = 70
+):
+    """Generate a simple ASS subtitle for the store name outro, fading in at the end."""
+    header = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Sans,{font_size},&H00FFFFFF,&H00FFFFFF,&H00000000,&H00000000,-1,0,0,0,100,100,0,0,1,0,4,2,0,0,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    events = ""
+    start_str = format_ass_time(start_time)
+    end_str = format_ass_time(end_time)
+
+    # Alignment 2 is bottom center. MarginV = 700 pushes it up appropriately below the center logo.
+    # \fad(2000,0) fades in over 2000ms.
+    sanitized = text.replace("{", "(").replace("}", ")")
+    events += f"Dialogue: 0,{start_str},{end_str},Default,,0,0,700,,{{\\fad(2000,0)}}{sanitized}\n"
+
+    with open(ass_path, "w", encoding="utf-8") as f:
+        f.write(header + events)
 
 
 def format_ass_time(seconds: float) -> str:
@@ -661,6 +610,33 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         else:
             raise HTTPException(status_code=400, detail="No video source provided")
 
+        # --- Get Video Duration for Fade Out ---
+        try:
+            video_dur_cmd = [
+                "ffprobe",
+                "-v",
+                "error",
+                "-show_entries",
+                "format=duration",
+                "-of",
+                "default=noprint_wrappers=1:nokey=1",
+                str(input_video_path),
+            ]
+            dur_proc = subprocess.run(video_dur_cmd, stdout=subprocess.PIPE, text=True)
+            video_duration = float(dur_proc.stdout.strip() or 0)
+        except Exception as e:
+            print(f"⚠️ Could not measure original video duration: {e}")
+            video_duration = 30.0  # Fallback
+
+        fade_duration = 2.0
+        fade_start = max(0, video_duration - fade_duration)
+
+        # Le logo doit apparaitre à 5 secondes de la fin (3 secondes avant le fondu au noir)
+        logo_start_time = max(0, video_duration - 5.0)
+        print(
+            f"🎬 Video Duration: {video_duration:.2f}s | Logo Start: {logo_start_time:.2f}s | Fade Out Start: {fade_start:.2f}s"
+        )
+
         # 2. Download Music (if present)
         has_music = False
         if request.music_url:
@@ -675,6 +651,21 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             except Exception as e:
                 print(f"Failed to download music: {e}")
                 # We continue without music if it fails
+
+        has_watermark = False
+        if request.watermark_url:
+            try:
+                # Add User-Agent to avoid 403 on some CDNs
+                headers = {"User-Agent": "Mozilla/5.0"}
+                response = requests.get(
+                    request.watermark_url, headers=headers, stream=True
+                )
+                response.raise_for_status()
+                with open(job_dir / "watermark.png", "wb") as f:
+                    shutil.copyfileobj(response.raw, f)
+                has_watermark = True
+            except Exception as e:
+                print(f"Failed to download watermark: {e}")
 
         stats["download_duration"] = time.time() - start_step
         start_step = time.time()
@@ -711,6 +702,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                         tts_audio_path,
                         tts_ass_path,
                         display_text=clean_text_for_display(request.text),
+                        delay=2.0,
                     )
 
                     # Verify files were created
@@ -819,6 +811,12 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             tts_idx = input_count
             input_count += 1
 
+        watermark_idx = -1
+        if has_watermark:
+            cmd.extend(["-i", str(job_dir / "watermark.png")])
+            watermark_idx = input_count
+            input_count += 1
+
         # --- Filter Complex Construction ---
         fc_parts = []
 
@@ -854,13 +852,45 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 )
                 std_ass_path = job_dir / "std_text.ass"
                 # Use fontsize 40 by default for standard text
-                generate_simple_ass(request.text, std_ass_path, font_size=40)
+                generate_simple_ass(request.text, std_ass_path, font_size=40, delay=2.0)
 
                 ass_path_str = str(std_ass_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f",subtitles='{ass_path_str}'"
 
             # Combine formatting + text
             v_chain += text_filter
+
+        if has_watermark:
+            if request.store_name:
+                # Ouro Party Mode + Persistent bottom right
+                
+                # We need two scaled versions of the logo
+                # [wm_small]: Bottom right persistent logo
+                fc_parts.append(f"[{watermark_idx}:v]scale=200:-1,split=2[wm_small_base][wm_large_base]")
+                fc_parts.append(f"[wm_large_base]scale=-1:300[wm_large]")
+
+                # 1. Place small logo in bottom right until logo_start_time (5s before the end)
+                v_chain += f"[v_pre_small];[v_pre_small][wm_small_base]overlay=W-w-20:H-h-20:enable='between(t,0,{logo_start_time})'"
+                
+                # 2. Place large logo in the center, and fading it IN during the last 5 seconds
+                v_chain += f"[v_pre_large];[v_pre_large][wm_large]overlay=(W-w)/2:(H-h)/2-100:enable='between(t,{logo_start_time},{video_duration})'"
+                
+                # 3. Drawing the Store Name below the logo using ASS subtitles
+                outro_ass_path = job_dir / "outro.ass"
+                generate_outro_ass(
+                    request.store_name, outro_ass_path, logo_start_time, video_duration
+                )
+                ass_path_str_2 = (
+                    str(outro_ass_path).replace("\\", "/").replace(":", "\\:")
+                )
+                v_chain += f",subtitles='{ass_path_str_2}'"
+            else:
+                # Normal watermark (bottom right)
+                fc_parts.append(f"[{watermark_idx}:v]scale=200:-1[wm]")
+                v_chain += "[v_pre_wm];[v_pre_wm][wm]overlay=W-w-20:H-h-20"
+
+        # Add Video Fade Out
+        v_chain += f",fade=t=out:st={fade_start}:d={fade_duration}"
 
         # End of video chain
         v_chain += "[vout]"
@@ -891,23 +921,28 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 inputs_for_mix += 1
 
             if has_tts:
-                # TTS louder
-                fc_parts.append(f"[{tts_idx}:a]volume=1.5[a_tts]")
+                # TTS louder and delayed by 2 seconds (2s) on all channels
+                fc_parts.append(f"[{tts_idx}:a]adelay=2s:all=1,volume=1.5[a_tts]")
                 audio_mix_str += "[a_tts]"
                 inputs_for_mix += 1
 
             # Mix
             if inputs_for_mix > 0:
                 fc_parts.append(
-                    f"{audio_mix_str}amix=inputs={inputs_for_mix}:duration=first:dropout_transition=2:normalize=0[aout]"
+                    f"{audio_mix_str}amix=inputs={inputs_for_mix}:duration=first:dropout_transition=2:normalize=0[amixout]"
+                )
+                fc_parts.append(
+                    f"[amixout]afade=t=out:st={fade_start}:d={fade_duration}[aout]"
                 )
                 audio_mapped = True
         else:
             # No external audio added
             if has_original_audio:
-                # Just pass through original audio
-                # We can map 0:a directly, no filter needed for audio
-                audio_mapped = False
+                # Add audio fade out to original audio
+                fc_parts.append(
+                    f"[0:a]afade=t=out:st={fade_start}:d={fade_duration}[aout]"
+                )
+                audio_mapped = True
             else:
                 # No audio at all
                 audio_mapped = False
@@ -923,7 +958,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         elif has_original_audio:
             cmd.extend(["-map", "0:a"])  # Map original audio directly
 
-        cmd.extend(["-shortest"])
+        # Cut EXACTLY at video length (better than -shortest which can cause issues with amix)
+        cmd.extend(["-t", str(video_duration)])
 
         # Quality settings
         cmd.extend(
@@ -1042,6 +1078,8 @@ async def preview_tts(request: ReelRequest, x_api_key: str = Header(None)):
             voice = "fr-FR-VivienneMultilingualNeural"
 
         # Pass original text for subtitles (implied in SRT for preview too if needed, though mostly audio)
+        # Preview TTS generation doesn't technically need the full 2s video delay, but if the frontend plays it against standard timing it might.
+        # Adding delay=0.0 here explicitly since it's just audio preview, or delay=2.0 if previewing video directly.
         await generate_tts_with_subs(
             clean_text,
             voice,

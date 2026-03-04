@@ -1,5 +1,5 @@
 ---
-name: 'step-03-persona'
+name: 'step-04-persona'
 description: 'Shape the agent personality through four-field persona system'
 
 # File References
@@ -10,8 +10,8 @@ principlesCrafting: ../data/principles-crafting.md
 communicationPresets: ../data/communication-presets.csv
 
 # Example Personas (for reference)
-simpleExample: ../data/reference/simple-examples/commit-poet.agent.yaml
-expertExample: ../data/reference/expert-examples/journal-keeper/journal-keeper.agent.yaml
+simpleExample: ../data/reference/without-sidecar/commit-poet.agent.yaml
+expertExample: ../data/reference/with-sidecar/journal-keeper/journal-keeper.agent.yaml
 
 # Task References
 advancedElicitationTask: '{project-root}/_bmad/core/workflows/advanced-elicitation/workflow.xml'
@@ -156,7 +156,9 @@ principles:
 - Workflow steps (belongs in orchestration)
 - Data structures (belongs in implementation)
 
-# EXECUTION SEQUENCE
+## MANDATORY SEQUENCE
+
+**CRITICAL:** Follow this sequence exactly. Do not skip, reorder, or improvise unless user explicitly requests a change.
 
 1. **LOAD** personaProperties.md and principlesCrafting.md
 2. **EXPLAIN** four-field system with clear examples

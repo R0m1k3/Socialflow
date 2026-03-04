@@ -6,9 +6,16 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 ## Current Focus
 
-**Phase: EXECUTION** - Activation de l'agent BMad Master et interface de commande.
+**Phase: EXECUTION** - Conversation libre avec l'Agent BMad Master (Chat with the Agent).
 
 ## Master Plan
+
+### Party Mode & Outro (Nouvelle fonctionnalité)
+
+- [x] Créer l'Implementation Plan basé sur la réflexion du Party Mode
+- [/] `server/routes/reels.ts` : Passer `storeName` à FFmpeg (le nom de la page).
+- [/] `ffmpeg-service/main.py` : Ajouter le scale du logo et `drawtext` du `storeName` centrés.
+- [/] Appliquer ces filtres avec un fondu d'entrée correspondant à la durée du fondu de sortie global.
 
 ### Phase 0: Clarifications ✅
 
@@ -144,6 +151,55 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] Générer le fichier `.ass` avec des timestamps précis
 - [ ] Rebuild Docker et valider la synchronisation sur un Reel de test
 
+### Phase 15: Améliorations UX & Fixes (Mobile TTS, Clean Text, Delete Reel) 🚀
+
+- [x] **Mobile UX**: Activer TTS par défaut sur mobile (`new-reel.tsx`)
+- [x] **Fix Text Rendering**: Nettoyer le texte (BOM removal) dans `ffmpeg-service/main.py` pour éviter le carré blanc
+- [x] **Feature**: Suppression de Reels
+  - [x] Backend: Route `DELETE /api/reels/:id`
+  - [x] Storage: Méthode `deleteReel`
+  - [x] Frontend: Bouton suppression avec confirmation sur les cartes de Reels
+
+### Phase 16: Queue Management & Dashboard ⏳
+
+- [x] **Backend**: Implement Queue Logic (Single Worker Pattern)
+  - [x] Helper `processNextJob()`
+  - [x] Modify `POST /api/reels` to queue if busy
+  - [x] Trigger next job on completion/failure
+- [x] **Frontend**: Queue Visualization
+  - [x] Create `QueueStatus` widget
+  - [x] Display "En attente (Position X)" in progress component
+
+### Phase 17: Mobile Dashboard Simplification 📱
+
+- [x] **Mobile Dashboard**: Redesign `pages/mobile/dashboard.tsx`
+  - [x] Keep `OngoingReels` widget
+  - [x] Create Main Action Grid (New Post, Reel, Calendar, Analytics)
+  - [x] Create Secondary Menu List
+  - [x] Remove `StatsCards` and `RecentPublications` from main view
+
+### Phase 18: Mobile Hub Polish ✨
+
+- [x] **Entry Point**: Verify no forced redirects to `/new`.
+- [x] **Hub Design**: Refactor `DashboardMobile` with `Card` components and consistent styling.
+
+### Phase 19: Internal MP3 Management & Logo Overlay 🎵🖼️
+
+- [x] **Database & Routing**
+  - [x] Add `AudioTrack` table to schema (`id`, `title`, `url`, `createdAt`)
+  - [x] Create API routes for managing audio tracks (Upload, List, Delete)
+- [x] **Admin UI**
+  - [x] Create an "Assets" or "Resources" admin page
+  - [x] Implement MP3 upload functionality
+  - [x] Display list of uploaded audio tracks with delete option
+- [x] **Reel Creation UI**
+  - [x] Replace FreeSound search with a selector/list of internal MP3s
+  - [x] Maintain audio preview functionality
+- [ ] **FFmpeg Integration**
+  - [ ] Pass the appropriate `audio_url` (local/hosted MP3) and `logo_url` (from existing settings/image editor) to the FFmpeg service
+  - [ ] Update `ffmpeg-service/main.py` to download/read the logo image
+  - [ ] Implement `overlay` filter in the video processing pipeline to scale (max width 150px) and position the logo in the bottom right corner (e.g., `W-w-20:H-h-20`)
+
 ### Phase 13: Activation Agent BMad ✅
 
 - [x] Activer l'agent `bmad-master.md`
@@ -151,9 +207,33 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] Afficher le menu de l'agent en français
 - [x] Ré-activation de l'agent bmad-master.md (11 Fev 2026)
 
+### Phase 20: Activation BMad Master Agent (Mars 2026) ⏳
+
+- [x] Charger la configuration et le persona
+- [x] Saluer l'utilisateur en français et afficher le menu
+- [x] Attendre la sélection de l'utilisateur
+- [x] Utilisateur a choisi `[CH]` : Discuter avec l'agent de n'importe quel sujet.
+
+### Phase 21: Correction Synchronisation Texte/Audio Reel ⏳
+
+- [x] Diagnostiquer : L'audio TTS a été décalé de 2s (`adelay=2s:all=1` dans FFmpeg), mais le timing des mots dans `.ass` n'a pas été ajusté proportionnellement.
+- [x] Modifier `ffmpeg-service/main.py` pour passer le délai au générateur ASS.
+- [x] Mettre à jour `generate_ass_from_word_boundaries` pour inclure le délai de 2s dans `start` et `end`.
+- [x] Valider que les tags `Dialogue` dans le `.ass` commencent à `T+2.0s`.
+
 ## Progress Log
 
-- **11 Fev 2026** - Ré-activation de l'agent BMad Master, chargement de la configuration et affichage du menu.
+- [x] Activation du mode Party et salutation de l'utilisateur. En attente du sujet de discussion.
+- [x] Définition des spécifications pour la gestion interne des MP3 et l'incrustation du logo de l'Éditeur d'image. Fin du Mode Party.
+
+- [x] Analyze `ffmpeg-service/main.py` for text encoding issues <!-- id: 5 -->
+- [x] Analyze `server/routes.ts` and `server/storage.ts` for deletion logic <!-- id: 6 -->
+- [x] Create `implementation_plan.md` <!-- id: 7 -->
+- [x] Implement text cleaning in `ffmpeg-service/main.py` <!-- id: 8 -->
+- [x] Add `DELETE /api/reels/:id` route in `server/routes/reels.ts` <!-- id: 9 -->
+- [x] Add delete button to `RecentPublications` component <!-- id: 10 -->
+- [x] Enable TTS by default on mobile in `new-reel.tsx` <!-- id: 11 -->
+- [x] Verify changes <!-- id: 12 -->
 - **22 Jan 2026** - Analyse complète et PRD créé
 - **22 Jan 2026** - Spécifications confirmées
 - **22 Jan 2026** - Backend complet : ffmpeg.ts, freesound.ts, facebook.ts

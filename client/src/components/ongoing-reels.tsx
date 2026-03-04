@@ -5,7 +5,8 @@ import { Clapperboard, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import type { Post } from "@shared/schema";
 
 /** Labels for each progress stage */
-function getStageLabel(progress: number): string {
+function getStageLabel(progress: number, status?: string): string {
+    if (status === 'pending') return "En attente de traitement...";
     if (progress <= 5) return "Démarrage du traitement…";
     if (progress <= 15) return "Traitement vidéo (FFmpeg)…";
     if (progress <= 65) return "Encodage en cours…";

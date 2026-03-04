@@ -34,6 +34,9 @@ import {
   freesoundConfig,
   type FreesoundConfig,
   type InsertFreesoundConfig,
+  audioTracks,
+  type AudioTrack,
+  type InsertAudioTrack,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, asc, isNull, inArray } from "drizzle-orm";
@@ -52,7 +55,7 @@ export interface IStorage {
   getSocialPages(userId: string): Promise<SocialPage[]>;
   getSocialPage(id: string): Promise<SocialPage | undefined>;
   createSocialPage(page: InsertSocialPage): Promise<SocialPage>;
-  updateSocialPage(id: string, page: Partial<InsertSocialPage>): Promise<SocialPage>;
+  updateSocialPage(id: string, page: Partial<SocialPage>): Promise<SocialPage>;
   deleteSocialPage(id: string): Promise<void>;
 
   // Media
@@ -71,6 +74,8 @@ export interface IStorage {
   updatePostGenerationStatus(id: string, status: string, progress: number, error?: string): Promise<Post>;
   deletePost(id: string): Promise<void>;
   updatePostMedia(postId: string, mediaIds: string[]): Promise<void>;
+  countProcessingReels(): Promise<number>;
+  getNextPendingReel(): Promise<Post | undefined>;
 
   // Scheduled Posts
   getScheduledPosts(userId: string, startDate?: Date, endDate?: Date): Promise<ScheduledPost[]>;
@@ -110,6 +115,12 @@ export interface IStorage {
   addMusicFavorite(favorite: InsertMusicFavorite): Promise<MusicFavorite>;
   removeMusicFavorite(userId: string, trackId: string): Promise<void>;
   isMusicFavorite(userId: string, trackId: string): Promise<boolean>;
+
+  // Audio Tracks
+  getAudioTracks(): Promise<AudioTrack[]>;
+  getAudioTrack(id: string): Promise<AudioTrack | undefined>;
+  createAudioTrack(track: InsertAudioTrack): Promise<AudioTrack>;
+  deleteAudioTrack(id: string): Promise<void>;
 
   // Freesound Config
   getFreesoundConfig(userId: string): Promise<FreesoundConfig | undefined>;
@@ -178,7 +189,7 @@ export class DatabaseStorage implements IStorage {
     return newPage;
   }
 
-  async updateSocialPage(id: string, page: Partial<InsertSocialPage>): Promise<SocialPage> {
+  async updateSocialPage(id: string, page: Partial<SocialPage>): Promise<SocialPage> {
     // Chiffrer le token si présent dans la mise à jour
     const updateData = page.accessToken
       ? { ...page, accessToken: encrypt(page.accessToken) }
@@ -290,6 +301,24 @@ export class DatabaseStorage implements IStorage {
       }));
       await db.insert(postMedia).values(postMediaEntries);
     }
+  }
+
+  async countProcessingReels(): Promise<number> {
+    const processing = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.generationStatus, "processing"));
+    return processing.length;
+  }
+
+  async getNextPendingReel(): Promise<Post | undefined> {
+    const [post] = await db
+      .select()
+      .from(posts)
+      .where(eq(posts.generationStatus, "pending"))
+      .orderBy(asc(posts.createdAt))
+      .limit(1);
+    return post || undefined;
   }
 
   // Scheduled Posts
@@ -516,6 +545,25 @@ export class DatabaseStorage implements IStorage {
       )
     );
     return !!fav;
+  }
+
+  // Audio Tracks
+  async getAudioTracks(): Promise<AudioTrack[]> {
+    return db.select().from(audioTracks).orderBy(desc(audioTracks.createdAt));
+  }
+
+  async getAudioTrack(id: string): Promise<AudioTrack | undefined> {
+    const [track] = await db.select().from(audioTracks).where(eq(audioTracks.id, id));
+    return track || undefined;
+  }
+
+  async createAudioTrack(track: InsertAudioTrack): Promise<AudioTrack> {
+    const [newTrack] = await db.insert(audioTracks).values(track).returning();
+    return newTrack;
+  }
+
+  async deleteAudioTrack(id: string): Promise<void> {
+    await db.delete(audioTracks).where(eq(audioTracks.id, id));
   }
 
   // Freesound Config

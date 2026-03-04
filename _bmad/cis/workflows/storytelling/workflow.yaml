@@ -25,3 +25,4 @@ story_frameworks: "{installed_path}/story-types.csv"
 default_output_file: "{output_folder}/story-{{date}}.md"
 
 standalone: true
+
