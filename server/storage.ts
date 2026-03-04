@@ -87,10 +87,9 @@ export interface IStorage {
   createAiGeneration(generation: InsertAiGeneration): Promise<AiGeneration>;
 
   // Cloudinary Config
-  getCloudinaryConfig(userId: string): Promise<CloudinaryConfig | undefined>;
-  getAnyCloudinaryConfig(): Promise<CloudinaryConfig | undefined>;
+  getCloudinaryConfig(): Promise<CloudinaryConfig | undefined>;
   createCloudinaryConfig(config: InsertCloudinaryConfig): Promise<CloudinaryConfig>;
-  updateCloudinaryConfig(userId: string, config: Partial<InsertCloudinaryConfig>): Promise<CloudinaryConfig>;
+  updateCloudinaryConfig(config: Partial<InsertCloudinaryConfig>): Promise<CloudinaryConfig>;
 
   // OpenRouter Config
   getOpenrouterConfig(userId: string): Promise<OpenrouterConfig | undefined>;
@@ -406,12 +405,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Cloudinary Config
-  async getCloudinaryConfig(userId: string): Promise<CloudinaryConfig | undefined> {
-    const [config] = await db.select().from(cloudinaryConfig).where(eq(cloudinaryConfig.userId, userId));
-    return config || undefined;
-  }
-
-  async getAnyCloudinaryConfig(): Promise<CloudinaryConfig | undefined> {
+  async getCloudinaryConfig(): Promise<CloudinaryConfig | undefined> {
     const [config] = await db.select().from(cloudinaryConfig).limit(1);
     return config || undefined;
   }
@@ -421,10 +415,13 @@ export class DatabaseStorage implements IStorage {
     return newConfig;
   }
 
-  async updateCloudinaryConfig(userId: string, config: Partial<InsertCloudinaryConfig>): Promise<CloudinaryConfig> {
+  async updateCloudinaryConfig(config: Partial<InsertCloudinaryConfig>): Promise<CloudinaryConfig> {
+    const existingConfig = await this.getCloudinaryConfig();
+    if (!existingConfig) throw new Error("Cloudinary config not initialized");
+
     const [updated] = await db.update(cloudinaryConfig)
       .set({ ...config, updatedAt: new Date() })
-      .where(eq(cloudinaryConfig.userId, userId))
+      .where(eq(cloudinaryConfig.id, existingConfig.id))
       .returning();
     return updated;
   }

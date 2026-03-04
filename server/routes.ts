@@ -1447,11 +1447,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Cloudinary Config
-  app.get("/api/cloudinary/config", requireAdmin, async (req, res) => {
+  app.get("/api/cloudinary/config", requireAuth, async (req, res) => {
     try {
-      const user = req.user as User;
-      const userId = user.id;
-      const config = await storage.getCloudinaryConfig(userId);
+      // Configuration est maintenant globale, plus de "userId"
+      const config = await storage.getCloudinaryConfig();
 
       if (!config) {
         return res.json(null);
@@ -1468,19 +1467,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/cloudinary/config", requireAdmin, async (req, res) => {
     try {
-      const user = req.user as User;
-      const userId = user.id;
-
-      // Check if config already exists
-      const existingConfig = await storage.getCloudinaryConfig(userId);
+      // Check if config already exists globally
+      const existingConfig = await storage.getCloudinaryConfig();
 
       let config;
       if (existingConfig) {
         // Pour les mises à jour, utiliser le schéma qui rend les secrets optionnels
-        const updateData = updateCloudinaryConfigSchema.parse({
-          ...req.body,
-          userId,
-        });
+        const updateData = updateCloudinaryConfigSchema.parse(req.body);
 
         // Si apiKey/apiSecret ne sont pas fournis, garder les anciens
         const finalData = {
@@ -1489,13 +1482,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           apiSecret: updateData.apiSecret || existingConfig.apiSecret,
         };
 
-        config = await storage.updateCloudinaryConfig(userId, finalData);
+        config = await storage.updateCloudinaryConfig(finalData);
       } else {
         // Pour les créations, exiger tous les champs
-        const configData = insertCloudinaryConfigSchema.parse({
-          ...req.body,
-          userId,
-        });
+        const configData = insertCloudinaryConfigSchema.parse(req.body);
         config = await storage.createCloudinaryConfig(configData);
       }
 
@@ -1515,11 +1505,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No logo file uploaded" });
       }
 
-      const user = req.user as User;
-      const userId = user.id;
-
-      // Check if Cloudinary is configured
-      const cloudinaryConfig = await storage.getCloudinaryConfig(userId);
+      // Check if Cloudinary is configured globally
+      const cloudinaryConfig = await storage.getCloudinaryConfig();
       if (!cloudinaryConfig) {
         return res.status(400).json({
           error: "Cloudinary not configured. Please configure Cloudinary first."
@@ -1542,8 +1529,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.file.originalname
       );
 
-      // Update config with new logo public ID
-      const updatedConfig = await storage.updateCloudinaryConfig(userId, {
+      // Update global config with new logo public ID
+      const updatedConfig = await storage.updateCloudinaryConfig({
         logoPublicId: uploadResult.publicId,
       });
 
@@ -1561,10 +1548,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Delete company logo
   app.delete("/api/cloudinary/logo", requireAdmin, async (req, res) => {
     try {
-      const user = req.user as User;
-      const userId = user.id;
-
-      const cloudinaryConfig = await storage.getCloudinaryConfig(userId);
+      const cloudinaryConfig = await storage.getCloudinaryConfig();
       if (!cloudinaryConfig || !cloudinaryConfig.logoPublicId) {
         return res.status(404).json({ error: "No logo found" });
       }
@@ -1572,8 +1556,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Delete from Cloudinary
       await cloudinaryService.deleteLogo(cloudinaryConfig.logoPublicId);
 
-      // Remove from config
-      await storage.updateCloudinaryConfig(userId, {
+      // Remove from global config
+      await storage.updateCloudinaryConfig({
         logoPublicId: null,
       });
 

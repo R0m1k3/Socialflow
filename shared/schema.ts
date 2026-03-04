@@ -113,7 +113,6 @@ export type InsertUserPagePermission = z.infer<typeof insertUserPagePermissionSc
 
 export const cloudinaryConfig = pgTable("cloudinary_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
   cloudName: text("cloud_name").notNull(),
   apiKey: text("api_key").notNull(),
   apiSecret: text("api_secret").notNull(),
@@ -267,12 +266,7 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   freesoundConfig: one(freesoundConfig),
 }));
 
-export const cloudinaryConfigRelations = relations(cloudinaryConfig, ({ one }) => ({
-  user: one(users, {
-    fields: [cloudinaryConfig.userId],
-    references: [users.id],
-  }),
-}));
+// Pas de relation User pour CloudinaryConfig (maintenant global)
 
 export const openrouterConfigRelations = relations(openrouterConfig, ({ one }) => ({
   user: one(users, {

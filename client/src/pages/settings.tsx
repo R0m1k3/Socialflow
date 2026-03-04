@@ -29,6 +29,13 @@ export default function Settings() {
   const [ffmpegApiKey, setFfmpegApiKey] = useState("");
   const { toast } = useToast();
 
+  const { data: session } = useQuery<{ id: string; username: string; role: string }>({
+    queryKey: ["/api/auth/session"],
+    retry: false,
+  });
+
+  const isAdmin = session?.role === "admin";
+
   const { data: cloudinaryConfig } = useQuery({
     queryKey: ['/api/cloudinary/config'],
   });
@@ -448,66 +455,68 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-2xl border-border/50 shadow-lg">
-              <CardHeader className="p-6">
-                <CardTitle className="flex items-center gap-2">
-                  <Cloud className="w-5 h-5" />
-                  Configuration Cloudinary
-                </CardTitle>
-                <CardDescription>
-                  Configurez Cloudinary pour le stockage d'images dans le cloud
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="cloudName">Cloud Name</Label>
-                  <Input
-                    id="cloudName"
-                    type="text"
-                    value={cloudName}
-                    onChange={(e) => setCloudName(e.target.value)}
-                    placeholder="mon-cloud-name"
-                    data-testid="input-cloud-name"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Trouvez-le dans votre tableau de bord Cloudinary
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="apiKey">API Key</Label>
-                  <Input
-                    id="apiKey"
-                    type="text"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="123456789012345"
-                    data-testid="input-api-key"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="apiSecret">API Secret</Label>
-                  <Input
-                    id="apiSecret"
-                    type="password"
-                    value={apiSecret}
-                    onChange={(e) => setApiSecret(e.target.value)}
-                    placeholder="••••••••••••••••"
-                    data-testid="input-api-secret"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Votre API Secret restera sécurisé et ne sera jamais exposé
-                  </p>
-                </div>
-                <Button
-                  onClick={() => saveCloudinaryMutation.mutate()}
-                  disabled={saveCloudinaryMutation.isPending || !cloudName || !apiKey || !apiSecret}
-                  data-testid="button-save-cloudinary"
-                  className="w-full"
-                >
-                  {saveCloudinaryMutation.isPending ? "Enregistrement..." : "Enregistrer Cloudinary"}
-                </Button>
-              </CardContent>
-            </Card>
+            {isAdmin && (
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
+                  <CardTitle className="flex items-center gap-2">
+                    <Cloud className="w-5 h-5" />
+                    Configuration Cloudinary
+                  </CardTitle>
+                  <CardDescription>
+                    Configurez Cloudinary pour le stockage d'images dans le cloud
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="cloudName">Cloud Name</Label>
+                    <Input
+                      id="cloudName"
+                      type="text"
+                      value={cloudName}
+                      onChange={(e) => setCloudName(e.target.value)}
+                      placeholder="mon-cloud-name"
+                      data-testid="input-cloud-name"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Trouvez-le dans votre tableau de bord Cloudinary
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="apiKey">API Key</Label>
+                    <Input
+                      id="apiKey"
+                      type="text"
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="123456789012345"
+                      data-testid="input-api-key"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="apiSecret">API Secret</Label>
+                    <Input
+                      id="apiSecret"
+                      type="password"
+                      value={apiSecret}
+                      onChange={(e) => setApiSecret(e.target.value)}
+                      placeholder="••••••••••••••••"
+                      data-testid="input-api-secret"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Votre API Secret restera sécurisé et ne sera jamais exposé
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => saveCloudinaryMutation.mutate()}
+                    disabled={saveCloudinaryMutation.isPending || !cloudName || !apiKey || !apiSecret}
+                    data-testid="button-save-cloudinary"
+                    className="w-full"
+                  >
+                    {saveCloudinaryMutation.isPending ? "Enregistrement..." : "Enregistrer Cloudinary"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="rounded-2xl border-border/50 shadow-lg">
               <CardHeader className="p-6">
@@ -623,103 +632,105 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-2xl border-border/50 shadow-lg">
-              <CardHeader className="p-6">
-                <CardTitle className="flex items-center gap-2">
-                  <Image className="w-5 h-5" />
-                  Logo de l'entreprise
-                </CardTitle>
-                <CardDescription>
-                  Uploadez votre logo pour l'ajouter aux images éditées
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {logoPreview ? (
-                  <div className="space-y-4">
-                    <div className="relative w-full max-w-xs mx-auto">
-                      <img
-                        src={logoPreview}
-                        alt="Logo"
-                        className="w-full h-auto max-h-48 object-contain rounded-lg border-2 border-border"
-                      />
-                      <Button
-                        size="icon"
-                        variant="destructive"
-                        className="absolute top-2 right-2 h-8 w-8"
-                        onClick={() => deleteLogoMutation.mutate()}
-                        disabled={deleteLogoMutation.isPending}
-                        data-testid="button-delete-logo"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                    <div className="text-center">
-                      <Label htmlFor="logo-upload-replace" className="cursor-pointer">
+            {isAdmin && (
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
+                  <CardTitle className="flex items-center gap-2">
+                    <Image className="w-5 h-5" />
+                    Logo de l'entreprise
+                  </CardTitle>
+                  <CardDescription>
+                    Uploadez votre logo pour l'ajouter aux images éditées
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {logoPreview ? (
+                    <div className="space-y-4">
+                      <div className="relative w-full max-w-xs mx-auto">
+                        <img
+                          src={logoPreview}
+                          alt="Logo"
+                          className="w-full h-auto max-h-48 object-contain rounded-lg border-2 border-border"
+                        />
                         <Button
-                          variant="outline"
-                          className="w-full"
-                          disabled={uploadLogoMutation.isPending}
-                          data-testid="button-replace-logo"
-                          onClick={() => document.getElementById('logo-upload-replace')?.click()}
+                          size="icon"
+                          variant="destructive"
+                          className="absolute top-2 right-2 h-8 w-8"
+                          onClick={() => deleteLogoMutation.mutate()}
+                          disabled={deleteLogoMutation.isPending}
+                          data-testid="button-delete-logo"
                         >
-                          <Upload className="w-4 h-4 mr-2" />
-                          {uploadLogoMutation.isPending ? "Upload en cours..." : "Remplacer le logo"}
+                          <X className="h-4 w-4" />
                         </Button>
-                      </Label>
-                      <input
-                        id="logo-upload-replace"
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          handleLogoChange(e);
-                          if (e.target.files?.[0]) {
-                            uploadLogoMutation.mutate(e.target.files[0]);
-                          }
-                        }}
-                      />
+                      </div>
+                      <div className="text-center">
+                        <Label htmlFor="logo-upload-replace" className="cursor-pointer">
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            disabled={uploadLogoMutation.isPending}
+                            data-testid="button-replace-logo"
+                            onClick={() => document.getElementById('logo-upload-replace')?.click()}
+                          >
+                            <Upload className="w-4 h-4 mr-2" />
+                            {uploadLogoMutation.isPending ? "Upload en cours..." : "Remplacer le logo"}
+                          </Button>
+                        </Label>
+                        <input
+                          id="logo-upload-replace"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            handleLogoChange(e);
+                            if (e.target.files?.[0]) {
+                              uploadLogoMutation.mutate(e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
-                      <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                      <p className="text-sm text-muted-foreground mb-4">
-                        Aucun logo uploadé. Choisissez une image PNG ou JPG.
-                      </p>
-                      <Label htmlFor="logo-upload" className="cursor-pointer">
-                        <Button
-                          variant="outline"
-                          disabled={uploadLogoMutation.isPending || !cloudinaryConfig}
-                          data-testid="button-upload-logo"
-                          onClick={() => document.getElementById('logo-upload')?.click()}
-                        >
-                          <Upload className="w-4 h-4 mr-2" />
-                          {uploadLogoMutation.isPending ? "Upload en cours..." : "Uploader un logo"}
-                        </Button>
-                      </Label>
-                      <input
-                        id="logo-upload"
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          handleLogoChange(e);
-                          if (e.target.files?.[0]) {
-                            uploadLogoMutation.mutate(e.target.files[0]);
-                          }
-                        }}
-                      />
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                        <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Aucun logo uploadé. Choisissez une image PNG ou JPG.
+                        </p>
+                        <Label htmlFor="logo-upload" className="cursor-pointer">
+                          <Button
+                            variant="outline"
+                            disabled={uploadLogoMutation.isPending || !cloudinaryConfig}
+                            data-testid="button-upload-logo"
+                            onClick={() => document.getElementById('logo-upload')?.click()}
+                          >
+                            <Upload className="w-4 h-4 mr-2" />
+                            {uploadLogoMutation.isPending ? "Upload en cours..." : "Uploader un logo"}
+                          </Button>
+                        </Label>
+                        <input
+                          id="logo-upload"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            handleLogoChange(e);
+                            if (e.target.files?.[0]) {
+                              uploadLogoMutation.mutate(e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </div>
+                      {!cloudinaryConfig && (
+                        <p className="text-xs text-orange-600 dark:text-orange-400 text-center">
+                          Veuillez d'abord configurer Cloudinary ci-dessus
+                        </p>
+                      )}
                     </div>
-                    {!cloudinaryConfig && (
-                      <p className="text-xs text-orange-600 dark:text-orange-400 text-center">
-                        Veuillez d'abord configurer Cloudinary ci-dessus
-                      </p>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             <Card className="rounded-2xl border-border/50 shadow-lg">
               <CardHeader className="p-6">
