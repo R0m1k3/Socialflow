@@ -339,12 +339,13 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
         }
 
         let watermarkUrl: string | undefined = undefined;
-        if (req.user) {
-            const user = req.user as User;
-            const [userCloudinary] = await db.select().from(cloudinaryConfig).where(eq(cloudinaryConfig.userId, user.id));
-            if (userCloudinary && userCloudinary.logoPublicId) {
-                watermarkUrl = `https://res.cloudinary.com/${userCloudinary.cloudName}/image/upload/${userCloudinary.logoPublicId}`;
+        try {
+            const config = await storage.getCloudinaryConfig();
+            if (config && config.logoPublicId) {
+                watermarkUrl = `https://res.cloudinary.com/${config.cloudName}/image/upload/${config.logoPublicId}`;
             }
+        } catch (e) {
+            console.error('Error fetching watermark configuration', e);
         }
 
         // Traiter la vidéo via FFmpeg
@@ -549,9 +550,9 @@ async function processReelBackground(
 
         let watermarkUrl: string | undefined = undefined;
         try {
-            const [userCloudinary] = await db.select().from(cloudinaryConfig).where(eq(cloudinaryConfig.userId, media.userId));
-            if (userCloudinary && userCloudinary.logoPublicId) {
-                watermarkUrl = `https://res.cloudinary.com/${userCloudinary.cloudName}/image/upload/${userCloudinary.logoPublicId}`;
+            const config = await storage.getCloudinaryConfig();
+            if (config && config.logoPublicId) {
+                watermarkUrl = `https://res.cloudinary.com/${config.cloudName}/image/upload/${config.logoPublicId}`;
             }
         } catch (e) {
             console.error('Error fetching watermark configuration', e);
