@@ -15,7 +15,7 @@ class CloudinaryService {
     instagramStoryUrl: string | null;
   }> {
     // Get any available Cloudinary config (shared across all users)
-    const config = await storage.getAnyCloudinaryConfig();
+    const config = await storage.getCloudinaryConfig();
 
     if (!config) {
       throw new Error('Cloudinary configuration not found. Please ask an administrator to configure Cloudinary in Settings first.');
@@ -94,7 +94,7 @@ class CloudinaryService {
 
   async deleteMedia(publicId: string, userId: string, mediaType: 'image' | 'video'): Promise<void> {
     // Get any available Cloudinary config (shared across all users)
-    const config = await storage.getAnyCloudinaryConfig();
+    const config = await storage.getCloudinaryConfig();
 
     if (!config) {
       throw new Error('Cloudinary configuration not found. Please ask an administrator to configure Cloudinary in Settings first.');
@@ -113,7 +113,7 @@ class CloudinaryService {
   }
 
   async uploadStoryImageWithText(buffer: Buffer, originalFileName: string): Promise<string> {
-    const config = await storage.getAnyCloudinaryConfig();
+    const config = await storage.getCloudinaryConfig();
 
     if (!config) {
       throw new Error('Cloudinary configuration not found. Please ask an administrator to configure Cloudinary in Settings first.');
@@ -146,7 +146,7 @@ class CloudinaryService {
   }
 
   async uploadLogo(buffer: Buffer, fileName: string): Promise<{ publicId: string; url: string }> {
-    const config = await storage.getAnyCloudinaryConfig();
+    const config = await storage.getCloudinaryConfig();
 
     if (!config) {
       throw new Error('Cloudinary configuration not found. Please ask an administrator to configure Cloudinary in Settings first.');
@@ -182,7 +182,7 @@ class CloudinaryService {
   }
 
   async deleteLogo(publicId: string): Promise<void> {
-    const config = await storage.getAnyCloudinaryConfig();
+    const config = await storage.getCloudinaryConfig();
 
     if (!config) {
       throw new Error('Cloudinary configuration not found. Please ask an administrator to configure Cloudinary in Settings first.');

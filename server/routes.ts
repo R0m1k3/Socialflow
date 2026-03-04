@@ -607,7 +607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = user.id;
 
       // Check if Cloudinary is configured (shared config used for all users)
-      const cloudinaryConfig = await storage.getAnyCloudinaryConfig();
+      const cloudinaryConfig = await storage.getCloudinaryConfig();
 
       if (!cloudinaryConfig) {
         // Nettoyer le fichier temporaire
@@ -815,7 +815,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("🏢 Adding logo overlay...");
 
         // Get Cloudinary config to get logo public ID
-        const cloudinaryConfig = await storage.getAnyCloudinaryConfig();
+        const cloudinaryConfig = await storage.getCloudinaryConfig();
         if (cloudinaryConfig && cloudinaryConfig.logoPublicId) {
           try {
             // Build logo URL from Cloudinary
@@ -911,7 +911,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("✅ Overlays applied, uploading to Cloudinary...");
 
       // Check if Cloudinary is configured (shared config used for all users)
-      const cloudinaryConfig = await storage.getAnyCloudinaryConfig();
+      const cloudinaryConfig = await storage.getCloudinaryConfig();
       if (!cloudinaryConfig) {
         return res.status(400).json({
           error: "Cloudinary not configured. Please ask an administrator to configure Cloudinary in Settings first."
