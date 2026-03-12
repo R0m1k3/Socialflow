@@ -907,10 +907,9 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         # If music or TTS -> Mix everything
 
         if has_music or has_tts:
-            # Prepare inputs
-            if has_original_audio:
-                audio_mix_str += "[0:a]"
-                inputs_for_mix += 1
+            # When music or TTS is used, we REMOVE the original video audio
+            # and only mix the new audio sources (music + TTS)
+            # Original audio is intentionally excluded to avoid background noise/voices
 
             if has_music:
                 # Adjust volume
