@@ -207,12 +207,13 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] Afficher le menu de l'agent en français
 - [x] Ré-activation de l'agent bmad-master.md (11 Fev 2026)
 
-### Phase 20: Activation BMad Master Agent (Mars 2026) ⏳
+### Phase 20: Activation BMad Master Agent (Mars 2026) ✅
 
 - [x] Charger la configuration et le persona
 - [x] Saluer l'utilisateur en français et afficher le menu
 - [x] Attendre la sélection de l'utilisateur
-- [x] Utilisateur a choisi `[CH]` : Discuter avec l'agent de n'importe quel sujet.
+- [x] Utilisateur a choisi `[PM]` : Lancer le mode Party.
+- [/] Discussion en cours...
 
 ### Phase 21: Correction Synchronisation Texte/Audio Reel ⏳
 
@@ -221,7 +222,18 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] Mettre à jour `generate_ass_from_word_boundaries` pour inclure le délai de 2s dans `start` et `end`.
 - [x] Valider que les tags `Dialogue` dans le `.ass` commencent à `T+2.0s`.
 
-## Progress Log
+### Phase 22: Dépannage Error 401 à l'Upload (ANNULÉ) ❌
+
+- [x] Analyser les logs (401 Unauthorized sur /api/media/upload)
+- [x] Annuler `new-post.tsx`
+- [x] Annuler `new-reel.tsx`
+- [ ] Vérifier la stabilité du sessionStore
+
+### Phase 23: Flexibilité des Publications (Stories sans texte) ✅
+
+- [x] Analyser la validation dans `new-post.tsx`
+- [x] Permettre la publication sans texte si un média est présent
+- [x] Vérifier l'impact sur le backend (Schéma DB OK pour chaîne vide)
 
 - [x] Activation du mode Party et salutation de l'utilisateur. En attente du sujet de discussion.
 - [x] Définition des spécifications pour la gestion interne des MP3 et l'incrustation du logo de l'Éditeur d'image. Fin du Mode Party.

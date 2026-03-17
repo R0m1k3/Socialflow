@@ -271,10 +271,11 @@ export default function NewPost() {
   };
 
   const handleCreatePost = () => {
-    if (!postText.trim()) {
+    // Le texte est facultatif si au moins un média est présent
+    if (!postText.trim() && selectedMedia.length === 0) {
       toast({
         title: "Contenu requis",
-        description: "Veuillez saisir le contenu de la publication",
+        description: "Veuillez saisir du texte ou sélectionner un média",
         variant: "destructive",
       });
       return;
