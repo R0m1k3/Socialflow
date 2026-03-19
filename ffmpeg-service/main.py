@@ -939,15 +939,10 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 audio_mapped = True
         else:
             # No external audio added
-            if has_original_audio:
-                # Add audio fade out to original audio
-                fc_parts.append(
-                    f"[0:a]afade=t=out:st={fade_start}:d={fade_duration}[aout]"
-                )
-                audio_mapped = True
-            else:
-                # No audio at all
-                audio_mapped = False
+            # To prevent FFmpeg crashes with certain MP4 original audio codecs, 
+            # we bypass the afade filter entirely and just map 0:a directly.
+            audio_mapped = False
+
 
         # Apply Filter Complex
         cmd.extend(["-filter_complex", ";".join(fc_parts)])
