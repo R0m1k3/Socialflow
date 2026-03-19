@@ -20,6 +20,7 @@ interface FFmpegReelRequest {
     stabilize?: boolean;        // Stabilisation vidéo via vidstab (default: false)
     watermark_url?: string;     // URL du logo
     store_name?: string;        // Nom du magasin pour l'outro
+    enable_ending_effect?: boolean; // Activer l'effet de fin (logo+fondu)
 }
 
 interface FFmpegReelResponse {
@@ -77,6 +78,7 @@ export class FFmpegService {
             stabilize?: boolean;
             watermarkUrl?: string;
             storeName?: string;
+            enableEndingEffect?: boolean;
         } = {}
     ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string }> {
         const config = this.ensureConfigured();
@@ -95,6 +97,7 @@ export class FFmpegService {
             stabilize: options.stabilize ?? false,
             watermark_url: options.watermarkUrl,
             store_name: options.storeName,
+            enable_ending_effect: options.enableEndingEffect ?? true,
         };
 
         // Remove undefined values
@@ -176,6 +179,7 @@ export class FFmpegService {
             stabilize?: boolean;
             watermarkUrl?: string;
             storeName?: string;
+            enableEndingEffect?: boolean;
         } = {}
     ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string }> {
         const config = this.ensureConfigured();
@@ -194,6 +198,7 @@ export class FFmpegService {
             stabilize: options.stabilize ?? false,
             watermark_url: options.watermarkUrl,
             store_name: options.storeName,
+            enable_ending_effect: options.enableEndingEffect ?? true,
         };
 
         // Remove undefined values

@@ -302,6 +302,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             musicVolume = 0.25,
             drawText = true,
             stabilize = false,
+            enableEndingEffect = true,
         } = req.body;
 
         // Récupérer le média vidéo
@@ -360,6 +361,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             drawText,
             stabilize,
             watermarkUrl,
+            enableEndingEffect,
         });
 
         if (!result.success) {
@@ -471,6 +473,7 @@ async function processReelBackground(
         musicVolume?: number;
         drawText?: boolean;
         stabilize?: boolean;
+        enableEndingEffect?: boolean;
     },
     storeName?: string
 ) {
@@ -489,6 +492,7 @@ async function processReelBackground(
         musicVolume,
         drawText,
         stabilize,
+        enableEndingEffect,
     } = data;
 
     console.log(`🔄 [Background] Starting processing for Post ${postId}`);
@@ -570,6 +574,7 @@ async function processReelBackground(
             stabilize,
             watermarkUrl,
             storeName,
+            enableEndingEffect,
         });
 
         console.log(`⏱️ [Background] FFmpeg took ${(Date.now() - startTime) / 1000}s`);
@@ -728,6 +733,7 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             musicVolume = 0.25,
             drawText = true,
             stabilize = false,
+            enableEndingEffect = true,
         } = req.body;
 
         // Validation immédiate

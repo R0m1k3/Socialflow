@@ -63,6 +63,7 @@ export default function MobileNewReel() {
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
     const [stabilize, setStabilize] = useState(true); // Activé par défaut pour les Reels
+    const [enableEndingEffect, setEnableEndingEffect] = useState(true);
 
 
     const { data: pages = [] } = useQuery<SocialPage[]>({
@@ -204,6 +205,7 @@ export default function MobileNewReel() {
             drawText: true,
             ttsEnabled,
             ttsVoice,
+            enableEndingEffect,
         });
     };
 
@@ -395,6 +397,17 @@ export default function MobileNewReel() {
                                 className="text-lg"
                                 rows={3}
                             />
+                            <div className="flex items-center space-x-2 mt-4">
+                                <Switch
+                                    id="enable-ending-effect"
+                                    checked={enableEndingEffect}
+                                    onCheckedChange={setEnableEndingEffect}
+                                />
+                                <Label htmlFor="enable-ending-effect" className="font-medium cursor-pointer">
+                                    Activer l'effet de fin (logo + fondu)
+                                </Label>
+                            </div>
+
                             <div className="flex items-center space-x-2 mt-4">
                                 <Switch
                                     id="tts-mode"

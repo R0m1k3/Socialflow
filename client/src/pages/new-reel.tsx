@@ -68,6 +68,7 @@ export default function NewReel() {
     const [ttsVoice, setTtsVoice] = useState("fr-FR-VivienneMultilingualNeural");
     const [drawText, setDrawText] = useState(true);
     const [stabilize, setStabilize] = useState(true); // default to true
+    const [enableEndingEffect, setEnableEndingEffect] = useState(true);
 
     // Enable TTS by default on mobile
     useEffect(() => {
@@ -336,6 +337,7 @@ export default function NewReel() {
             ttsVoice,
             drawText,
             stabilize: stabilize,
+            enableEndingEffect,
         });
     };
 
@@ -707,6 +709,17 @@ export default function NewReel() {
                                                 />
                                                 <Label htmlFor="draw-text" className="font-medium cursor-pointer">
                                                     Afficher le texte sur la vidéo
+                                                </Label>
+                                            </div>
+
+                                            <div className="flex items-center space-x-2 mt-4">
+                                                <Switch
+                                                    id="enable-ending-effect"
+                                                    checked={enableEndingEffect}
+                                                    onCheckedChange={setEnableEndingEffect}
+                                                />
+                                                <Label htmlFor="enable-ending-effect" className="font-medium cursor-pointer">
+                                                    Activer l'effet de fin (logo + fondu)
                                                 </Label>
                                             </div>
 

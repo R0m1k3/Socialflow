@@ -161,6 +161,7 @@ class ReelRequest(BaseModel):
     tts_voice: str = "fr-FR-VivienneMultilingualNeural"
     draw_text: bool = True
     stabilize: bool = False  # Stabilisation vidéo via vidstab
+    enable_ending_effect: bool = True
 
 
 def clean_text_for_display(text: str) -> str:
@@ -861,7 +862,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             v_chain += text_filter
 
         if has_watermark:
-            if request.store_name:
+            if request.store_name and request.enable_ending_effect:
                 # Ouro Party Mode + Persistent bottom right
                 
                 # We need two scaled versions of the logo
@@ -890,7 +891,9 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 v_chain += "[v_pre_wm];[v_pre_wm][wm]overlay=W-w-20:H-h-20"
 
         # Add Video Fade Out
-        v_chain += f",fade=t=out:st={fade_start}:d={fade_duration}"
+        if request.enable_ending_effect:
+            v_chain += f",fade=t=out:st={fade_start}:d={fade_duration}"
+
 
         # End of video chain
         v_chain += "[vout]"
