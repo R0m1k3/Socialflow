@@ -28,9 +28,8 @@ let remotionBundleCache: string | null = null;
 
 async function getBundle(): Promise<string> {
   if (remotionBundleCache) return remotionBundleCache;
-  // Resolve relative to this file so it works in Docker and locally
-  // __dirname = server/routes, so ../.. → project root → client/src/remotion/index.ts
-  const entryPoint = path.resolve(__dirname, "../../client/src/remotion/index.ts");
+  // Use process.cwd() (= /app in Docker, project root in dev) — works in both CJS and ESM
+  const entryPoint = path.resolve(process.cwd(), "client/src/remotion/index.ts");
   console.log("📦 Bundling Remotion from:", entryPoint);
   remotionBundleCache = await bundle({ entryPoint });
   console.log("📦 Bundle cached at:", remotionBundleCache);
