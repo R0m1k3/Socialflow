@@ -8,7 +8,7 @@ import { storage } from '../storage';
 import { freeSoundService, type MusicTrack } from '../services/freesound';
 import { ffmpegService } from '../services/ffmpeg';
 import { facebookService } from '../services/facebook';
-import { cloudinaryService } from '../services/cloudinary';
+import { minioService as cloudinaryService, buildMinioUrl } from '../services/minio';
 import { openRouterService } from '../services/openrouter';
 import { db } from '../db';
 import { cloudinaryConfig } from '@shared/schema';
@@ -343,7 +343,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
         try {
             const config = await storage.getCloudinaryConfig();
             if (config && config.logoPublicId) {
-                watermarkUrl = `https://res.cloudinary.com/${config.cloudName}/image/upload/${config.logoPublicId}`;
+                watermarkUrl = buildMinioUrl(config.cloudName, config.logoPublicId);
             }
         } catch (e) {
             console.error('Error fetching watermark configuration', e);
@@ -556,7 +556,7 @@ async function processReelBackground(
         try {
             const config = await storage.getCloudinaryConfig();
             if (config && config.logoPublicId) {
-                watermarkUrl = `https://res.cloudinary.com/${config.cloudName}/image/upload/${config.logoPublicId}`;
+                watermarkUrl = buildMinioUrl(config.cloudName, config.logoPublicId);
             }
         } catch (e) {
             console.error('Error fetching watermark configuration', e);

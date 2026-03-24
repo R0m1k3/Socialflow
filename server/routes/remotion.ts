@@ -6,7 +6,7 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { ffmpegService } from "../services/ffmpeg";
 import { storage as dbStorage } from "../storage";
-import { cloudinaryService } from "../services/cloudinary";
+import { minioService as cloudinaryService, buildMinioUrl } from "../services/minio";
 import { facebookService } from "../services/facebook";
 import * as musicMetadata from "music-metadata";
 
@@ -128,7 +128,7 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
     try {
       const cloudinaryConfig = await dbStorage.getCloudinaryConfig();
       if (cloudinaryConfig?.cloudName && cloudinaryConfig?.logoPublicId) {
-        logoUrl = `https://res.cloudinary.com/${cloudinaryConfig.cloudName}/image/upload/${cloudinaryConfig.logoPublicId}`;
+        logoUrl = buildMinioUrl(cloudinaryConfig.cloudName, cloudinaryConfig.logoPublicId);
         console.log("🏢 Logo URL:", logoUrl);
       }
     } catch (e) {

@@ -9,7 +9,7 @@ import bcrypt from "bcrypt";
 import passport from "./auth";
 import { z } from "zod";
 import { openRouterService } from "./services/openrouter";
-import { cloudinaryService } from "./services/cloudinary";
+import { minioService as cloudinaryService, buildMinioUrl } from "./services/minio";
 import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertFreesoundConfigSchema, updateFreesoundConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
 import type { User, InsertUser, ScheduledPost, FreesoundConfig } from "@shared/schema";
 import { freeSoundService } from "./services/freesound";
@@ -822,7 +822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (cloudinaryConfig && cloudinaryConfig.logoPublicId) {
           try {
             // Build logo URL from Cloudinary
-            const logoUrl = `https://res.cloudinary.com/${cloudinaryConfig.cloudName}/image/upload/${cloudinaryConfig.logoPublicId}`;
+            const logoUrl = buildMinioUrl(cloudinaryConfig.cloudName, cloudinaryConfig.logoPublicId);
             console.log("📥 Downloading logo from:", logoUrl);
 
             // Download logo
@@ -1097,23 +1097,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Audio track not found" });
       }
 
-      // Try to extract publicId from cloudinary url to delete it from there too
-      // e.g. https://res.cloudinary.com/demo/video/upload/v123456789/user_id/audio_name.mp3
-      const urlParts = track.url.split('/upload/');
-      if (urlParts.length > 1) {
-        const afterUpload = urlParts[1];
-        // Remove version number (v12345...)
-        let pathWithoutVersion = afterUpload;
-        if (afterUpload.match(/^v\d+\//)) {
-          pathWithoutVersion = afterUpload.replace(/^v\d+\//, '');
-        }
-        // Remove extension
-        const publicId = pathWithoutVersion.replace(/\.[^/.]+$/, "");
-
-        try {
-          await cloudinaryService.deleteMedia(publicId, track.userId || '', 'video');
-        } catch (cloudinaryError) {
-          console.warn(`Failed to delete audio from cloudinary: ${publicId}`, cloudinaryError);
+      // Try to delete from MinIO if the URL matches the MinIO public URL pattern
+      const minioBase = (process.env.MINIO_PUBLIC_URL || process.env.MINIO_ENDPOINT || '').replace(/\/$/, '');
+      if (minioBase && track.url.startsWith(minioBase)) {
+        // URL = ${minioBase}/${bucket}/${objectKey}  →  extract objectKey
+        const withoutBase = track.url.slice(minioBase.length + 1); // strip "base/"
+        const objectKey = withoutBase.split('/').slice(1).join('/');  // strip bucket
+        if (objectKey) {
+          try {
+            await cloudinaryService.deleteMedia(objectKey, track.userId || '', 'video');
+          } catch (minioError) {
+            console.warn(`Failed to delete audio from MinIO: ${objectKey}`, minioError);
+          }
         }
       }
 
@@ -1636,7 +1631,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Don't send the API secret to the client
       const { apiSecret, ...safeConfig } = config;
-      res.json(safeConfig);
+      const logoUrl = config.logoPublicId ? buildMinioUrl(config.cloudName, config.logoPublicId) : null;
+      res.json({ ...safeConfig, logoUrl });
     } catch (error) {
       console.error("Error fetching Cloudinary config:", error);
       res.status(500).json({ error: "Failed to fetch Cloudinary config" });

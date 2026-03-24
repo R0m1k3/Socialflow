@@ -51,10 +51,8 @@ export default function SettingsMobile() {
       setCloudName((cloudinaryConfig as any).cloudName || "");
       setApiKey((cloudinaryConfig as any).apiKey || "");
 
-      if ((cloudinaryConfig as any).logoPublicId) {
-        const cloudName = (cloudinaryConfig as any).cloudName;
-        const logoPublicId = (cloudinaryConfig as any).logoPublicId;
-        setLogoPreview(`https://res.cloudinary.com/${cloudName}/image/upload/${logoPublicId}`);
+      if ((cloudinaryConfig as any).logoUrl) {
+        setLogoPreview((cloudinaryConfig as any).logoUrl);
       }
     }
   }, [cloudinaryConfig]);
@@ -361,48 +359,48 @@ export default function SettingsMobile() {
             </CardContent>
           </Card>
 
-          {/* Cloudinary */}
+          {/* MinIO */}
           {isAdmin && (
             <Card className="rounded-2xl border-border/50 shadow-lg">
               <CardHeader className="p-5">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Cloud className="w-5 h-5" />
-                  Configuration Cloudinary
+                  Configuration Stockage MinIO
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Configurez Cloudinary pour le stockage d'images dans le cloud
+                  Configurez MinIO pour le stockage des médias (endpoint via variable MINIO_ENDPOINT)
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 p-5 pt-0">
                 <div className="space-y-2">
-                  <Label htmlFor="cloudName" className="text-sm">Cloud Name</Label>
+                  <Label htmlFor="cloudName" className="text-sm">Nom du bucket</Label>
                   <Input
                     id="cloudName"
                     type="text"
                     value={cloudName}
                     onChange={(e) => setCloudName(e.target.value)}
-                    placeholder="mon-cloud-name"
+                    placeholder="socialflow"
                     className="min-h-[48px]"
                     data-testid="input-cloud-name"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Trouvez-le dans votre tableau de bord Cloudinary
+                    Nom du bucket MinIO dans lequel stocker les fichiers
                   </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="apiKey" className="text-sm">API Key</Label>
+                  <Label htmlFor="apiKey" className="text-sm">Access Key</Label>
                   <Input
                     id="apiKey"
                     type="text"
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="123456789012345"
+                    placeholder="minioadmin"
                     className="min-h-[48px]"
                     data-testid="input-api-key"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="apiSecret" className="text-sm">API Secret</Label>
+                  <Label htmlFor="apiSecret" className="text-sm">Secret Key</Label>
                   <Input
                     id="apiSecret"
                     type="password"
@@ -413,7 +411,7 @@ export default function SettingsMobile() {
                     data-testid="input-api-secret"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Votre API Secret restera sécurisé et ne sera jamais exposé
+                    Votre Secret Key restera sécurisé et ne sera jamais exposé
                   </p>
                 </div>
                 <Button
@@ -422,7 +420,7 @@ export default function SettingsMobile() {
                   data-testid="button-save-cloudinary"
                   className="w-full min-h-[48px]"
                 >
-                  {saveCloudinaryMutation.isPending ? "Enregistrement..." : "Enregistrer Cloudinary"}
+                  {saveCloudinaryMutation.isPending ? "Enregistrement..." : "Enregistrer MinIO"}
                 </Button>
               </CardContent>
             </Card>

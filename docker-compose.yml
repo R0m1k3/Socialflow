@@ -43,6 +43,9 @@ services:
       # Configuration FFmpeg Service
       FFMPEG_API_URL: http://ffmpeg-api:8000
       FFMPEG_API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
+      # Configuration MinIO (stockage fichiers)
+      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
     networks:
       - internal
       - nginx_default

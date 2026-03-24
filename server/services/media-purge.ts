@@ -1,7 +1,7 @@
 import { db } from '../db';
 import { media } from '@shared/schema';
 import { eq, lt, isNotNull, and } from 'drizzle-orm';
-import { cloudinaryService } from './cloudinary';
+import { minioService as cloudinaryService } from './minio';
 
 /**
  * Automates the cleanup of old media to save Cloudinary storage space.

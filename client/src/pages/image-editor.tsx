@@ -112,45 +112,10 @@ export default function ImageEditor() {
   });
 
 
-  // Generate Cloudinary transformation URL
+  // Set preview URL from selected media
   useEffect(() => {
-    if (!selectedMedia) {
-      setPreviewUrl("");
-      return;
-    }
-
-    // Start with base image URL
-    let url = selectedMedia.originalUrl;
-    
-    // Extract Cloudinary parts
-    const cloudinaryPattern = /https:\/\/res\.cloudinary\.com\/([^\/]+)\/image\/upload\//;
-    const match = url.match(cloudinaryPattern);
-    
-    if (!match) {
-      setPreviewUrl(url);
-      return;
-    }
-
-    const [fullMatch, cloudName] = match;
-    const imagePath = url.replace(fullMatch, '');
-    
-    // Build transformations array
-    const transformations: string[] = [];
-
-    // Base resize
-    transformations.push('w_800,h_800,c_fit');
-
-    // Note: Ribbon and price badge overlays are rendered as CSS elements in preview
-    // They are NOT added to Cloudinary transformation URL
-    // This allows for better visual control and positioning
-
-    // Logo overlay will be added by backend when saving
-    // Preview just shows the base image with CSS overlays
-
-    // Construct final URL
-    const transformedUrl = `https://res.cloudinary.com/${cloudName}/image/upload/${transformations.join('/')}/${imagePath}`;
-    setPreviewUrl(transformedUrl);
-
+    if (!selectedMedia) { setPreviewUrl(""); return; }
+    setPreviewUrl(selectedMedia.originalUrl);
   }, [selectedMedia, ribbon, priceBadge, logo]);
 
   return (
@@ -620,9 +585,9 @@ export default function ImageEditor() {
                           )}
 
                           {/* Logo Overlay (CSS) */}
-                          {logo.enabled && cloudinaryConfig && (cloudinaryConfig as any).logoPublicId && (
+                          {logo.enabled && cloudinaryConfig && (cloudinaryConfig as any).logoUrl && (
                             <img
-                              src={`https://res.cloudinary.com/${(cloudinaryConfig as any).cloudName}/image/upload/${(cloudinaryConfig as any).logoPublicId}`}
+                              src={(cloudinaryConfig as any).logoUrl}
                               alt="Logo"
                               className={`absolute ${
                                 logo.position === "north_east" ? "top-4 right-4" :
