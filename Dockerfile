@@ -1,43 +1,47 @@
-# Utiliser Node.js 20 Alpine pour une image légère
-FROM node:20-alpine
+# Node.js 20 Debian slim — glibc requis pour Remotion Chrome headless shell
+FROM node:20-slim
 
 WORKDIR /app
 
-# Installer les dépendances système nécessaires pour bcrypt, canvas et sharp
-RUN apk add --no-cache \
-    python3 \
-    make \
-    g++ \
-    cairo-dev \
-    jpeg-dev \
-    pango-dev \
-    giflib-dev \
-    pixman-dev \
-    cairo \
-    jpeg \
-    pango \
-    giflib \
-    pixman \
-    vips-dev \
-    pkgconfig \
-    ttf-dejavu \
-    fontconfig \
-    curl \
-    tar \
-    bzip2 \
-    chromium \
-    nss \
-    freetype \
-    harfbuzz \
-    ca-certificates \
-    ttf-freefont \
+# Dépendances système : build tools, canvas/sharp, fonts, ffmpeg + dépendances Chrome (glibc)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 make g++ \
+    libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev libpixman-1-dev \
+    libvips-dev pkg-config \
+    fonts-dejavu-core fontconfig \
+    curl tar bzip2 \
     ffmpeg \
-    libcap
+    libcap2-bin \
+    ca-certificates \
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    libxshmfence1 \
+    libxtst6 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copier les fichiers de configuration
 COPY package*.json ./
 
-# Installer les dépendances avec npm install (plus permissif que npm ci)
+# Installer les dépendances
 RUN npm install --legacy-peer-deps
 
 # Copier tout le code source
@@ -46,44 +50,29 @@ COPY . .
 # Télécharger et installer la police DejaVu Sans pour le rendu de texte
 RUN mkdir -p server/fonts && \
     cd server/fonts && \
-    echo "Téléchargement de la police DejaVu Sans..." && \
     curl -L -f --retry 3 --retry-delay 2 -o dejavu.tar.bz2 "https://sourceforge.net/projects/dejavu/files/dejavu/2.37/dejavu-fonts-ttf-2.37.tar.bz2/download" && \
-    echo "Extraction de l'archive..." && \
     tar -xjf dejavu.tar.bz2 && \
-    echo "Installation de la police..." && \
     cp dejavu-fonts-ttf-2.37/ttf/DejaVuSans.ttf . && \
-    ls -lh DejaVuSans.ttf && \
     rm -rf dejavu.tar.bz2 dejavu-fonts-ttf-2.37 && \
-    echo "✓ Police DejaVu Sans installée avec succès"
+    echo "✓ Police DejaVu Sans installée"
 
-# Augmenter la mémoire pour le build (résout les problèmes de mémoire avec Vite)
+# Augmenter la mémoire pour le build
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
-# Build du frontend et backend avec logs détaillés
-# Build du frontend et backend (Exit on error)
+# Build du frontend et backend
 RUN npm run build
 
-# Nettoyer les fichiers inutiles pour réduire la taille
-# On garde client/src/remotion car le serveur en a besoin au runtime pour le bundling
+# Nettoyer les fichiers inutiles
 RUN rm -rf client/node_modules \
          client/.vite \
          node_modules/.cache \
          /tmp/remotion-*
 
-# Pré-bundler la composition Remotion pendant le build (speedup au premier rendu)
+# Pré-bundler la composition Remotion pendant le build
 RUN node scripts/prebundle-remotion.js || true
 
-# Trouver le binaire Chromium système et enregistrer son chemin pour l'utiliser au runtime
-# Note: npx remotion browser ensure télécharge un binaire glibc qui ne fonctionne pas sur Alpine (musl)
-RUN CHROMIUM_BIN=$(which chromium-browser 2>/dev/null || which chromium 2>/dev/null || find /usr -name 'chrome' -o -name 'chromium' -o -name 'chromium-browser' 2>/dev/null | grep -v '/\.' | head -1) && \
-    if [ -n "$CHROMIUM_BIN" ]; then \
-        echo "✓ Chromium trouvé: $CHROMIUM_BIN" && \
-        echo "$CHROMIUM_BIN" > /app/.chromium-path; \
-    else \
-        echo "⚠ Aucun chromium trouvé — le rendu échouera"; \
-    fi && \
-    cat /app/.chromium-path 2>/dev/null || true
-
+# Télécharger le Chrome headless shell de Remotion (binaire glibc, compatible Debian)
+RUN npx remotion browser ensure && echo "✓ Remotion browser prêt"
 
 # Exposer le port de l'application
 EXPOSE 5555
