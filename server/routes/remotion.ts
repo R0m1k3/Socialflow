@@ -25,14 +25,26 @@ const upload = multer({ storage });
 remotionRouter.post("/render", upload.array("images", 4), async (req, res) => {
   try {
     const files = req.files as Express.Multer.File[];
-    if (!files || files.length === 0) {
-      return res.status(400).json({ error: "Aucune image fournie" });
+    let imageUrls: string[] = [];
+
+    const existing = req.body.existingImageUrls;
+    if (existing) {
+      if (Array.isArray(existing)) {
+        imageUrls.push(...existing);
+      } else {
+        imageUrls.push(existing);
+      }
     }
 
     const host = req.protocol + "://" + req.get("host");
-    const imageUrls = files.map(file => {
-      return `${host}/uploads/temp/${path.basename(file.path)}`;
-    });
+    if (files && files.length > 0) {
+      const uploadedUrls = files.map(file => `${host}/uploads/temp/${path.basename(file.path)}`);
+      imageUrls.push(...uploadedUrls);
+    }
+
+    if (imageUrls.length === 0) {
+      return res.status(400).json({ error: "Aucune image fournie" });
+    }
 
     console.log("Bundling Remotion project...");
     const bundleLocation = await bundle({

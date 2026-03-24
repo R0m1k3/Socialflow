@@ -2,13 +2,15 @@ import { useState, useMemo } from "react";
 import { Player } from "@remotion/player";
 import { ImageComposition } from "@/remotion/ImageComposition";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { UploadCloud, Video, Loader2, Check } from "lucide-react";
+import { UploadCloud, Video, Loader2, Menu, Check } from "lucide-react";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import Sidebar from "@/components/sidebar";
 import { useQuery } from "@tanstack/react-query";
 import type { Media } from "@shared/schema";
 
-export default function RemotionVideoPage() {
+export default function MobileRemotionVideoPage() {
   const [images, setImages] = useState<File[]>([]);
   const [selectedLibraryImages, setSelectedLibraryImages] = useState<Media[]>([]);
   const [isRendering, setIsRendering] = useState(false);
@@ -104,18 +106,34 @@ export default function RemotionVideoPage() {
   const totalFrames = combinedUrls.length > 0 ? combinedUrls.length * 3 * 30 : 300;
 
   return (
-    <div className="container mx-auto p-6 space-y-8">
-      <h1 className="text-3xl font-bold tracking-tight">Générateur Remotion</h1>
-      <p className="text-muted-foreground">Créez une vidéo à partir de vos images avec Remotion.</p>
+    <div className="min-h-screen bg-background pb-20">
+      {/* Header Mobile */}
+      <div className="sticky top-0 z-50 bg-background/95 backdrop-blur border-b p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+              <Sheet>
+                  <SheetTrigger asChild>
+                      <Button variant="ghost" size="icon" className="-ml-2">
+                          <Menu className="h-6 w-6" />
+                      </Button>
+                  </SheetTrigger>
+                  <SheetContent side="left" className="p-0 w-[80%]">
+                      <Sidebar />
+                  </SheetContent>
+              </Sheet>
+              <h1 className="font-semibold text-lg">Générateur Remotion</h1>
+          </div>
+      </div>
 
-      <div className="grid md:grid-cols-2 gap-8">
+      <main className="p-4 space-y-6">
+        <p className="text-sm text-muted-foreground">Créez une vidéo à partir de vos images (version mobile).</p>
+
         <Card>
-          <CardHeader>
-            <CardTitle>1. Sélectionner des Images</CardTitle>
-            <CardDescription>Choisissez entre 3 et 4 images.</CardDescription>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">1. Sélectionner des Images</CardTitle>
+            <CardDescription className="text-xs">Choisissez entre 3 et 4 images.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="border-2 border-dashed border-border rounded-lg p-8 flex flex-col items-center justify-center relative hover:bg-muted/50 transition-colors">
+            <div className="border-2 border-dashed border-border rounded-lg p-6 flex flex-col items-center justify-center relative bg-muted/30">
               <input 
                 type="file" 
                 multiple 
@@ -123,22 +141,22 @@ export default function RemotionVideoPage() {
                 onChange={handleFileChange}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
-              <UploadCloud className="h-10 w-10 text-muted-foreground mb-4" />
-              <p className="font-medium text-center">Glissez vos images ici ou cliquez</p>
-              <p className="text-sm text-muted-foreground mt-2">{images.length} image(s) uploadée(s)</p>
+              <UploadCloud className="h-8 w-8 text-muted-foreground mb-2" />
+              <p className="font-medium text-sm text-center">Appuyez pour choisir</p>
+              <p className="text-xs text-muted-foreground mt-1">{images.length} image(s)</p>
             </div>
 
             {imageMediaList.length > 0 && (
-              <div className="pt-4 border-t border-border">
-                  <p className="font-medium mb-3 text-sm">Ou choisissez depuis la Bibliothèque :</p>
-                  <div className="grid grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-2">
+              <div className="pt-2 border-t border-border mt-2">
+                  <p className="font-medium mb-3 text-sm">Bibliothèque :</p>
+                  <div className="flex overflow-x-auto gap-2 pb-2">
                        {imageMediaList.map((media) => {
                            const isSelected = selectedLibraryImages.some(m => m.id === media.id);
                            return (
                                <div 
                                   key={media.id} 
                                   onClick={() => toggleLibraryImage(media)}
-                                  className={`relative aspect-square rounded overflow-hidden border-2 cursor-pointer transition-all ${isSelected ? 'border-primary' : 'border-transparent'}`}
+                                  className={`flex-shrink-0 w-20 h-20 relative rounded overflow-hidden border-2 cursor-pointer transition-all ${isSelected ? 'border-primary' : 'border-transparent'}`}
                                >
                                    <img src={media.originalUrl} className="w-full h-full object-cover" />
                                    {isSelected && (
@@ -153,24 +171,25 @@ export default function RemotionVideoPage() {
               </div>
             )}
 
-            <div className="flex justify-between text-sm text-primary font-medium py-2">
-                 <span>Total sélectionné : {totalSelected} / 4 images</span>
+            <div className="flex justify-between text-xs text-primary font-medium py-1">
+                 <span>Total sélectionné : {totalSelected} / 4</span>
             </div>
 
             {totalSelected > 0 && (
-              <Button onClick={handleGenerate} disabled={isRendering || totalSelected < 3} className="w-full mt-2">
+              <Button onClick={handleGenerate} disabled={isRendering || totalSelected < 3} className="w-full h-12">
                 {isRendering ? (
-                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Génération en cours...</>
+                  <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Génération...</>
                 ) : (
-                  <><Video className="mr-2 h-4 w-4" /> Générer la vidéo MP4</>
+                  <><Video className="mr-2 h-4 w-4" /> Générer MP4</>
                 )}
               </Button>
             )}
+            
             {videoUrl && (
-              <div className="pt-4">
-                <p className="font-semibold mb-2 text-green-600">Vidéo prête :</p>
-                <video src={videoUrl} controls className="w-full rounded-md shadow" />
-                <Button variant="outline" className="w-full mt-2" asChild>
+              <div className="pt-4 border-t mt-4">
+                <p className="font-semibold text-sm mb-2 text-green-600">Vidéo prête :</p>
+                <video src={videoUrl} controls className="w-full rounded-md shadow bg-black" />
+                <Button variant="outline" className="w-full mt-3" asChild>
                   <a href={videoUrl} download="remotion-video.mp4">Télécharger</a>
                 </Button>
               </div>
@@ -179,10 +198,10 @@ export default function RemotionVideoPage() {
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle>2. Aperçu</CardTitle>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">2. Aperçu</CardTitle>
           </CardHeader>
-          <CardContent className="flex justify-center bg-zinc-950 rounded-lg p-4 overflow-hidden">
+          <CardContent className="flex justify-center bg-zinc-950 rounded-lg p-2 overflow-hidden">
              {combinedUrls.length > 0 ? (
                <Player
                   component={ImageComposition}
@@ -194,19 +213,19 @@ export default function RemotionVideoPage() {
                   controls
                   style={{
                     width: "auto",
-                    height: "600px",
+                    height: "400px",  // Smaller height for mobile
                     maxWidth: "100%",
-                    borderRadius: "8px"
+                    borderRadius: "6px"
                   }}
                />
              ) : (
-               <div className="h-[600px] w-full flex items-center justify-center text-muted-foreground">
+               <div className="h-[400px] w-full flex items-center justify-center text-xs text-center text-muted-foreground px-4">
                  Sélectionnez des images pour prévisualiser.
                </div>
              )}
           </CardContent>
         </Card>
-      </div>
+      </main>
     </div>
   );
 }

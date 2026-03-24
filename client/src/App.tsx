@@ -83,7 +83,7 @@ const NewReel = createResponsiveRoute(
 
 const RemotionVideo = createResponsiveRoute(
   () => import("@/pages/remotion-video"),
-  () => import("@/pages/remotion-video")
+  () => import("@/pages/mobile/remotion-video")
 );
 
 function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType; adminOnly?: boolean }) {
