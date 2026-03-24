@@ -80,7 +80,7 @@ const ImageSlide: React.FC<{ src: string; transition: Transition }> = ({ src, tr
 };
 
 export const ImageComposition = ({
-  images, overlayText, audioUrl, wordTimings, musicUrl, musicVolume = 0.3,
+  images, audioUrl, wordTimings, musicUrl, musicVolume = 0.3,
   logoUrl, storeName, endingFrames = 90,
 }: ImageCompositionProps) => {
   const { fps, durationInFrames } = useVideoConfig();
@@ -166,27 +166,7 @@ export const ImageComposition = ({
               </div>
             </AbsoluteFill>
           );
-        })() : overlayText ? (
-          <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 160 }}>
-            <div
-              style={{
-                backgroundColor: "rgba(0,0,0,0.55)",
-                borderRadius: 16,
-                padding: "24px 32px",
-                color: "white",
-                fontSize: 60,
-                fontWeight: "bold",
-                fontFamily: "sans-serif",
-                textAlign: "center",
-                lineHeight: 1.4,
-                maxWidth: "90%",
-                WebkitTextStroke: "1px rgba(0,0,0,0.4)",
-              }}
-            >
-              {overlayText}
-            </div>
-          </AbsoluteFill>
-        ) : null
+        })() : null
       )}
 
       {/* Logo watermark — bottom right, always visible during content */}

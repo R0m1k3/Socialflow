@@ -1,6 +1,4 @@
-import { useState, useMemo, useRef } from "react";
-import { Player } from "@remotion/player";
-import { ImageComposition } from "@/remotion/ImageComposition";
+import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -22,28 +20,6 @@ const TTS_VOICES = [
   { id: "fr-FR-HenriNeural",                label: "Henri",    type: "Homme" },
   { id: "fr-FR-EloiseNeural",               label: "Éloïse",   type: "Enfant" },
 ];
-
-function stripForTTS(text: string): string {
-  return text
-    .replace(/#\w+/g, '')
-    .replace(/[\uD800-\uDFFF]/g, '')
-    .replace(/[\u2600-\u27BF]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function estimateWordTimings(text: string, fps = 30, wps = 2.5) {
-  const words = text.split(/\s+/).filter(Boolean);
-  const framesPerWord = fps / wps;
-  let frame = 0;
-  return words.map(word => {
-    const isSpoken = !/^#/.test(word) && !(/[\uD800-\uDFFF\u2600-\u27BF]/.test(word));
-    const dur = isSpoken ? framesPerWord : framesPerWord * 0.4;
-    const start = frame;
-    frame += Math.round(dur);
-    return { word, startFrame: start, endFrame: frame };
-  });
-}
 
 interface AudioTrack {
   id: string;
@@ -75,33 +51,20 @@ export default function RemotionVideoPage() {
   const { toast } = useToast();
 
   const { data: allMedia = [] } = useQuery<Media[]>({ queryKey: ['/api/media'] });
-  const { data: audioTracks = [], isLoading: tracksLoading } = useQuery<AudioTrack[]>({
-    queryKey: ['/api/audio-tracks'],
-  });
-  const { data: cloudinaryConfig } = useQuery<{ cloudName?: string; logoPublicId?: string } | null>({
-    queryKey: ['/api/cloudinary/config'],
-  });
-  const { data: socialPages = [] } = useQuery<SocialPage[]>({
-    queryKey: ['/api/pages'],
-  });
+  const { data: audioTracks = [], isLoading: tracksLoading } = useQuery<AudioTrack[]>({ queryKey: ['/api/audio-tracks'] });
+  const { data: socialPages = [] } = useQuery<SocialPage[]>({ queryKey: ['/api/pages'] });
 
-  const previewLogoUrl = cloudinaryConfig?.cloudName && cloudinaryConfig?.logoPublicId
-    ? `https://res.cloudinary.com/${cloudinaryConfig.cloudName}/image/upload/${cloudinaryConfig.logoPublicId}`
-    : undefined;
-  const previewStoreName = socialPages[0]?.pageName as string | undefined;
   const facebookPages = socialPages.filter(p => p.platform === 'facebook');
   const imageMediaList = allMedia.filter(m => m.type === 'image').slice(0, 20);
+  const totalSelected = images.length + selectedLibraryImages.length;
 
   const generateTextMutation = useMutation({
-    mutationFn: async (text: string) => {
-      const response = await apiRequest('POST', '/api/reels/generate-text', { productInfo: text });
-      return response.json();
-    },
+    mutationFn: async (text: string) => (await apiRequest('POST', '/api/reels/generate-text', { productInfo: text })).json(),
     onSuccess: (data: any) => {
       setGeneratedVariants(data.variants || []);
-      toast({ title: "Textes générés", description: "Cliquez sur un texte pour l'appliquer." });
+      toast({ title: "Textes générés", description: "Cliquez pour appliquer." });
     },
-    onError: () => toast({ title: "Erreur IA", description: "Impossible de générer le texte.", variant: "destructive" }),
+    onError: () => toast({ title: "Erreur IA", variant: "destructive" }),
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -116,50 +79,20 @@ export default function RemotionVideoPage() {
     });
   };
 
-  const combinedUrls = useMemo(() => {
-    const urls: string[] = [];
-    images.forEach(f => urls.push(URL.createObjectURL(f)));
-    selectedLibraryImages.forEach(m => urls.push(m.originalUrl));
-    return urls;
-  }, [images, selectedLibraryImages]);
-
-  const totalSelected = images.length + selectedLibraryImages.length;
-
-  const previewWordTimings = useMemo(() => overlayText ? estimateWordTimings(overlayText) : undefined, [overlayText]);
-
-  const ENDING_FRAMES = (previewLogoUrl || previewStoreName) ? 90 : 0;
-  const totalFrames = useMemo(() => {
-    const ttsEnd = previewWordTimings?.length
-      ? previewWordTimings[previewWordTimings.length - 1].endFrame
-      : 0;
-    const naturalContent = Math.max(ttsEnd / 30, combinedUrls.length * 3);
-    const contentSeconds = Math.min(Math.max(naturalContent, 22), 27);
-    return Math.round(contentSeconds * 30) + ENDING_FRAMES;
-  }, [previewWordTimings, combinedUrls, ENDING_FRAMES]);
-
   const handleTtsPreview = async () => {
-    if (!overlayText) return;
-    const ttsText = stripForTTS(overlayText);
-    if (!ttsText) { toast({ title: "Aucun texte à lire", variant: "destructive" }); return; }
+    const ttsText = overlayText.replace(/#\w+/g, '').replace(/[\uD800-\uDFFF\u2600-\u27BF]/g, '').replace(/\s+/g, ' ').trim();
+    if (!ttsText) return;
     try {
-      const response = await apiRequest('POST', '/api/reels/tts-preview', { text: ttsText, voice: ttsVoice });
-      const data = await response.json();
+      const r = await apiRequest('POST', '/api/reels/tts-preview', { text: ttsText, voice: ttsVoice });
+      const data = await r.json();
       if (data.success && data.audioBase64) new window.Audio(`data:audio/mp3;base64,${data.audioBase64}`).play();
-    } catch {
-      toast({ title: "Erreur", description: "Prévisualisation voix impossible.", variant: "destructive" });
-    }
+    } catch { toast({ title: "Erreur prévisualisation voix", variant: "destructive" }); }
   };
 
   const togglePlayPreview = (track: AudioTrack) => {
     if (!audioRef.current) return;
-    if (isPlaying === track.id) {
-      audioRef.current.pause();
-      setIsPlaying(null);
-    } else {
-      audioRef.current.src = track.url;
-      audioRef.current.play();
-      setIsPlaying(track.id);
-    }
+    if (isPlaying === track.id) { audioRef.current.pause(); setIsPlaying(null); }
+    else { audioRef.current.src = track.url; audioRef.current.play(); setIsPlaying(track.id); }
   };
 
   const handleGenerate = async () => {
@@ -172,23 +105,16 @@ export default function RemotionVideoPage() {
       selectedLibraryImages.forEach(m => formData.append("existingImageUrls", m.originalUrl));
       if (overlayText) formData.append("overlayText", overlayText);
       if (ttsEnabled && overlayText) formData.append("ttsVoice", ttsVoice);
-      if (musicFile) {
-        formData.append("music", musicFile);
-        formData.append("musicVolume", String(musicVolume));
-      } else if (selectedTrack) {
-        formData.append("musicTrackUrl", selectedTrack.url);
-        formData.append("musicVolume", String(musicVolume));
-      }
+      if (musicFile) { formData.append("music", musicFile); formData.append("musicVolume", String(musicVolume)); }
+      else if (selectedTrack) { formData.append("musicTrackUrl", selectedTrack.url); formData.append("musicVolume", String(musicVolume)); }
       const response = await fetch("/api/remotion/render", { method: "POST", body: formData });
       if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.error || "Erreur"); }
       const data = await response.json();
       setVideoUrl(data.url);
-      toast({ title: "Vidéo générée !", description: "Votre vidéo est prête." });
+      toast({ title: "Vidéo générée !", description: "Votre vidéo est prête à publier." });
     } catch (err: any) {
       toast({ title: "Erreur", description: err.message || "Impossible de créer la vidéo.", variant: "destructive" });
-    } finally {
-      setIsRendering(false);
-    }
+    } finally { setIsRendering(false); }
   };
 
   const handlePublish = async () => {
@@ -197,8 +123,7 @@ export default function RemotionVideoPage() {
     setIsPublishing(true);
     try {
       const response = await apiRequest('POST', '/api/remotion/publish', {
-        videoUrl,
-        pageIds: selectedPageIds,
+        videoUrl, pageIds: selectedPageIds,
         scheduledFor: scheduledDate?.toISOString(),
         description: publishDescription || undefined,
       });
@@ -206,303 +131,230 @@ export default function RemotionVideoPage() {
       if (!data.success) throw new Error(data.results?.find((r: any) => r.error)?.error || "Erreur");
       toast({
         title: scheduledDate ? "Publication planifiée !" : "Vidéo publiée !",
-        description: scheduledDate
-          ? `Sera publiée le ${scheduledDate.toLocaleString('fr-FR')}`
-          : "Votre vidéo a été publiée sur Facebook.",
+        description: scheduledDate ? `Sera publiée le ${scheduledDate.toLocaleString('fr-FR')}` : "Publiée sur Facebook.",
       });
     } catch (err: any) {
       toast({ title: "Erreur de publication", description: err.message, variant: "destructive" });
-    } finally {
-      setIsPublishing(false);
-    }
+    } finally { setIsPublishing(false); }
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-8">
-      <h1 className="text-3xl font-bold tracking-tight">Générateur Remotion</h1>
-      <p className="text-muted-foreground">Créez une vidéo animée à partir de vos images avec voix et texte style TikTok.</p>
+    <div className="container mx-auto p-6 max-w-2xl space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Générateur Vidéo</h1>
+        <p className="text-muted-foreground mt-1">Créez une vidéo 9:16 animée avec voix, musique et effets.</p>
+      </div>
 
       <audio ref={audioRef} onEnded={() => setIsPlaying(null)} />
 
-      <div className="grid md:grid-cols-2 gap-8">
-        {/* ─── LEFT COLUMN ─── */}
-        <div className="space-y-6">
-
-          {/* 1. Images */}
-          <Card>
-            <CardHeader>
-              <CardTitle>1. Images</CardTitle>
-              <CardDescription>Sélectionnez 3 à 4 images (bibliothèque ou upload).</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="border-2 border-dashed border-border rounded-lg p-6 flex flex-col items-center justify-center relative hover:bg-muted/50 transition-colors">
-                <input type="file" multiple accept="image/*" onChange={handleFileChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                <UploadCloud className="h-10 w-10 text-muted-foreground mb-3" />
-                <p className="font-medium text-center">Glissez ou cliquez</p>
-                <p className="text-sm text-muted-foreground mt-1">{images.length} uploadée(s)</p>
+      {/* 1. Images */}
+      <Card>
+        <CardHeader>
+          <CardTitle>1. Images</CardTitle>
+          <CardDescription>Sélectionnez 3 à 4 images (bibliothèque ou upload).</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="border-2 border-dashed border-border rounded-lg p-6 flex flex-col items-center justify-center relative hover:bg-muted/50 transition-colors">
+            <input type="file" multiple accept="image/*" onChange={handleFileChange}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+            <UploadCloud className="h-10 w-10 text-muted-foreground mb-3" />
+            <p className="font-medium text-center">Glissez ou cliquez</p>
+            <p className="text-sm text-muted-foreground mt-1">{images.length} uploadée(s)</p>
+          </div>
+          {imageMediaList.length > 0 && (
+            <div className="pt-3 border-t border-border">
+              <p className="font-medium mb-2 text-sm">Bibliothèque :</p>
+              <div className="grid grid-cols-5 gap-2 max-h-44 overflow-y-auto">
+                {imageMediaList.map(media => {
+                  const isSelected = selectedLibraryImages.some(m => m.id === media.id);
+                  return (
+                    <div key={media.id} onClick={() => toggleLibraryImage(media)}
+                      className={`relative aspect-square rounded overflow-hidden border-2 cursor-pointer transition-all ${isSelected ? 'border-primary' : 'border-transparent'}`}>
+                      <img src={media.originalUrl} className="w-full h-full object-cover" />
+                      {isSelected && <div className="absolute top-1 right-1 bg-primary text-white p-0.5 rounded-full"><Check className="w-3 h-3" /></div>}
+                    </div>
+                  );
+                })}
               </div>
-              {imageMediaList.length > 0 && (
-                <div className="pt-3 border-t border-border">
-                  <p className="font-medium mb-2 text-sm">Bibliothèque :</p>
-                  <div className="grid grid-cols-4 gap-2 max-h-44 overflow-y-auto">
-                    {imageMediaList.map(media => {
-                      const isSelected = selectedLibraryImages.some(m => m.id === media.id);
-                      return (
-                        <div key={media.id} onClick={() => toggleLibraryImage(media)}
-                          className={`relative aspect-square rounded overflow-hidden border-2 cursor-pointer transition-all ${isSelected ? 'border-primary' : 'border-transparent'}`}>
-                          <img src={media.originalUrl} className="w-full h-full object-cover" />
-                          {isSelected && <div className="absolute top-1 right-1 bg-primary text-white p-0.5 rounded-full"><Check className="w-3 h-3" /></div>}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-              <p className="text-sm text-primary font-medium">Total : {totalSelected} / 4</p>
-            </CardContent>
-          </Card>
+            </div>
+          )}
+          <p className="text-sm text-primary font-medium">Total : {totalSelected} / 4</p>
+        </CardContent>
+      </Card>
 
-          {/* 2. Texte + Voix */}
-          <Card>
+      {/* 2. Texte + Voix */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Mic className="w-4 h-4" /> 2. Texte & Voix</CardTitle>
+          <CardDescription>La voix lira votre texte. Les hashtags s'affichent mais ne sont pas lus.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Textarea placeholder="Décrivez votre produit pour générer un texte IA..." value={productInfo}
+            onChange={e => setProductInfo(e.target.value)} rows={2} />
+          <Button variant="secondary" className="w-full" disabled={!productInfo || generateTextMutation.isPending}
+            onClick={() => generateTextMutation.mutate(productInfo)}>
+            {generateTextMutation.isPending ? <Loader2 className="mr-2 w-4 h-4 animate-spin" /> : <Sparkles className="mr-2 w-4 h-4" />}
+            Générer avec l'IA
+          </Button>
+          {generatedVariants.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs text-muted-foreground">Cliquez pour appliquer :</p>
+              {generatedVariants.map((v: any, i: number) => (
+                <div key={i} onClick={() => { setOverlayText(v.text); toast({ title: "Texte appliqué" }); }}
+                  className={`text-sm p-2 rounded border cursor-pointer hover:bg-accent transition-colors ${overlayText === v.text ? 'border-primary bg-primary/5' : 'border-border'}`}>
+                  {v.text}
+                </div>
+              ))}
+            </div>
+          )}
+          <Textarea placeholder="Votre texte overlay..." value={overlayText}
+            onChange={e => setOverlayText(e.target.value)} rows={3} />
+          <div className="flex items-center gap-3">
+            <Switch id="tts" checked={ttsEnabled} onCheckedChange={setTtsEnabled} />
+            <Label htmlFor="tts">Activer la voix TTS</Label>
+          </div>
+          {ttsEnabled && (
+            <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
+              <div className="grid grid-cols-3 gap-2">
+                {TTS_VOICES.map(v => (
+                  <div key={v.id} onClick={() => setTtsVoice(v.id)}
+                    className={`cursor-pointer p-2 rounded border-2 text-center transition-all ${ttsVoice === v.id ? 'border-primary bg-primary/10' : 'border-transparent bg-muted/30'}`}>
+                    <div className="font-semibold text-sm">{v.label}</div>
+                    <div className="text-xs text-muted-foreground">{v.type}</div>
+                  </div>
+                ))}
+              </div>
+              <Button size="sm" variant="outline" className="w-full" onClick={handleTtsPreview} disabled={!overlayText}>
+                <Volume2 className="mr-2 w-3 h-3" /> Écouter la voix
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* 3. Musique */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Music className="w-4 h-4" /> 3. Musique de fond</CardTitle>
+          <CardDescription>Choisissez une musique de la bibliothèque ou uploadez la vôtre.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="max-h-48 overflow-y-auto space-y-1.5">
+            {tracksLoading ? (
+              <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+            ) : audioTracks.length === 0 ? (
+              <div className="text-center py-6 border-2 border-dashed border-border rounded-xl">
+                <Music className="w-8 h-8 mx-auto text-muted-foreground mb-2 opacity-40" />
+                <p className="text-sm text-muted-foreground">Aucune musique disponible</p>
+              </div>
+            ) : (
+              audioTracks.map(track => {
+                const isSelected = selectedTrack?.id === track.id;
+                const playing = isPlaying === track.id;
+                return (
+                  <div key={track.id} onClick={() => { setSelectedTrack(isSelected ? null : track); setMusicFile(null); }}
+                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${isSelected ? 'bg-primary/10 border border-primary' : 'bg-muted/50 hover:bg-muted'}`}>
+                    <button onClick={e => { e.stopPropagation(); togglePlayPreview(track); }}
+                      className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center hover:bg-primary/30 shrink-0">
+                      {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                    </button>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">{track.title}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {Math.floor(track.duration / 60)}:{String(track.duration % 60).padStart(2, '0')}
+                      </p>
+                    </div>
+                    {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div className="relative">
+            <div className="border-2 border-dashed border-border rounded-lg p-3 flex items-center gap-3 hover:bg-muted/50 transition-colors cursor-pointer">
+              <input type="file" accept="audio/*"
+                onChange={e => { setMusicFile(e.target.files?.[0] ?? null); setSelectedTrack(null); }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+              <UploadCloud className="h-5 w-5 text-muted-foreground shrink-0" />
+              <p className="text-sm text-muted-foreground truncate">
+                {musicFile ? musicFile.name : "Ou uploadez votre propre fichier audio"}
+              </p>
+              {musicFile && <Check className="w-4 h-4 text-primary shrink-0" />}
+            </div>
+          </div>
+          {(musicFile || selectedTrack) && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-2 text-sm">
+                <Volume2 className="w-4 h-4" /> Volume : {Math.round(musicVolume * 100)}%
+              </Label>
+              <Slider min={0} max={1} step={0.05} value={[musicVolume]}
+                onValueChange={vals => setMusicVolume(vals[0] ?? musicVolume)} />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Générer */}
+      <Button onClick={handleGenerate} disabled={isRendering || totalSelected < 3} className="w-full" size="lg">
+        {isRendering
+          ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Génération en cours (1-2 min)...</>
+          : <><Video className="mr-2 h-4 w-4" /> Générer la vidéo</>}
+      </Button>
+
+      {/* Vidéo générée */}
+      {videoUrl && (
+        <>
+          <div>
+            <p className="font-semibold text-green-600 mb-2">Vidéo prête :</p>
+            <video src={videoUrl} controls className="w-full rounded-lg shadow-lg" />
+          </div>
+
+          {/* Publication */}
+          <Card className="border-primary/40">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Mic className="w-4 h-4" /> 2. Texte & Voix</CardTitle>
-              <CardDescription>La voix lira votre texte. Les hashtags et emojis s'affichent mais ne sont pas lus.</CardDescription>
+              <CardTitle className="flex items-center gap-2">
+                <Send className="w-4 h-4" /> Publier sur Facebook
+              </CardTitle>
+              <CardDescription>Sélectionnez la page et planifiez (optionnel).</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Textarea placeholder="Décrivez votre produit pour générer un texte IA..." value={productInfo}
-                onChange={e => setProductInfo(e.target.value)} rows={2} />
-              <Button variant="secondary" className="w-full" disabled={!productInfo || generateTextMutation.isPending}
-                onClick={() => generateTextMutation.mutate(productInfo)}>
-                {generateTextMutation.isPending ? <Loader2 className="mr-2 w-4 h-4 animate-spin" /> : <Sparkles className="mr-2 w-4 h-4" />}
-                Générer avec l'IA
-              </Button>
-              {generatedVariants.length > 0 && (
-                <div className="space-y-1">
-                  <p className="text-xs text-muted-foreground">Cliquez pour appliquer :</p>
-                  {generatedVariants.map((v: any, i: number) => (
-                    <div key={i} onClick={() => { setOverlayText(v.text); toast({ title: "Texte appliqué" }); }}
-                      className={`text-sm p-2 rounded border cursor-pointer hover:bg-accent transition-colors ${overlayText === v.text ? 'border-primary bg-primary/5' : 'border-border'}`}>
-                      {v.text}
+              {facebookPages.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Aucune page Facebook connectée.</p>
+              ) : (
+                <div className="space-y-2">
+                  {facebookPages.map(page => (
+                    <div key={page.id} className="flex items-center gap-3">
+                      <Checkbox
+                        id={`pub-${page.id}`}
+                        checked={selectedPageIds.includes(page.id)}
+                        onCheckedChange={checked =>
+                          setSelectedPageIds(prev => checked ? [...prev, page.id] : prev.filter(id => id !== page.id))
+                        }
+                      />
+                      <label htmlFor={`pub-${page.id}`} className="text-sm font-medium cursor-pointer">
+                        {page.pageName}
+                      </label>
                     </div>
                   ))}
                 </div>
               )}
-              <Textarea placeholder="Votre texte overlay..." value={overlayText}
-                onChange={e => setOverlayText(e.target.value)} rows={3} />
-              <div className="flex items-center gap-3 pt-1">
-                <Switch id="tts" checked={ttsEnabled} onCheckedChange={setTtsEnabled} />
-                <Label htmlFor="tts">Activer la voix TTS</Label>
+              <Textarea rows={2} placeholder="Description (optionnel)" value={publishDescription}
+                onChange={e => setPublishDescription(e.target.value)} />
+              <div className="space-y-1">
+                <Label className="text-sm text-muted-foreground">Date de publication</Label>
+                <DateTimePicker value={scheduledDate} onChange={setScheduledDate}
+                  occupiedDates={[]} placeholder="Publier immédiatement" />
               </div>
-              {ttsEnabled && (
-                <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
-                  <p className="text-sm font-medium">Voix :</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {TTS_VOICES.map(v => (
-                      <div key={v.id} onClick={() => setTtsVoice(v.id)}
-                        className={`cursor-pointer p-2 rounded border-2 text-center transition-all ${ttsVoice === v.id ? 'border-primary bg-primary/10' : 'border-transparent bg-muted/30'}`}>
-                        <div className="font-semibold text-sm">{v.label}</div>
-                        <div className="text-xs text-muted-foreground">{v.type}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <Button size="sm" variant="outline" className="w-full" onClick={handleTtsPreview} disabled={!overlayText}>
-                    <Volume2 className="mr-2 w-3 h-3" /> Écouter la voix
-                  </Button>
-                  <p className="text-xs text-muted-foreground italic">
-                    ℹ️ Les hashtags et emojis s'affichent à l'écran, mais la voix ne les lit pas.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* 3. Musique */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Music className="w-4 h-4" /> 3. Musique de fond</CardTitle>
-              <CardDescription>Choisissez une musique de la bibliothèque audio ou uploadez la vôtre.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Bibliothèque interne */}
-              <div className="max-h-48 overflow-y-auto space-y-1.5">
-                {tracksLoading ? (
-                  <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-                ) : audioTracks.length === 0 ? (
-                  <div className="text-center py-8 border-2 border-dashed border-border rounded-xl">
-                    <Music className="w-10 h-10 mx-auto text-muted-foreground mb-3 opacity-40" />
-                    <p className="text-sm text-muted-foreground font-medium">Aucune musique disponible</p>
-                    <p className="text-xs text-muted-foreground mt-1">Un administrateur peut ajouter des MP3 via la Bibliothèque Audio.</p>
-                  </div>
-                ) : (
-                  audioTracks.map(track => {
-                    const isSelected = selectedTrack?.id === track.id;
-                    const playing = isPlaying === track.id;
-                    return (
-                      <div key={track.id} onClick={() => { setSelectedTrack(isSelected ? null : track); setMusicFile(null); }}
-                        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${isSelected ? 'bg-primary/10 border border-primary' : 'bg-muted/50 hover:bg-muted'}`}>
-                        <button onClick={e => { e.stopPropagation(); togglePlayPreview(track); }}
-                          className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center hover:bg-primary/30 shrink-0">
-                          {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
-                        </button>
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{track.title}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {Math.floor(track.duration / 60)}:{String(track.duration % 60).padStart(2, '0')}
-                          </p>
-                        </div>
-                        {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-
-              {/* Upload perso */}
-              <div className="relative">
-                <div className="border-2 border-dashed border-border rounded-lg p-3 flex items-center gap-3 hover:bg-muted/50 transition-colors cursor-pointer">
-                  <input type="file" accept="audio/*"
-                    onChange={e => { setMusicFile(e.target.files?.[0] ?? null); setSelectedTrack(null); }}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                  <UploadCloud className="h-5 w-5 text-muted-foreground shrink-0" />
-                  <p className="text-sm text-muted-foreground truncate">
-                    {musicFile ? musicFile.name : "Ou uploadez votre propre fichier audio"}
-                  </p>
-                  {musicFile && <Check className="w-4 h-4 text-primary shrink-0" />}
-                </div>
-              </div>
-
-              {(musicFile || selectedTrack) && (
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2 text-sm">
-                    <Volume2 className="w-4 h-4" /> Volume musique : {Math.round(musicVolume * 100)}%
-                  </Label>
-                  <Slider min={0} max={1} step={0.05} value={[musicVolume]}
-                    onValueChange={vals => setMusicVolume(vals[0] ?? musicVolume)} />
-                  <p className="text-xs text-muted-foreground italic">Baissez si la voix TTS est couverte par la musique.</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Générer */}
-          {totalSelected > 0 && (
-            <Button onClick={handleGenerate} disabled={isRendering || totalSelected < 3} className="w-full" size="lg">
-              {isRendering
-                ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Génération (1-2 min)...</>
-                : <><Video className="mr-2 h-4 w-4" /> Générer la vidéo MP4</>}
-            </Button>
-          )}
-
-          {videoUrl && (
-            <div className="space-y-4">
-              <p className="font-semibold text-green-600">Vidéo prête :</p>
-              <video src={videoUrl} controls className="w-full rounded-md shadow" />
-              <Button variant="outline" className="w-full" asChild>
-                <a href={videoUrl} download="remotion-video.mp4">Télécharger</a>
+              <Button className="w-full" onClick={handlePublish}
+                disabled={isPublishing || selectedPageIds.length === 0}>
+                {isPublishing
+                  ? <><Loader2 className="mr-2 w-4 h-4 animate-spin" /> Publication...</>
+                  : <><Send className="mr-2 w-4 h-4" /> {scheduledDate ? "Planifier" : "Publier maintenant"}</>}
               </Button>
-
-              {/* Publication */}
-              <Card className="border-primary/40">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center gap-2 text-base">
-                    <Send className="w-4 h-4" /> Publier sur Facebook
-                  </CardTitle>
-                  <CardDescription>Choisissez la page et programmez (optionnel).</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {facebookPages.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Aucune page Facebook connectée.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {facebookPages.map(page => (
-                        <div key={page.id} className="flex items-center gap-3">
-                          <Checkbox
-                            id={`pub-page-${page.id}`}
-                            checked={selectedPageIds.includes(page.id)}
-                            onCheckedChange={checked =>
-                              setSelectedPageIds(prev =>
-                                checked ? [...prev, page.id] : prev.filter(id => id !== page.id)
-                              )
-                            }
-                          />
-                          <label htmlFor={`pub-page-${page.id}`} className="text-sm font-medium cursor-pointer">
-                            {page.pageName}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    <Label className="text-sm">Description (optionnel)</Label>
-                    <Textarea
-                      rows={2}
-                      placeholder="Texte de la publication..."
-                      value={publishDescription}
-                      onChange={e => setPublishDescription(e.target.value)}
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label className="text-sm">Planifier (optionnel)</Label>
-                    <DateTimePicker
-                      value={scheduledDate}
-                      onChange={setScheduledDate}
-                      occupiedDates={[]}
-                      placeholder="Publier immédiatement"
-                    />
-                  </div>
-
-                  <Button
-                    className="w-full"
-                    onClick={handlePublish}
-                    disabled={isPublishing || selectedPageIds.length === 0}
-                  >
-                    {isPublishing
-                      ? <><Loader2 className="mr-2 w-4 h-4 animate-spin" /> Publication...</>
-                      : <><Send className="mr-2 w-4 h-4" /> {scheduledDate ? "Planifier" : "Publier maintenant"}</>}
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
-          )}
-        </div>
-
-        {/* ─── RIGHT COLUMN: PREVIEW ─── */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Aperçu en direct</CardTitle>
-            <CardDescription>Le texte animé style TikTok s'affiche ici en temps réel.</CardDescription>
-          </CardHeader>
-          <CardContent className="flex justify-center bg-zinc-950 rounded-lg p-4 overflow-hidden">
-            {combinedUrls.length > 0 ? (
-              <Player
-                component={ImageComposition}
-                inputProps={{
-                  images: combinedUrls,
-                  overlayText: overlayText || undefined,
-                  wordTimings: previewWordTimings,
-                  logoUrl: previewLogoUrl,
-                  storeName: previewStoreName,
-                  endingFrames: ENDING_FRAMES,
-                }}
-                durationInFrames={totalFrames}
-                compositionWidth={1080}
-                compositionHeight={1920}
-                fps={30}
-                controls
-                acknowledgeRemotionLicense
-                style={{ width: "auto", height: "600px", maxWidth: "100%", borderRadius: "8px" }}
-              />
-            ) : (
-              <div className="h-[600px] w-full flex items-center justify-center text-muted-foreground text-center px-4">
-                Sélectionnez des images pour voir l'aperçu.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            </CardContent>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
