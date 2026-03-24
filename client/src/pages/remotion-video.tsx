@@ -5,13 +5,15 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { UploadCloud, Video, Loader2, Check, Sparkles, Mic, Volume2, Music, Play, Pause } from "lucide-react";
+import { UploadCloud, Video, Loader2, Check, Sparkles, Mic, Volume2, Music, Play, Pause, Send } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import type { Media } from "@shared/schema";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DateTimePicker } from "@/components/datetime-picker";
+import type { Media, SocialPage } from "@shared/schema";
 
 const TTS_VOICES = [
   { id: "fr-FR-VivienneMultilingualNeural", label: "Vivienne", type: "Femme" },
@@ -65,6 +67,10 @@ export default function RemotionVideoPage() {
   const [isPlaying, setIsPlaying] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const [selectedPageIds, setSelectedPageIds] = useState<string[]>([]);
+  const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
+  const [publishDescription, setPublishDescription] = useState("");
+  const [isPublishing, setIsPublishing] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
 
@@ -75,14 +81,15 @@ export default function RemotionVideoPage() {
   const { data: cloudinaryConfig } = useQuery<{ cloudName?: string; logoPublicId?: string } | null>({
     queryKey: ['/api/cloudinary/config'],
   });
-  const { data: socialPages = [] } = useQuery<{ pageName: string }[]>({
+  const { data: socialPages = [] } = useQuery<SocialPage[]>({
     queryKey: ['/api/pages'],
   });
 
   const previewLogoUrl = cloudinaryConfig?.cloudName && cloudinaryConfig?.logoPublicId
     ? `https://res.cloudinary.com/${cloudinaryConfig.cloudName}/image/upload/${cloudinaryConfig.logoPublicId}`
     : undefined;
-  const previewStoreName = (socialPages[0] as any)?.pageName as string | undefined;
+  const previewStoreName = socialPages[0]?.pageName as string | undefined;
+  const facebookPages = socialPages.filter(p => p.platform === 'facebook');
   const imageMediaList = allMedia.filter(m => m.type === 'image').slice(0, 20);
 
   const generateTextMutation = useMutation({
@@ -181,6 +188,32 @@ export default function RemotionVideoPage() {
       toast({ title: "Erreur", description: err.message || "Impossible de créer la vidéo.", variant: "destructive" });
     } finally {
       setIsRendering(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!videoUrl) return;
+    if (selectedPageIds.length === 0) { toast({ title: "Sélectionnez au moins une page.", variant: "destructive" }); return; }
+    setIsPublishing(true);
+    try {
+      const response = await apiRequest('POST', '/api/remotion/publish', {
+        videoUrl,
+        pageIds: selectedPageIds,
+        scheduledFor: scheduledDate?.toISOString(),
+        description: publishDescription || undefined,
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.results?.find((r: any) => r.error)?.error || "Erreur");
+      toast({
+        title: scheduledDate ? "Publication planifiée !" : "Vidéo publiée !",
+        description: scheduledDate
+          ? `Sera publiée le ${scheduledDate.toLocaleString('fr-FR')}`
+          : "Votre vidéo a été publiée sur Facebook.",
+      });
+    } catch (err: any) {
+      toast({ title: "Erreur de publication", description: err.message, variant: "destructive" });
+    } finally {
+      setIsPublishing(false);
     }
   };
 
@@ -362,12 +395,76 @@ export default function RemotionVideoPage() {
           )}
 
           {videoUrl && (
-            <div>
-              <p className="font-semibold mb-2 text-green-600">Vidéo prête :</p>
+            <div className="space-y-4">
+              <p className="font-semibold text-green-600">Vidéo prête :</p>
               <video src={videoUrl} controls className="w-full rounded-md shadow" />
-              <Button variant="outline" className="w-full mt-2" asChild>
+              <Button variant="outline" className="w-full" asChild>
                 <a href={videoUrl} download="remotion-video.mp4">Télécharger</a>
               </Button>
+
+              {/* Publication */}
+              <Card className="border-primary/40">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Send className="w-4 h-4" /> Publier sur Facebook
+                  </CardTitle>
+                  <CardDescription>Choisissez la page et programmez (optionnel).</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {facebookPages.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Aucune page Facebook connectée.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {facebookPages.map(page => (
+                        <div key={page.id} className="flex items-center gap-3">
+                          <Checkbox
+                            id={`pub-page-${page.id}`}
+                            checked={selectedPageIds.includes(page.id)}
+                            onCheckedChange={checked =>
+                              setSelectedPageIds(prev =>
+                                checked ? [...prev, page.id] : prev.filter(id => id !== page.id)
+                              )
+                            }
+                          />
+                          <label htmlFor={`pub-page-${page.id}`} className="text-sm font-medium cursor-pointer">
+                            {page.pageName}
+                          </label>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="space-y-1">
+                    <Label className="text-sm">Description (optionnel)</Label>
+                    <Textarea
+                      rows={2}
+                      placeholder="Texte de la publication..."
+                      value={publishDescription}
+                      onChange={e => setPublishDescription(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-sm">Planifier (optionnel)</Label>
+                    <DateTimePicker
+                      value={scheduledDate}
+                      onChange={setScheduledDate}
+                      occupiedDates={[]}
+                      placeholder="Publier immédiatement"
+                    />
+                  </div>
+
+                  <Button
+                    className="w-full"
+                    onClick={handlePublish}
+                    disabled={isPublishing || selectedPageIds.length === 0}
+                  >
+                    {isPublishing
+                      ? <><Loader2 className="mr-2 w-4 h-4 animate-spin" /> Publication...</>
+                      : <><Send className="mr-2 w-4 h-4" /> {scheduledDate ? "Planifier" : "Publier maintenant"}</>}
+                  </Button>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>

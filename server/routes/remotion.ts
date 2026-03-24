@@ -6,6 +6,8 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { ffmpegService } from "../services/ffmpeg";
 import { storage as dbStorage } from "../storage";
+import { cloudinaryService } from "../services/cloudinary";
+import { facebookService } from "../services/facebook";
 import * as musicMetadata from "music-metadata";
 
 export const remotionRouter = Router();
@@ -238,5 +240,106 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
   } catch (err: any) {
     console.error("❌ Remotion render error:", err);
     res.status(500).json({ error: "Erreur lors du rendu: " + err.message });
+  }
+});
+
+/**
+ * POST /api/remotion/publish
+ * Uploads the rendered MP4 to Cloudinary and publishes (or schedules) it as a Reel.
+ */
+remotionRouter.post("/publish", async (req, res) => {
+  try {
+    const user = req.user as any;
+    if (!user?.id) return res.status(401).json({ error: "Non authentifié" });
+
+    const { videoUrl, pageIds, scheduledFor, description } = req.body as {
+      videoUrl: string;
+      pageIds: string[];
+      scheduledFor?: string;
+      description?: string;
+    };
+
+    if (!videoUrl) return res.status(400).json({ error: "videoUrl requis" });
+    if (!pageIds?.length) return res.status(400).json({ error: "Au moins une page requise" });
+
+    // Resolve the local file path from the temp URL
+    const filename = path.basename(videoUrl.split("?")[0]);
+    const localPath = path.join(uploadDir, filename);
+    if (!fs.existsSync(localPath)) {
+      return res.status(400).json({ error: "Fichier vidéo introuvable (expiré ?)" });
+    }
+
+    console.log("☁️ Uploading Remotion video to Cloudinary...");
+    const cloudinaryResult = await cloudinaryService.uploadMedia(
+      localPath,
+      filename,
+      user.id,
+      "video/mp4"
+    );
+    console.log("✅ Cloudinary upload:", cloudinaryResult.originalUrl);
+
+    // Create a Post record to track this publication
+    const post = await dbStorage.createPost({
+      userId: user.id,
+      content: description || "",
+      aiGenerated: "false",
+      status: scheduledFor ? "scheduled" : "published",
+      scheduledFor: scheduledFor ? new Date(scheduledFor) : undefined,
+    });
+
+    // Create a Media record for the processed video
+    const mediaRecord = await dbStorage.createMedia({
+      userId: user.id,
+      type: "video",
+      cloudinaryPublicId: cloudinaryResult.publicId,
+      originalUrl: cloudinaryResult.originalUrl,
+      facebookFeedUrl: null,
+      instagramFeedUrl: null,
+      instagramStoryUrl: null,
+      fileName: filename,
+      fileSize: fs.statSync(localPath).size,
+    });
+
+    await dbStorage.updatePostMedia(post.id, [mediaRecord.id]);
+
+    const results: { pageId: string; success: boolean; reelId?: string; error?: string }[] = [];
+
+    for (const pageId of pageIds) {
+      try {
+        const page = await dbStorage.getSocialPage(pageId);
+        if (!page) { results.push({ pageId, success: false, error: "Page introuvable" }); continue; }
+        if (page.platform !== "facebook") { results.push({ pageId, success: false, error: "Seules les pages Facebook sont supportées" }); continue; }
+
+        const scheduledPost = await dbStorage.createScheduledPost({
+          postId: post.id,
+          pageId: page.id,
+          postType: "reel",
+          scheduledAt: scheduledFor ? new Date(scheduledFor) : new Date(),
+        });
+
+        if (!scheduledFor) {
+          console.log(`🚀 Publishing to ${page.pageName}...`);
+          const reelId = await facebookService.publishReel(page, cloudinaryResult.originalUrl, description || "");
+          await dbStorage.updateScheduledPost(scheduledPost.id, { publishedAt: new Date(), externalPostId: reelId });
+          results.push({ pageId, success: true, reelId });
+        } else {
+          results.push({ pageId, success: true, reelId: "scheduled" });
+        }
+      } catch (pageErr: any) {
+        console.error(`❌ Error publishing to page ${pageId}:`, pageErr);
+        results.push({ pageId, success: false, error: pageErr.message });
+      }
+    }
+
+    const anySuccess = results.some(r => r.success);
+    if (!anySuccess) {
+      await dbStorage.updatePost(post.id, { status: "failed" });
+    }
+
+    res.json({ success: anySuccess, results, postId: post.id });
+
+  } catch (err: any) {
+    console.error("❌ Remotion publish error:", err);
+    res.status(500).json({ error: "Erreur lors de la publication: " + err.message });
   }
 });
