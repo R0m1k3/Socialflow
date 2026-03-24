@@ -63,7 +63,14 @@ ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN npm run build
 
 # Nettoyer les fichiers inutiles pour réduire la taille
-RUN rm -rf client node_modules/.cache
+# On garde client/src/remotion car le serveur en a besoin au runtime pour le bundling
+RUN rm -rf client/node_modules \
+         client/.vite \
+         node_modules/.cache \
+         /tmp/remotion-*
+
+# Pré-bundler la composition Remotion pendant le build (speedup au premier rendu)
+RUN node scripts/prebundle-remotion.js || true
 
 # Exposer le port de l'application
 EXPOSE 5555

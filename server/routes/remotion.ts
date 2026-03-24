@@ -23,6 +23,20 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage });
 
+/** Cached Remotion bundle URL — only bundle once per process lifecycle */
+let remotionBundleCache: string | null = null;
+
+async function getBundle(): Promise<string> {
+  if (remotionBundleCache) return remotionBundleCache;
+  // Resolve relative to this file so it works in Docker and locally
+  // __dirname = server/routes, so ../.. → project root → client/src/remotion/index.ts
+  const entryPoint = path.resolve(__dirname, "../../client/src/remotion/index.ts");
+  console.log("📦 Bundling Remotion from:", entryPoint);
+  remotionBundleCache = await bundle({ entryPoint });
+  console.log("📦 Bundle cached at:", remotionBundleCache);
+  return remotionBundleCache;
+}
+
 /**
  * Strips hashtags and emojis from text for TTS synthesis.
  * Visual display keeps the full text.
@@ -138,10 +152,8 @@ remotionRouter.post("/render", upload.array("images", 4), async (req, res) => {
       }
     }
 
-    console.log("🎬 Bundling Remotion project...");
-    const bundleLocation = await bundle({
-      entryPoint: path.resolve(process.cwd(), "client/src/remotion/index.ts"),
-    });
+    console.log("🎬 Getting Remotion bundle (cached)...");
+    const bundleLocation = await getBundle();
 
     const inputProps = { images: imageUrls, overlayText, audioUrl, wordTimings };
 
