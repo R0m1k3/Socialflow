@@ -7,6 +7,8 @@ RUN apt-get update && apt-get install -y \
     xz-utils \
     fonts-dejavu \
     fontconfig \
+    build-essential \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Download static FFmpeg build with all filters including vidstab
