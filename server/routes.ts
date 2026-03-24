@@ -17,6 +17,7 @@ import { analyticsRouter } from "./routes/analytics";
 import { reelsRouter } from "./routes/reels";
 import { remotionRouter } from "./routes/remotion";
 import { insertAudioTrackSchema } from "@shared/schema";
+import * as musicMetadata from "music-metadata";
 
 // Types MIME autorisés pour les uploads
 const ALLOWED_MIME_TYPES = [
@@ -1005,12 +1006,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const decodedName = Buffer.from(file.originalname, 'latin1').toString('utf8');
           const publicUrl = `/uploads/audio/${file.filename}`;
 
+          let duration = 0;
+          try {
+            const meta = await musicMetadata.parseFile(file.path);
+            duration = Math.round(meta.format.duration ?? 0);
+          } catch { /* non-fatal */ }
+
           const track = await storage.createAudioTrack({
             userId: user.id,
             title: decodedName.replace(/\.[^/.]+$/, ""),
             fileName: decodedName,
             url: publicUrl,
-            duration: 0,
+            duration,
           });
 
           results.push({ success: true, track });
