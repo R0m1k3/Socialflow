@@ -115,9 +115,10 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
 
     // Music: uploaded file takes priority, else use catalog track URL directly
     const musicFile = fields["music"]?.[0];
+    const rawMusicTrackUrl = req.body.musicTrackUrl as string | undefined;
     const musicUrl: string | undefined = musicFile
       ? `${host}/uploads/temp/${path.basename(musicFile.path)}`
-      : (req.body.musicTrackUrl as string | undefined) || undefined;
+      : rawMusicTrackUrl?.startsWith('/') ? `${host}${rawMusicTrackUrl}` : rawMusicTrackUrl || undefined;
 
     const fps = 30;
     const totalVideoDuration = imageUrls.length * 3; // 3s per image

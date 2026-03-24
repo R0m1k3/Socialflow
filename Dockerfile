@@ -1,45 +1,26 @@
-# Node.js 20 Debian slim — glibc requis pour Remotion Chrome headless shell
-FROM node:20-slim
+# Alpine léger + gcompat pour la compatibilité glibc (requis par Remotion Chrome headless)
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Dépendances système : build tools, canvas/sharp, fonts, ffmpeg + dépendances Chrome (glibc)
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Augmenter la mémoire dès le début (npm install + build)
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
+# Dépendances système
+RUN apk add --no-cache \
     python3 make g++ \
-    libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev libpixman-1-dev \
-    libvips-dev pkg-config \
-    fonts-dejavu-core fontconfig \
+    cairo-dev jpeg-dev pango-dev giflib-dev pixman-dev \
+    vips-dev pkgconfig \
+    ttf-dejavu fontconfig \
     curl tar bzip2 \
     ffmpeg \
-    libcap2-bin \
-    ca-certificates \
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libcups2 \
-    libdbus-1-3 \
-    libdrm2 \
-    libgbm1 \
-    libglib2.0-0 \
-    libgtk-3-0 \
-    libnspr4 \
-    libnss3 \
-    libpango-1.0-0 \
-    libx11-6 \
-    libx11-xcb1 \
-    libxcb1 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxkbcommon0 \
-    libxrandr2 \
-    libxshmfence1 \
-    libxtst6 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Augmenter la mémoire dès maintenant (npm install + build)
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+    libcap \
+    # gcompat = couche de compatibilité glibc → permet au Chrome headless de Remotion de tourner sur Alpine
+    gcompat \
+    libc6-compat \
+    # Dépendances Chromium pour le rendu headless
+    chromium \
+    nss freetype harfbuzz ca-certificates
 
 # Copier les fichiers de configuration
 COPY package*.json ./
@@ -50,7 +31,7 @@ RUN npm install --legacy-peer-deps --no-audit --no-fund
 # Copier tout le code source
 COPY . .
 
-# Télécharger et installer la police DejaVu Sans pour le rendu de texte
+# Télécharger et installer la police DejaVu Sans
 RUN mkdir -p server/fonts && \
     cd server/fonts && \
     curl -L -f --retry 3 --retry-delay 2 -o dejavu.tar.bz2 "https://sourceforge.net/projects/dejavu/files/dejavu/2.37/dejavu-fonts-ttf-2.37.tar.bz2/download" && \
@@ -68,18 +49,17 @@ RUN rm -rf client/node_modules \
          node_modules/.cache \
          /tmp/remotion-*
 
-# Pré-bundler la composition Remotion pendant le build
+# Pré-bundler la composition Remotion
 RUN node scripts/prebundle-remotion.js || true
 
-# Télécharger le Chrome headless shell de Remotion (binaire glibc, compatible Debian)
+# Télécharger le Chrome headless shell de Remotion
+# gcompat permet au binaire glibc de tourner sur Alpine
 RUN npx remotion browser ensure && echo "✓ Remotion browser prêt"
 
-# Exposer le port de l'application
+# Exposer le port
 EXPOSE 5555
 
-# Variables d'environnement par défaut
 ENV NODE_ENV=production
 ENV PORT=5555
 
-# Démarrer l'application
 CMD ["npm", "run", "start"]
