@@ -537,16 +537,117 @@ def format_ass_time(seconds: float) -> str:
     return f"{hours}:{minutes:02d}:{secs:02d}.{centis:02d}"
 
 
-def generate_simple_srt(text: str, srt_path: Path):
-    # This was a stub, but let's fix the internal helper if it were called
-    def format_srt_time(seconds: float) -> str:
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
-        millis = int((seconds % 1) * 1000)
-        return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
+def format_srt_time(seconds: float) -> str:
+    hours = int(seconds // 3600)
+    minutes = int((seconds % 3600) // 60)
+    secs = int(seconds % 60)
+    millis = int((seconds % 1) * 1000)
+    return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"
 
-    pass
+def generate_unsynced_srt(text: str, srt_path: Path, total_duration: float = 30.0):
+    all_words = text.split()
+    chunks = []
+    current_chunk = []
+    
+    for word in all_words:
+        current_chunk.append(word)
+        if len(current_chunk) >= 3 or word.endswith((".", "!", "?", ":")):
+            chunks.append(" ".join(current_chunk).strip())
+            current_chunk = []
+    if current_chunk:
+        chunks.append(" ".join(current_chunk).strip())
+        
+    total_chars = sum(len(c) for c in chunks) or 1
+    current_time = 0.0
+    
+    with open(srt_path, "w", encoding="utf-8") as f:
+        for i, chunk in enumerate(chunks):
+            chunk_dur = (len(chunk) / total_chars) * total_duration
+            start = current_time
+            end = start + chunk_dur
+            current_time = end
+            
+            f.write(f"{i+1}\n")
+            f.write(f"{format_srt_time(start)} --> {format_srt_time(end)}\n")
+            f.write(f"{chunk}\n\n")
+
+def run_ffsubsync(audio_path: Path, unsynced_srt: Path, synced_srt: Path):
+    print(f"🔄 Running ffsubsync on {audio_path.name}...")
+    cmd = [
+        "ffsubsync",
+        str(audio_path),
+        "-i", str(unsynced_srt),
+        "-o", str(synced_srt)
+    ]
+    try:
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if proc.returncode == 0:
+            print("✅ ffsubsync success")
+        else:
+            print(f"⚠️ ffsubsync error: {proc.stderr[:200]}")
+            shutil.copy(unsynced_srt, synced_srt)
+    except Exception as e:
+        print(f"⚠️ ffsubsync exception: {e}")
+        shutil.copy(unsynced_srt, synced_srt)
+
+def parse_srt_time(s: str) -> float:
+    s = s.strip()
+    parts = s.split(",")
+    ms = int(parts[1]) if len(parts) > 1 else 0
+    h, m, sec = parts[0].split(":")
+    return int(h)*3600 + int(m)*60 + int(sec) + ms/1000.0
+
+def convert_srt_to_ass(srt_path: Path, ass_path: Path, font_size: int = 65, delay: float = 0.0):
+    with open(srt_path, "r", encoding="utf-8") as f:
+        content = f.read().strip()
+        
+    blocks = content.split("\n\n")
+    chunks = []
+    for block in blocks:
+        lines = block.split("\n")
+        if len(lines) >= 3:
+            time_str = lines[1]
+            if " --> " in time_str:
+                start_str, end_str = time_str.split(" --> ")
+                
+                start = parse_srt_time(start_str) + delay
+                end = parse_srt_time(end_str) + delay
+                text = " ".join(lines[2:])
+                chunks.append({"start": start, "end": end, "text": text})
+
+    header = f"""[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Sans,{font_size},&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,5,50,50,0,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+    events = ""
+    for chunk in chunks:
+        start_ts = format_ass_time(chunk["start"])
+        end_ts = format_ass_time(chunk["end"])
+        sanitized = chunk["text"].replace("{", "(").replace("}", ")")
+        
+        words = sanitized.split()
+        chunk_dur = chunk["end"] - chunk["start"]
+        karaoke_parts = []
+        total_chars = sum(len(x) for x in words) or 1
+        for w in words:
+            w_dur_cs = int((len(w)/total_chars) * chunk_dur * 100)
+            w_dur_cs = max(10, w_dur_cs)
+            karaoke_parts.append(f"{{\\kf{w_dur_cs}}}{w}")
+            
+        karaoke_text = " ".join(karaoke_parts)
+        events += f"Dialogue: 0,{start_ts},{end_ts},Default,,0,0,0,,{karaoke_text}\n"
+
+    with open(ass_path, "w", encoding="utf-8") as f:
+        f.write(header + events)
 
 
 def format_vtt_time(seconds: float) -> str:
@@ -847,13 +948,21 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 ass_path_str = str(tts_ass_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f",subtitles='{ass_path_str}'"
             else:
-                # Standard Text (without TTS)
-                print(
-                    f"🎬 Overlaying subtitles from standard text: {request.text[:30]}..."
-                )
+                # Standard Text (without TTS) synchronisé via ffsubsync
+                print(f"🎬 Overlaying subtitles from standard text using ffsubsync...")
+                unsynced_srt_path = job_dir / "unsynced.srt"
+                synced_srt_path = job_dir / "synced.srt"
                 std_ass_path = job_dir / "std_text.ass"
-                # Use fontsize 40 by default for standard text
-                generate_simple_ass(request.text, std_ass_path, font_size=40, delay=2.0)
+                
+                # Choose an audio reference
+                ref_audio = input_video_path
+                if has_music and not has_original_audio:
+                    ref_audio = input_audio_path
+
+                # Subtitle syncing pipeline
+                generate_unsynced_srt(request.text, unsynced_srt_path, total_duration=video_duration)
+                run_ffsubsync(ref_audio, unsynced_srt_path, synced_srt_path)
+                convert_srt_to_ass(synced_srt_path, std_ass_path, font_size=40, delay=0.0)
 
                 ass_path_str = str(std_ass_path).replace("\\", "/").replace(":", "\\:")
                 text_filter = f",subtitles='{ass_path_str}'"
