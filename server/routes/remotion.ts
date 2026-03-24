@@ -30,7 +30,8 @@ const upload = multer({ storage });
 function stripForTTS(text: string): string {
   return text
     .replace(/#\w+/g, '')      // remove hashtags
-    .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE00}-\u{FEFF}]/gu, '') // emojis
+    .replace(/[\uD800-\uDFFF]/g, '') // surrogate pairs (most emojis)
+    .replace(/[\u2600-\u27BF]/g, '') // misc symbols
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -63,7 +64,7 @@ function computeWordTimings(
   return displayWords.map((word) => {
     const wordStart = currentFrame;
     // Use TTS pacing if this word is a real spoken word
-    const isSpoken = !/^#/.test(word) && !/^\p{Emoji}/u.test(word);
+    const isSpoken = !/^#/.test(word) && !(/[\uD800-\uDFFF\u2600-\u27BF]/.test(word));
     const frameDuration = isSpoken ? framesPerTTSWord : framesPerTTSWord * 0.4; // hashtags flash briefly
     currentFrame += Math.round(frameDuration);
     if (isSpoken) ttsIdx++;
