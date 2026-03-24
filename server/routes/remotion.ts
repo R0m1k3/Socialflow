@@ -171,9 +171,10 @@ remotionRouter.post("/render", upload.array("images", 4), async (req, res) => {
 
     console.log("🎬 Rendering media...", effectiveDurationInFrames, "frames");
 
-    // Standard Chromium paths — Alpine installs at /usr/bin/chromium, Debian/Ubuntu at /usr/bin/chromium-browser
-    const chromiumPaths = ["/usr/bin/chromium", "/usr/bin/chromium-browser"];
+    // Standard Chromium paths — Alpine installs at /usr/bin/chromium-browser, Debian/Ubuntu may differ
+    const chromiumPaths = ["/usr/bin/chromium-browser", "/usr/bin/chromium"];
     const browserExecutable = chromiumPaths.find(p => fs.existsSync(p));
+    console.log("🌐 Browser executable:", browserExecutable ?? "remotion bundled (fallback)");
 
     await renderMedia({
       composition: { ...composition, durationInFrames: effectiveDurationInFrames },
@@ -184,7 +185,8 @@ remotionRouter.post("/render", upload.array("images", 4), async (req, res) => {
       browserExecutable,
       chromiumOptions: {
         disableWebSecurity: true,
-      }
+        ignoreCertificateErrors: true,
+      },
     });
 
     console.log("✅ Render completed:", outputFilename);

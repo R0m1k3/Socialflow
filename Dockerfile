@@ -73,8 +73,11 @@ RUN rm -rf client/node_modules \
 # Pré-bundler la composition Remotion pendant le build (speedup au premier rendu)
 RUN node scripts/prebundle-remotion.js || true
 
-# S'assurer que le binaire browser de Remotion est téléchargé et disponible
-RUN npx remotion browser ensure
+# Vérifier que le binaire Chromium système est bien présent (utilisé à la place du binaire Remotion)
+# Note: npx remotion browser ensure télécharge un binaire glibc qui ne fonctionne pas sur Alpine (musl)
+RUN which chromium-browser && echo "✓ chromium-browser trouvé à $(which chromium-browser)" || \
+    (which chromium && echo "✓ chromium trouvé à $(which chromium)") || \
+    echo "⚠ Aucun chromium système trouvé — le rendu échouera"
 
 
 # Exposer le port de l'application
