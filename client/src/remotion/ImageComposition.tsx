@@ -120,47 +120,53 @@ export const ImageComposition = ({
       {/* Background music */}
       {musicUrl && <Html5Audio src={musicUrl} volume={musicVolume} />}
 
-      {/* TikTok-style word-by-word text overlay (content section only) */}
+      {/* TikTok-style 3-words-at-a-time overlay (content section only) */}
       {frame < endingStart && (
-        wordTimings && wordTimings.length > 0 ? (
-          <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 160 }}>
-            <div
-              style={{
-                maxWidth: "88%",
-                textAlign: "center",
-                display: "flex",
-                flexWrap: "wrap",
-                justifyContent: "center",
-                gap: "0 14px",
-                alignItems: "baseline",
-                filter: "drop-shadow(0 2px 12px rgba(0,0,0,0.7))",
-              }}
-            >
-              {wordTimings.map((w, i) => {
-                const isActive = i === activeWordIdx;
-                if (!isActive) return null;
-                return (
-                  <span
-                    key={i}
-                    style={{
-                      color: "#FFE600",
-                      fontFamily: "'Arial Black', 'Impact', sans-serif",
-                      fontSize: 80,
-                      fontWeight: 900,
-                      lineHeight: 1.2,
-                      WebkitTextStroke: "3px rgba(0,0,0,0.8)",
-                      textShadow: "0 4px 20px rgba(0,0,0,0.9)",
-                      display: "inline-block",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {w.word}
-                  </span>
-                );
-              })}
-            </div>
-          </AbsoluteFill>
-        ) : overlayText ? (
+        wordTimings && wordTimings.length > 0 && activeWordIdx >= 0 ? (() => {
+          // Group index: which chunk of 3 is currently active
+          const groupIdx = Math.floor(activeWordIdx / 3);
+          const groupStart = groupIdx * 3;
+          const groupWords = wordTimings.slice(groupStart, groupStart + 3);
+          return (
+            <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 160 }}>
+              <div
+                style={{
+                  maxWidth: "88%",
+                  textAlign: "center",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  justifyContent: "center",
+                  gap: "0 18px",
+                  alignItems: "baseline",
+                  filter: "drop-shadow(0 2px 12px rgba(0,0,0,0.7))",
+                }}
+              >
+                {groupWords.map((w, gi) => {
+                  const isActive = groupStart + gi === activeWordIdx;
+                  return (
+                    <span
+                      key={groupStart + gi}
+                      style={{
+                        color: isActive ? "#FFE600" : "white",
+                        fontFamily: "'Arial Black', 'Impact', sans-serif",
+                        fontSize: 76,
+                        fontWeight: 900,
+                        lineHeight: 1.2,
+                        WebkitTextStroke: isActive ? "3px rgba(0,0,0,0.8)" : "2px rgba(0,0,0,0.7)",
+                        textShadow: "0 4px 20px rgba(0,0,0,0.9)",
+                        display: "inline-block",
+                        textTransform: "uppercase",
+                        transform: isActive ? "scale(1.08)" : "scale(1)",
+                      }}
+                    >
+                      {w.word}
+                    </span>
+                  );
+                })}
+              </div>
+            </AbsoluteFill>
+          );
+        })() : overlayText ? (
           <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 160 }}>
             <div
               style={{
