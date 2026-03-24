@@ -6,6 +6,7 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { ffmpegService } from "../services/ffmpeg";
 import { storage as dbStorage } from "../storage";
+import * as musicMetadata from "music-metadata";
 
 export const remotionRouter = Router();
 
@@ -158,12 +159,19 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
           if (ttsResult.success && ttsResult.audioBase64) {
             const audioFilename = `tts-${Date.now()}.mp3`;
             const audioPath = path.join(uploadDir, audioFilename);
-            fs.writeFileSync(audioPath, Buffer.from(ttsResult.audioBase64, "base64"));
+            const audioBuffer = Buffer.from(ttsResult.audioBase64, "base64");
+            fs.writeFileSync(audioPath, audioBuffer);
             audioUrl = `${host}/uploads/temp/${audioFilename}`;
 
-            // Estimate audio duration (MP3 at 128kbps ~ 16KB/s)
-            const audioBytes = Buffer.from(ttsResult.audioBase64, "base64").length;
-            estimatedAudioDuration = Math.max(audioBytes / 16000, ttsText.split(/\s+/).length * 0.5);
+            // Get exact audio duration from MP3 metadata
+            try {
+              const meta = await musicMetadata.parseFile(audioPath);
+              estimatedAudioDuration = meta.format.duration ?? 0;
+            } catch {
+              // Fallback: rough estimate from byte size (128kbps = 16KB/s)
+              estimatedAudioDuration = audioBuffer.length / 16000;
+            }
+            estimatedAudioDuration = Math.max(estimatedAudioDuration, ttsText.split(/\s+/).length * 0.35);
 
             wordTimings = computeWordTimings(overlayText, estimatedAudioDuration, FPS, 0);
             console.log(`✅ TTS generated, ~${estimatedAudioDuration.toFixed(1)}s, ${wordTimings.length} words`);
