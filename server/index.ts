@@ -1,4 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
+import path from "path";
+import fs from "fs";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 import pg from "pg";
@@ -63,6 +65,11 @@ app.use('/api/auth/login', authLimiter);
 // Serve locally stored audio files
 const AUDIO_UPLOAD_DIR = process.env.AUDIO_UPLOAD_DIR || '/app/uploads/audio';
 app.use('/uploads/audio', express.static(AUDIO_UPLOAD_DIR));
+
+// Serve temp uploads for Remotion
+const TEMP_UPLOAD_DIR = process.env.TEMP_UPLOAD_DIR || path.join(process.cwd(), 'uploads', 'temp');
+try { fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: true }); } catch { /* ignore */ }
+app.use('/uploads/temp', express.static(TEMP_UPLOAD_DIR));
 
 declare module 'http' {
   interface IncomingMessage {

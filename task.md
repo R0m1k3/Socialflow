@@ -253,3 +253,12 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - **22 Jan 2026** - Settings FFmpeg ajoutés
 - **22 Jan 2026** - Migration Jamendo -> FreeSound effectuée sur demande utilisateur
 - **22 Jan 2026** - Correction preview audio et ajout pagination "10 nouvelles musiques"
+
+### Phase 24: Remotion Video Generator Tab ✅
+
+- [x] Créer l'`implementation_plan.md` pour validation.
+- [x] Installer les dépendances frontend et backend de Remotion.
+- [x] Créer le composant Remotion (Composition pour 3-4 images).
+- [x] Créer la route backend `/api/remotion/render` pour compiler et générer la vidéo.
+- [x] Ajouter l'interface utilisateur frontend avec le `<Player />` et le système d'upload.
+- [x] Mettre à jour `Dockerfile` avec Chromium si nécessaire.

@@ -24,7 +24,14 @@ RUN apk add --no-cache \
     fontconfig \
     curl \
     tar \
-    bzip2
+    bzip2 \
+    chromium \
+    nss \
+    freetype \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
+    ffmpeg
 
 # Copier les fichiers de configuration
 COPY package*.json ./

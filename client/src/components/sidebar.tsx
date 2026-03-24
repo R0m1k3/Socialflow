@@ -62,6 +62,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
     { icon: Home, label: "Tableau de bord", href: "/", badge: null },
     { icon: PlusCircle, label: "Nouvelle publication", href: "/new", badge: null },
     { icon: Video, label: "Nouveau Reel", href: "/reel", badge: "New" },
+    { icon: Video, label: "Générateur Vidéo", href: "/remotion", badge: "New" },
     { icon: Calendar, label: "Calendrier", href: "/calendar", badge: null },
     { icon: Images, label: "Médiathèque", href: "/media", badge: null },
     { icon: Wand2, label: "Éditeur d'images", href: "/image-editor", badge: null },

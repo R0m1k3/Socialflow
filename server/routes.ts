@@ -15,6 +15,7 @@ import type { User, InsertUser, ScheduledPost, FreesoundConfig } from "@shared/s
 import { freeSoundService } from "./services/freesound";
 import { analyticsRouter } from "./routes/analytics";
 import { reelsRouter } from "./routes/reels";
+import { remotionRouter } from "./routes/remotion";
 import { insertAudioTrackSchema } from "@shared/schema";
 
 // Types MIME autorisés pour les uploads
@@ -438,6 +439,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Reels & Music Routes
   app.use("/api", requireAuth, reelsRouter);
+  app.use("/api/remotion", requireAuth, remotionRouter);
 
 
   // Route SQL (réservée aux admins) - DÉSACTIVÉE EN PRODUCTION sauf si explicitement autorisée

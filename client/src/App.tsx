@@ -81,6 +81,11 @@ const NewReel = createResponsiveRoute(
   () => import("@/pages/mobile/new-reel") // Uses same component for now
 );
 
+const RemotionVideo = createResponsiveRoute(
+  () => import("@/pages/remotion-video"),
+  () => import("@/pages/remotion-video")
+);
+
 function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType; adminOnly?: boolean }) {
   const [, setLocation] = useLocation();
 
@@ -131,6 +136,7 @@ function Router() {
       <Route path="/">{() => <ProtectedRoute component={Dashboard} />}</Route>
       <Route path="/new">{() => <ProtectedRoute component={NewPost} />}</Route>
       <Route path="/reel">{() => <ProtectedRoute component={NewReel} />}</Route>
+      <Route path="/remotion">{() => <ProtectedRoute component={RemotionVideo} />}</Route>
       <Route path="/calendar">{() => <ProtectedRoute component={Calendar} />}</Route>
       <Route path="/media">{() => <ProtectedRoute component={Media} />}</Route>
       <Route path="/image-editor">{() => <ProtectedRoute component={ImageEditor} />}</Route>
