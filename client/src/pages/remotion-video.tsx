@@ -1,4 +1,6 @@
 import { useState, useRef } from "react";
+import Sidebar from "@/components/sidebar";
+import TopBar from "@/components/topbar";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,6 +32,7 @@ interface AudioTrack {
 }
 
 export default function RemotionVideoPage() {
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [images, setImages] = useState<File[]>([]);
   const [selectedLibraryImages, setSelectedLibraryImages] = useState<Media[]>([]);
   const [overlayText, setOverlayText] = useState("");
@@ -139,11 +142,18 @@ export default function RemotionVideoPage() {
   };
 
   return (
-    <div className="container mx-auto p-6 max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Générateur Vidéo</h1>
-        <p className="text-muted-foreground mt-1">Créez une vidéo 9:16 animée avec voix, musique et effets.</p>
+    <div className="flex h-screen overflow-hidden bg-background">
+      {sidebarOpen && (
+        <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
+      )}
+      <div className={`fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        <Sidebar onLinkClick={() => setSidebarOpen(false)} />
       </div>
+
+      <main className="flex-1 overflow-y-auto">
+        <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+
+        <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto space-y-6">
 
       <audio ref={audioRef} onEnded={() => setIsPlaying(null)} />
 
@@ -355,6 +365,8 @@ export default function RemotionVideoPage() {
           </Card>
         </>
       )}
+        </div>
+      </main>
     </div>
   );
 }
