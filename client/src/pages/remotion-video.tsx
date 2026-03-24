@@ -1,11 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { Player } from "@remotion/player";
 import { ImageComposition } from "@/remotion/ImageComposition";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { UploadCloud, Video, Loader2, Check, Sparkles, Mic, Volume2 } from "lucide-react";
+import { UploadCloud, Video, Loader2, Check, Sparkles, Mic, Volume2, Music, Play, Pause } from "lucide-react";
+import { Slider } from "@/components/ui/slider";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
@@ -20,31 +21,34 @@ const TTS_VOICES = [
   { id: "fr-FR-EloiseNeural",               label: "Éloïse",   type: "Enfant" },
 ];
 
-/** strips hashtags & emojis for preview word timing (mirrors server logic) */
 function stripForTTS(text: string): string {
   return text
     .replace(/#\w+/g, '')
-    .replace(/[\uD800-\uDFFF]/g, '') // surrogate pairs (most emojis)
-    .replace(/[\u2600-\u27BF]/g, '') // misc symbols
+    .replace(/[\uD800-\uDFFF]/g, '')
+    .replace(/[\u2600-\u27BF]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-/** Client-side word timing estimate for live preview */
 function estimateWordTimings(text: string, fps = 30, wps = 2.5) {
   const words = text.split(/\s+/).filter(Boolean);
-  const ttsWords = stripForTTS(text).split(/\s+/).filter(Boolean);
-  const framesPerTTSWord = fps / wps;
+  const framesPerWord = fps / wps;
   let frame = 0;
-  let ttsIdx = 0;
   return words.map(word => {
     const isSpoken = !/^#/.test(word) && !(/[\uD800-\uDFFF\u2600-\u27BF]/.test(word));
-    const dur = isSpoken ? framesPerTTSWord : framesPerTTSWord * 0.4;
+    const dur = isSpoken ? framesPerWord : framesPerWord * 0.4;
     const start = frame;
     frame += Math.round(dur);
-    if (isSpoken) ttsIdx++;
     return { word, startFrame: start, endFrame: frame };
   });
+}
+
+interface AudioTrack {
+  id: string;
+  title: string;
+  fileName: string;
+  url: string;
+  duration: number;
 }
 
 export default function RemotionVideoPage() {
@@ -55,11 +59,19 @@ export default function RemotionVideoPage() {
   const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
   const [ttsEnabled, setTtsEnabled] = useState(true);
   const [ttsVoice, setTtsVoice] = useState("fr-FR-VivienneMultilingualNeural");
+  const [musicFile, setMusicFile] = useState<File | null>(null);
+  const [selectedTrack, setSelectedTrack] = useState<AudioTrack | null>(null);
+  const [musicVolume, setMusicVolume] = useState(0.3);
+  const [isPlaying, setIsPlaying] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
 
   const { data: allMedia = [] } = useQuery<Media[]>({ queryKey: ['/api/media'] });
+  const { data: audioTracks = [], isLoading: tracksLoading } = useQuery<AudioTrack[]>({
+    queryKey: ['/api/audio-tracks'],
+  });
   const imageMediaList = allMedia.filter(m => m.type === 'image').slice(0, 20);
 
   const generateTextMutation = useMutation({
@@ -71,26 +83,17 @@ export default function RemotionVideoPage() {
       setGeneratedVariants(data.variants || []);
       toast({ title: "Textes générés", description: "Cliquez sur un texte pour l'appliquer." });
     },
-    onError: () => {
-      toast({ title: "Erreur IA", description: "Impossible de générer le texte.", variant: "destructive" });
-    }
+    onError: () => toast({ title: "Erreur IA", description: "Impossible de générer le texte.", variant: "destructive" }),
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const files = Array.from(e.target.files);
-      const remainingSlots = 4 - selectedLibraryImages.length;
-      setImages(files.slice(0, remainingSlots));
-    }
+    if (e.target.files) setImages(Array.from(e.target.files).slice(0, 4 - selectedLibraryImages.length));
   };
 
   const toggleLibraryImage = (media: Media) => {
     setSelectedLibraryImages(prev => {
       if (prev.find(m => m.id === media.id)) return prev.filter(m => m.id !== media.id);
-      if (images.length + prev.length >= 4) {
-        toast({ title: "Limite", description: "4 images maximum.", variant: "destructive" });
-        return prev;
-      }
+      if (images.length + prev.length >= 4) { toast({ title: "4 images maximum.", variant: "destructive" }); return prev; }
       return [...prev, media];
     });
   };
@@ -104,17 +107,11 @@ export default function RemotionVideoPage() {
 
   const totalSelected = images.length + selectedLibraryImages.length;
 
-  // For the Player preview: estimate word timings locally (no server roundtrip)
-  const previewWordTimings = useMemo(() => {
-    if (!overlayText) return undefined;
-    return estimateWordTimings(overlayText);
-  }, [overlayText]);
+  const previewWordTimings = useMemo(() => overlayText ? estimateWordTimings(overlayText) : undefined, [overlayText]);
 
   const totalFrames = useMemo(() => {
-    if (previewWordTimings && previewWordTimings.length > 0) {
-      const textFrames = previewWordTimings[previewWordTimings.length - 1].endFrame + 30;
-      const imageFrames = combinedUrls.length * 3 * 30;
-      return Math.max(imageFrames, textFrames);
+    if (previewWordTimings?.length) {
+      return Math.max(combinedUrls.length * 3 * 30, previewWordTimings[previewWordTimings.length - 1].endFrame + 30);
     }
     return combinedUrls.length > 0 ? combinedUrls.length * 3 * 30 : 300;
   }, [previewWordTimings, combinedUrls]);
@@ -122,46 +119,50 @@ export default function RemotionVideoPage() {
   const handleTtsPreview = async () => {
     if (!overlayText) return;
     const ttsText = stripForTTS(overlayText);
-    if (!ttsText) { toast({ title: "Aucun texte à lire", description: "Hashtags et emojis ne sont pas lus.", variant: "destructive" }); return; }
+    if (!ttsText) { toast({ title: "Aucun texte à lire", variant: "destructive" }); return; }
     try {
       const response = await apiRequest('POST', '/api/reels/tts-preview', { text: ttsText, voice: ttsVoice });
       const data = await response.json();
-      if (data.success && data.audioBase64) {
-        const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
-        audio.play();
-      }
+      if (data.success && data.audioBase64) new window.Audio(`data:audio/mp3;base64,${data.audioBase64}`).play();
     } catch {
       toast({ title: "Erreur", description: "Prévisualisation voix impossible.", variant: "destructive" });
     }
   };
 
-  const handleGenerate = async () => {
-    if (totalSelected < 3) {
-      toast({ title: "Pas assez d'images", description: "Au moins 3 images requises.", variant: "destructive" });
-      return;
+  const togglePlayPreview = (track: AudioTrack) => {
+    if (!audioRef.current) return;
+    if (isPlaying === track.id) {
+      audioRef.current.pause();
+      setIsPlaying(null);
+    } else {
+      audioRef.current.src = track.url;
+      audioRef.current.play();
+      setIsPlaying(track.id);
     }
+  };
 
+  const handleGenerate = async () => {
+    if (totalSelected < 3) { toast({ title: "Minimum 3 images requises.", variant: "destructive" }); return; }
     setIsRendering(true);
     setVideoUrl(null);
-    
     try {
       const formData = new FormData();
       images.forEach(img => formData.append("images", img));
       selectedLibraryImages.forEach(m => formData.append("existingImageUrls", m.originalUrl));
       if (overlayText) formData.append("overlayText", overlayText);
       if (ttsEnabled && overlayText) formData.append("ttsVoice", ttsVoice);
-      
-      const response = await fetch("/api/remotion/render", { method: "POST", body: formData });
-
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({ error: "Erreur inconnue" }));
-        throw new Error(errData.error || "Erreur de génération");
+      if (musicFile) {
+        formData.append("music", musicFile);
+        formData.append("musicVolume", String(musicVolume));
+      } else if (selectedTrack) {
+        formData.append("musicTrackUrl", selectedTrack.url);
+        formData.append("musicVolume", String(musicVolume));
       }
-
+      const response = await fetch("/api/remotion/render", { method: "POST", body: formData });
+      if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.error || "Erreur"); }
       const data = await response.json();
       setVideoUrl(data.url);
-      toast({ title: "Vidéo générée !", description: "Votre vidéo Remotion est prête." });
-      
+      toast({ title: "Vidéo générée !", description: "Votre vidéo est prête." });
     } catch (err: any) {
       toast({ title: "Erreur", description: err.message || "Impossible de créer la vidéo.", variant: "destructive" });
     } finally {
@@ -173,6 +174,8 @@ export default function RemotionVideoPage() {
     <div className="container mx-auto p-6 space-y-8">
       <h1 className="text-3xl font-bold tracking-tight">Générateur Remotion</h1>
       <p className="text-muted-foreground">Créez une vidéo animée à partir de vos images avec voix et texte style TikTok.</p>
+
+      <audio ref={audioRef} onEnded={() => setIsPlaying(null)} />
 
       <div className="grid md:grid-cols-2 gap-8">
         {/* ─── LEFT COLUMN ─── */}
@@ -192,7 +195,6 @@ export default function RemotionVideoPage() {
                 <p className="font-medium text-center">Glissez ou cliquez</p>
                 <p className="text-sm text-muted-foreground mt-1">{images.length} uploadée(s)</p>
               </div>
-
               {imageMediaList.length > 0 && (
                 <div className="pt-3 border-t border-border">
                   <p className="font-medium mb-2 text-sm">Bibliothèque :</p>
@@ -203,11 +205,7 @@ export default function RemotionVideoPage() {
                         <div key={media.id} onClick={() => toggleLibraryImage(media)}
                           className={`relative aspect-square rounded overflow-hidden border-2 cursor-pointer transition-all ${isSelected ? 'border-primary' : 'border-transparent'}`}>
                           <img src={media.originalUrl} className="w-full h-full object-cover" />
-                          {isSelected && (
-                            <div className="absolute top-1 right-1 bg-primary text-white p-0.5 rounded-full">
-                              <Check className="w-3 h-3" />
-                            </div>
-                          )}
+                          {isSelected && <div className="absolute top-1 right-1 bg-primary text-white p-0.5 rounded-full"><Check className="w-3 h-3" /></div>}
                         </div>
                       );
                     })}
@@ -225,7 +223,6 @@ export default function RemotionVideoPage() {
               <CardDescription>La voix lira votre texte. Les hashtags et emojis s'affichent mais ne sont pas lus.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* AI generation */}
               <Textarea placeholder="Décrivez votre produit pour générer un texte IA..." value={productInfo}
                 onChange={e => setProductInfo(e.target.value)} rows={2} />
               <Button variant="secondary" className="w-full" disabled={!productInfo || generateTextMutation.isPending}
@@ -233,7 +230,6 @@ export default function RemotionVideoPage() {
                 {generateTextMutation.isPending ? <Loader2 className="mr-2 w-4 h-4 animate-spin" /> : <Sparkles className="mr-2 w-4 h-4" />}
                 Générer avec l'IA
               </Button>
-
               {generatedVariants.length > 0 && (
                 <div className="space-y-1">
                   <p className="text-xs text-muted-foreground">Cliquez pour appliquer :</p>
@@ -245,16 +241,12 @@ export default function RemotionVideoPage() {
                   ))}
                 </div>
               )}
-
               <Textarea placeholder="Votre texte overlay..." value={overlayText}
                 onChange={e => setOverlayText(e.target.value)} rows={3} />
-
-              {/* TTS toggle */}
               <div className="flex items-center gap-3 pt-1">
                 <Switch id="tts" checked={ttsEnabled} onCheckedChange={setTtsEnabled} />
                 <Label htmlFor="tts">Activer la voix TTS</Label>
               </div>
-
               {ttsEnabled && (
                 <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
                   <p className="text-sm font-medium">Voix :</p>
@@ -278,7 +270,75 @@ export default function RemotionVideoPage() {
             </CardContent>
           </Card>
 
-          {/* Generate button */}
+          {/* 3. Musique */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><Music className="w-4 h-4" /> 3. Musique de fond</CardTitle>
+              <CardDescription>Choisissez une musique de la bibliothèque audio ou uploadez la vôtre.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Bibliothèque interne */}
+              <div className="max-h-48 overflow-y-auto space-y-1.5">
+                {tracksLoading ? (
+                  <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+                ) : audioTracks.length === 0 ? (
+                  <div className="text-center py-8 border-2 border-dashed border-border rounded-xl">
+                    <Music className="w-10 h-10 mx-auto text-muted-foreground mb-3 opacity-40" />
+                    <p className="text-sm text-muted-foreground font-medium">Aucune musique disponible</p>
+                    <p className="text-xs text-muted-foreground mt-1">Un administrateur peut ajouter des MP3 via la Bibliothèque Audio.</p>
+                  </div>
+                ) : (
+                  audioTracks.map(track => {
+                    const isSelected = selectedTrack?.id === track.id;
+                    const playing = isPlaying === track.id;
+                    return (
+                      <div key={track.id} onClick={() => { setSelectedTrack(isSelected ? null : track); setMusicFile(null); }}
+                        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${isSelected ? 'bg-primary/10 border border-primary' : 'bg-muted/50 hover:bg-muted'}`}>
+                        <button onClick={e => { e.stopPropagation(); togglePlayPreview(track); }}
+                          className="w-9 h-9 rounded-full bg-primary/20 flex items-center justify-center hover:bg-primary/30 shrink-0">
+                          {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+                        </button>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">{track.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {Math.floor(track.duration / 60)}:{String(track.duration % 60).padStart(2, '0')}
+                          </p>
+                        </div>
+                        {isSelected && <Check className="w-4 h-4 text-primary shrink-0" />}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Upload perso */}
+              <div className="relative">
+                <div className="border-2 border-dashed border-border rounded-lg p-3 flex items-center gap-3 hover:bg-muted/50 transition-colors cursor-pointer">
+                  <input type="file" accept="audio/*"
+                    onChange={e => { setMusicFile(e.target.files?.[0] ?? null); setSelectedTrack(null); }}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                  <UploadCloud className="h-5 w-5 text-muted-foreground shrink-0" />
+                  <p className="text-sm text-muted-foreground truncate">
+                    {musicFile ? musicFile.name : "Ou uploadez votre propre fichier audio"}
+                  </p>
+                  {musicFile && <Check className="w-4 h-4 text-primary shrink-0" />}
+                </div>
+              </div>
+
+              {(musicFile || selectedTrack) && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-sm">
+                    <Volume2 className="w-4 h-4" /> Volume musique : {Math.round(musicVolume * 100)}%
+                  </Label>
+                  <Slider min={0} max={1} step={0.05} value={[musicVolume]}
+                    onValueChange={vals => setMusicVolume(vals[0] ?? musicVolume)} />
+                  <p className="text-xs text-muted-foreground italic">Baissez si la voix TTS est couverte par la musique.</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Générer */}
           {totalSelected > 0 && (
             <Button onClick={handleGenerate} disabled={isRendering || totalSelected < 3} className="w-full" size="lg">
               {isRendering
@@ -301,7 +361,7 @@ export default function RemotionVideoPage() {
         {/* ─── RIGHT COLUMN: PREVIEW ─── */}
         <Card>
           <CardHeader>
-            <CardTitle>3. Aperçu en direct</CardTitle>
+            <CardTitle>Aperçu en direct</CardTitle>
             <CardDescription>Le texte animé style TikTok s'affiche ici en temps réel.</CardDescription>
           </CardHeader>
           <CardContent className="flex justify-center bg-zinc-950 rounded-lg p-4 overflow-hidden">

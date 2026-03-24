@@ -85,9 +85,10 @@ function computeWordTimings(
   });
 }
 
-remotionRouter.post("/render", upload.array("images", 4), async (req, res) => {
+remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, { name: "music", maxCount: 1 }]), async (req, res) => {
   try {
-    const files = req.files as Express.Multer.File[];
+    const fields = req.files as Record<string, Express.Multer.File[]>;
+    const files = fields["images"] ?? [];
     let imageUrls: string[] = [];
 
     const existing = req.body.existingImageUrls;
@@ -110,6 +111,14 @@ remotionRouter.post("/render", upload.array("images", 4), async (req, res) => {
       : undefined;
 
     const ttsVoice: string = req.body.ttsVoice || "fr-FR-VivienneMultilingualNeural";
+    const musicVolume: number = parseFloat(req.body.musicVolume ?? "0.3");
+
+    // Music: uploaded file takes priority, else use catalog track URL directly
+    const musicFile = fields["music"]?.[0];
+    const musicUrl: string | undefined = musicFile
+      ? `${host}/uploads/temp/${path.basename(musicFile.path)}`
+      : (req.body.musicTrackUrl as string | undefined) || undefined;
+
     const fps = 30;
     const totalVideoDuration = imageUrls.length * 3; // 3s per image
 
@@ -154,7 +163,7 @@ remotionRouter.post("/render", upload.array("images", 4), async (req, res) => {
     console.log("🎬 Getting Remotion bundle (cached)...");
     const bundleLocation = await getBundle();
 
-    const inputProps = { images: imageUrls, overlayText, audioUrl, wordTimings };
+    const inputProps = { images: imageUrls, overlayText, audioUrl, wordTimings, musicUrl, musicVolume };
 
     console.log("🎬 Selecting composition...");
     const composition = await selectComposition({
