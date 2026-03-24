@@ -72,6 +72,17 @@ export default function RemotionVideoPage() {
   const { data: audioTracks = [], isLoading: tracksLoading } = useQuery<AudioTrack[]>({
     queryKey: ['/api/audio-tracks'],
   });
+  const { data: cloudinaryConfig } = useQuery<{ cloudName?: string; logoPublicId?: string } | null>({
+    queryKey: ['/api/cloudinary/config'],
+  });
+  const { data: socialPages = [] } = useQuery<{ pageName: string }[]>({
+    queryKey: ['/api/pages'],
+  });
+
+  const previewLogoUrl = cloudinaryConfig?.cloudName && cloudinaryConfig?.logoPublicId
+    ? `https://res.cloudinary.com/${cloudinaryConfig.cloudName}/image/upload/${cloudinaryConfig.logoPublicId}`
+    : undefined;
+  const previewStoreName = (socialPages[0] as any)?.pageName as string | undefined;
   const imageMediaList = allMedia.filter(m => m.type === 'image').slice(0, 20);
 
   const generateTextMutation = useMutation({
@@ -109,12 +120,15 @@ export default function RemotionVideoPage() {
 
   const previewWordTimings = useMemo(() => overlayText ? estimateWordTimings(overlayText) : undefined, [overlayText]);
 
+  const ENDING_FRAMES = (previewLogoUrl || previewStoreName) ? 90 : 0;
   const totalFrames = useMemo(() => {
-    if (previewWordTimings?.length) {
-      return Math.max(combinedUrls.length * 3 * 30, previewWordTimings[previewWordTimings.length - 1].endFrame + 30);
-    }
-    return combinedUrls.length > 0 ? combinedUrls.length * 3 * 30 : 300;
-  }, [previewWordTimings, combinedUrls]);
+    const ttsEnd = previewWordTimings?.length
+      ? previewWordTimings[previewWordTimings.length - 1].endFrame
+      : 0;
+    const naturalContent = Math.max(ttsEnd / 30, combinedUrls.length * 3);
+    const contentSeconds = Math.min(Math.max(naturalContent, 22), 27);
+    return Math.round(contentSeconds * 30) + ENDING_FRAMES;
+  }, [previewWordTimings, combinedUrls, ENDING_FRAMES]);
 
   const handleTtsPreview = async () => {
     if (!overlayText) return;
@@ -368,7 +382,14 @@ export default function RemotionVideoPage() {
             {combinedUrls.length > 0 ? (
               <Player
                 component={ImageComposition}
-                inputProps={{ images: combinedUrls, overlayText: overlayText || undefined, wordTimings: previewWordTimings }}
+                inputProps={{
+                  images: combinedUrls,
+                  overlayText: overlayText || undefined,
+                  wordTimings: previewWordTimings,
+                  logoUrl: previewLogoUrl,
+                  storeName: previewStoreName,
+                  endingFrames: ENDING_FRAMES,
+                }}
                 durationInFrames={totalFrames}
                 compositionWidth={1080}
                 compositionHeight={1920}

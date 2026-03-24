@@ -13,6 +13,9 @@ export type ImageCompositionProps = {
   wordTimings?: WordTiming[];
   musicUrl?: string;
   musicVolume?: number;
+  logoUrl?: string;
+  storeName?: string;
+  endingFrames?: number; // frames reserved for ending slide (default 90 = 3s at 30fps)
 };
 
 // 6 modern, simple entrance transitions
@@ -77,11 +80,26 @@ const ImageSlide: React.FC<{ src: string; transition: Transition }> = ({ src, tr
 };
 
 export const ImageComposition = ({
-  images, overlayText, audioUrl, wordTimings, musicUrl, musicVolume = 0.3
+  images, overlayText, audioUrl, wordTimings, musicUrl, musicVolume = 0.3,
+  logoUrl, storeName, endingFrames = 90,
 }: ImageCompositionProps) => {
-  const { fps } = useVideoConfig();
+  const { fps, durationInFrames } = useVideoConfig();
   const frame = useCurrentFrame();
-  const durationPerImage = 3 * fps;
+
+  // Reserve last endingFrames for the ending slide; spread images across the rest
+  const hasEnding = !!(logoUrl || storeName);
+  const effectiveEndingFrames = hasEnding ? endingFrames : 0;
+  const contentFrames = durationInFrames - effectiveEndingFrames;
+  const durationPerImage = Math.floor(contentFrames / Math.max(images.length, 1));
+  const endingStart = contentFrames;
+
+  // Ending slide spring animation
+  const endingProgress = spring({
+    frame: frame - endingStart,
+    fps,
+    config: { damping: 20, stiffness: 80 },
+    durationInFrames: 30,
+  });
 
   const activeWordIdx = wordTimings
     ? wordTimings.findIndex(w => frame >= w.startFrame && frame < w.endFrame)
@@ -102,68 +120,132 @@ export const ImageComposition = ({
       {/* Background music */}
       {musicUrl && <Html5Audio src={musicUrl} volume={musicVolume} />}
 
-      {/* TikTok-style word-by-word text overlay */}
-      {wordTimings && wordTimings.length > 0 ? (
-        <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 120 }}>
-          <div
+      {/* TikTok-style word-by-word text overlay (content section only) */}
+      {frame < endingStart && (
+        wordTimings && wordTimings.length > 0 ? (
+          <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 160 }}>
+            <div
+              style={{
+                maxWidth: "88%",
+                textAlign: "center",
+                display: "flex",
+                flexWrap: "wrap",
+                justifyContent: "center",
+                gap: "0 14px",
+                alignItems: "baseline",
+                filter: "drop-shadow(0 2px 12px rgba(0,0,0,0.7))",
+              }}
+            >
+              {wordTimings.map((w, i) => {
+                const isActive = i === activeWordIdx;
+                if (!isActive) return null;
+                return (
+                  <span
+                    key={i}
+                    style={{
+                      color: "#FFE600",
+                      fontFamily: "'Arial Black', 'Impact', sans-serif",
+                      fontSize: 80,
+                      fontWeight: 900,
+                      lineHeight: 1.2,
+                      WebkitTextStroke: "3px rgba(0,0,0,0.8)",
+                      textShadow: "0 4px 20px rgba(0,0,0,0.9)",
+                      display: "inline-block",
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    {w.word}
+                  </span>
+                );
+              })}
+            </div>
+          </AbsoluteFill>
+        ) : overlayText ? (
+          <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 160 }}>
+            <div
+              style={{
+                backgroundColor: "rgba(0,0,0,0.55)",
+                borderRadius: 16,
+                padding: "24px 32px",
+                color: "white",
+                fontSize: 60,
+                fontWeight: "bold",
+                fontFamily: "sans-serif",
+                textAlign: "center",
+                lineHeight: 1.4,
+                maxWidth: "90%",
+                WebkitTextStroke: "1px rgba(0,0,0,0.4)",
+              }}
+            >
+              {overlayText}
+            </div>
+          </AbsoluteFill>
+        ) : null
+      )}
+
+      {/* Logo watermark — bottom right, always visible during content */}
+      {logoUrl && frame < endingStart && (
+        <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "flex-end", padding: 48 }}>
+          <Img
+            src={logoUrl}
             style={{
-              maxWidth: "88%",
-              textAlign: "center",
-              display: "flex",
-              flexWrap: "wrap",
-              justifyContent: "center",
-              gap: "0 14px",
-              alignItems: "baseline",
-              filter: "drop-shadow(0 2px 12px rgba(0,0,0,0.7))",
-            }}
-          >
-            {wordTimings.map((w, i) => {
-              const isActive = i === activeWordIdx;
-              const isVisible = w.startFrame <= frame;
-              return (
-                <span
-                  key={i}
-                  style={{
-                    color: isActive ? "#FFE600" : "white",
-                    fontFamily: "'Arial Black', 'Impact', sans-serif",
-                    fontSize: 72,
-                    fontWeight: 900,
-                    lineHeight: 1.15,
-                    opacity: isVisible ? 1 : 0,
-                    WebkitTextStroke: "3px rgba(0,0,0,0.7)",
-                    textShadow: "0 4px 18px rgba(0,0,0,0.85)",
-                    transform: isActive ? "scale(1.08)" : "scale(1)",
-                    display: "inline-block",
-                    transition: "all 0.1s",
-                  }}
-                >
-                  {w.word}
-                </span>
-              );
-            })}
-          </div>
-        </AbsoluteFill>
-      ) : overlayText ? (
-        <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 120 }}>
-          <div
-            style={{
-              backgroundColor: "rgba(0,0,0,0.55)",
+              width: 130,
+              height: 130,
+              objectFit: "contain",
+              opacity: 0.82,
               borderRadius: 16,
-              padding: "24px 32px",
-              color: "white",
-              fontSize: 60,
-              fontWeight: "bold",
-              fontFamily: "sans-serif",
-              textAlign: "center",
-              lineHeight: 1.4,
-              maxWidth: "90%",
-              WebkitTextStroke: "1px rgba(0,0,0,0.4)",
+              filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.5))",
+            }}
+          />
+        </AbsoluteFill>
+      )}
+
+      {/* Ending slide — centered logo + store name */}
+      {hasEnding && (
+        <Sequence from={endingStart} durationInFrames={effectiveEndingFrames}>
+          <AbsoluteFill
+            style={{
+              backgroundColor: "black",
+              justifyContent: "center",
+              alignItems: "center",
+              flexDirection: "column",
+              gap: 40,
             }}
           >
-            {overlayText}
-          </div>
-        </AbsoluteFill>
-      ) : null}
+            {logoUrl && (
+              <Img
+                src={logoUrl}
+                style={{
+                  width: 300,
+                  height: 300,
+                  objectFit: "contain",
+                  opacity: endingProgress,
+                  transform: `scale(${interpolate(endingProgress, [0, 1], [0.65, 1])})`,
+                  borderRadius: 24,
+                  filter: "drop-shadow(0 4px 24px rgba(255,255,255,0.15))",
+                }}
+              />
+            )}
+            {storeName && (
+              <div
+                style={{
+                  color: "white",
+                  fontSize: 80,
+                  fontFamily: "'Arial Black', Impact, sans-serif",
+                  fontWeight: 900,
+                  textAlign: "center",
+                  opacity: endingProgress,
+                  letterSpacing: 3,
+                  textShadow: "0 4px 24px rgba(255,255,255,0.2)",
+                  transform: `translateY(${interpolate(endingProgress, [0, 1], [30, 0])}px)`,
+                }}
+              >
+                {storeName}
+              </div>
+            )}
+          </AbsoluteFill>
+        </Sequence>
+      )}
     </AbsoluteFill>
   );
 };

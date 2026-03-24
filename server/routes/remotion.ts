@@ -5,6 +5,7 @@ import fs from "fs";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { ffmpegService } from "../services/ffmpeg";
+import { storage as dbStorage } from "../storage";
 
 export const remotionRouter = Router();
 
@@ -51,8 +52,7 @@ function stripForTTS(text: string): string {
 
 /**
  * Calculates word timings (in frames at 30fps) based on audio duration.
- * Distributes frames proportionally across display words.
- * Hashtags and emojis are display-only (shown but voice skips them).
+ * Each word appears only when spoken, then disappears (no accumulation).
  */
 function computeWordTimings(
   displayText: string,
@@ -60,30 +60,29 @@ function computeWordTimings(
   fps: number,
   startFrame: number
 ): Array<{ word: string; startFrame: number; endFrame: number }> {
-  // Split into display words (preserving hashtags, emojis)
   const displayWords = displayText.split(/\s+/).filter(Boolean);
-
-  // TTS words (stripped - this matches what audio says)
   const ttsText = stripForTTS(displayText);
   const ttsWords = ttsText.split(/\s+/).filter(Boolean);
 
-  // Frames per TTS word (based on actual audio duration)
   const totalTTSFrames = audioDurationSeconds * fps;
   const framesPerTTSWord = ttsWords.length > 0 ? totalTTSFrames / ttsWords.length : fps;
 
   let currentFrame = startFrame;
-  let ttsIdx = 0;
 
   return displayWords.map((word) => {
     const wordStart = currentFrame;
-    // Use TTS pacing if this word is a real spoken word
     const isSpoken = !/^#/.test(word) && !(/[\uD800-\uDFFF\u2600-\u27BF]/.test(word));
-    const frameDuration = isSpoken ? framesPerTTSWord : framesPerTTSWord * 0.4; // hashtags flash briefly
+    const frameDuration = isSpoken ? framesPerTTSWord : framesPerTTSWord * 0.4;
     currentFrame += Math.round(frameDuration);
-    if (isSpoken) ttsIdx++;
     return { word, startFrame: wordStart, endFrame: currentFrame };
   });
 }
+
+// Duration constants
+const FPS = 30;
+const ENDING_SECONDS = 3;      // ending slide (logo + store name)
+const MIN_CONTENT_SECONDS = 22; // so total >= 25s
+const MAX_CONTENT_SECONDS = 27; // so total <= 30s
 
 remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, { name: "music", maxCount: 1 }]), async (req, res) => {
   try {
@@ -113,20 +112,42 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
     const ttsVoice: string = req.body.ttsVoice || "fr-FR-VivienneMultilingualNeural";
     const musicVolume: number = parseFloat(req.body.musicVolume ?? "0.3");
 
-    // Music: uploaded file takes priority, else use catalog track URL directly
+    // Music: uploaded file takes priority, else use catalog track URL (make relative paths absolute)
     const musicFile = fields["music"]?.[0];
     const rawMusicTrackUrl = req.body.musicTrackUrl as string | undefined;
     const musicUrl: string | undefined = musicFile
       ? `${host}/uploads/temp/${path.basename(musicFile.path)}`
       : rawMusicTrackUrl?.startsWith('/') ? `${host}${rawMusicTrackUrl}` : rawMusicTrackUrl || undefined;
 
-    const fps = 30;
-    const totalVideoDuration = imageUrls.length * 3; // 3s per image
+    // --- Fetch logo and store name from config ---
+    let logoUrl: string | undefined;
+    let storeName: string | undefined;
+    try {
+      const cloudinaryConfig = await dbStorage.getCloudinaryConfig();
+      if (cloudinaryConfig?.cloudName && cloudinaryConfig?.logoPublicId) {
+        logoUrl = `https://res.cloudinary.com/${cloudinaryConfig.cloudName}/image/upload/${cloudinaryConfig.logoPublicId}`;
+        console.log("🏢 Logo URL:", logoUrl);
+      }
+    } catch (e) {
+      console.warn("⚠️ Could not fetch logo config:", e);
+    }
+    try {
+      const user = req.user as any;
+      if (user?.id) {
+        const pages = await dbStorage.getSocialPages(user.id);
+        if (pages.length > 0) {
+          storeName = pages[0].pageName;
+          console.log("🏪 Store name:", storeName);
+        }
+      }
+    } catch (e) {
+      console.warn("⚠️ Could not fetch store name:", e);
+    }
 
     // --- TTS Audio Generation ---
     let audioUrl: string | undefined;
     let wordTimings: Array<{ word: string; startFrame: number; endFrame: number }> | undefined;
-    let totalFrames = totalVideoDuration * fps;
+    let estimatedAudioDuration = 0;
 
     if (overlayText) {
       const ttsText = stripForTTS(overlayText);
@@ -135,7 +156,6 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
         try {
           const ttsResult = await ffmpegService.previewTTS(ttsText, ttsVoice);
           if (ttsResult.success && ttsResult.audioBase64) {
-            // Save audio to temp file
             const audioFilename = `tts-${Date.now()}.mp3`;
             const audioPath = path.join(uploadDir, audioFilename);
             fs.writeFileSync(audioPath, Buffer.from(ttsResult.audioBase64, "base64"));
@@ -143,14 +163,9 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
 
             // Estimate audio duration (MP3 at 128kbps ~ 16KB/s)
             const audioBytes = Buffer.from(ttsResult.audioBase64, "base64").length;
-            const estimatedAudioDuration = Math.max(audioBytes / 16000, ttsText.split(/\s+/).length * 0.5);
-            
-            // Expand video if text needs more time than images
-            if (estimatedAudioDuration > totalVideoDuration) {
-              totalFrames = Math.ceil(estimatedAudioDuration * fps) + fps; // +1s buffer
-            }
+            estimatedAudioDuration = Math.max(audioBytes / 16000, ttsText.split(/\s+/).length * 0.5);
 
-            wordTimings = computeWordTimings(overlayText, estimatedAudioDuration, fps, 0);
+            wordTimings = computeWordTimings(overlayText, estimatedAudioDuration, FPS, 0);
             console.log(`✅ TTS generated, ~${estimatedAudioDuration.toFixed(1)}s, ${wordTimings.length} words`);
           } else {
             console.warn("⚠️ TTS failed:", ttsResult.error);
@@ -161,10 +176,29 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
       }
     }
 
+    // --- Duration: 25-30s total ---
+    // content = max(tts duration, images*3s), clamped to 22-27s; ending = 3s
+    const naturalContent = Math.max(estimatedAudioDuration, imageUrls.length * 3);
+    const contentSeconds = Math.min(Math.max(naturalContent, MIN_CONTENT_SECONDS), MAX_CONTENT_SECONDS);
+    const endingFrames = (logoUrl || storeName) ? ENDING_SECONDS * FPS : 0;
+    const totalFrames = Math.round(contentSeconds * FPS) + endingFrames;
+
+    console.log(`🎬 Duration: ${contentSeconds.toFixed(1)}s content + ${ENDING_SECONDS}s ending = ${(totalFrames / FPS).toFixed(1)}s total`);
+
     console.log("🎬 Getting Remotion bundle (cached)...");
     const bundleLocation = await getBundle();
 
-    const inputProps = { images: imageUrls, overlayText, audioUrl, wordTimings, musicUrl, musicVolume };
+    const inputProps = {
+      images: imageUrls,
+      overlayText,
+      audioUrl,
+      wordTimings,
+      musicUrl,
+      musicVolume,
+      logoUrl,
+      storeName,
+      endingFrames,
+    };
 
     console.log("🎬 Selecting composition...");
     const composition = await selectComposition({
@@ -173,16 +207,13 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
       inputProps,
     });
 
-    // Override duration if TTS needs more frames
-    const effectiveDurationInFrames = Math.max(totalFrames, composition.durationInFrames);
-
     const outputFilename = `out-${Date.now()}.mp4`;
     const outputLocation = path.join(uploadDir, outputFilename);
 
-    console.log("🎬 Rendering media...", effectiveDurationInFrames, "frames");
+    console.log("🎬 Rendering media...", totalFrames, "frames");
 
     await renderMedia({
-      composition: { ...composition, durationInFrames: effectiveDurationInFrames },
+      composition: { ...composition, durationInFrames: totalFrames },
       serveUrl: bundleLocation,
       codec: "h264",
       outputLocation,
