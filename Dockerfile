@@ -31,7 +31,8 @@ RUN apk add --no-cache \
     harfbuzz \
     ca-certificates \
     ttf-freefont \
-    ffmpeg
+    ffmpeg \
+    libcap
 
 # Copier les fichiers de configuration
 COPY package*.json ./
@@ -71,6 +72,10 @@ RUN rm -rf client/node_modules \
 
 # Pré-bundler la composition Remotion pendant le build (speedup au premier rendu)
 RUN node scripts/prebundle-remotion.js || true
+
+# S'assurer que le binaire browser de Remotion est téléchargé et disponible
+RUN npx remotion browser ensure
+
 
 # Exposer le port de l'application
 EXPOSE 5555

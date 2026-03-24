@@ -170,13 +170,21 @@ remotionRouter.post("/render", upload.array("images", 4), async (req, res) => {
     const outputLocation = path.join(uploadDir, outputFilename);
 
     console.log("🎬 Rendering media...", effectiveDurationInFrames, "frames");
+
+    // Standard Chromium path on Alpine
+    const systemChromiumPath = "/usr/bin/chromium-browser";
+    const browserExecutable = fs.existsSync(systemChromiumPath) ? systemChromiumPath : undefined;
+
     await renderMedia({
       composition: { ...composition, durationInFrames: effectiveDurationInFrames },
       serveUrl: bundleLocation,
       codec: "h264",
       outputLocation,
       inputProps,
-      chromiumOptions: { disableWebSecurity: true }
+      browserExecutable,
+      chromiumOptions: {
+        disableWebSecurity: true,
+      }
     });
 
     console.log("✅ Render completed:", outputFilename);
