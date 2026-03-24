@@ -343,7 +343,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
         try {
             const config = await storage.getCloudinaryConfig();
             if (config && config.logoPublicId) {
-                watermarkUrl = buildMinioUrl(config.cloudName, config.logoPublicId);
+                watermarkUrl = buildMinioUrl(config.cloudName, config.logoPublicId, config.publicUrl);
             }
         } catch (e) {
             console.error('Error fetching watermark configuration', e);
@@ -556,7 +556,7 @@ async function processReelBackground(
         try {
             const config = await storage.getCloudinaryConfig();
             if (config && config.logoPublicId) {
-                watermarkUrl = buildMinioUrl(config.cloudName, config.logoPublicId);
+                watermarkUrl = buildMinioUrl(config.cloudName, config.logoPublicId, config.publicUrl);
             }
         } catch (e) {
             console.error('Error fetching watermark configuration', e);

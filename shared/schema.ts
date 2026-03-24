@@ -117,6 +117,8 @@ export const cloudinaryConfig = pgTable("cloudinary_config", {
   apiKey: text("api_key").notNull(),
   apiSecret: text("api_secret").notNull(),
   logoPublicId: text("logo_public_id"),
+  endpointUrl: text("endpoint_url"),
+  publicUrl: text("public_url"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

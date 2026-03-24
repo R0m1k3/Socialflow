@@ -3,9 +3,10 @@ import { storage } from '../storage';
 import fs from 'fs';
 import path from 'path';
 
-function getS3Client(accessKey: string, secretKey: string): S3Client {
+function getS3Client(accessKey: string, secretKey: string, endpointUrl?: string | null): S3Client {
+  const endpoint = endpointUrl || process.env.MINIO_ENDPOINT || 'http://localhost:9000';
   return new S3Client({
-    endpoint: process.env.MINIO_ENDPOINT || 'http://localhost:9000',
+    endpoint,
     region: 'us-east-1',
     credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
     forcePathStyle: true,
@@ -14,11 +15,10 @@ function getS3Client(accessKey: string, secretKey: string): S3Client {
 
 /**
  * Builds the public URL for a stored object.
- * MINIO_PUBLIC_URL = public-facing base (e.g. https://media.example.com)
- * Object URL = ${MINIO_PUBLIC_URL}/${bucketName}/${objectKey}
+ * Uses DB publicUrl > MINIO_PUBLIC_URL env > MINIO_ENDPOINT env > localhost fallback.
  */
-export function buildMinioUrl(bucketName: string, objectKey: string): string {
-  const base = (process.env.MINIO_PUBLIC_URL || process.env.MINIO_ENDPOINT || 'http://localhost:9000').replace(/\/$/, '');
+export function buildMinioUrl(bucketName: string, objectKey: string, publicUrlOverride?: string | null): string {
+  const base = (publicUrlOverride || process.env.MINIO_PUBLIC_URL || process.env.MINIO_ENDPOINT || 'http://localhost:9000').replace(/\/$/, '');
   return `${base}/${bucketName}/${objectKey}`;
 }
 
@@ -38,7 +38,7 @@ class MinioService {
     const config = await storage.getCloudinaryConfig();
     if (!config) throw new Error('MinIO non configuré. Veuillez configurer le stockage dans les Paramètres.');
 
-    const client = getS3Client(config.apiKey, config.apiSecret);
+    const client = getS3Client(config.apiKey, config.apiSecret, config.endpointUrl);
     const bucket = config.cloudName;
     const safeName = path.basename(fileName).replace(/\s+/g, '-');
     const objectKey = `social-flow/${Date.now()}-${safeName}`;
@@ -52,7 +52,7 @@ class MinioService {
       ContentType: mimeType,
     }));
 
-    const url = buildMinioUrl(bucket, objectKey);
+    const url = buildMinioUrl(bucket, objectKey, config.publicUrl);
     return { publicId: objectKey, originalUrl: url, facebookFeedUrl: url, instagramFeedUrl: url, instagramStoryUrl: url };
   }
 
@@ -60,7 +60,7 @@ class MinioService {
     const config = await storage.getCloudinaryConfig();
     if (!config) throw new Error('MinIO non configuré.');
 
-    const client = getS3Client(config.apiKey, config.apiSecret);
+    const client = getS3Client(config.apiKey, config.apiSecret, config.endpointUrl);
     await client.send(new DeleteObjectCommand({ Bucket: config.cloudName, Key: publicId }));
   }
 
@@ -68,7 +68,7 @@ class MinioService {
     const config = await storage.getCloudinaryConfig();
     if (!config) throw new Error('MinIO non configuré.');
 
-    const client = getS3Client(config.apiKey, config.apiSecret);
+    const client = getS3Client(config.apiKey, config.apiSecret, config.endpointUrl);
     const safeName = path.basename(originalFileName).replace(/\s+/g, '-');
     const objectKey = `social-flow/stories/story-${Date.now()}-${safeName}`;
 
@@ -79,14 +79,14 @@ class MinioService {
       ContentType: 'image/jpeg',
     }));
 
-    return buildMinioUrl(config.cloudName, objectKey);
+    return buildMinioUrl(config.cloudName, objectKey, config.publicUrl);
   }
 
   async uploadLogo(buffer: Buffer, fileName: string): Promise<{ publicId: string; url: string }> {
     const config = await storage.getCloudinaryConfig();
     if (!config) throw new Error('MinIO non configuré.');
 
-    const client = getS3Client(config.apiKey, config.apiSecret);
+    const client = getS3Client(config.apiKey, config.apiSecret, config.endpointUrl);
     const ext = path.extname(fileName) || '.png';
     const objectKey = `social-flow/logos/logo-${Date.now()}${ext}`;
 
@@ -97,14 +97,14 @@ class MinioService {
       ContentType: fileName.match(/\.png$/i) ? 'image/png' : 'image/jpeg',
     }));
 
-    return { publicId: objectKey, url: buildMinioUrl(config.cloudName, objectKey) };
+    return { publicId: objectKey, url: buildMinioUrl(config.cloudName, objectKey, config.publicUrl) };
   }
 
   async deleteLogo(publicId: string): Promise<void> {
     const config = await storage.getCloudinaryConfig();
     if (!config) throw new Error('MinIO non configuré.');
 
-    const client = getS3Client(config.apiKey, config.apiSecret);
+    const client = getS3Client(config.apiKey, config.apiSecret, config.endpointUrl);
     await client.send(new DeleteObjectCommand({ Bucket: config.cloudName, Key: publicId }));
   }
 }

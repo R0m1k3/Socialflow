@@ -822,7 +822,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (cloudinaryConfig && cloudinaryConfig.logoPublicId) {
           try {
             // Build logo URL from Cloudinary
-            const logoUrl = buildMinioUrl(cloudinaryConfig.cloudName, cloudinaryConfig.logoPublicId);
+            const logoUrl = buildMinioUrl(cloudinaryConfig.cloudName, cloudinaryConfig.logoPublicId, cloudinaryConfig.publicUrl);
             console.log("📥 Downloading logo from:", logoUrl);
 
             // Download logo
@@ -1631,7 +1631,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Don't send the API secret to the client
       const { apiSecret, ...safeConfig } = config;
-      const logoUrl = config.logoPublicId ? buildMinioUrl(config.cloudName, config.logoPublicId) : null;
+      const logoUrl = config.logoPublicId ? buildMinioUrl(config.cloudName, config.logoPublicId, config.publicUrl) : null;
       res.json({ ...safeConfig, logoUrl });
     } catch (error) {
       console.error("Error fetching Cloudinary config:", error);

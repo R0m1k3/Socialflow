@@ -20,6 +20,8 @@ export default function SettingsMobile() {
   const [cloudName, setCloudName] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
+  const [endpointUrl, setEndpointUrl] = useState("");
+  const [publicUrl, setPublicUrl] = useState("");
   const [openrouterApiKey, setOpenrouterApiKey] = useState("");
   const [openrouterModel, setOpenrouterModel] = useState("anthropic/claude-3.5-sonnet");
   const [openrouterSystemPrompt, setOpenrouterSystemPrompt] = useState("Tu es un expert en marketing des réseaux sociaux. Génère 3 variations de textes engageants pour des publications Facebook et Instagram à partir des informations produit fournies. Chaque variation doit être unique, captivante et optimisée pour l'engagement.");
@@ -50,6 +52,8 @@ export default function SettingsMobile() {
     if (cloudinaryConfig) {
       setCloudName((cloudinaryConfig as any).cloudName || "");
       setApiKey((cloudinaryConfig as any).apiKey || "");
+      setEndpointUrl((cloudinaryConfig as any).endpointUrl || "");
+      setPublicUrl((cloudinaryConfig as any).publicUrl || "");
 
       if ((cloudinaryConfig as any).logoUrl) {
         setLogoPreview((cloudinaryConfig as any).logoUrl);
@@ -70,6 +74,8 @@ export default function SettingsMobile() {
     mutationFn: () => {
       const payload: any = {
         cloudName,
+        endpointUrl: endpointUrl || undefined,
+        publicUrl: publicUrl || undefined,
       };
 
       if (apiKey && apiKey.trim() !== "") {
@@ -368,7 +374,7 @@ export default function SettingsMobile() {
                   Configuration Stockage MinIO
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Configurez MinIO pour le stockage des médias (endpoint via variable MINIO_ENDPOINT)
+                  Configurez MinIO pour le stockage des médias
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 p-5 pt-0">
@@ -412,6 +418,36 @@ export default function SettingsMobile() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Votre Secret Key restera sécurisé et ne sera jamais exposé
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="endpointUrl" className="text-sm">URL Endpoint (interne)</Label>
+                  <Input
+                    id="endpointUrl"
+                    type="url"
+                    value={endpointUrl}
+                    onChange={(e) => setEndpointUrl(e.target.value)}
+                    placeholder="http://minio:9000"
+                    className="min-h-[48px]"
+                    data-testid="input-endpoint-url"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    URL interne de votre serveur MinIO (ex: http://192.168.1.10:9000)
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="publicUrl" className="text-sm">URL Publique</Label>
+                  <Input
+                    id="publicUrl"
+                    type="url"
+                    value={publicUrl}
+                    onChange={(e) => setPublicUrl(e.target.value)}
+                    placeholder="https://media.votre-domaine.com"
+                    className="min-h-[48px]"
+                    data-testid="input-public-url"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    URL publique pour accéder aux fichiers depuis internet
                   </p>
                 </div>
                 <Button

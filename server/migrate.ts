@@ -111,6 +111,18 @@ export async function migrate() {
       ALTER TABLE "posts"
       ADD COLUMN IF NOT EXISTS "generation_error" text;
     `);
+
+    // cloudinary_config.endpoint_url (MinIO internal endpoint URL)
+    await client.query(`
+      ALTER TABLE "cloudinary_config"
+      ADD COLUMN IF NOT EXISTS "endpoint_url" text;
+    `);
+
+    // cloudinary_config.public_url (MinIO public-facing base URL)
+    await client.query(`
+      ALTER TABLE "cloudinary_config"
+      ADD COLUMN IF NOT EXISTS "public_url" text;
+    `);
     // page_analytics_history.page_engagement
     await client.query(`
       ALTER TABLE "page_analytics_history"
