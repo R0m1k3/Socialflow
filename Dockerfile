@@ -1,26 +1,46 @@
-# Alpine léger + gcompat pour la compatibilité glibc (requis par Remotion Chrome headless)
-FROM node:20-alpine
+# Debian slim — glibc requis par le Chrome headless shell de Remotion (posix_fallocate64, etc.)
+FROM node:20-slim
 
 WORKDIR /app
 
-# Augmenter la mémoire dès le début (npm install + build)
+# Augmenter la mémoire AVANT npm install + build (évite OOM sur les grosses dépendances)
 ENV NODE_OPTIONS="--max-old-space-size=4096"
 
-# Dépendances système
-RUN apk add --no-cache \
+# Dépendances système : build tools, canvas/sharp, fonts, ffmpeg + dépendances Chrome
+RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 make g++ \
-    cairo-dev jpeg-dev pango-dev giflib-dev pixman-dev \
-    vips-dev pkgconfig \
-    ttf-dejavu fontconfig \
+    libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev libpixman-1-dev \
+    libvips-dev pkg-config \
+    fonts-dejavu-core fontconfig \
     curl tar bzip2 \
     ffmpeg \
-    libcap \
-    # gcompat = couche de compatibilité glibc → permet au Chrome headless de Remotion de tourner sur Alpine
-    gcompat \
-    libc6-compat \
-    # Dépendances Chromium pour le rendu headless
-    chromium \
-    nss freetype harfbuzz ca-certificates
+    libcap2-bin \
+    ca-certificates \
+    # Dépendances Chrome headless
+    libasound2 \
+    libatk-bridge2.0-0 \
+    libatk1.0-0 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libglib2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libnss3 \
+    libpango-1.0-0 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxext6 \
+    libxfixes3 \
+    libxkbcommon0 \
+    libxrandr2 \
+    libxshmfence1 \
+    libxtst6 \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copier les fichiers de configuration
 COPY package*.json ./
@@ -52,8 +72,7 @@ RUN rm -rf client/node_modules \
 # Pré-bundler la composition Remotion
 RUN node scripts/prebundle-remotion.js || true
 
-# Télécharger le Chrome headless shell de Remotion
-# gcompat permet au binaire glibc de tourner sur Alpine
+# Télécharger le Chrome headless shell de Remotion (binaire glibc natif sur Debian)
 RUN npx remotion browser ensure && echo "✓ Remotion browser prêt"
 
 # Exposer le port
