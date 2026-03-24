@@ -38,11 +38,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxtst6 \
     && rm -rf /var/lib/apt/lists/*
 
+# Augmenter la mémoire dès maintenant (npm install + build)
+ENV NODE_OPTIONS="--max-old-space-size=4096"
+
 # Copier les fichiers de configuration
 COPY package*.json ./
 
 # Installer les dépendances
-RUN npm install --legacy-peer-deps
+RUN npm install --legacy-peer-deps --no-audit --no-fund
 
 # Copier tout le code source
 COPY . .
@@ -55,9 +58,6 @@ RUN mkdir -p server/fonts && \
     cp dejavu-fonts-ttf-2.37/ttf/DejaVuSans.ttf . && \
     rm -rf dejavu.tar.bz2 dejavu-fonts-ttf-2.37 && \
     echo "✓ Police DejaVu Sans installée"
-
-# Augmenter la mémoire pour le build
-ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # Build du frontend et backend
 RUN npm run build
