@@ -171,9 +171,17 @@ remotionRouter.post("/render", upload.array("images", 4), async (req, res) => {
 
     console.log("🎬 Rendering media...", effectiveDurationInFrames, "frames");
 
-    // Standard Chromium paths — Alpine installs at /usr/bin/chromium-browser, Debian/Ubuntu may differ
-    const chromiumPaths = ["/usr/bin/chromium-browser", "/usr/bin/chromium"];
-    const browserExecutable = chromiumPaths.find(p => fs.existsSync(p));
+    // Find system Chromium: path written during Docker build, or fallback to common locations
+    let browserExecutable: string | undefined;
+    const savedPath = "/app/.chromium-path";
+    if (fs.existsSync(savedPath)) {
+      const p = fs.readFileSync(savedPath, "utf-8").trim();
+      if (p && fs.existsSync(p)) browserExecutable = p;
+    }
+    if (!browserExecutable) {
+      const chromiumPaths = ["/usr/bin/chromium-browser", "/usr/bin/chromium"];
+      browserExecutable = chromiumPaths.find(p => fs.existsSync(p));
+    }
     console.log("🌐 Browser executable:", browserExecutable ?? "remotion bundled (fallback)");
 
     await renderMedia({

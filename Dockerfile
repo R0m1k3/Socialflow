@@ -73,11 +73,16 @@ RUN rm -rf client/node_modules \
 # Pré-bundler la composition Remotion pendant le build (speedup au premier rendu)
 RUN node scripts/prebundle-remotion.js || true
 
-# Vérifier que le binaire Chromium système est bien présent (utilisé à la place du binaire Remotion)
+# Trouver le binaire Chromium système et enregistrer son chemin pour l'utiliser au runtime
 # Note: npx remotion browser ensure télécharge un binaire glibc qui ne fonctionne pas sur Alpine (musl)
-RUN which chromium-browser && echo "✓ chromium-browser trouvé à $(which chromium-browser)" || \
-    (which chromium && echo "✓ chromium trouvé à $(which chromium)") || \
-    echo "⚠ Aucun chromium système trouvé — le rendu échouera"
+RUN CHROMIUM_BIN=$(which chromium-browser 2>/dev/null || which chromium 2>/dev/null || find /usr -name 'chrome' -o -name 'chromium' -o -name 'chromium-browser' 2>/dev/null | grep -v '/\.' | head -1) && \
+    if [ -n "$CHROMIUM_BIN" ]; then \
+        echo "✓ Chromium trouvé: $CHROMIUM_BIN" && \
+        echo "$CHROMIUM_BIN" > /app/.chromium-path; \
+    else \
+        echo "⚠ Aucun chromium trouvé — le rendu échouera"; \
+    fi && \
+    cat /app/.chromium-path 2>/dev/null || true
 
 
 # Exposer le port de l'application
