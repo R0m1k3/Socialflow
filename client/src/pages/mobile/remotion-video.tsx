@@ -1,6 +1,4 @@
-import { useState, useMemo, useRef } from "react";
-import { Player } from "@remotion/player";
-import { ImageComposition } from "@/remotion/ImageComposition";
+import { useState, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,18 +29,6 @@ function stripForTTS(text: string) {
   return text.replace(/#\w+/g, '').replace(/[\uD800-\uDFFF]/g, '').replace(/[\u2600-\u27BF]/g, '').replace(/\s+/g, ' ').trim();
 }
 
-function estimateWordTimings(text: string, fps = 30, wps = 2.5) {
-  const words = text.split(/\s+/).filter(Boolean);
-  const framesPerWord = fps / wps;
-  let frame = 0;
-  return words.map(word => {
-    const isSpoken = !/^#/.test(word) && !(/[\uD800-\uDFFF\u2600-\u27BF]/.test(word));
-    const dur = isSpoken ? framesPerWord : framesPerWord * 0.4;
-    const start = frame;
-    frame += Math.round(dur);
-    return { word, startFrame: start, endFrame: frame };
-  });
-}
 
 export default function MobileRemotionVideoPage() {
   const [images, setImages] = useState<File[]>([]);
@@ -67,13 +53,8 @@ export default function MobileRemotionVideoPage() {
 
   const { data: allMedia = [] } = useQuery<Media[]>({ queryKey: ['/api/media'] });
   const { data: audioTracks = [], isLoading: tracksLoading } = useQuery<AudioTrack[]>({ queryKey: ['/api/audio-tracks'] });
-  const { data: cloudinaryConfig } = useQuery<{ cloudName?: string; logoPublicId?: string } | null>({ queryKey: ['/api/cloudinary/config'] });
   const { data: socialPages = [] } = useQuery<SocialPage[]>({ queryKey: ['/api/pages'] });
 
-  const previewLogoUrl = cloudinaryConfig?.cloudName && cloudinaryConfig?.logoPublicId
-    ? `https://res.cloudinary.com/${cloudinaryConfig.cloudName}/image/upload/${cloudinaryConfig.logoPublicId}`
-    : undefined;
-  const previewStoreName = socialPages[0]?.pageName as string | undefined;
   const facebookPages = socialPages.filter(p => p.platform === 'facebook');
   const imageMediaList = allMedia.filter(m => m.type === 'image').slice(0, 20);
 
@@ -95,22 +76,7 @@ export default function MobileRemotionVideoPage() {
     });
   };
 
-  const combinedUrls = useMemo(() => {
-    const urls: string[] = [];
-    images.forEach(f => urls.push(URL.createObjectURL(f)));
-    selectedLibraryImages.forEach(m => urls.push(m.originalUrl));
-    return urls;
-  }, [images, selectedLibraryImages]);
-
   const totalSelected = images.length + selectedLibraryImages.length;
-  const previewWordTimings = useMemo(() => overlayText ? estimateWordTimings(overlayText) : undefined, [overlayText]);
-  const ENDING_FRAMES = (previewLogoUrl || previewStoreName) ? 90 : 0;
-  const totalFrames = useMemo(() => {
-    const ttsEnd = previewWordTimings?.length ? previewWordTimings[previewWordTimings.length - 1].endFrame : 0;
-    const naturalContent = Math.max(ttsEnd / 30, combinedUrls.length * 3);
-    const contentSeconds = Math.min(Math.max(naturalContent, 22), 27);
-    return Math.round(contentSeconds * 30) + ENDING_FRAMES;
-  }, [previewWordTimings, combinedUrls, ENDING_FRAMES]);
 
   const handleTtsPreview = async () => {
     const ttsText = stripForTTS(overlayText);
@@ -325,55 +291,17 @@ export default function MobileRemotionVideoPage() {
           </CardContent>
         </Card>
 
-        {/* Aperçu */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base">Aperçu</CardTitle>
-          </CardHeader>
-          <CardContent className="flex justify-center bg-zinc-950 rounded-lg p-2">
-            {combinedUrls.length > 0 ? (
-              <Player
-                component={ImageComposition}
-                inputProps={{
-                  images: combinedUrls,
-                  overlayText: overlayText || undefined,
-                  wordTimings: previewWordTimings,
-                  logoUrl: previewLogoUrl,
-                  storeName: previewStoreName,
-                  endingFrames: ENDING_FRAMES,
-                }}
-                durationInFrames={totalFrames}
-                compositionWidth={1080}
-                compositionHeight={1920}
-                fps={30}
-                controls
-                acknowledgeRemotionLicense
-                style={{ width: "auto", height: "380px", maxWidth: "100%", borderRadius: "6px" }}
-              />
-            ) : (
-              <div className="h-[380px] w-full flex items-center justify-center text-xs text-muted-foreground text-center px-4">
-                Sélectionnez des images pour prévisualiser.
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         {/* Générer */}
-        {totalSelected > 0 && (
-          <Button onClick={handleGenerate} disabled={isRendering || totalSelected < 3} className="w-full h-12" size="lg">
-            {isRendering
-              ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Génération (1-2 min)…</>
-              : <><Video className="mr-2 h-4 w-4" /> Générer la vidéo MP4</>}
-          </Button>
-        )}
+        <Button onClick={handleGenerate} disabled={isRendering || totalSelected < 3} className="w-full h-12" size="lg">
+          {isRendering
+            ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Génération (1-2 min)…</>
+            : <><Video className="mr-2 h-4 w-4" /> Générer la vidéo MP4</>}
+        </Button>
 
         {videoUrl && (
           <div className="space-y-3">
             <p className="font-semibold text-sm text-green-600">Vidéo prête :</p>
             <video src={videoUrl} controls className="w-full rounded-md shadow bg-black" />
-            <Button variant="outline" className="w-full" asChild>
-              <a href={videoUrl} download="remotion-video.mp4">Télécharger</a>
-            </Button>
 
             <Card className="border-primary/40">
               <CardHeader className="pb-2">
