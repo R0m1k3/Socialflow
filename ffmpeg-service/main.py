@@ -291,26 +291,16 @@ async def generate_tts_with_subs(
                 # Use display_text for subtitle content if provided
                 text_to_display = display_text if display_text else text
 
-                if word_boundaries:
-                    # Precise synchronization using real word timings
-                    # Add delay to TTS start
-                    generate_ass_from_word_boundaries(
-                        word_boundaries,
-                        text_to_display,
-                        ass_path,
-                        total_duration=audio_duration,
-                        delay=delay,
-                    )
-                else:
-                    # Fallback to linear estimation if no boundaries captured
-                    print(
-                        "⚠️ No word boundaries captured, falling back to linear timing"
-                    )
-                    generate_simple_ass(
-                        text_to_display, ass_path, total_duration=audio_duration, delay=delay
-                    )
-
-                print(f"✅ TTS success with voice: {attempt_voice}")
+                print("⚠️ Using ffsubsync for precise synchronization as requested by user.")
+                unsynced_srt_path = audio_path.with_suffix(".unsynced.srt")
+                synced_srt_path = audio_path.with_suffix(".synced.srt")
+                
+                # Subtitle syncing pipeline using ffsubsync for the generated TTS voice
+                generate_unsynced_srt(text_to_display, unsynced_srt_path, total_duration=audio_duration)
+                run_ffsubsync(audio_path, unsynced_srt_path, synced_srt_path)
+                convert_srt_to_ass(synced_srt_path, ass_path, font_size=65, delay=delay)
+                
+                print(f"✅ TTS synchronisation completed with ffsubsync")
                 return
             else:
                 print(f"⚠️ Audio file empty or missing with voice: {attempt_voice}")
