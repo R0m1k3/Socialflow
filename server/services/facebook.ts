@@ -592,7 +592,16 @@ export class FacebookService {
     console.log('📤 Facebook START response:', startRaw);
     const startData = JSON.parse(startRaw) as any;
     if (!startRes.ok || startData.error) {
-      throw new Error(`Facebook upload START error: ${startData.error?.message ?? startRaw} (code: ${startData.error?.code}, subcode: ${startData.error?.error_subcode})`);
+      const subcode = startData.error?.error_subcode;
+      if (subcode === 1363042) {
+        throw new Error(
+          `Le token Facebook de la page "${page.pageName}" n'a pas la permission "publish_video". ` +
+          `Régénérez le token dans Graph API Explorer en ajoutant les permissions : ` +
+          `pages_manage_posts, pages_read_engagement, publish_video. ` +
+          `(code: ${startData.error?.code}, subcode: ${subcode})`
+        );
+      }
+      throw new Error(`Facebook upload START error: ${startData.error?.message ?? startRaw} (code: ${startData.error?.code}, subcode: ${subcode})`);
     }
     const { upload_session_id, video_id } = startData;
     let startOffset: number = parseInt(startData.start_offset ?? '0', 10);

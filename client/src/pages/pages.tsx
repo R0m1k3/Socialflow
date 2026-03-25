@@ -126,6 +126,22 @@ export default function PagesManagement() {
             <EditPageDialog page={editingPage} onOpenChange={(open) => !open && setEditingPage(null)} />
           </div>
 
+          {/* Permissions required notice */}
+          <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex gap-3">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-semibold text-amber-600 dark:text-amber-400 mb-1">Permissions Facebook requises pour la publication vidéo</p>
+              <p className="text-muted-foreground mb-2">
+                Le token de page doit inclure : <code className="bg-muted px-1 rounded text-xs">pages_manage_posts</code>{" "}
+                <code className="bg-muted px-1 rounded text-xs">pages_read_engagement</code>{" "}
+                <code className="bg-muted px-1 rounded text-xs">publish_video</code>
+              </p>
+              <p className="text-muted-foreground text-xs">
+                Dans Graph API Explorer → Sélectionnez votre app → Ajoutez ces 3 permissions → Générez un User Token → Échangez via <code className="bg-muted px-1 rounded">/me/accounts</code> pour obtenir le Page Token.
+              </p>
+            </div>
+          </div>
+
           <div className="flex gap-3 mb-6">
             <Button
               variant="outline"
