@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { UploadCloud, Video, Loader2, Menu, Check, Sparkles, Mic, Volume2, Music, Play, Pause, Send } from "lucide-react";
+import { UploadCloud, Video, Loader2, Menu, Check, Sparkles, Mic, Volume2, Music, Play, Pause, Send, Camera } from "lucide-react";
 import { MediaThumbnail } from "@/components/media-thumbnail";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "@/components/sidebar";
@@ -50,6 +50,7 @@ export default function MobileRemotionVideoPage() {
   const [publishDescription, setPublishDescription] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const { data: allMedia = [] } = useQuery<Media[]>({ queryKey: ['/api/media'] });
@@ -67,6 +68,24 @@ export default function MobileRemotionVideoPage() {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) setImages(Array.from(e.target.files).slice(0, 4 - selectedLibraryImages.length));
+  };
+
+  const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const remaining = 4 - selectedLibraryImages.length - images.length;
+    if (remaining <= 0) {
+      toast({ title: "4 images max.", variant: "destructive" });
+      e.target.value = '';
+      return;
+    }
+    let fileToAdd = file;
+    if (!file.name || file.name === 'blob' || file.name === '') {
+      const ext = file.type.split('/')[1] || 'jpg';
+      fileToAdd = new File([file], `camera-${Date.now()}.${ext}`, { type: file.type });
+    }
+    setImages(prev => [...prev, fileToAdd].slice(0, 4 - selectedLibraryImages.length));
+    e.target.value = '';
   };
 
   const toggleLibraryImage = (media: Media) => {
@@ -161,12 +180,31 @@ export default function MobileRemotionVideoPage() {
             <CardTitle className="text-base">1. Images</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="border-2 border-dashed border-border rounded-lg p-5 flex flex-col items-center relative bg-muted/30">
-              <input type="file" multiple accept="image/*" onChange={handleFileChange}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-              <UploadCloud className="h-7 w-7 text-muted-foreground mb-1" />
-              <p className="text-sm font-medium">Appuyez pour choisir</p>
-              <p className="text-xs text-muted-foreground">{images.length} uploadée(s)</p>
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleCameraCapture}
+              className="hidden"
+            />
+            <div className="flex gap-2">
+              <div className="flex-1 border-2 border-dashed border-border rounded-lg p-4 flex flex-col items-center relative bg-muted/30">
+                <input type="file" multiple accept="image/*" onChange={handleFileChange}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+                <UploadCloud className="h-6 w-6 text-muted-foreground mb-1" />
+                <p className="text-xs font-medium">Galerie</p>
+                <p className="text-xs text-muted-foreground">{images.length} choisie(s)</p>
+              </div>
+              <Button
+                variant="outline"
+                className="h-auto py-4 px-4 flex flex-col items-center gap-1"
+                onClick={() => cameraInputRef.current?.click()}
+                disabled={totalSelected >= 4}
+              >
+                <Camera className="h-6 w-6" />
+                <span className="text-xs">Photo</span>
+              </Button>
             </div>
             {imageMediaList.length > 0 && (
               <div className="flex overflow-x-auto gap-2 pb-1">
