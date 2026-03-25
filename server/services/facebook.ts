@@ -79,7 +79,7 @@ export class FacebookService {
         : videoMedia.originalUrl;
       const nodeBuffer = await fs.promises.readFile(localPath);
       const arrayBuffer = nodeBuffer.buffer.slice(nodeBuffer.byteOffset, nodeBuffer.byteOffset + nodeBuffer.byteLength) as ArrayBuffer;
-      return await this.publishReelFromBuffer(page, arrayBuffer, post.content);
+      return await this.publishVideoFromBuffer(page, arrayBuffer, post.content);
     } else {
       // Default to feed
       const imageMedia = mediaList.filter(m => m.type === 'image');
@@ -562,9 +562,48 @@ export class FacebookService {
   }
 
   /**
+   * Publie une vidéo sur Facebook en uploadant les données binaires via multipart.
+   * Utilise le même endpoint /videos que publishReel mais sans URL publique requise.
+   * Plus compatible que publishReelFromBuffer (pas besoin des permissions Reels API).
+   */
+  async publishVideoFromBuffer(
+    page: SocialPage,
+    videoBuffer: ArrayBuffer,
+    description?: string
+  ): Promise<string> {
+    if (!page.accessToken) throw new Error('No access token found for this page');
+
+    console.log('🎬 Publishing video via multipart to /videos:', {
+      pageId: page.pageId,
+      pageName: page.pageName,
+      size: `${(videoBuffer.byteLength / 1024 / 1024).toFixed(2)} MB`,
+    });
+
+    const formData = new FormData();
+    formData.append('access_token', page.accessToken);
+    if (description) formData.append('description', description);
+    formData.append('source', new Blob([videoBuffer], { type: 'video/mp4' }), 'video.mp4');
+
+    const response = await fetch(`${this.baseUrl}/${page.pageId}/videos`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json() as FacebookError;
+      throw new Error(`Facebook API error publishing video: ${error.error.message} (code: ${error.error.code})`);
+    }
+
+    const data = await response.json() as FacebookVideoResponse;
+    const postId = data.post_id || data.id;
+    console.log('✅ Video published via multipart! ID:', postId);
+    return postId;
+  }
+
+  /**
    * Publie une vidéo comme Reel Facebook en uploadant directement les données binaires
    * Utile quand on a la vidéo en base64 (après traitement FFmpeg)
-   * 
+   *
    * @param page - Page Facebook cible
    * @param videoBuffer - Buffer de la vidéo
    * @param description - Description du Reel (optionnel)

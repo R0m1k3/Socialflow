@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Calendar, Images, Users, Bot, Clock, Settings, Database, UserCog, LogOut, ChevronLeft, ChevronRight, Wand2, BarChart3, Video, Music } from "lucide-react";
+import { Home, PlusCircle, Calendar, Images, Users, Bot, Clock, Settings, Database, UserCog, LogOut, ChevronLeft, ChevronRight, ChevronDown, Wand2, BarChart3, Video, Music, Shield } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -19,10 +19,18 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
     const saved = localStorage.getItem('sidebar-collapsed');
     return saved === 'true';
   });
+  const [adminExpanded, setAdminExpanded] = useState(() => {
+    const saved = localStorage.getItem('sidebar-admin-expanded');
+    return saved !== 'false'; // default: expanded
+  });
 
   useEffect(() => {
     localStorage.setItem('sidebar-collapsed', String(isCollapsed));
   }, [isCollapsed]);
+
+  useEffect(() => {
+    localStorage.setItem('sidebar-admin-expanded', String(adminExpanded));
+  }, [adminExpanded]);
 
   const { data: session } = useQuery<{ id: string; username: string; role: string }>({
     queryKey: ["/api/auth/session"],
@@ -186,155 +194,64 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
       <div className="p-4 border-t border-sidebar-border space-y-2">
         {isAdmin && (
           <>
-            {!isCollapsed && (
-              <div className="mb-2">
-                <p className="text-xs font-semibold text-muted-foreground mb-2 px-4 uppercase tracking-wider">Administration</p>
+            {/* Admin section toggle */}
+            <button
+              onClick={() => !isCollapsed && setAdminExpanded(v => !v)}
+              className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-muted-foreground hover:text-foreground hover:bg-sidebar-accent relative group ${isCollapsed ? 'justify-center' : ''}`}
+            >
+              <Shield className="w-4 h-4 shrink-0" />
+              {!isCollapsed && (
+                <>
+                  <span className="text-xs font-semibold uppercase tracking-wider flex-1 text-left">Administration</span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${adminExpanded ? '' : '-rotate-90'}`} />
+                </>
+              )}
+              {isCollapsed && (
+                <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
+                  Administration
+                </div>
+              )}
+            </button>
+
+            {/* Admin links — collapsible */}
+            {(adminExpanded || isCollapsed) && (
+              <div className={`space-y-0.5 ${!isCollapsed ? 'pl-2' : ''}`}>
+                {[
+                  { href: "/pages",       icon: Users,   label: "Pages gérées",       testId: "link-pages-gérées" },
+                  { href: "/ai",          icon: Bot,     label: "Assistant IA",        testId: "link-assistant-ia" },
+                  { href: "/users",       icon: UserCog, label: "Utilisateurs",        testId: "link-users" },
+                  { href: "/sql",         icon: Database,label: "SQL",                 testId: "link-sql" },
+                  { href: "/audio-admin", icon: Music,   label: "Bibliothèque Audio",  testId: "link-audio-admin" },
+                  { href: "/settings",    icon: Settings,label: "Paramètres",          testId: "link-settings" },
+                ].map(({ href, icon: Icon, label, testId }) => (
+                  <a
+                    key={href}
+                    href={href}
+                    onClick={(e) => handleLinkClick(href, e)}
+                    className={`
+                      flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all relative group cursor-pointer
+                      ${location === href
+                        ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
+                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
+                      }
+                      ${isCollapsed ? 'justify-center' : ''}
+                    `}
+                    data-testid={testId}
+                  >
+                    {location === href && (
+                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 gradient-primary rounded-r-full" />
+                    )}
+                    <Icon className="w-4 h-4 shrink-0" />
+                    {!isCollapsed && <span className="text-sm">{label}</span>}
+                    {isCollapsed && (
+                      <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
+                        {label}
+                      </div>
+                    )}
+                  </a>
+                ))}
               </div>
             )}
-            <a
-              href="/pages"
-              onClick={(e) => handleLinkClick("/pages", e)}
-              className={`
-                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
-                ${location === "/pages"
-                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
-                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-                }
-                ${isCollapsed ? 'justify-center' : ''}
-              `}
-              data-testid="link-pages-gérées"
-            >
-              {location === "/pages" && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 gradient-primary rounded-r-full" />
-              )}
-              <Users className="w-5 h-5" />
-              {!isCollapsed && <span>Pages gérées</span>}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-                  Pages gérées
-                </div>
-              )}
-            </a>
-            <a
-              href="/ai"
-              onClick={(e) => handleLinkClick("/ai", e)}
-              className={`
-                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
-                ${location === "/ai"
-                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
-                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-                }
-                ${isCollapsed ? 'justify-center' : ''}
-              `}
-              data-testid="link-assistant-ia"
-            >
-              {location === "/ai" && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 gradient-primary rounded-r-full" />
-              )}
-              <Bot className="w-5 h-5" />
-              {!isCollapsed && <span>Assistant IA</span>}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-                  Assistant IA
-                </div>
-              )}
-            </a>
-            <a
-              href="/users"
-              onClick={(e) => handleLinkClick("/users", e)}
-              className={`
-                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
-                ${location === "/users"
-                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
-                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-                }
-                ${isCollapsed ? 'justify-center' : ''}
-              `}
-              data-testid="link-users"
-            >
-              {location === "/users" && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 gradient-primary rounded-r-full" />
-              )}
-              <UserCog className="w-5 h-5" />
-              {!isCollapsed && <span>Utilisateurs</span>}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-                  Utilisateurs
-                </div>
-              )}
-            </a>
-            <a
-              href="/sql"
-              onClick={(e) => handleLinkClick("/sql", e)}
-              className={`
-                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
-                ${location === "/sql"
-                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
-                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-                }
-                ${isCollapsed ? 'justify-center' : ''}
-              `}
-              data-testid="link-sql"
-            >
-              {location === "/sql" && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 gradient-primary rounded-r-full" />
-              )}
-              <Database className="w-5 h-5" />
-              {!isCollapsed && <span>SQL</span>}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-                  SQL
-                </div>
-              )}
-            </a>
-            <a
-              href="/audio-admin"
-              onClick={(e) => handleLinkClick("/audio-admin", e)}
-              className={`
-                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
-                ${location === "/audio-admin"
-                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
-                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-                }
-                ${isCollapsed ? 'justify-center' : ''}
-              `}
-              data-testid="link-audio-admin"
-            >
-              {location === "/audio-admin" && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 gradient-primary rounded-r-full" />
-              )}
-              <Music className="w-5 h-5" />
-              {!isCollapsed && <span>Bibliothèque Audio</span>}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-                  Bibliothèque Audio
-                </div>
-              )}
-            </a>
-            <a
-              href="/settings"
-              onClick={(e) => handleLinkClick("/settings", e)}
-              className={`
-                flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative group cursor-pointer
-                ${location === "/settings"
-                  ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
-                  : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-                }
-                ${isCollapsed ? 'justify-center' : ''}
-              `}
-              data-testid="link-settings"
-            >
-              {location === "/settings" && (
-                <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 gradient-primary rounded-r-full" />
-              )}
-              <Settings className="w-5 h-5" />
-              {!isCollapsed && <span>Paramètres</span>}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-                  Paramètres
-                </div>
-              )}
-            </a>
           </>
         )}
 
