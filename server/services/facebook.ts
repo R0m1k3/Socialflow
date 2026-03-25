@@ -78,8 +78,7 @@ export class FacebookService {
         ? path.join(process.cwd(), videoMedia.originalUrl)
         : videoMedia.originalUrl;
       const nodeBuffer = await fs.promises.readFile(localPath);
-      const arrayBuffer = nodeBuffer.buffer.slice(nodeBuffer.byteOffset, nodeBuffer.byteOffset + nodeBuffer.byteLength) as ArrayBuffer;
-      return await this.publishVideoFromBuffer(page, arrayBuffer, post.content);
+      return await this.publishVideoFromBuffer(page, nodeBuffer, post.content);
     } else {
       // Default to feed
       const imageMedia = mediaList.filter(m => m.type === 'image');
@@ -568,7 +567,7 @@ export class FacebookService {
    */
   async publishVideoFromBuffer(
     page: SocialPage,
-    videoBuffer: ArrayBuffer,
+    videoBuffer: Buffer | ArrayBuffer,
     description?: string
   ): Promise<string> {
     if (!page.accessToken) throw new Error('No access token found for this page');

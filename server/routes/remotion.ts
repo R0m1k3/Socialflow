@@ -378,8 +378,7 @@ remotionRouter.post("/publish", async (req, res) => {
           console.log(`🚀 Publishing to ${page.pageName} (direct binary upload)...`);
           // Upload video bytes directly — Facebook cannot access local URLs
           const videoBuffer = await fs.promises.readFile(localPath);
-          const arrayBuffer = videoBuffer.buffer.slice(videoBuffer.byteOffset, videoBuffer.byteOffset + videoBuffer.byteLength) as ArrayBuffer;
-          const reelId = await facebookService.publishVideoFromBuffer(page, arrayBuffer, description || "");
+          const reelId = await facebookService.publishVideoFromBuffer(page, videoBuffer, description || "");
           await dbStorage.updateScheduledPost(scheduledPost.id, { publishedAt: new Date(), externalPostId: reelId });
           results.push({ pageId, success: true, reelId });
         } else {

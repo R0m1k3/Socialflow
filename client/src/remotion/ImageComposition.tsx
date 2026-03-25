@@ -165,27 +165,13 @@ export const ImageComposition = ({
     ? wordTimings.findIndex(w => frame >= w.startFrame && frame < w.endFrame)
     : -1;
 
-  // Determine which group is currently active
-  const currentGroupIdx = activeWordIdx >= 0 ? Math.floor(activeWordIdx / WORDS_PER_GROUP) : -1;
+  // Only show caption when a word is actively being spoken
+  const renderCaption = frame < endingStart && activeWordIdx >= 0;
 
-  // Determine the last group that was visible (for holding display between words)
-  const lastActiveWordIdx = wordTimings
-    ? [...wordTimings].reverse().findIndex(w => frame >= w.startFrame)
-    : -1;
-  const resolvedLastIdx = lastActiveWordIdx >= 0 && wordTimings
-    ? wordTimings.length - 1 - lastActiveWordIdx
-    : -1;
-  const displayGroupIdx = activeWordIdx >= 0
-    ? currentGroupIdx
-    : resolvedLastIdx >= 0
-      ? Math.floor(resolvedLastIdx / WORDS_PER_GROUP)
-      : -1;
-
-  const renderCaption = frame < endingStart && wordTimings && wordTimings.length > 0 && displayGroupIdx >= 0;
-
-  const groupStart = displayGroupIdx * WORDS_PER_GROUP;
+  const groupIdx = activeWordIdx >= 0 ? Math.floor(activeWordIdx / WORDS_PER_GROUP) : 0;
+  const groupStart = groupIdx * WORDS_PER_GROUP;
   const groupWords = wordTimings ? wordTimings.slice(groupStart, groupStart + WORDS_PER_GROUP) : [];
-  const activeIdxInGroup = activeWordIdx >= 0 ? activeWordIdx - groupStart : -1;
+  const activeIdxInGroup = activeWordIdx - groupStart;
 
   // First frame of the current group (for fade-in)
   const groupFirstFrame = groupWords.length > 0 ? groupWords[0].startFrame : 0;
