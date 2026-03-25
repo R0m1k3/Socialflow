@@ -82,6 +82,7 @@ function SortableMediaItem({
           src={media.facebookFeedUrl || media.originalUrl}
           alt={media.fileName}
           type={isVideo ? 'video' : 'image'}
+          className="absolute inset-0 w-full h-full object-cover"
         />
       </button>
       {isSelected && (
@@ -131,11 +132,13 @@ export default function NewPostMobile() {
       ...recentUploads,
       ...allMedia.filter(m => !recentUploads.some(r => r.id === m.id)),
     ];
-    return combined.sort((a, b) => {
-      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return dateB - dateA;
-    });
+    return combined
+      .sort((a, b) => {
+        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return dateB - dateA;
+      })
+      .slice(0, 12);
   }, [allMedia, recentUploads]);
 
   const { data: scheduledPosts = [] } = useQuery<ScheduledPost[]>({
@@ -526,6 +529,7 @@ export default function NewPostMobile() {
                                   src={media.facebookFeedUrl || media.originalUrl}
                                   alt={media.fileName}
                                   type={isVideo ? 'video' : 'image'}
+                                  className="absolute inset-0 w-full h-full object-cover"
                                 />
                                 {isSelected && (
                                   <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
