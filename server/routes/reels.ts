@@ -8,7 +8,7 @@ import { storage } from '../storage';
 import { freeSoundService, type MusicTrack } from '../services/freesound';
 import { ffmpegService } from '../services/ffmpeg';
 import { facebookService } from '../services/facebook';
-import { minioService as cloudinaryService, buildMinioUrl } from '../services/minio';
+import { minioService as cloudinaryService, buildMinioUrl, resolveInternalUrl } from '../services/minio';
 import { openRouterService } from '../services/openrouter';
 import { db } from '../db';
 import { cloudinaryConfig } from '@shared/schema';
@@ -343,14 +343,14 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
         try {
             const config = await storage.getCloudinaryConfig();
             if (config && config.logoPublicId) {
-                watermarkUrl = buildMinioUrl(config.cloudName, config.logoPublicId, config.publicUrl);
+                watermarkUrl = resolveInternalUrl(buildMinioUrl(config.cloudName, config.logoPublicId, config.publicUrl));
             }
         } catch (e) {
             console.error('Error fetching watermark configuration', e);
         }
 
         // Traiter la vidéo via FFmpeg
-        const result = await ffmpegService.processReelFromUrl(media.originalUrl, {
+        const result = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
             text: overlayText,
             musicUrl: finalMusicUrl,
             ttsEnabled,
@@ -556,13 +556,13 @@ async function processReelBackground(
         try {
             const config = await storage.getCloudinaryConfig();
             if (config && config.logoPublicId) {
-                watermarkUrl = buildMinioUrl(config.cloudName, config.logoPublicId, config.publicUrl);
+                watermarkUrl = resolveInternalUrl(buildMinioUrl(config.cloudName, config.logoPublicId, config.publicUrl));
             }
         } catch (e) {
             console.error('Error fetching watermark configuration', e);
         }
 
-        const ffmpegResult = await ffmpegService.processReelFromUrl(media.originalUrl, {
+        const ffmpegResult = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
             text: overlayText,
             musicUrl: finalMusicUrl,
             ttsEnabled,

@@ -6,7 +6,7 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { ffmpegService } from "../services/ffmpeg";
 import { storage as dbStorage } from "../storage";
-import { minioService as cloudinaryService, buildMinioUrl } from "../services/minio";
+import { minioService as cloudinaryService, buildMinioUrl, resolvePublicUrl } from "../services/minio";
 import { facebookService } from "../services/facebook";
 import * as musicMetadata from "music-metadata";
 
@@ -319,7 +319,7 @@ remotionRouter.post("/publish", async (req, res) => {
 
         if (!scheduledFor) {
           console.log(`🚀 Publishing to ${page.pageName}...`);
-          const reelId = await facebookService.publishReel(page, cloudinaryResult.originalUrl, description || "");
+          const reelId = await facebookService.publishReel(page, resolvePublicUrl(cloudinaryResult.originalUrl), description || "");
           await dbStorage.updateScheduledPost(scheduledPost.id, { publishedAt: new Date(), externalPostId: reelId });
           results.push({ pageId, success: true, reelId });
         } else {

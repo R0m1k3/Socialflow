@@ -2,6 +2,7 @@ import { storage } from '../storage';
 import type { Post, SocialPage, Media } from '@shared/schema';
 import { imageProcessor } from './imageProcessor';
 import { cloudinaryService } from './cloudinary';
+import { resolvePublicUrl } from './minio';
 
 interface FacebookPhotoResponse {
   id: string;
@@ -70,7 +71,7 @@ export class FacebookService {
         throw new Error('Reels require a video media');
       }
 
-      return await this.publishReel(page, videoMedia.originalUrl, post.content);
+      return await this.publishReel(page, resolvePublicUrl(videoMedia.originalUrl), post.content);
     } else {
       // Default to feed
       const imageMedia = mediaList.filter(m => m.type === 'image');
@@ -115,7 +116,7 @@ export class FacebookService {
 
   private async publishPhotoPost(post: Post, page: SocialPage, media: Media): Promise<string> {
     // Use original URL - Facebook handles the cropping
-    const photoUrl = media.originalUrl;
+    const photoUrl = resolvePublicUrl(media.originalUrl);
 
     const params = new URLSearchParams({
       access_token: page.accessToken!,
@@ -175,7 +176,7 @@ export class FacebookService {
 
   private async publishVideoPost(post: Post, page: SocialPage, media: Media): Promise<string> {
     // Transform video URL to ensure Facebook compatibility (H.264/AAC/MP4)
-    const videoUrl = this.getFacebookCompatibleVideoUrl(media.originalUrl);
+    const videoUrl = this.getFacebookCompatibleVideoUrl(resolvePublicUrl(media.originalUrl));
 
     const params = new URLSearchParams({
       access_token: page.accessToken!,
@@ -215,7 +216,7 @@ export class FacebookService {
 
     for (const media of imageMedia) {
       // Use original URL - Facebook handles the cropping for carousel
-      const photoUrl = media.originalUrl;
+      const photoUrl = resolvePublicUrl(media.originalUrl);
 
       if (!photoUrl) {
         console.warn(`Skipping media ${media.id} - no valid URL found`);
@@ -330,7 +331,7 @@ export class FacebookService {
 
   private async schedulePhotoPost(post: Post, page: SocialPage, scheduledTimestamp: number, media: Media): Promise<string> {
     // Use original URL - Facebook handles the cropping
-    const photoUrl = media.originalUrl;
+    const photoUrl = resolvePublicUrl(media.originalUrl);
 
     const params = new URLSearchParams({
       access_token: page.accessToken!,
@@ -364,11 +365,11 @@ export class FacebookService {
     // Step 1: Upload photo as unpublished to get photo_id
     // Step 2: Publish the photo as a story using the photo_id
 
-    let photoUrl = media.originalUrl;
+    let photoUrl = resolvePublicUrl(media.originalUrl);
 
     if (post.content && post.content.trim().length > 0) {
       try {
-        const imageWithText = await imageProcessor.addTextToStoryImage(media.originalUrl, post.content);
+        const imageWithText = await imageProcessor.addTextToStoryImage(resolvePublicUrl(media.originalUrl), post.content);
         photoUrl = await cloudinaryService.uploadStoryImageWithText(imageWithText, `story-${media.id}.png`);
         console.log('Story image with text generated:', photoUrl);
       } catch (error) {
@@ -424,7 +425,7 @@ export class FacebookService {
     // 2. UPLOAD phase - Upload the video to upload_url using file_url header
     // 3. FINISH phase - Finalize and publish the story
 
-    const videoUrl = media.originalUrl;
+    const videoUrl = resolvePublicUrl(media.originalUrl);
     const accessToken = page.accessToken!;
 
     // Phase 1: START - Initialize the upload

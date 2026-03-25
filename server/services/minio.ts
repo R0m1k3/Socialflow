@@ -9,17 +9,35 @@ function ensureDir(dir: string): void {
   }
 }
 
-function getAppUrl(): string {
-  return (process.env.APP_URL || 'http://localhost:5555').replace(/\/$/, '');
+/**
+ * Builds the public URL for a locally stored file.
+ * Returns a relative path so it works on any domain/protocol.
+ * objectKey is the relative path from uploads/ (e.g. "media/123-file.jpg").
+ */
+export function buildMinioUrl(_bucketName: string, objectKey: string, _publicUrlOverride?: string | null): string {
+  return `/uploads/${objectKey}`;
 }
 
 /**
- * Builds the public URL for a locally stored file.
- * objectKey is the relative path from uploads/ (e.g. "media/123-file.jpg").
- * bucketName and publicUrlOverride are ignored (local storage compatibility shim).
+ * Resolves a possibly-relative URL to an absolute URL for use by external
+ * services (Facebook API, Instagram API) that must download the file.
+ * Uses APP_URL env var (public-facing domain).
  */
-export function buildMinioUrl(_bucketName: string, objectKey: string, _publicUrlOverride?: string | null): string {
-  return `${getAppUrl()}/uploads/${objectKey}`;
+export function resolvePublicUrl(url: string): string {
+  if (!url || !url.startsWith('/')) return url;
+  const base = (process.env.APP_URL || 'http://localhost:5555').replace(/\/$/, '');
+  return `${base}${url}`;
+}
+
+/**
+ * Resolves a possibly-relative URL to an absolute URL for use by internal
+ * Docker services (FFmpeg, etc.) that communicate via internal Docker network.
+ * Uses INTERNAL_APP_URL env var.
+ */
+export function resolveInternalUrl(url: string): string {
+  if (!url || !url.startsWith('/')) return url;
+  const base = (process.env.INTERNAL_APP_URL || process.env.APP_URL || 'http://localhost:5555').replace(/\/$/, '');
+  return `${base}${url}`;
 }
 
 class LocalStorageService {
