@@ -93,8 +93,9 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
     const files = fields["images"] ?? [];
     let imageUrls: string[] = [];
 
-    const host = process.env.INTERNAL_APP_URL
-      || (req.protocol + "://" + req.get("host"));
+    // Remotion's Chromium runs inside the same container — must use localhost, not the Docker service hostname
+    const port = process.env.PORT || "5555";
+    const host = `http://localhost:${port}`;
 
     const existing = req.body.existingImageUrls;
     if (existing) {
