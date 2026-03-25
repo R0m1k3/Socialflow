@@ -43,9 +43,6 @@ services:
       # Configuration FFmpeg Service
       FFMPEG_API_URL: http://ffmpeg-api:8000
       FFMPEG_API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
-      # Configuration MinIO (stockage fichiers)
-      MINIO_ENDPOINT: ${MINIO_ENDPOINT:-http://minio:9000}
-      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
     networks:
       - internal
       - nginx_default
@@ -55,6 +52,9 @@ services:
     volumes:
       - encryption_key:/app/.encryption-key-data
       - audio_uploads:/app/uploads/audio
+      - media_uploads:/app/uploads/media
+      - logos_uploads:/app/uploads/logos
+      - stories_uploads:/app/uploads/stories
     command: npm run start
 
   # Service FFmpeg dédié
@@ -77,6 +77,12 @@ volumes:
   encryption_key:
     driver: local
   audio_uploads:
+    driver: local
+  media_uploads:
+    driver: local
+  logos_uploads:
+    driver: local
+  stories_uploads:
     driver: local
 
 networks:

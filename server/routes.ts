@@ -1679,11 +1679,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No logo file uploaded" });
       }
 
-      // Check if Cloudinary is configured globally
-      const cloudinaryConfig = await storage.getCloudinaryConfig();
+      // Get or auto-create config row (local storage doesn't need credentials)
+      let cloudinaryConfig = await storage.getCloudinaryConfig();
       if (!cloudinaryConfig) {
-        return res.status(400).json({
-          error: "Cloudinary not configured. Please configure Cloudinary first."
+        cloudinaryConfig = await storage.createCloudinaryConfig({
+          cloudName: 'local', apiKey: 'local', apiSecret: 'local',
         });
       }
 

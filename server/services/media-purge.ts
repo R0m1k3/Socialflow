@@ -1,64 +1,58 @@
 import { db } from '../db';
 import { media } from '@shared/schema';
-import { eq, lt, isNotNull, and } from 'drizzle-orm';
-import { minioService as cloudinaryService } from './minio';
+import { eq, lt, and } from 'drizzle-orm';
+import { minioService as storageService } from './minio';
 
 /**
- * Automates the cleanup of old media to save Cloudinary storage space.
- * Scans the database for media older than 60 days, deletes the physical
- * files from Cloudinary, and removes the database records (cascading to post_media).
+ * Purge old local media to save disk space:
+ * - Images older than 30 days
+ * - Videos older than 7 days
  */
 export async function purgeOldMedia() {
-    console.log('[Media Purge] Starting automatic purge of old media...');
+  console.log('[Media Purge] Starting automatic purge of old media...');
 
-    try {
-        const sixtyDaysAgo = new Date();
-        sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-        // Find all media older than 60 days that have a cloudinaryPublicId
-        const oldMedia = await db.query.media.findMany({
-            where: (media, { and, lt, isNotNull }) => and(
-                lt(media.createdAt, sixtyDaysAgo),
-                isNotNull(media.cloudinaryPublicId)
-            )
-        });
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-        if (oldMedia.length === 0) {
-            console.log('[Media Purge] No old media found to purge.');
-            return;
-        }
+    const oldImages = await db.query.media.findMany({
+      where: (m, { and, lt, eq }) => and(eq(m.type, 'image'), lt(m.createdAt, thirtyDaysAgo))
+    });
 
-        console.log(`[Media Purge] Found ${oldMedia.length} media items older than 60 days to purge.`);
+    const oldVideos = await db.query.media.findMany({
+      where: (m, { and, lt, eq }) => and(eq(m.type, 'video'), lt(m.createdAt, sevenDaysAgo))
+    });
 
-        let successCount = 0;
-        let errorCount = 0;
+    const toDelete = [...oldImages, ...oldVideos];
 
-        for (const item of oldMedia) {
-            if (!item.cloudinaryPublicId) continue;
-
-            try {
-                // Delete from Cloudinary (using global config, userId is passed but ignored internally)
-                await cloudinaryService.deleteMedia(
-                    item.cloudinaryPublicId,
-                    item.userId,
-                    item.type === 'video' ? 'video' : 'image'
-                );
-
-                // Delete from Database (cascades to post_media, effectively leaving the post text intact)
-                await db.delete(media).where(eq(media.id, item.id));
-
-                successCount++;
-                console.log(`[Media Purge] Successfully deleted media ${item.id} (Cloudinary ID: ${item.cloudinaryPublicId})`);
-            } catch (err) {
-                // Cloudinary file might already be deleted or missing, but we still might want to clean DB if it's consistently failing.
-                // For safety, we only delete DB row if Cloudinary deletion succeeds or throws 'not found' (which we assume is fine).
-                console.error(`[Media Purge] Failed to delete media ${item.id} from Cloudinary:`, err);
-                errorCount++;
-            }
-        }
-
-        console.log(`[Media Purge] Purge completed. Successfully deleted: ${successCount}, Failed: ${errorCount}.`);
-    } catch (error) {
-        console.error('[Media Purge] Fatal error during media purge process:', error);
+    if (toDelete.length === 0) {
+      console.log('[Media Purge] No old media found to purge.');
+      return;
     }
+
+    console.log(`[Media Purge] Found ${oldImages.length} old images (>30 days) and ${oldVideos.length} old videos (>7 days) to purge.`);
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const item of toDelete) {
+      try {
+        if (item.cloudinaryPublicId) {
+          await storageService.deleteMedia(item.cloudinaryPublicId, item.userId, item.type === 'video' ? 'video' : 'image');
+        }
+        await db.delete(media).where(eq(media.id, item.id));
+        successCount++;
+      } catch (err) {
+        console.error(`[Media Purge] Failed to delete media ${item.id}:`, err);
+        errorCount++;
+      }
+    }
+
+    console.log(`[Media Purge] Purge completed. Deleted: ${successCount}, Failed: ${errorCount}.`);
+  } catch (error) {
+    console.error('[Media Purge] Fatal error during media purge process:', error);
+  }
 }

@@ -1,6 +1,7 @@
 import cron, { ScheduledTask } from "node-cron";
 import { storage } from "../storage";
 import { facebookService } from "./facebook";
+import { minioService as storageService } from "./minio";
 
 export class SchedulerService {
   private task: ScheduledTask | null = null;
@@ -123,6 +124,18 @@ export class SchedulerService {
     await storage.updatePost(post.id, {
       status: "published",
     });
+
+    // Delete local video files immediately after successful publishing
+    for (const mediaItem of mediaList) {
+      if (mediaItem.type === 'video' && mediaItem.cloudinaryPublicId) {
+        try {
+          await storageService.deleteMedia(mediaItem.cloudinaryPublicId, mediaItem.userId, 'video');
+          console.log(`[Scheduler] Deleted local video file for media ${mediaItem.id}`);
+        } catch (err) {
+          console.warn(`[Scheduler] Failed to delete local video file for media ${mediaItem.id}:`, err);
+        }
+      }
+    }
 
     console.log(`Successfully published post ${post.id} with external ID: ${externalPostId}`);
   }

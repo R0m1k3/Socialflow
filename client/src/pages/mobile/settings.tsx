@@ -365,99 +365,25 @@ export default function SettingsMobile() {
             </CardContent>
           </Card>
 
-          {/* MinIO */}
+          {/* Stockage local */}
           {isAdmin && (
             <Card className="rounded-2xl border-border/50 shadow-lg">
               <CardHeader className="p-5">
                 <CardTitle className="flex items-center gap-2 text-base">
                   <Cloud className="w-5 h-5" />
-                  Configuration Stockage MinIO
+                  Stockage des médias
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Configurez MinIO pour le stockage des médias
+                  Les médias sont stockés localement sur le serveur
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4 p-5 pt-0">
-                <div className="space-y-2">
-                  <Label htmlFor="cloudName" className="text-sm">Nom du bucket</Label>
-                  <Input
-                    id="cloudName"
-                    type="text"
-                    value={cloudName}
-                    onChange={(e) => setCloudName(e.target.value)}
-                    placeholder="socialflow"
-                    className="min-h-[48px]"
-                    data-testid="input-cloud-name"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Nom du bucket MinIO dans lequel stocker les fichiers
-                  </p>
+              <CardContent className="p-5 pt-0">
+                <div className="rounded-lg bg-muted p-4 space-y-1 text-sm text-muted-foreground">
+                  <p>✓ Images et vidéos stockées sur le disque du serveur</p>
+                  <p>✓ Vidéos supprimées automatiquement après publication</p>
+                  <p>✓ Images supprimées automatiquement après 30 jours</p>
+                  <p>✓ Vidéos non publiées supprimées après 7 jours</p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="apiKey" className="text-sm">Access Key</Label>
-                  <Input
-                    id="apiKey"
-                    type="text"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="minioadmin"
-                    className="min-h-[48px]"
-                    data-testid="input-api-key"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="apiSecret" className="text-sm">Secret Key</Label>
-                  <Input
-                    id="apiSecret"
-                    type="password"
-                    value={apiSecret}
-                    onChange={(e) => setApiSecret(e.target.value)}
-                    placeholder="••••••••••••••••"
-                    className="min-h-[48px]"
-                    data-testid="input-api-secret"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Votre Secret Key restera sécurisé et ne sera jamais exposé
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="endpointUrl" className="text-sm">URL Endpoint (interne)</Label>
-                  <Input
-                    id="endpointUrl"
-                    type="url"
-                    value={endpointUrl}
-                    onChange={(e) => setEndpointUrl(e.target.value)}
-                    placeholder="http://minio:9000"
-                    className="min-h-[48px]"
-                    data-testid="input-endpoint-url"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    URL interne de votre serveur MinIO (ex: http://192.168.1.10:9000)
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="publicUrl" className="text-sm">URL Publique</Label>
-                  <Input
-                    id="publicUrl"
-                    type="url"
-                    value={publicUrl}
-                    onChange={(e) => setPublicUrl(e.target.value)}
-                    placeholder="https://media.votre-domaine.com"
-                    className="min-h-[48px]"
-                    data-testid="input-public-url"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    URL publique pour accéder aux fichiers depuis internet
-                  </p>
-                </div>
-                <Button
-                  onClick={() => saveCloudinaryMutation.mutate()}
-                  disabled={saveCloudinaryMutation.isPending || !cloudName || !apiKey || !apiSecret}
-                  data-testid="button-save-cloudinary"
-                  className="w-full min-h-[48px]"
-                >
-                  {saveCloudinaryMutation.isPending ? "Enregistrement..." : "Enregistrer MinIO"}
-                </Button>
               </CardContent>
             </Card>
           )}

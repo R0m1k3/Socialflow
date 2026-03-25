@@ -66,6 +66,17 @@ app.use('/api/auth/login', authLimiter);
 const AUDIO_UPLOAD_DIR = process.env.AUDIO_UPLOAD_DIR || '/app/uploads/audio';
 app.use('/uploads/audio', express.static(AUDIO_UPLOAD_DIR));
 
+// Serve locally stored media files (images, videos, logos, stories)
+const MEDIA_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'media');
+const LOGOS_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'logos');
+const STORIES_UPLOAD_DIR = path.join(process.cwd(), 'uploads', 'stories');
+try { fs.mkdirSync(MEDIA_UPLOAD_DIR, { recursive: true }); } catch { /* ignore */ }
+try { fs.mkdirSync(LOGOS_UPLOAD_DIR, { recursive: true }); } catch { /* ignore */ }
+try { fs.mkdirSync(STORIES_UPLOAD_DIR, { recursive: true }); } catch { /* ignore */ }
+app.use('/uploads/media', express.static(MEDIA_UPLOAD_DIR));
+app.use('/uploads/logos', express.static(LOGOS_UPLOAD_DIR));
+app.use('/uploads/stories', express.static(STORIES_UPLOAD_DIR));
+
 // Serve temp uploads for Remotion
 const TEMP_UPLOAD_DIR = process.env.TEMP_UPLOAD_DIR || path.join(process.cwd(), 'uploads', 'temp');
 try { fs.mkdirSync(TEMP_UPLOAD_DIR, { recursive: true }); } catch { /* ignore */ }

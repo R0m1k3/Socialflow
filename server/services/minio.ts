@@ -1,33 +1,33 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
-import { storage } from '../storage';
 import fs from 'fs';
 import path from 'path';
 
-function getS3Client(accessKey: string, secretKey: string, endpointUrl?: string | null): S3Client {
-  const endpoint = endpointUrl || process.env.MINIO_ENDPOINT || 'http://localhost:9000';
-  return new S3Client({
-    endpoint,
-    region: 'us-east-1',
-    credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
-    forcePathStyle: true,
-  });
+const UPLOADS_BASE = path.resolve(process.cwd(), 'uploads');
+
+function ensureDir(dir: string): void {
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+}
+
+function getAppUrl(): string {
+  return (process.env.APP_URL || 'http://localhost:5555').replace(/\/$/, '');
 }
 
 /**
- * Builds the public URL for a stored object.
- * Uses DB publicUrl > MINIO_PUBLIC_URL env > MINIO_ENDPOINT env > localhost fallback.
+ * Builds the public URL for a locally stored file.
+ * objectKey is the relative path from uploads/ (e.g. "media/123-file.jpg").
+ * bucketName and publicUrlOverride are ignored (local storage compatibility shim).
  */
-export function buildMinioUrl(bucketName: string, objectKey: string, publicUrlOverride?: string | null): string {
-  const base = (publicUrlOverride || process.env.MINIO_PUBLIC_URL || process.env.MINIO_ENDPOINT || 'http://localhost:9000').replace(/\/$/, '');
-  return `${base}/${bucketName}/${objectKey}`;
+export function buildMinioUrl(_bucketName: string, objectKey: string, _publicUrlOverride?: string | null): string {
+  return `${getAppUrl()}/uploads/${objectKey}`;
 }
 
-class MinioService {
+class LocalStorageService {
   async uploadMedia(
     file: Buffer | string,
     fileName: string,
     _userId: string,
-    mimeType: string
+    _mimeType: string
   ): Promise<{
     publicId: string;
     originalUrl: string;
@@ -35,78 +35,55 @@ class MinioService {
     instagramFeedUrl: string | null;
     instagramStoryUrl: string | null;
   }> {
-    const config = await storage.getCloudinaryConfig();
-    if (!config) throw new Error('MinIO non configuré. Veuillez configurer le stockage dans les Paramètres.');
+    const dir = path.join(UPLOADS_BASE, 'media');
+    ensureDir(dir);
 
-    const client = getS3Client(config.apiKey, config.apiSecret, config.endpointUrl);
-    const bucket = config.cloudName;
-    const safeName = path.basename(fileName).replace(/\s+/g, '-');
-    const objectKey = `social-flow/${Date.now()}-${safeName}`;
+    const safeName = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, '-');
+    const objectKey = `media/${Date.now()}-${safeName}`;
+    const filePath = path.join(UPLOADS_BASE, objectKey);
 
     const body: Buffer = typeof file === 'string' ? fs.readFileSync(file) : file;
+    fs.writeFileSync(filePath, body);
 
-    await client.send(new PutObjectCommand({
-      Bucket: bucket,
-      Key: objectKey,
-      Body: body,
-      ContentType: mimeType,
-    }));
-
-    const url = buildMinioUrl(bucket, objectKey, config.publicUrl);
+    const url = buildMinioUrl('', objectKey);
     return { publicId: objectKey, originalUrl: url, facebookFeedUrl: url, instagramFeedUrl: url, instagramStoryUrl: url };
   }
 
   async deleteMedia(publicId: string, _userId: string, _mediaType: 'image' | 'video'): Promise<void> {
-    const config = await storage.getCloudinaryConfig();
-    if (!config) throw new Error('MinIO non configuré.');
-
-    const client = getS3Client(config.apiKey, config.apiSecret, config.endpointUrl);
-    await client.send(new DeleteObjectCommand({ Bucket: config.cloudName, Key: publicId }));
+    const filePath = path.join(UPLOADS_BASE, publicId);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
   }
 
   async uploadStoryImageWithText(buffer: Buffer, originalFileName: string): Promise<string> {
-    const config = await storage.getCloudinaryConfig();
-    if (!config) throw new Error('MinIO non configuré.');
+    const dir = path.join(UPLOADS_BASE, 'stories');
+    ensureDir(dir);
 
-    const client = getS3Client(config.apiKey, config.apiSecret, config.endpointUrl);
-    const safeName = path.basename(originalFileName).replace(/\s+/g, '-');
-    const objectKey = `social-flow/stories/story-${Date.now()}-${safeName}`;
+    const safeName = path.basename(originalFileName).replace(/[^a-zA-Z0-9._-]/g, '-');
+    const objectKey = `stories/story-${Date.now()}-${safeName}`;
 
-    await client.send(new PutObjectCommand({
-      Bucket: config.cloudName,
-      Key: objectKey,
-      Body: buffer,
-      ContentType: 'image/jpeg',
-    }));
-
-    return buildMinioUrl(config.cloudName, objectKey, config.publicUrl);
+    fs.writeFileSync(path.join(UPLOADS_BASE, objectKey), buffer);
+    return buildMinioUrl('', objectKey);
   }
 
   async uploadLogo(buffer: Buffer, fileName: string): Promise<{ publicId: string; url: string }> {
-    const config = await storage.getCloudinaryConfig();
-    if (!config) throw new Error('MinIO non configuré.');
+    const dir = path.join(UPLOADS_BASE, 'logos');
+    ensureDir(dir);
 
-    const client = getS3Client(config.apiKey, config.apiSecret, config.endpointUrl);
     const ext = path.extname(fileName) || '.png';
-    const objectKey = `social-flow/logos/logo-${Date.now()}${ext}`;
+    const objectKey = `logos/logo-${Date.now()}${ext}`;
 
-    await client.send(new PutObjectCommand({
-      Bucket: config.cloudName,
-      Key: objectKey,
-      Body: buffer,
-      ContentType: fileName.match(/\.png$/i) ? 'image/png' : 'image/jpeg',
-    }));
-
-    return { publicId: objectKey, url: buildMinioUrl(config.cloudName, objectKey, config.publicUrl) };
+    fs.writeFileSync(path.join(UPLOADS_BASE, objectKey), buffer);
+    return { publicId: objectKey, url: buildMinioUrl('', objectKey) };
   }
 
   async deleteLogo(publicId: string): Promise<void> {
-    const config = await storage.getCloudinaryConfig();
-    if (!config) throw new Error('MinIO non configuré.');
-
-    const client = getS3Client(config.apiKey, config.apiSecret, config.endpointUrl);
-    await client.send(new DeleteObjectCommand({ Bucket: config.cloudName, Key: publicId }));
+    const filePath = path.join(UPLOADS_BASE, publicId);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
   }
 }
 
-export const minioService = new MinioService();
+export const minioService = new LocalStorageService();
