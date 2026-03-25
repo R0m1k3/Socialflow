@@ -93,13 +93,15 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
     const files = fields["images"] ?? [];
     let imageUrls: string[] = [];
 
+    const host = process.env.INTERNAL_APP_URL
+      || (req.protocol + "://" + req.get("host"));
+
     const existing = req.body.existingImageUrls;
     if (existing) {
-      if (Array.isArray(existing)) imageUrls.push(...existing);
-      else imageUrls.push(existing);
+      const toAbsolute = (url: string) => url.startsWith('/') ? `${host}${url}` : url;
+      if (Array.isArray(existing)) imageUrls.push(...existing.map(toAbsolute));
+      else imageUrls.push(toAbsolute(existing));
     }
-
-    const host = req.protocol + "://" + req.get("host");
     if (files && files.length > 0) {
       imageUrls.push(...files.map(f => `${host}/uploads/temp/${path.basename(f.path)}`));
     }
