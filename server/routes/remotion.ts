@@ -19,7 +19,7 @@ if (!fs.existsSync(uploadDir)) {
 
 const storage = multer.diskStorage({
   destination: uploadDir,
-  filename: (req, file, cb) => {
+  filename: (_req, file, cb) => {
     const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
     cb(null, `remotion-${uniqueSuffix}${path.extname(file.originalname)}`);
   },
@@ -42,20 +42,31 @@ async function getBundle(): Promise<string> {
 
 /**
  * Strips hashtags and emojis from text for TTS synthesis.
- * Visual display keeps the full text.
+ * Replaces with a space to avoid concatenating adjacent words.
  */
 function stripForTTS(text: string): string {
   return text
-    .replace(/#\w+/g, '')      // remove hashtags
-    .replace(/[\uD800-\uDFFF]/g, '') // surrogate pairs (most emojis)
-    .replace(/[\u2600-\u27BF]/g, '') // misc symbols
+    .replace(/#\w+/g, ' ')           // hashtags → space (not empty)
+    .replace(/[\uD800-\uDFFF]/g, ' ') // surrogate pairs (emojis) → space
+    .replace(/[\u2600-\u27BF]/g, ' ') // misc symbols → space
     .replace(/\s+/g, ' ')
     .trim();
 }
 
+/** Estimates syllable count for a French word (vowel-group method). */
+function countSyllablesFr(word: string): number {
+  const clean = word.replace(/[^a-zàâéèêëîïôùûüç]/gi, '').toLowerCase();
+  if (!clean) return 1;
+  const groups = clean.match(/[aeiouyàâéèêëîïôùûü]+/gi);
+  return Math.max(1, groups?.length ?? 1);
+}
+
+/** Purely-punctuation token (should not appear in overlay). */
+const PUNCT_ONLY = /^[.,!?;:…\-—«»"''()\[\]]+$/;
+
 /**
- * Calculates word timings (in frames) for SPOKEN words only (no hashtags, no emojis).
- * Distributes audio duration evenly across words → tight sync with TTS voice.
+ * Calculates word timings (in frames) for SPOKEN words only.
+ * Duration per word is weighted by syllable count → much tighter sync with TTS voice.
  */
 function computeWordTimings(
   displayText: string,
@@ -63,19 +74,26 @@ function computeWordTimings(
   fps: number,
   startFrame: number
 ): Array<{ word: string; startFrame: number; endFrame: number }> {
-  // Only keep words that the TTS will actually speak
   const ttsText = stripForTTS(displayText);
-  const spokenWords = ttsText.split(/\s+/).filter(Boolean);
+  // Filter out standalone punctuation tokens
+  const spokenWords = ttsText.split(/\s+/).filter(w => w && !PUNCT_ONLY.test(w));
   if (spokenWords.length === 0) return [];
 
-  const totalFrames = audioDurationSeconds * fps;
-  const framesPerWord = totalFrames / spokenWords.length;
+  // Strip leading/trailing punctuation from each word for clean display
+  const cleanWords = spokenWords.map(w => w.replace(/^[.,!?;:…«»"''()\[\]]+|[.,!?;:…«»"''()\[\]]+$/g, '') || w);
 
-  return spokenWords.map((word, i) => ({
-    word,
-    startFrame: startFrame + Math.round(i * framesPerWord),
-    endFrame: startFrame + Math.round((i + 1) * framesPerWord),
-  }));
+  // Syllable-weighted distribution: longer words get proportionally more screen time
+  const syllables = cleanWords.map(countSyllablesFr);
+  const totalSyllables = syllables.reduce((a, b) => a + b, 0);
+  const totalFrames = audioDurationSeconds * fps;
+
+  let currentFrame = startFrame;
+  return cleanWords.map((word, i) => {
+    const wordStart = currentFrame;
+    const wordFrames = Math.round((syllables[i] / totalSyllables) * totalFrames);
+    currentFrame += wordFrames;
+    return { word, startFrame: wordStart, endFrame: currentFrame };
+  });
 }
 
 // Duration constants
