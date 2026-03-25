@@ -87,24 +87,54 @@ const ENDING_SECONDS = 3;      // ending slide (logo + store name)
 const MIN_CONTENT_SECONDS = 22; // so total >= 25s
 const MAX_CONTENT_SECONDS = 27; // so total <= 30s
 
+/**
+ * Converts a local /uploads/... relative path to a base64 data URL.
+ * Chromium inside Docker cannot reliably fetch http://localhost via HTTP,
+ * so we embed images directly — zero network dependency.
+ */
+async function toDataUrl(relativeUrl: string): Promise<string> {
+  if (!relativeUrl || !relativeUrl.startsWith('/uploads/')) return relativeUrl;
+  const filePath = path.join(process.cwd(), relativeUrl);
+  try {
+    const buffer = await fs.promises.readFile(filePath);
+    const ext = path.extname(filePath).slice(1).toLowerCase();
+    const mime = ext === 'png' ? 'image/png'
+               : ext === 'gif' ? 'image/gif'
+               : ext === 'webp' ? 'image/webp'
+               : 'image/jpeg';
+    return `data:${mime};base64,${buffer.toString('base64')}`;
+  } catch {
+    console.warn(`⚠️ toDataUrl: file not found: ${filePath}`);
+    return relativeUrl;
+  }
+}
+
 remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, { name: "music", maxCount: 1 }]), async (req, res) => {
   try {
     const fields = req.files as Record<string, Express.Multer.File[]>;
     const files = fields["images"] ?? [];
     let imageUrls: string[] = [];
 
-    // Remotion's Chromium runs inside the same container — must use localhost, not the Docker service hostname
+    // For audio/music we still need HTTP URLs (data URLs for audio are too large)
     const port = process.env.PORT || "5555";
     const host = `http://localhost:${port}`;
 
+    // Library images: resolve relative paths → data URLs (avoids Chromium HTTP issues)
     const existing = req.body.existingImageUrls;
     if (existing) {
-      const toAbsolute = (url: string) => url.startsWith('/') ? `${host}${url}` : url;
-      if (Array.isArray(existing)) imageUrls.push(...existing.map(toAbsolute));
-      else imageUrls.push(toAbsolute(existing));
+      const rawUrls = Array.isArray(existing) ? existing : [existing];
+      const resolved = await Promise.all(rawUrls.map(toDataUrl));
+      imageUrls.push(...resolved);
     }
+    // Newly uploaded temp files: read from disk → data URL
     if (files && files.length > 0) {
-      imageUrls.push(...files.map(f => `${host}/uploads/temp/${path.basename(f.path)}`));
+      const resolved = await Promise.all(files.map(async f => {
+        const buffer = await fs.promises.readFile(f.path);
+        const ext = path.extname(f.originalname).slice(1).toLowerCase();
+        const mime = ext === 'png' ? 'image/png' : ext === 'gif' ? 'image/gif' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+        return `data:${mime};base64,${buffer.toString('base64')}`;
+      }));
+      imageUrls.push(...resolved);
     }
 
     if (imageUrls.length === 0) {
@@ -118,7 +148,7 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
     const ttsVoice: string = req.body.ttsVoice || "fr-FR-VivienneMultilingualNeural";
     const musicVolume: number = parseFloat(req.body.musicVolume ?? "0.3");
 
-    // Music: uploaded file takes priority, else use catalog track URL (make relative paths absolute)
+    // Music: HTTP URLs are fine for audio (Remotion uses Web Audio API, not <Img>)
     const musicFile = fields["music"]?.[0];
     const rawMusicTrackUrl = req.body.musicTrackUrl as string | undefined;
     const musicUrl: string | undefined = musicFile
@@ -132,8 +162,8 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
       const cloudinaryConfig = await dbStorage.getCloudinaryConfig();
       if (cloudinaryConfig?.cloudName && cloudinaryConfig?.logoPublicId) {
         const relLogo = buildMinioUrl(cloudinaryConfig.cloudName, cloudinaryConfig.logoPublicId, cloudinaryConfig.publicUrl);
-        logoUrl = relLogo.startsWith('/') ? `${host}${relLogo}` : relLogo;
-        console.log("🏢 Logo URL:", logoUrl);
+        logoUrl = await toDataUrl(relLogo);
+        console.log("🏢 Logo embedded as data URL:", logoUrl.slice(0, 40) + "...");
       }
     } catch (e) {
       console.warn("⚠️ Could not fetch logo config:", e);
