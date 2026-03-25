@@ -131,7 +131,8 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
     try {
       const cloudinaryConfig = await dbStorage.getCloudinaryConfig();
       if (cloudinaryConfig?.cloudName && cloudinaryConfig?.logoPublicId) {
-        logoUrl = buildMinioUrl(cloudinaryConfig.cloudName, cloudinaryConfig.logoPublicId, cloudinaryConfig.publicUrl);
+        const relLogo = buildMinioUrl(cloudinaryConfig.cloudName, cloudinaryConfig.logoPublicId, cloudinaryConfig.publicUrl);
+        logoUrl = relLogo.startsWith('/') ? `${host}${relLogo}` : relLogo;
         console.log("🏢 Logo URL:", logoUrl);
       }
     } catch (e) {
