@@ -173,7 +173,10 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
       if (user?.id) {
         const pages = await dbStorage.getSocialPages(user.id);
         if (pages.length > 0) {
-          storeName = pages[0].pageName;
+          // Use the page selected by the user, or fall back to first page
+          const selectedPageId = req.body.selectedPageId as string | undefined;
+          const page = selectedPageId ? pages.find(p => p.id === selectedPageId) : pages[0];
+          storeName = (page ?? pages[0]).pageName;
           console.log("🏪 Store name:", storeName);
         }
       }
@@ -269,7 +272,8 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
     });
 
     console.log("✅ Render completed:", outputFilename);
-    res.json({ url: `${host}/uploads/temp/${outputFilename}` });
+    // Return relative URL so any client (mobile, desktop, Docker) can access it
+    res.json({ url: `/uploads/temp/${outputFilename}` });
 
   } catch (err: any) {
     console.error("❌ Remotion render error:", err);

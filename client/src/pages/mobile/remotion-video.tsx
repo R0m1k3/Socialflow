@@ -124,6 +124,7 @@ export default function MobileRemotionVideoPage() {
       selectedLibraryImages.forEach(m => formData.append("existingImageUrls", m.originalUrl));
       if (overlayText) formData.append("overlayText", overlayText);
       if (ttsEnabled && overlayText) formData.append("ttsVoice", ttsVoice);
+      if (selectedPageIds[0]) formData.append("selectedPageId", selectedPageIds[0]);
       if (musicFile) { formData.append("music", musicFile); formData.append("musicVolume", String(musicVolume)); }
       else if (selectedTrack) { formData.append("musicTrackUrl", selectedTrack.url); formData.append("musicVolume", String(musicVolume)); }
       const response = await fetch("/api/remotion/render", { method: "POST", body: formData });
@@ -330,6 +331,35 @@ export default function MobileRemotionVideoPage() {
           </CardContent>
         </Card>
 
+        {/* 4. Page Facebook */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2"><Send className="w-4 h-4" /> 4. Page Facebook</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {facebookPages.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Aucune page Facebook connectée.</p>
+            ) : (
+              facebookPages.map(page => (
+                <div key={page.id} className="flex items-center gap-3">
+                  <Checkbox
+                    id={`page-${page.id}`}
+                    checked={selectedPageIds.includes(page.id)}
+                    onCheckedChange={checked =>
+                      setSelectedPageIds(prev =>
+                        checked ? [...prev, page.id] : prev.filter(id => id !== page.id)
+                      )
+                    }
+                  />
+                  <label htmlFor={`page-${page.id}`} className="text-sm font-medium cursor-pointer">
+                    {page.pageName}
+                  </label>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
         {/* Générer */}
         <Button onClick={handleGenerate} disabled={isRendering || totalSelected < 3} className="w-full h-12" size="lg">
           {isRendering
@@ -351,25 +381,12 @@ export default function MobileRemotionVideoPage() {
               <CardContent className="space-y-3">
                 {facebookPages.length === 0 ? (
                   <p className="text-xs text-muted-foreground">Aucune page Facebook connectée.</p>
+                ) : selectedPageIds.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">Sélectionnez une page ci-dessus.</p>
                 ) : (
-                  <div className="space-y-2">
-                    {facebookPages.map(page => (
-                      <div key={page.id} className="flex items-center gap-3">
-                        <Checkbox
-                          id={`mpub-${page.id}`}
-                          checked={selectedPageIds.includes(page.id)}
-                          onCheckedChange={checked =>
-                            setSelectedPageIds(prev =>
-                              checked ? [...prev, page.id] : prev.filter(id => id !== page.id)
-                            )
-                          }
-                        />
-                        <label htmlFor={`mpub-${page.id}`} className="text-sm font-medium cursor-pointer">
-                          {page.pageName}
-                        </label>
-                      </div>
-                    ))}
-                  </div>
+                  <p className="text-xs text-primary font-medium">
+                    Pages : {facebookPages.filter(p => selectedPageIds.includes(p.id)).map(p => p.pageName).join(', ')}
+                  </p>
                 )}
                 <Textarea rows={2} placeholder="Description (optionnel)" value={publishDescription}
                   onChange={e => setPublishDescription(e.target.value)} />
