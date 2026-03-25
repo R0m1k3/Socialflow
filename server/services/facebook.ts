@@ -561,9 +561,8 @@ export class FacebookService {
   }
 
   /**
-   * Publie une vidéo sur Facebook en uploadant les données binaires via multipart.
-   * Utilise le même endpoint /videos que publishReel mais sans URL publique requise.
-   * Plus compatible que publishReelFromBuffer (pas besoin des permissions Reels API).
+   * Publie une vidéo sur Facebook via l'API Resumable Upload (start → transfer → finish).
+   * Obligatoire pour les fichiers > ~50 MB. Plus fiable que l'upload multipart simple.
    */
   async publishVideoFromBuffer(
     page: SocialPage,
@@ -572,30 +571,72 @@ export class FacebookService {
   ): Promise<string> {
     if (!page.accessToken) throw new Error('No access token found for this page');
 
-    console.log('🎬 Publishing video via multipart to /videos:', {
+    const buf = Buffer.isBuffer(videoBuffer) ? videoBuffer : Buffer.from(videoBuffer);
+    const fileSize = buf.length;
+    const endpoint = `${this.baseUrl}/${page.pageId}/videos`;
+
+    console.log('🎬 Publishing video via Resumable Upload API:', {
       pageId: page.pageId,
       pageName: page.pageName,
-      size: `${(videoBuffer.byteLength / 1024 / 1024).toFixed(2)} MB`,
+      size: `${(fileSize / 1024 / 1024).toFixed(2)} MB`,
     });
 
-    const formData = new FormData();
-    formData.append('access_token', page.accessToken);
-    if (description) formData.append('description', description);
-    formData.append('source', new Blob([videoBuffer], { type: 'video/mp4' }), 'video.mp4');
-
-    const response = await fetch(`${this.baseUrl}/${page.pageId}/videos`, {
-      method: 'POST',
-      body: formData,
+    // ── Phase 1: Start ────────────────────────────────────────────────────────
+    const startBody = new URLSearchParams({
+      access_token: page.accessToken,
+      upload_phase: 'start',
+      file_size: fileSize.toString(),
     });
+    const startRes = await fetch(endpoint, { method: 'POST', body: startBody });
+    const startData = await startRes.json() as any;
+    if (!startRes.ok || startData.error) {
+      throw new Error(`Facebook upload START error: ${startData.error?.message ?? JSON.stringify(startData)} (code: ${startData.error?.code})`);
+    }
+    const { upload_session_id, video_id } = startData;
+    let startOffset: number = parseInt(startData.start_offset ?? '0', 10);
+    let endOffset: number   = parseInt(startData.end_offset   ?? fileSize.toString(), 10);
+    console.log(`📤 Upload session: ${upload_session_id}, video_id: ${video_id}`);
 
-    if (!response.ok) {
-      const error = await response.json() as FacebookError;
-      throw new Error(`Facebook API error publishing video: ${error.error.message} (code: ${error.error.code})`);
+    // ── Phase 2: Transfer (chunked) ───────────────────────────────────────────
+    while (startOffset < fileSize) {
+      const chunk = buf.slice(startOffset, endOffset);
+      const chunkForm = new FormData();
+      chunkForm.append('access_token', page.accessToken);
+      chunkForm.append('upload_phase', 'transfer');
+      chunkForm.append('upload_session_id', upload_session_id);
+      chunkForm.append('start_offset', startOffset.toString());
+      chunkForm.append('video_file_chunk', new Blob([chunk], { type: 'video/mp4' }), 'chunk.mp4');
+
+      const transferRes = await fetch(endpoint, { method: 'POST', body: chunkForm });
+      const transferData = await transferRes.json() as any;
+      if (!transferRes.ok || transferData.error) {
+        throw new Error(`Facebook upload TRANSFER error at offset ${startOffset}: ${transferData.error?.message ?? JSON.stringify(transferData)}`);
+      }
+
+      const nextStart = parseInt(transferData.start_offset ?? fileSize.toString(), 10);
+      const nextEnd   = parseInt(transferData.end_offset   ?? fileSize.toString(), 10);
+      console.log(`📤 Transferred ${endOffset}/${fileSize} bytes`);
+      if (nextStart >= fileSize || nextStart === startOffset) break;
+      startOffset = nextStart;
+      endOffset   = nextEnd;
     }
 
-    const data = await response.json() as FacebookVideoResponse;
-    const postId = data.post_id || data.id;
-    console.log('✅ Video published via multipart! ID:', postId);
+    // ── Phase 3: Finish ───────────────────────────────────────────────────────
+    const finishBody = new URLSearchParams({
+      access_token: page.accessToken,
+      upload_phase: 'finish',
+      upload_session_id,
+    });
+    if (description) finishBody.set('description', description);
+
+    const finishRes = await fetch(endpoint, { method: 'POST', body: finishBody });
+    const finishData = await finishRes.json() as any;
+    if (!finishRes.ok || finishData.error) {
+      throw new Error(`Facebook upload FINISH error: ${finishData.error?.message ?? JSON.stringify(finishData)} (code: ${finishData.error?.code})`);
+    }
+
+    const postId = finishData.post_id || finishData.video_id || video_id;
+    console.log('✅ Video published via Resumable Upload! ID:', postId);
     return postId;
   }
 
