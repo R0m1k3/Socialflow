@@ -54,8 +54,8 @@ function stripForTTS(text: string): string {
 }
 
 /**
- * Calculates word timings (in frames at 30fps) based on audio duration.
- * Each word appears only when spoken, then disappears (no accumulation).
+ * Calculates word timings (in frames) for SPOKEN words only (no hashtags, no emojis).
+ * Distributes audio duration evenly across words → tight sync with TTS voice.
  */
 function computeWordTimings(
   displayText: string,
@@ -63,22 +63,19 @@ function computeWordTimings(
   fps: number,
   startFrame: number
 ): Array<{ word: string; startFrame: number; endFrame: number }> {
-  const displayWords = displayText.split(/\s+/).filter(Boolean);
+  // Only keep words that the TTS will actually speak
   const ttsText = stripForTTS(displayText);
-  const ttsWords = ttsText.split(/\s+/).filter(Boolean);
+  const spokenWords = ttsText.split(/\s+/).filter(Boolean);
+  if (spokenWords.length === 0) return [];
 
-  const totalTTSFrames = audioDurationSeconds * fps;
-  const framesPerTTSWord = ttsWords.length > 0 ? totalTTSFrames / ttsWords.length : fps;
+  const totalFrames = audioDurationSeconds * fps;
+  const framesPerWord = totalFrames / spokenWords.length;
 
-  let currentFrame = startFrame;
-
-  return displayWords.map((word) => {
-    const wordStart = currentFrame;
-    const isSpoken = !/^#/.test(word) && !(/[\uD800-\uDFFF\u2600-\u27BF]/.test(word));
-    const frameDuration = isSpoken ? framesPerTTSWord : framesPerTTSWord * 0.4;
-    currentFrame += Math.round(frameDuration);
-    return { word, startFrame: wordStart, endFrame: currentFrame };
-  });
+  return spokenWords.map((word, i) => ({
+    word,
+    startFrame: startFrame + Math.round(i * framesPerWord),
+    endFrame: startFrame + Math.round((i + 1) * framesPerWord),
+  }));
 }
 
 // Duration constants
