@@ -18,12 +18,123 @@ export type ImageCompositionProps = {
   endingFrames?: number;
 };
 
-// Sub-component: one image displayed directly, no entrance transition
-const ImageSlide: React.FC<{ src: string }> = ({ src }) => {
+/**
+ * Ken Burns presets — deterministic per image index.
+ * Each entry: starting transform → ending transform over the slide duration.
+ * Scale > 1 to avoid black edges when translating.
+ */
+const KB_PRESETS = [
+  // zoom in, center
+  { fromScale: 1.0,  toScale: 1.14, fromX: "0%",   toX: "0%",   fromY: "0%",   toY: "0%" },
+  // zoom in + drift right
+  { fromScale: 1.06, toScale: 1.18, fromX: "-3%",  toX: "3%",   fromY: "0%",   toY: "0%" },
+  // zoom in + drift left
+  { fromScale: 1.06, toScale: 1.18, fromX: "3%",   toX: "-3%",  fromY: "0%",   toY: "0%" },
+  // zoom out, center
+  { fromScale: 1.16, toScale: 1.04, fromX: "0%",   toX: "0%",   fromY: "0%",   toY: "0%" },
+  // pan up + slight zoom
+  { fromScale: 1.1,  toScale: 1.14, fromX: "0%",   toX: "0%",   fromY: "3%",   toY: "-3%" },
+  // pan down + zoom in
+  { fromScale: 1.06, toScale: 1.16, fromX: "0%",   toX: "0%",   fromY: "-3%",  toY: "3%" },
+  // diagonal drift bottom-right
+  { fromScale: 1.08, toScale: 1.18, fromX: "-2%",  toX: "2%",   fromY: "-2%",  toY: "2%" },
+  // diagonal drift top-left + zoom out
+  { fromScale: 1.18, toScale: 1.06, fromX: "2%",   toX: "-2%",  fromY: "2%",   toY: "-2%" },
+];
+
+/**
+ * ImageSlide with Ken Burns effect (slow zoom / pan).
+ * The effect index is derived from the image index for deterministic behaviour in Remotion.
+ */
+const ImageSlide: React.FC<{ src: string; effectIndex: number }> = ({ src, effectIndex }) => {
+  const frame = useCurrentFrame();
+  const { durationInFrames } = useVideoConfig();
+
+  const preset = KB_PRESETS[effectIndex % KB_PRESETS.length];
+  // progress: 0 → 1 over the slide duration, using easeInOut via interpolate extrapolate clamp
+  const progress = interpolate(frame, [0, durationInFrames], [0, 1], { extrapolateRight: "clamp" });
+
+  const scale  = interpolate(progress, [0, 1], [preset.fromScale, preset.toScale]);
+  const transX = interpolate(progress, [0, 1], [parseFloat(preset.fromX), parseFloat(preset.toX)]);
+  const transY = interpolate(progress, [0, 1], [parseFloat(preset.fromY), parseFloat(preset.toY)]);
+
   return (
-    <AbsoluteFill style={{ justifyContent: "center", alignItems: "center", overflow: "hidden", backgroundColor: "black" }}>
-      <Img src={src} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+    <AbsoluteFill style={{ overflow: "hidden", backgroundColor: "black" }}>
+      <Img
+        src={src}
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "cover",
+          transform: `scale(${scale}) translate(${transX}%, ${transY}%)`,
+          transformOrigin: "center center",
+          willChange: "transform",
+        }}
+      />
     </AbsoluteFill>
+  );
+};
+
+/**
+ * CaptionGroup — renders a group of words (CapCut-style).
+ * Active word is highlighted in yellow with glow; others are white.
+ * Background: semi-transparent dark pill.
+ */
+const CaptionGroup: React.FC<{
+  words: WordTiming[];
+  activeIdx: number;   // index within this group (0-3), -1 if none active
+  groupFirstFrame: number;
+  fps: number;
+}> = ({ words, activeIdx, groupFirstFrame, fps }) => {
+  const frame = useCurrentFrame();
+
+  // Fade in when this group first appears
+  const fadeIn = spring({
+    frame: frame - groupFirstFrame,
+    fps,
+    config: { damping: 30, stiffness: 120 },
+    durationInFrames: 10,
+  });
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "row",
+        flexWrap: "wrap",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: "0 22px",
+        maxWidth: "90%",
+        opacity: fadeIn,
+      }}
+    >
+      {words.map((w, i) => {
+        const isActive = i === activeIdx;
+        return (
+          <span
+            key={i}
+            style={{
+              fontFamily: "'Arial Black', 'Impact', 'Helvetica Neue', sans-serif",
+              fontSize: isActive ? 82 : 74,
+              fontWeight: 900,
+              lineHeight: 1.15,
+              color: isActive ? "#FFE600" : "white",
+              textTransform: "uppercase",
+              textShadow: isActive
+                ? "0 0 30px rgba(255,230,0,0.6), 0 4px 24px rgba(0,0,0,0.95)"
+                : "0 3px 18px rgba(0,0,0,0.9)",
+              WebkitTextStroke: isActive ? "3px rgba(0,0,0,0.85)" : "2px rgba(0,0,0,0.75)",
+              display: "inline-block",
+              transform: isActive ? "scale(1.1)" : "scale(1)",
+              transition: "transform 0.05s",
+            }}
+          >
+            {w.word}
+          </span>
+        );
+      })}
+    </div>
   );
 };
 
@@ -48,17 +159,43 @@ export const ImageComposition = ({
     durationInFrames: 30,
   });
 
-  // Current active word (wordTimings only contains spoken words — no hashtags/emojis)
+  // Group words into sets of 3 for caption display
+  const WORDS_PER_GROUP = 3;
   const activeWordIdx = wordTimings
     ? wordTimings.findIndex(w => frame >= w.startFrame && frame < w.endFrame)
     : -1;
+
+  // Determine which group is currently active
+  const currentGroupIdx = activeWordIdx >= 0 ? Math.floor(activeWordIdx / WORDS_PER_GROUP) : -1;
+
+  // Determine the last group that was visible (for holding display between words)
+  const lastActiveWordIdx = wordTimings
+    ? [...wordTimings].reverse().findIndex(w => frame >= w.startFrame)
+    : -1;
+  const resolvedLastIdx = lastActiveWordIdx >= 0 && wordTimings
+    ? wordTimings.length - 1 - lastActiveWordIdx
+    : -1;
+  const displayGroupIdx = activeWordIdx >= 0
+    ? currentGroupIdx
+    : resolvedLastIdx >= 0
+      ? Math.floor(resolvedLastIdx / WORDS_PER_GROUP)
+      : -1;
+
+  const renderCaption = frame < endingStart && wordTimings && wordTimings.length > 0 && displayGroupIdx >= 0;
+
+  const groupStart = displayGroupIdx * WORDS_PER_GROUP;
+  const groupWords = wordTimings ? wordTimings.slice(groupStart, groupStart + WORDS_PER_GROUP) : [];
+  const activeIdxInGroup = activeWordIdx >= 0 ? activeWordIdx - groupStart : -1;
+
+  // First frame of the current group (for fade-in)
+  const groupFirstFrame = groupWords.length > 0 ? groupWords[0].startFrame : 0;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
       {/* Images — displayed immediately, no entrance transition */}
       {images.map((imgUrl, index) => (
         <Sequence key={index} from={index * durationPerImage} durationInFrames={durationPerImage}>
-          <ImageSlide src={imgUrl} />
+          <ImageSlide src={imgUrl} effectIndex={index} />
         </Sequence>
       ))}
 
@@ -68,51 +205,37 @@ export const ImageComposition = ({
       {/* Background music */}
       {musicUrl && <Html5Audio src={musicUrl} volume={musicVolume} />}
 
-      {/* Word overlay — TikTok style, 3 spoken words at a time, synced to TTS */}
-      {frame < endingStart && wordTimings && wordTimings.length > 0 && activeWordIdx >= 0 && (() => {
-        const groupIdx = Math.floor(activeWordIdx / 3);
-        const groupStart = groupIdx * 3;
-        const groupWords = wordTimings.slice(groupStart, groupStart + 3);
-        return (
-          <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "center", paddingBottom: 160 }}>
-            <div
-              style={{
-                maxWidth: "88%",
-                textAlign: "center",
-                display: "flex",
-                flexWrap: "wrap",
-                justifyContent: "center",
-                gap: "0 18px",
-                alignItems: "baseline",
-                filter: "drop-shadow(0 2px 12px rgba(0,0,0,0.7))",
-              }}
-            >
-              {groupWords.map((w, gi) => {
-                const isActive = groupStart + gi === activeWordIdx;
-                return (
-                  <span
-                    key={groupStart + gi}
-                    style={{
-                      color: isActive ? "#FFE600" : "white",
-                      fontFamily: "'Arial Black', 'Impact', sans-serif",
-                      fontSize: 76,
-                      fontWeight: 900,
-                      lineHeight: 1.2,
-                      WebkitTextStroke: isActive ? "3px rgba(0,0,0,0.8)" : "2px rgba(0,0,0,0.7)",
-                      textShadow: "0 4px 20px rgba(0,0,0,0.9)",
-                      display: "inline-block",
-                      textTransform: "uppercase",
-                      transform: isActive ? "scale(1.08)" : "scale(1)",
-                    }}
-                  >
-                    {w.word}
-                  </span>
-                );
-              })}
-            </div>
-          </AbsoluteFill>
-        );
-      })()}
+      {/* Caption overlay — CapCut style */}
+      {renderCaption && (
+        <AbsoluteFill
+          style={{
+            justifyContent: "flex-end",
+            alignItems: "center",
+            paddingBottom: 180,
+          }}
+        >
+          {/* Semi-transparent dark background pill */}
+          <div
+            style={{
+              backgroundColor: "rgba(0,0,0,0.55)",
+              borderRadius: 28,
+              paddingTop: 22,
+              paddingBottom: 22,
+              paddingLeft: 36,
+              paddingRight: 36,
+              maxWidth: "92%",
+              backdropFilter: "blur(4px)",
+            }}
+          >
+            <CaptionGroup
+              words={groupWords}
+              activeIdx={activeIdxInGroup}
+              groupFirstFrame={groupFirstFrame}
+              fps={fps}
+            />
+          </div>
+        </AbsoluteFill>
+      )}
 
       {/* Logo watermark — bottom right during content */}
       {logoUrl && frame < endingStart && (

@@ -42,13 +42,17 @@ async function getBundle(): Promise<string> {
 
 /**
  * Strips hashtags and emojis from text for TTS synthesis.
- * Replaces with a space to avoid concatenating adjacent words.
+ * Uses Unicode-aware regex to handle French accented chars in hashtags
+ * (e.g. #AménagementExtérieur must be fully removed, not just #Am).
  */
 function stripForTTS(text: string): string {
   return text
-    .replace(/#\w+/g, ' ')           // hashtags → space (not empty)
-    .replace(/[\uD800-\uDFFF]/g, ' ') // surrogate pairs (emojis) → space
-    .replace(/[\u2600-\u27BF]/g, ' ') // misc symbols → space
+    // Hashtags with Unicode letters (covers all French accented chars)
+    .replace(/#[\w\u00C0-\u024F\u1E00-\u1EFF]*/g, ' ')
+    // Emoji: surrogate pairs (covers virtually all emoji in UTF-16 strings)
+    .replace(/[\uD800-\uDFFF][\uDC00-\uDFFF]/g, ' ')  // surrogate pairs (most emojis)
+    .replace(/[\u2600-\u27BF]/g, ' ')                  // misc symbols & arrows
+    .replace(/[\u2B00-\u2BFF]/g, ' ')                  // misc symbols extended
     .replace(/\s+/g, ' ')
     .trim();
 }
