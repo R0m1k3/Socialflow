@@ -10,6 +10,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SocialPage, Media, Post } from "@shared/schema";
 import { format } from "date-fns";
 import { Image as ImageIcon, CheckCircle } from "lucide-react";
+import { MediaThumbnail } from "@/components/media-thumbnail";
 
 interface EditScheduledPostDialogProps {
   open: boolean;
@@ -165,9 +166,10 @@ export default function EditScheduledPostDialog({ open, onOpenChange, scheduledP
                 if (!media) return null;
                 return (
                   <div key={mediaId} className="relative group">
-                    <img
+                    <MediaThumbnail
                       src={media.instagramFeedUrl || media.originalUrl}
                       alt="Selected"
+                      type={media.type === 'video' ? 'video' : 'image'}
                       className="w-full h-24 object-cover rounded-lg border-2 border-primary"
                     />
                     <div className="absolute top-1 left-1 bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs font-bold">
@@ -198,9 +200,10 @@ export default function EditScheduledPostDialog({ open, onOpenChange, scheduledP
                     className="relative group"
                     data-testid={`button-select-media-${media.id}`}
                   >
-                    <img
+                    <MediaThumbnail
                       src={media.instagramFeedUrl || media.originalUrl}
                       alt={media.fileName}
+                      type={media.type === 'video' ? 'video' : 'image'}
                       className={`w-full h-20 object-cover rounded-lg border-2 transition-all ${
                         isSelected ? 'border-primary' : 'border-border hover:border-primary/50'
                       }`}

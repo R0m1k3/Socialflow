@@ -32,7 +32,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { getVideoThumbnailUrl } from "@/lib/media-utils";
+import { MediaThumbnail } from "@/components/media-thumbnail";
 import type { SocialPage, Media, ScheduledPost } from "@shared/schema";
 import { PreviewModal } from "@/components/preview-modal";
 import { DateTimePicker } from "@/components/datetime-picker";
@@ -77,21 +77,11 @@ function SortableMediaItem({
         className="w-full h-full"
         data-testid={`button-select-media-${media.id}`}
       >
-        {isVideo ? (
-          <img
-            src={getVideoThumbnailUrl(media.originalUrl)}
-            alt={media.fileName}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <img
-            src={media.facebookFeedUrl || media.originalUrl}
-            alt={media.fileName}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
-        )}
+        <MediaThumbnail
+          src={media.facebookFeedUrl || media.originalUrl}
+          alt={media.fileName}
+          type={isVideo ? 'video' : 'image'}
+        />
       </button>
       {isSelected && (
         <>
@@ -543,21 +533,11 @@ export default function NewPost() {
                                     }`}
                                   data-testid={`button-select-media-${media.id}`}
                                 >
-                                  {isVideo ? (
-                                    <img
-                                      src={getVideoThumbnailUrl(media.originalUrl)}
-                                      alt={media.fileName}
-                                      className="w-full h-full object-cover"
-                                      loading="lazy"
-                                    />
-                                  ) : (
-                                    <img
-                                      src={media.facebookFeedUrl || media.originalUrl}
-                                      alt={media.fileName}
-                                      className="w-full h-full object-cover"
-                                      loading="lazy"
-                                    />
-                                  )}
+                                  <MediaThumbnail
+                                    src={media.facebookFeedUrl || media.originalUrl}
+                                    alt={media.fileName}
+                                    type={isVideo ? 'video' : 'image'}
+                                  />
                                   {isSelected && (
                                     <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
                                       <div className="text-xs font-semibold text-primary">Sélectionnée</div>

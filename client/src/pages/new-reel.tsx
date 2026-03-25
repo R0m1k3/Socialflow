@@ -27,7 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
-import { getVideoThumbnailUrl } from "@/lib/media-utils";
+import { MediaThumbnail } from "@/components/media-thumbnail";
 import { DateTimePicker } from "@/components/datetime-picker";
 
 interface MusicTrack {
@@ -487,11 +487,10 @@ export default function NewReel() {
                                                                 : 'border-transparent hover:border-muted-foreground'
                                                                 }`}
                                                         >
-                                                            <img
-                                                                src={getVideoThumbnailUrl(media.originalUrl)}
+                                                            <MediaThumbnail
+                                                                src={media.originalUrl}
                                                                 alt={media.fileName}
-                                                                className="w-full h-full object-cover"
-                                                                loading="lazy"
+                                                                type="video"
                                                             />
                                                             {selectedVideoId === media.id && (
                                                                 <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">

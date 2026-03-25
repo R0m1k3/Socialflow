@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { getVideoThumbnailUrl } from "@/lib/media-utils";
+import { MediaThumbnail } from "@/components/media-thumbnail";
 import { CloudUpload, Image as ImageIcon, Video, X, Upload, Loader2, ZoomIn, Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SiFacebook, SiInstagram } from "react-icons/si";
@@ -273,33 +273,11 @@ export default function MediaUpload() {
                       className="relative aspect-square rounded-lg overflow-hidden border-2 border-border/50 cursor-pointer hover:border-primary hover:shadow-lg transition-all group"
                       data-testid={`media-item-${media.id}`}
                     >
-                      {media.type === "video" ? (
-                        <>
-                          <img
-                            src={getVideoThumbnailUrl(media.originalUrl)}
-                            alt={media.fileName}
-                            className="w-full h-full object-cover"
-                            loading="lazy"
-                            onError={(e) => {
-                              // Fallback: replace broken img with Video icon
-                              const target = e.currentTarget;
-                              target.style.display = 'none';
-                              const fallback = target.parentElement?.querySelector('.video-fallback');
-                              if (fallback) (fallback as HTMLElement).style.display = 'flex';
-                            }}
-                          />
-                          <div className="video-fallback w-full h-full bg-muted/30 flex items-center justify-center absolute inset-0" style={{ display: 'none' }}>
-                            <Video className="w-12 h-12 text-secondary" />
-                          </div>
-                        </>
-                      ) : (
-                        <img
-                          src={media.facebookFeedUrl || media.originalUrl}
-                          alt={media.fileName}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      )}
+                      <MediaThumbnail
+                        src={media.facebookFeedUrl || media.originalUrl}
+                        alt={media.fileName}
+                        type={media.type === 'video' ? 'video' : 'image'}
+                      />
                       <div className="absolute top-2 right-2 flex gap-2">
                         {media.type === "image" && (
                           <button
