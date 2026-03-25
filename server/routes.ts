@@ -1726,9 +1726,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Upload new logo to Cloudinary
+      // Read from disk (multer uses diskStorage, not memoryStorage)
+      const logoBuffer = await fs.promises.readFile(req.file.path);
+      await fs.promises.unlink(req.file.path).catch(() => {});
+
       const uploadResult = await cloudinaryService.uploadLogo(
-        req.file.buffer,
+        logoBuffer,
         req.file.originalname
       );
 
