@@ -131,6 +131,8 @@ export default function MobileRemotionVideoPage() {
       if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.error || "Erreur"); }
       const data = await response.json();
       setVideoUrl(data.url);
+      // Pre-fill description with overlay text so it appears in the Facebook post
+      if (overlayText && !publishDescription) setPublishDescription(overlayText);
       toast({ title: "Vidéo générée !" });
     } catch (err: any) {
       toast({ title: "Erreur", description: err.message, variant: "destructive" });

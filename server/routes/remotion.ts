@@ -6,7 +6,7 @@ import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { ffmpegService } from "../services/ffmpeg";
 import { storage as dbStorage } from "../storage";
-import { minioService as cloudinaryService, buildMinioUrl, resolvePublicUrl } from "../services/minio";
+import { minioService as cloudinaryService, buildMinioUrl } from "../services/minio";
 import { facebookService } from "../services/facebook";
 import * as musicMetadata from "music-metadata";
 
@@ -371,8 +371,11 @@ remotionRouter.post("/publish", async (req, res) => {
         });
 
         if (!scheduledFor) {
-          console.log(`🚀 Publishing to ${page.pageName}...`);
-          const reelId = await facebookService.publishReel(page, resolvePublicUrl(cloudinaryResult.originalUrl), description || "");
+          console.log(`🚀 Publishing to ${page.pageName} (direct binary upload)...`);
+          // Upload video bytes directly — Facebook cannot access local URLs
+          const videoBuffer = await fs.promises.readFile(localPath);
+          const arrayBuffer = videoBuffer.buffer.slice(videoBuffer.byteOffset, videoBuffer.byteOffset + videoBuffer.byteLength) as ArrayBuffer;
+          const reelId = await facebookService.publishReelFromBuffer(page, arrayBuffer, description || "");
           await dbStorage.updateScheduledPost(scheduledPost.id, { publishedAt: new Date(), externalPostId: reelId });
           results.push({ pageId, success: true, reelId });
         } else {

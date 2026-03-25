@@ -1,3 +1,5 @@
+import fs from 'fs';
+import path from 'path';
 import { storage } from '../storage';
 import type { Post, SocialPage, Media } from '@shared/schema';
 import { imageProcessor } from './imageProcessor';
@@ -71,7 +73,13 @@ export class FacebookService {
         throw new Error('Reels require a video media');
       }
 
-      return await this.publishReel(page, resolvePublicUrl(videoMedia.originalUrl), post.content);
+      // Upload video bytes directly — Facebook cannot fetch local/Docker URLs
+      const localPath = videoMedia.originalUrl.startsWith('/')
+        ? path.join(process.cwd(), videoMedia.originalUrl)
+        : videoMedia.originalUrl;
+      const nodeBuffer = await fs.promises.readFile(localPath);
+      const arrayBuffer = nodeBuffer.buffer.slice(nodeBuffer.byteOffset, nodeBuffer.byteOffset + nodeBuffer.byteLength) as ArrayBuffer;
+      return await this.publishReelFromBuffer(page, arrayBuffer, post.content);
     } else {
       // Default to feed
       const imageMedia = mediaList.filter(m => m.type === 'image');

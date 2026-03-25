@@ -115,6 +115,8 @@ export default function RemotionVideoPage() {
       if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.error || "Erreur"); }
       const data = await response.json();
       setVideoUrl(data.url);
+      // Pre-fill description with overlay text so it appears in the Facebook post
+      if (overlayText && !publishDescription) setPublishDescription(overlayText);
       toast({ title: "Vidéo générée !", description: "Votre vidéo est prête à publier." });
     } catch (err: any) {
       toast({ title: "Erreur", description: err.message || "Impossible de créer la vidéo.", variant: "destructive" });
