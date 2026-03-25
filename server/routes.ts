@@ -659,6 +659,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // One-time migration: fix absolute localhost URLs → relative paths in media table
+  app.post("/api/media/fix-urls", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      if ((user as any).role !== 'admin') {
+        return res.status(403).json({ error: "Admin only" });
+      }
+
+      // Convert any absolute URL like http(s)://hostname/uploads/... → /uploads/...
+      const result = await pool.query(`
+        UPDATE media SET
+          original_url       = regexp_replace(original_url,       '^https?://[^/]+(/uploads/)', '\\1'),
+          facebook_feed_url  = regexp_replace(facebook_feed_url,  '^https?://[^/]+(/uploads/)', '\\1'),
+          instagram_feed_url = regexp_replace(instagram_feed_url, '^https?://[^/]+(/uploads/)', '\\1'),
+          instagram_story_url= regexp_replace(instagram_story_url,'^https?://[^/]+(/uploads/)', '\\1')
+        WHERE
+          original_url ~ '^https?://[^/]+/uploads/'
+          OR facebook_feed_url  ~ '^https?://[^/]+/uploads/'
+          OR instagram_feed_url ~ '^https?://[^/]+/uploads/'
+          OR instagram_story_url ~ '^https?://[^/]+/uploads/'
+      `);
+
+      res.json({ updated: result.rowCount });
+    } catch (error) {
+      console.error("Error fixing media URLs:", error);
+      res.status(500).json({ error: "Migration failed" });
+    }
+  });
+
   // Get media
   app.get("/api/media", requireAuth, async (req, res) => {
     try {
