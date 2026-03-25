@@ -110,6 +110,7 @@ export default function NewPostMobile() {
 
   const [productInfo, setProductInfo] = useState('');
   const [selectedMedia, setSelectedMedia] = useState<string[]>([]);
+  const [recentUploads, setRecentUploads] = useState<Media[]>([]);
   const [selectedPages, setSelectedPages] = useState<string[]>([]);
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
   const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
@@ -126,14 +127,16 @@ export default function NewPostMobile() {
   });
 
   const mediaList = useMemo(() => {
-    return [...allMedia]
-      .sort((a, b) => {
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return dateB - dateA;
-      })
-      .slice(0, 12);
-  }, [allMedia]);
+    const combined = [
+      ...recentUploads,
+      ...allMedia.filter(m => !recentUploads.some(r => r.id === m.id)),
+    ];
+    return combined.sort((a, b) => {
+      const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return dateB - dateA;
+    });
+  }, [allMedia, recentUploads]);
 
   const { data: scheduledPosts = [] } = useQuery<ScheduledPost[]>({
     queryKey: ['/api/scheduled-posts'],
@@ -150,7 +153,8 @@ export default function NewPostMobile() {
       if (!response.ok) throw new Error("Upload failed");
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data: Media) => {
+      setRecentUploads(prev => [data, ...prev.filter(m => m.id !== data.id)]);
       queryClient.invalidateQueries({ queryKey: ["/api/media"] });
       setSelectedMedia(prev => {
         if (prev.length >= 10) {
