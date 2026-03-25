@@ -13,7 +13,7 @@ import Sidebar from "@/components/sidebar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DateTimePicker } from "@/components/datetime-picker";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Media, SocialPage } from "@shared/schema";
 
 interface AudioTrack { id: string; title: string; fileName: string; url: string; duration: number; }
@@ -155,6 +155,7 @@ export default function MobileRemotionVideoPage() {
         title: scheduledDate ? "Publication planifiée !" : "Vidéo publiée !",
         description: scheduledDate ? `Sera publiée le ${scheduledDate.toLocaleString('fr-FR')}` : "Publiée sur Facebook.",
       });
+      await queryClient.invalidateQueries({ queryKey: ['/api/scheduled-posts'], refetchType: 'all' });
     } catch (err: any) {
       toast({ title: "Erreur de publication", description: err.message, variant: "destructive" });
     } finally { setIsPublishing(false); }

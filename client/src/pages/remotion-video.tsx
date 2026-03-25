@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { UploadCloud, Video, Loader2, Check, Sparkles, Mic, Volume2, Music, Play, Pause, Send } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -139,6 +139,7 @@ export default function RemotionVideoPage() {
         title: scheduledDate ? "Publication planifiée !" : "Vidéo publiée !",
         description: scheduledDate ? `Sera publiée le ${scheduledDate.toLocaleString('fr-FR')}` : "Publiée sur Facebook.",
       });
+      await queryClient.invalidateQueries({ queryKey: ['/api/scheduled-posts'], refetchType: 'all' });
     } catch (err: any) {
       toast({ title: "Erreur de publication", description: err.message, variant: "destructive" });
     } finally { setIsPublishing(false); }
