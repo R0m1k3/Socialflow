@@ -581,21 +581,23 @@ export class FacebookService {
       size: `${(fileSize / 1024 / 1024).toFixed(2)} MB`,
     });
 
-    // ── Phase 1: Start ────────────────────────────────────────────────────────
-    const startBody = new URLSearchParams({
-      access_token: page.accessToken,
-      upload_phase: 'start',
-      file_size: fileSize.toString(),
-    });
-    const startRes = await fetch(endpoint, { method: 'POST', body: startBody });
-    const startData = await startRes.json() as any;
+    // ── Phase 1: Start (multipart/form-data, as required by FB docs) ──────────
+    const startForm = new FormData();
+    startForm.append('access_token', page.accessToken);
+    startForm.append('upload_phase', 'start');
+    startForm.append('file_size', fileSize.toString());
+
+    const startRes = await fetch(endpoint, { method: 'POST', body: startForm });
+    const startRaw = await startRes.text();
+    console.log('📤 Facebook START response:', startRaw);
+    const startData = JSON.parse(startRaw) as any;
     if (!startRes.ok || startData.error) {
-      throw new Error(`Facebook upload START error: ${startData.error?.message ?? JSON.stringify(startData)} (code: ${startData.error?.code})`);
+      throw new Error(`Facebook upload START error: ${startData.error?.message ?? startRaw} (code: ${startData.error?.code}, subcode: ${startData.error?.error_subcode})`);
     }
     const { upload_session_id, video_id } = startData;
     let startOffset: number = parseInt(startData.start_offset ?? '0', 10);
     let endOffset: number   = parseInt(startData.end_offset   ?? fileSize.toString(), 10);
-    console.log(`📤 Upload session: ${upload_session_id}, video_id: ${video_id}`);
+    console.log(`📤 Upload session: ${upload_session_id}, video_id: ${video_id}, first chunk: ${startOffset}-${endOffset}`);
 
     // ── Phase 2: Transfer (chunked) ───────────────────────────────────────────
     while (startOffset < fileSize) {
@@ -608,31 +610,33 @@ export class FacebookService {
       chunkForm.append('video_file_chunk', new Blob([chunk], { type: 'video/mp4' }), 'chunk.mp4');
 
       const transferRes = await fetch(endpoint, { method: 'POST', body: chunkForm });
-      const transferData = await transferRes.json() as any;
+      const transferRaw = await transferRes.text();
+      const transferData = JSON.parse(transferRaw) as any;
       if (!transferRes.ok || transferData.error) {
-        throw new Error(`Facebook upload TRANSFER error at offset ${startOffset}: ${transferData.error?.message ?? JSON.stringify(transferData)}`);
+        throw new Error(`Facebook upload TRANSFER error at offset ${startOffset}: ${transferData.error?.message ?? transferRaw}`);
       }
 
       const nextStart = parseInt(transferData.start_offset ?? fileSize.toString(), 10);
       const nextEnd   = parseInt(transferData.end_offset   ?? fileSize.toString(), 10);
-      console.log(`📤 Transferred ${endOffset}/${fileSize} bytes`);
+      console.log(`📤 Transferred up to ${endOffset}/${fileSize} bytes, next: ${nextStart}-${nextEnd}`);
       if (nextStart >= fileSize || nextStart === startOffset) break;
       startOffset = nextStart;
       endOffset   = nextEnd;
     }
 
-    // ── Phase 3: Finish ───────────────────────────────────────────────────────
-    const finishBody = new URLSearchParams({
-      access_token: page.accessToken,
-      upload_phase: 'finish',
-      upload_session_id,
-    });
-    if (description) finishBody.set('description', description);
+    // ── Phase 3: Finish (multipart/form-data) ─────────────────────────────────
+    const finishForm = new FormData();
+    finishForm.append('access_token', page.accessToken);
+    finishForm.append('upload_phase', 'finish');
+    finishForm.append('upload_session_id', upload_session_id);
+    if (description) finishForm.append('description', description);
 
-    const finishRes = await fetch(endpoint, { method: 'POST', body: finishBody });
-    const finishData = await finishRes.json() as any;
+    const finishRes = await fetch(endpoint, { method: 'POST', body: finishForm });
+    const finishRaw = await finishRes.text();
+    console.log('📤 Facebook FINISH response:', finishRaw);
+    const finishData = JSON.parse(finishRaw) as any;
     if (!finishRes.ok || finishData.error) {
-      throw new Error(`Facebook upload FINISH error: ${finishData.error?.message ?? JSON.stringify(finishData)} (code: ${finishData.error?.code})`);
+      throw new Error(`Facebook upload FINISH error: ${finishData.error?.message ?? finishRaw} (code: ${finishData.error?.code})`);
     }
 
     const postId = finishData.post_id || finishData.video_id || video_id;
