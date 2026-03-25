@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
 import { Wand2, Save, Image as ImageIcon, X } from "lucide-react";
+import { MediaThumbnail } from "@/components/media-thumbnail";
 import { useToast } from "@/hooks/use-toast";
 
 interface Ribbon {
@@ -387,9 +388,10 @@ export default function ImageEditorMobile() {
                         onClick={() => setSelectedMedia(media)}
                         data-testid={`select-image-${media.id}`}
                       >
-                        <img
+                        <MediaThumbnail
                           src={media.instagramFeedUrl || media.originalUrl}
                           alt=""
+                          type="image"
                           className="w-full h-28 object-cover"
                         />
                       </div>

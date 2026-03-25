@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { UploadCloud, Video, Loader2, Menu, Check, Sparkles, Mic, Volume2, Music, Play, Pause, Send } from "lucide-react";
+import { MediaThumbnail } from "@/components/media-thumbnail";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "@/components/sidebar";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -174,7 +175,7 @@ export default function MobileRemotionVideoPage() {
                   return (
                     <div key={media.id} onClick={() => toggleLibraryImage(media)}
                       className={`flex-shrink-0 w-16 h-16 relative rounded overflow-hidden border-2 cursor-pointer ${isSelected ? 'border-primary' : 'border-transparent'}`}>
-                      <img src={media.originalUrl} className="w-full h-full object-cover" />
+                      <MediaThumbnail src={media.originalUrl} alt="" type="image" />
                       {isSelected && <div className="absolute top-0.5 right-0.5 bg-primary text-white p-0.5 rounded-full"><Check className="w-2.5 h-2.5" /></div>}
                     </div>
                   );

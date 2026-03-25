@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Send, Sparkles, Image as ImageIcon, Calendar, Upload, Camera, GripVertical, Loader2 } from "lucide-react";
+import { MediaThumbnail } from "@/components/media-thumbnail";
 import { useDropzone } from "react-dropzone";
 import {
   DndContext,
@@ -77,22 +78,11 @@ function SortableMediaItem({
         className="w-full h-full min-h-[44px]"
         data-testid={`button-select-media-${media.id}`}
       >
-        {isVideo ? (
-          <video
-            src={media.originalUrl}
-            className="w-full h-full object-cover"
-            muted
-            playsInline
-            preload="metadata"
-          />
-        ) : (
-          <img
-            src={media.facebookFeedUrl || media.originalUrl}
-            alt={media.fileName}
-            className="w-full h-full object-cover"
-            loading="lazy"
-          />
-        )}
+        <MediaThumbnail
+          src={media.facebookFeedUrl || media.originalUrl}
+          alt={media.fileName}
+          type={isVideo ? 'video' : 'image'}
+        />
       </button>
       {isSelected && (
         <>
@@ -528,22 +518,11 @@ export default function NewPostMobile() {
                                 }`}
                                 data-testid={`button-select-media-${media.id}`}
                               >
-                                {isVideo ? (
-                                  <video
-                                    src={media.originalUrl}
-                                    className="w-full h-full object-cover"
-                                    muted
-                                    playsInline
-                                    preload="metadata"
-                                  />
-                                ) : (
-                                  <img
-                                    src={media.facebookFeedUrl || media.originalUrl}
-                                    alt={media.fileName}
-                                    className="w-full h-full object-cover"
-                                    loading="lazy"
-                                  />
-                                )}
+                                <MediaThumbnail
+                                  src={media.facebookFeedUrl || media.originalUrl}
+                                  alt={media.fileName}
+                                  type={isVideo ? 'video' : 'image'}
+                                />
                                 {isSelected && (
                                   <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
                                     <div className="text-xs font-semibold text-primary bg-white px-2 py-1 rounded">Sélectionnée</div>
