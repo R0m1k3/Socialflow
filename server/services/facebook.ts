@@ -561,8 +561,14 @@ export class FacebookService {
   }
 
   /**
-   * Publie une vidéo sur Facebook via l'API Resumable Upload (start → transfer → finish).
-   * Obligatoire pour les fichiers > ~50 MB. Plus fiable que l'upload multipart simple.
+   * Publie une vidéo comme Reel Facebook via l'API Reels (start → upload → finish).
+   * Utilise l'endpoint /video_reels pour que la vidéo soit reconnue comme un Reel.
+   *
+   * Spécifications vidéo requises pour les Reels :
+   * - Format : MP4, H.264
+   * - Ratio : 9:16 (vertical)
+   * - Durée : 3-90 secondes
+   * - Résolution recommandée : 1080x1920
    */
   async publishVideoFromBuffer(
     page: SocialPage,
@@ -573,24 +579,27 @@ export class FacebookService {
 
     const buf = Buffer.isBuffer(videoBuffer) ? videoBuffer : Buffer.from(videoBuffer);
     const fileSize = buf.length;
-    const endpoint = `${this.baseUrl}/${page.pageId}/videos`;
+    const accessToken = page.accessToken;
 
-    console.log('🎬 Publishing video via Resumable Upload API:', {
+    console.log('🎬 Publishing video as Facebook Reel via /video_reels endpoint:', {
       pageId: page.pageId,
       pageName: page.pageName,
       size: `${(fileSize / 1024 / 1024).toFixed(2)} MB`,
     });
 
-    // ── Phase 1: Start (multipart/form-data, as required by FB docs) ──────────
-    const startForm = new FormData();
-    startForm.append('access_token', page.accessToken);
-    startForm.append('upload_phase', 'start');
-    startForm.append('file_size', fileSize.toString());
+    // ── Phase 1: START - Initialize the Reel upload ──────────────────────────
+    const startParams = new URLSearchParams({
+      access_token: accessToken,
+      upload_phase: 'start',
+    });
 
-    const startRes = await fetch(endpoint, { method: 'POST', body: startForm });
+    const startUrl = `${this.baseUrl}/${page.pageId}/video_reels?${startParams.toString()}`;
+
+    const startRes = await fetch(startUrl, { method: 'POST' });
     const startRaw = await startRes.text();
-    console.log('📤 Facebook START response:', startRaw);
+    console.log('📤 Facebook Reel START response:', startRaw);
     const startData = JSON.parse(startRaw) as any;
+
     if (!startRes.ok || startData.error) {
       const subcode = startData.error?.error_subcode;
       if (subcode === 1363042) {
@@ -601,55 +610,57 @@ export class FacebookService {
           `(code: ${startData.error?.code}, subcode: ${subcode})`
         );
       }
-      throw new Error(`Facebook upload START error: ${startData.error?.message ?? startRaw} (code: ${startData.error?.code}, subcode: ${subcode})`);
-    }
-    const { upload_session_id, video_id } = startData;
-    let startOffset: number = parseInt(startData.start_offset ?? '0', 10);
-    let endOffset: number   = parseInt(startData.end_offset   ?? fileSize.toString(), 10);
-    console.log(`📤 Upload session: ${upload_session_id}, video_id: ${video_id}, first chunk: ${startOffset}-${endOffset}`);
-
-    // ── Phase 2: Transfer (chunked) ───────────────────────────────────────────
-    while (startOffset < fileSize) {
-      const chunk = buf.slice(startOffset, endOffset);
-      const chunkForm = new FormData();
-      chunkForm.append('access_token', page.accessToken);
-      chunkForm.append('upload_phase', 'transfer');
-      chunkForm.append('upload_session_id', upload_session_id);
-      chunkForm.append('start_offset', startOffset.toString());
-      chunkForm.append('video_file_chunk', new Blob([chunk], { type: 'video/mp4' }), 'chunk.mp4');
-
-      const transferRes = await fetch(endpoint, { method: 'POST', body: chunkForm });
-      const transferRaw = await transferRes.text();
-      const transferData = JSON.parse(transferRaw) as any;
-      if (!transferRes.ok || transferData.error) {
-        throw new Error(`Facebook upload TRANSFER error at offset ${startOffset}: ${transferData.error?.message ?? transferRaw}`);
-      }
-
-      const nextStart = parseInt(transferData.start_offset ?? fileSize.toString(), 10);
-      const nextEnd   = parseInt(transferData.end_offset   ?? fileSize.toString(), 10);
-      console.log(`📤 Transferred up to ${endOffset}/${fileSize} bytes, next: ${nextStart}-${nextEnd}`);
-      if (nextStart >= fileSize || nextStart === startOffset) break;
-      startOffset = nextStart;
-      endOffset   = nextEnd;
+      throw new Error(`Facebook Reel START error: ${startData.error?.message ?? startRaw} (code: ${startData.error?.code}, subcode: ${subcode})`);
     }
 
-    // ── Phase 3: Finish (multipart/form-data) ─────────────────────────────────
-    const finishForm = new FormData();
-    finishForm.append('access_token', page.accessToken);
-    finishForm.append('upload_phase', 'finish');
-    finishForm.append('upload_session_id', upload_session_id);
-    if (description) finishForm.append('description', description);
+    const videoId = startData.video_id;
+    const uploadUrl = startData.upload_url;
+    console.log(`📤 Reel upload initialized: video_id=${videoId}, upload_url=${uploadUrl}`);
 
-    const finishRes = await fetch(endpoint, { method: 'POST', body: finishForm });
+    // ── Phase 2: UPLOAD - Upload binary data to the upload_url ───────────────
+    const videoBlob = new Blob([buf], { type: 'video/mp4' });
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `OAuth ${accessToken}`,
+        'Content-Type': 'application/octet-stream',
+        'offset': '0',
+        'file_size': fileSize.toString(),
+      },
+      body: videoBlob,
+    });
+
+    if (!uploadRes.ok) {
+      const errorText = await uploadRes.text();
+      throw new Error(`Facebook Reel UPLOAD error: ${errorText}`);
+    }
+    console.log(`📤 Reel video data uploaded successfully (${fileSize} bytes)`);
+
+    // ── Phase 3: FINISH - Finalize and publish the Reel ──────────────────────
+    const finishParams = new URLSearchParams({
+      access_token: accessToken,
+      upload_phase: 'finish',
+      video_id: videoId,
+      video_state: 'PUBLISHED',
+    });
+
+    if (description) {
+      finishParams.append('description', description);
+    }
+
+    const finishUrl = `${this.baseUrl}/${page.pageId}/video_reels?${finishParams.toString()}`;
+
+    const finishRes = await fetch(finishUrl, { method: 'POST' });
     const finishRaw = await finishRes.text();
-    console.log('📤 Facebook FINISH response:', finishRaw);
+    console.log('📤 Facebook Reel FINISH response:', finishRaw);
     const finishData = JSON.parse(finishRaw) as any;
+
     if (!finishRes.ok || finishData.error) {
-      throw new Error(`Facebook upload FINISH error: ${finishData.error?.message ?? finishRaw} (code: ${finishData.error?.code})`);
+      throw new Error(`Facebook Reel FINISH error: ${finishData.error?.message ?? finishRaw} (code: ${finishData.error?.code})`);
     }
 
-    const postId = finishData.post_id || finishData.video_id || video_id;
-    console.log('✅ Video published via Resumable Upload! ID:', postId);
+    const postId = finishData.post_id || videoId;
+    console.log('✅ Reel published successfully! ID:', postId);
     return postId;
   }
 
