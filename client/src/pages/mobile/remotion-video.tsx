@@ -6,7 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
-import { UploadCloud, Video, Loader2, Menu, Check, Sparkles, Mic, Volume2, Music, Play, Pause, Send, Camera } from "lucide-react";
+import { UploadCloud, Video, Loader2, Menu, Check, Sparkles, Mic, Volume2, Music, Play, Pause, Send, Camera, ImagePlus } from "lucide-react";
 import { MediaThumbnail } from "@/components/media-thumbnail";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "@/components/sidebar";
@@ -51,6 +51,7 @@ export default function MobileRemotionVideoPage() {
   const [isPublishing, setIsPublishing] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const { data: allMedia = [] } = useQuery<Media[]>({ queryKey: ['/api/media'] });
@@ -67,7 +68,23 @@ export default function MobileRemotionVideoPage() {
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) setImages(Array.from(e.target.files).slice(0, 4 - selectedLibraryImages.length));
+    if (e.target.files && e.target.files.length > 0) {
+      const filesArray = Array.from(e.target.files);
+      const remaining = 4 - selectedLibraryImages.length - images.length;
+
+      // Corriger les noms de fichiers pour les fichiers venant de la galerie mobile
+      const processedFiles = filesArray.slice(0, remaining).map(file => {
+        if (!file.name || file.name === 'blob' || file.name === '' || file.name === 'image') {
+          const ext = file.type.split('/')[1] || 'jpg';
+          return new File([file], `gallery-${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${ext}`, { type: file.type });
+        }
+        return file;
+      });
+
+      setImages(prev => [...prev, ...processedFiles].slice(0, 4 - selectedLibraryImages.length));
+    }
+    // Reset input pour permettre de resélectionner les mêmes fichiers
+    e.target.value = '';
   };
 
   const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -184,6 +201,7 @@ export default function MobileRemotionVideoPage() {
             <CardTitle className="text-base">1. Images</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
+            {/* Input caché pour la caméra */}
             <input
               ref={cameraInputRef}
               type="file"
@@ -192,14 +210,26 @@ export default function MobileRemotionVideoPage() {
               onChange={handleCameraCapture}
               className="hidden"
             />
+            {/* Input caché pour la galerie - séparé pour meilleure compatibilité mobile */}
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handleFileChange}
+              className="hidden"
+            />
             <div className="flex gap-2">
-              <div className="flex-1 border-2 border-dashed border-border rounded-lg p-4 flex flex-col items-center relative bg-muted/30">
-                <input type="file" multiple accept="image/*" onChange={handleFileChange}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-                <UploadCloud className="h-6 w-6 text-muted-foreground mb-1" />
-                <p className="text-xs font-medium">Galerie</p>
-                <p className="text-xs text-muted-foreground">{images.length} choisie(s)</p>
-              </div>
+              <Button
+                variant="outline"
+                className="flex-1 h-auto py-4 px-4 flex flex-col items-center gap-1"
+                onClick={() => galleryInputRef.current?.click()}
+                disabled={totalSelected >= 4}
+              >
+                <ImagePlus className="h-6 w-6 text-primary" />
+                <span className="text-xs font-medium">Galerie</span>
+                <span className="text-[10px] text-muted-foreground">{images.length} choisie(s)</span>
+              </Button>
               <Button
                 variant="outline"
                 className="h-auto py-4 px-4 flex flex-col items-center gap-1"

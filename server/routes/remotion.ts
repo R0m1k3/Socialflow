@@ -2,6 +2,8 @@ import { Router } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { exec } from "child_process";
+import { promisify } from "util";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { ffmpegService } from "../services/ffmpeg";
@@ -9,6 +11,25 @@ import { storage as dbStorage } from "../storage";
 import { minioService as cloudinaryService, buildMinioUrl } from "../services/minio";
 import { facebookService } from "../services/facebook";
 import * as musicMetadata from "music-metadata";
+
+const execAsync = promisify(exec);
+
+/**
+ * Generate a thumbnail from a video file using FFmpeg
+ * @param videoPath Path to the video file
+ * @param outputPath Path to save the thumbnail
+ * @param seekTime Time in seconds to extract the frame (default: 1s)
+ */
+async function generateVideoThumbnail(videoPath: string, outputPath: string, seekTime: number = 1): Promise<boolean> {
+  try {
+    const cmd = `ffmpeg -y -ss ${seekTime} -i "${videoPath}" -vframes 1 -q:v 2 "${outputPath}"`;
+    await execAsync(cmd);
+    return fs.existsSync(outputPath);
+  } catch (error) {
+    console.warn('⚠️ Failed to generate video thumbnail:', error);
+    return false;
+  }
+}
 
 export const remotionRouter = Router();
 
@@ -291,8 +312,21 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
     });
 
     console.log("✅ Render completed:", outputFilename);
+
+    // Generate thumbnail for the video
+    const thumbnailFilename = outputFilename.replace('.mp4', '-thumb.jpg');
+    const thumbnailPath = path.join(uploadDir, thumbnailFilename);
+    const thumbnailGenerated = await generateVideoThumbnail(outputLocation, thumbnailPath, 2);
+
+    if (thumbnailGenerated) {
+      console.log("🖼️ Thumbnail generated:", thumbnailFilename);
+    }
+
     // Return relative URL so any client (mobile, desktop, Docker) can access it
-    res.json({ url: `/uploads/temp/${outputFilename}` });
+    res.json({
+      url: `/uploads/temp/${outputFilename}`,
+      thumbnailUrl: thumbnailGenerated ? `/uploads/temp/${thumbnailFilename}` : null,
+    });
 
   } catch (err: any) {
     console.error("❌ Remotion render error:", err);
