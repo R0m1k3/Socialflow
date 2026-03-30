@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:pixabay.com)"
+      "WebFetch(domain:pixabay.com)",
+      "Bash(find /c/GIT/Socialflow/migrations -name \"*.sql\" -exec wc -l {} +)",
+      "Bash(xargs ls:*)"
     ]
   }
 }

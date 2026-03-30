@@ -609,18 +609,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
 
-      // Check if Cloudinary is configured (shared config used for all users)
-      const cloudinaryConfig = await storage.getCloudinaryConfig();
-
-      if (!cloudinaryConfig) {
-        // Nettoyer le fichier temporaire
-        await fs.promises.unlink(req.file.path).catch(console.error);
-        return res.status(400).json({
-          error: "Cloudinary not configured. Please ask an administrator to configure Cloudinary in Settings first."
-        });
-      }
-
-      // Upload to Cloudinary using file path (streamed from disk)
+      // Upload using file path (streamed from disk)
       // req.file.path est disponible avec DiskStorage
       const uploadResult = await cloudinaryService.uploadMedia(
         req.file.path,
@@ -940,17 +929,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Convert to buffer
       const outputBuffer = await image.jpeg({ quality: 95 }).toBuffer();
 
-      console.log("✅ Overlays applied, uploading to Cloudinary...");
+      console.log("✅ Overlays applied, uploading to local storage...");
 
-      // Check if Cloudinary is configured (shared config used for all users)
-      const cloudinaryConfig = await storage.getCloudinaryConfig();
-      if (!cloudinaryConfig) {
-        return res.status(400).json({
-          error: "Cloudinary not configured. Please ask an administrator to configure Cloudinary in Settings first."
-        });
-      }
-
-      // Upload to Cloudinary (service will use shared config internally)
+      // Upload to local storage
       const uploadResult = await cloudinaryService.uploadMedia(
         outputBuffer,
         `edited_${Date.now()}.jpg`,
