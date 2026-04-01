@@ -3,8 +3,7 @@ import path from 'path';
 import { storage } from '../storage';
 import type { Post, SocialPage, Media } from '@shared/schema';
 import { imageProcessor } from './imageProcessor';
-import { cloudinaryService } from './cloudinary';
-import { resolvePublicUrl } from './minio';
+import { minioService, resolvePublicUrl } from './minio';
 
 interface FacebookPhotoResponse {
   id: string;
@@ -121,20 +120,37 @@ export class FacebookService {
     return data.id;
   }
 
+  private async getMediaBuffer(originalUrl: string): Promise<Buffer> {
+    const localPath = originalUrl.startsWith('/')
+      ? path.join(process.cwd(), originalUrl)
+      : originalUrl;
+      
+    if (localPath.startsWith('http')) {
+      const response = await fetch(localPath);
+      if (!response.ok) throw new Error(`Failed to fetch media from ${localPath}`);
+      return Buffer.from(await response.arrayBuffer());
+    }
+    
+    return fs.promises.readFile(localPath);
+  }
+
   private async publishPhotoPost(post: Post, page: SocialPage, media: Media): Promise<string> {
-    // Use original URL - Facebook handles the cropping
-    const photoUrl = resolvePublicUrl(media.originalUrl);
+    const buffer = await this.getMediaBuffer(media.originalUrl);
+    const mimeType = media.originalUrl.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    const blob = new Blob([buffer], { type: mimeType });
 
-    const params = new URLSearchParams({
-      access_token: page.accessToken!,
-      message: post.content,
-      url: photoUrl,
-    });
+    const formData = new FormData();
+    formData.append('access_token', page.accessToken!);
+    if (post.content) {
+      formData.append('message', post.content);
+    }
+    formData.append('source', blob, path.basename(media.originalUrl));
 
-    const url = `${this.baseUrl}/${page.pageId}/photos?${params.toString()}`;
+    const url = `${this.baseUrl}/${page.pageId}/photos`;
 
     const response = await fetch(url, {
       method: 'POST',
+      body: formData,
     });
 
     if (!response.ok) {
@@ -222,24 +238,25 @@ export class FacebookService {
     const photoIds: string[] = [];
 
     for (const media of imageMedia) {
-      // Use original URL - Facebook handles the cropping for carousel
-      const photoUrl = resolvePublicUrl(media.originalUrl);
-
-      if (!photoUrl) {
+      if (!media.originalUrl) {
         console.warn(`Skipping media ${media.id} - no valid URL found`);
         continue;
       }
 
-      const uploadParams = new URLSearchParams({
-        access_token: page.accessToken!,
-        url: photoUrl,
-        published: 'false',
-      });
+      const buffer = await this.getMediaBuffer(media.originalUrl);
+      const mimeType = media.originalUrl.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+      const blob = new Blob([buffer], { type: mimeType });
 
-      const uploadUrl = `${this.baseUrl}/${page.pageId}/photos?${uploadParams.toString()}`;
+      const formData = new FormData();
+      formData.append('access_token', page.accessToken!);
+      formData.append('published', 'false');
+      formData.append('source', blob, path.basename(media.originalUrl));
+
+      const uploadUrl = `${this.baseUrl}/${page.pageId}/photos`;
 
       const uploadResponse = await fetch(uploadUrl, {
         method: 'POST',
+        body: formData,
       });
 
       if (!uploadResponse.ok) {
@@ -337,21 +354,24 @@ export class FacebookService {
   }
 
   private async schedulePhotoPost(post: Post, page: SocialPage, scheduledTimestamp: number, media: Media): Promise<string> {
-    // Use original URL - Facebook handles the cropping
-    const photoUrl = resolvePublicUrl(media.originalUrl);
+    const buffer = await this.getMediaBuffer(media.originalUrl);
+    const mimeType = media.originalUrl.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    const blob = new Blob([buffer], { type: mimeType });
 
-    const params = new URLSearchParams({
-      access_token: page.accessToken!,
-      message: post.content,
-      url: photoUrl,
-      published: '0',
-      scheduled_publish_time: scheduledTimestamp.toString(),
-    });
+    const formData = new FormData();
+    formData.append('access_token', page.accessToken!);
+    if (post.content) {
+      formData.append('message', post.content);
+    }
+    formData.append('published', '0');
+    formData.append('scheduled_publish_time', scheduledTimestamp.toString());
+    formData.append('source', blob, path.basename(media.originalUrl));
 
-    const url = `${this.baseUrl}/${page.pageId}/photos?${params.toString()}`;
+    const url = `${this.baseUrl}/${page.pageId}/photos`;
 
     const response = await fetch(url, {
       method: 'POST',
+      body: formData,
     });
 
     if (!response.ok) {
@@ -368,33 +388,34 @@ export class FacebookService {
       return this.publishVideoStory(post, page, media);
     }
 
-    // Stories require a 2-step process:
-    // Step 1: Upload photo as unpublished to get photo_id
-    // Step 2: Publish the photo as a story using the photo_id
-
-    let photoUrl = resolvePublicUrl(media.originalUrl);
+    let photoBuffer = await this.getMediaBuffer(media.originalUrl);
+    let originalFilename = path.basename(media.originalUrl);
 
     if (post.content && post.content.trim().length > 0) {
       try {
         const imageWithText = await imageProcessor.addTextToStoryImage(resolvePublicUrl(media.originalUrl), post.content);
-        photoUrl = await cloudinaryService.uploadStoryImageWithText(imageWithText, `story-${media.id}.png`);
-        console.log('Story image with text generated:', photoUrl);
+        await minioService.uploadStoryImageWithText(imageWithText, `story-${media.id}.png`);
+        photoBuffer = imageWithText;
+        originalFilename = `story-${media.id}.png`;
+        console.log('Story image with text generated locally');
       } catch (error) {
         console.error('Error generating story image with text, using original:', error);
       }
     }
 
-    // Step 1: Upload photo as unpublished
-    const uploadParams = new URLSearchParams({
-      access_token: page.accessToken!,
-      url: photoUrl,
-      published: 'false', // Important: must be unpublished first
-    });
+    const mimeType = originalFilename.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
+    const blob = new Blob([photoBuffer], { type: mimeType });
 
-    const uploadUrl = `${this.baseUrl}/${page.pageId}/photos?${uploadParams.toString()}`;
+    const formData = new FormData();
+    formData.append('access_token', page.accessToken!);
+    formData.append('published', 'false'); // Important: must be unpublished first
+    formData.append('source', blob, originalFilename);
+
+    const uploadUrl = `${this.baseUrl}/${page.pageId}/photos`;
 
     const uploadResponse = await fetch(uploadUrl, {
       method: 'POST',
+      body: formData,
     });
 
     if (!uploadResponse.ok) {
