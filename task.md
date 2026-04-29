@@ -6,7 +6,7 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 ## Current Focus
 
-**Phase: EXECUTION** - Conversation libre avec l'Agent BMad Master (Chat with the Agent).
+**Phase: EXECUTION** - Fix Remotion Render Target Closed error.
 
 ## Master Plan
 
@@ -262,3 +262,10 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] Créer la route backend `/api/remotion/render` pour compiler et générer la vidéo.
 - [x] Ajouter l'interface utilisateur frontend avec le `<Player />` et le système d'upload.
 - [x] Mettre à jour `Dockerfile` avec Chromium si nécessaire.
+
+### Phase 25: Fix Remotion Render Error 🛠️
+
+- [x] Diagnostiquer l'erreur `Target closed` (Chrome tab crash).
+- [x] Ajouter les arguments `--disable-dev-shm-usage`, `--no-sandbox` aux options de Chromium.
+- [x] Limiter la concurrence `concurrency: 1` dans `renderMedia` pour économiser la mémoire en Docker.
+

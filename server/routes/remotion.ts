@@ -308,7 +308,9 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
       chromiumOptions: {
         disableWebSecurity: true,
         ignoreCertificateErrors: true,
+        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
       },
+      concurrency: 1, // Limit concurrency to prevent Docker memory exhaustion
     });
 
     console.log("✅ Render completed:", outputFilename);
