@@ -6,7 +6,7 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 
 ## Current Focus
 
-**Phase: EXECUTION** - Fix Remotion Render Target Closed error.
+**Phase: EXECUTION** - Fix 504 Gateway Timeout on Remotion Render (Async Polling).
 
 ## Master Plan
 
@@ -268,4 +268,12 @@ Ajout d'une fonctionnalité complète de création de Reels Facebook permettant 
 - [x] Diagnostiquer l'erreur `Target closed` (Chrome tab crash).
 - [x] Ajouter les arguments `--disable-dev-shm-usage`, `--no-sandbox` aux options de Chromium.
 - [x] Limiter la concurrence `concurrency: 1` dans `renderMedia` pour économiser la mémoire en Docker.
+
+### Phase 26: Fix 504 Gateway Timeout (Async Remotion Render) 🚀
+
+- [x] Backend: Modifier `POST /api/remotion/render` pour retourner un `jobId` immédiatement.
+- [x] Backend: Créer la route `GET /api/remotion/render/status/:jobId` pour suivre l'état (in-memory map).
+- [x] Frontend: Modifier `remotion-video.tsx` pour faire du polling sur le `jobId` après la soumission.
+- [x] Frontend: Appliquer la même modification de polling à `mobile/remotion-video.tsx`.
+
 

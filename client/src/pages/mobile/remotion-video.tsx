@@ -147,13 +147,43 @@ export default function MobileRemotionVideoPage() {
       const response = await fetch("/api/remotion/render", { method: "POST", body: formData });
       if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.error || "Erreur"); }
       const data = await response.json();
-      setVideoUrl(data.url);
-      // Pre-fill description with overlay text so it appears in the Facebook post
-      if (overlayText && !publishDescription) setPublishDescription(overlayText);
-      toast({ title: "Vidéo générée !" });
+      
+      if (data.jobId) {
+        toast({ title: "Rendu démarré", description: "Veuillez patienter (~1-2 min)..." });
+        
+        const checkStatus = async () => {
+          try {
+            const res = await fetch(`/api/remotion/render/status/${data.jobId}`);
+            if (!res.ok) throw new Error("Erreur de suivi du rendu");
+            const job = await res.json();
+            
+            if (job.status === 'done') {
+              setVideoUrl(job.url);
+              if (overlayText && !publishDescription) setPublishDescription(overlayText);
+              toast({ title: "Vidéo générée !" });
+              setIsRendering(false);
+            } else if (job.status === 'error') {
+              toast({ title: "Erreur de rendu", description: job.error || "Échec du rendu", variant: "destructive" });
+              setIsRendering(false);
+            } else {
+              setTimeout(checkStatus, 3000);
+            }
+          } catch (e: any) {
+            toast({ title: "Erreur de connexion", description: e.message, variant: "destructive" });
+            setIsRendering(false);
+          }
+        };
+        setTimeout(checkStatus, 3000);
+      } else {
+        setVideoUrl(data.url);
+        if (overlayText && !publishDescription) setPublishDescription(overlayText);
+        toast({ title: "Vidéo générée !" });
+        setIsRendering(false);
+      }
     } catch (err: any) {
       toast({ title: "Erreur", description: err.message, variant: "destructive" });
-    } finally { setIsRendering(false); }
+      setIsRendering(false);
+    }
   };
 
   const handlePublish = async () => {

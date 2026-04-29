@@ -33,6 +33,20 @@ async function generateVideoThumbnail(videoPath: string, outputPath: string, see
 
 export const remotionRouter = Router();
 
+interface RenderJob {
+  status: 'processing' | 'done' | 'error';
+  url?: string;
+  thumbnailUrl?: string | null;
+  error?: string;
+}
+const renderJobs = new Map<string, RenderJob>();
+
+remotionRouter.get("/render/status/:jobId", (req, res) => {
+  const job = renderJobs.get(req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job introuvable" });
+  res.json(job);
+});
+
 const uploadDir = path.join(process.cwd(), "uploads", "temp");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -294,45 +308,58 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
       inputProps,
     });
 
-    const outputFilename = `out-${Date.now()}.mp4`;
-    const outputLocation = path.join(uploadDir, outputFilename);
+    const jobId = Date.now().toString();
+    renderJobs.set(jobId, { status: 'processing' });
+    res.json({ jobId, message: "Rendu démarré en arrière-plan" });
 
-    console.log("🎬 Rendering media...", totalFrames, "frames");
+    // Run async to prevent 504 Gateway Timeout
+    (async () => {
+      try {
+        const outputFilename = `out-${Date.now()}.mp4`;
+        const outputLocation = path.join(uploadDir, outputFilename);
 
-    await renderMedia({
-      composition: { ...composition, durationInFrames: totalFrames },
-      serveUrl: bundleLocation,
-      codec: "h264",
-      outputLocation,
-      inputProps,
-      chromiumOptions: {
-        disableWebSecurity: true,
-        ignoreCertificateErrors: true,
-        args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
-      },
-      concurrency: 1, // Limit concurrency to prevent Docker memory exhaustion
-    });
+        console.log("🎬 Rendering media...", totalFrames, "frames (Job:", jobId, ")");
 
-    console.log("✅ Render completed:", outputFilename);
+        await renderMedia({
+          composition: { ...composition, durationInFrames: totalFrames },
+          serveUrl: bundleLocation,
+          codec: "h264",
+          outputLocation,
+          inputProps,
+          chromiumOptions: {
+            disableWebSecurity: true,
+            ignoreCertificateErrors: true,
+            args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
+          },
+          concurrency: 1, // Limit concurrency to prevent Docker memory exhaustion
+        });
 
-    // Generate thumbnail for the video
-    const thumbnailFilename = outputFilename.replace('.mp4', '-thumb.jpg');
-    const thumbnailPath = path.join(uploadDir, thumbnailFilename);
-    const thumbnailGenerated = await generateVideoThumbnail(outputLocation, thumbnailPath, 2);
+        console.log("✅ Render completed:", outputFilename);
 
-    if (thumbnailGenerated) {
-      console.log("🖼️ Thumbnail generated:", thumbnailFilename);
-    }
+        // Generate thumbnail for the video
+        const thumbnailFilename = outputFilename.replace('.mp4', '-thumb.jpg');
+        const thumbnailPath = path.join(uploadDir, thumbnailFilename);
+        const thumbnailGenerated = await generateVideoThumbnail(outputLocation, thumbnailPath, 2);
 
-    // Return relative URL so any client (mobile, desktop, Docker) can access it
-    res.json({
-      url: `/uploads/temp/${outputFilename}`,
-      thumbnailUrl: thumbnailGenerated ? `/uploads/temp/${thumbnailFilename}` : null,
-    });
+        if (thumbnailGenerated) {
+          console.log("🖼️ Thumbnail generated:", thumbnailFilename);
+        }
+
+        renderJobs.set(jobId, {
+          status: 'done',
+          url: `/uploads/temp/${outputFilename}`,
+          thumbnailUrl: thumbnailGenerated ? `/uploads/temp/${thumbnailFilename}` : null,
+        });
+
+      } catch (err: any) {
+        console.error("❌ Remotion render error for Job", jobId, ":", err);
+        renderJobs.set(jobId, { status: 'error', error: "Erreur lors du rendu: " + err.message });
+      }
+    })();
 
   } catch (err: any) {
-    console.error("❌ Remotion render error:", err);
-    res.status(500).json({ error: "Erreur lors du rendu: " + err.message });
+    console.error("❌ Remotion pre-render error:", err);
+    res.status(500).json({ error: "Erreur lors du lancement du rendu: " + err.message });
   }
 });
 
