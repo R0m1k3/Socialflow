@@ -14,6 +14,7 @@ import { db } from '../db';
 import { cloudinaryConfig } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
+import { ttsSyncService } from '../services/ttsSync';
 export const reelsRouter = Router();
 
 // ============================================
@@ -349,13 +350,25 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             console.error('Error fetching watermark configuration', e);
         }
 
+        // Calculer le word_duration synchronisé si TTS activé
+        let finalWordDuration = wordDuration;
+        if (ttsEnabled && overlayText) {
+            try {
+                const sync = await ttsSyncService.calculateSyncTiming(overlayText, ttsVoice);
+                finalWordDuration = sync.wordDuration;
+                console.log(`🎯 TTS Sync (preview): ${sync.wordCount} mots, ${sync.audioDuration.toFixed(2)}s audio, word_duration=${finalWordDuration.toFixed(3)}s`);
+            } catch (syncErr) {
+                console.warn('⚠️ TTS sync failed (preview), using default word_duration:', syncErr);
+            }
+        }
+
         // Traiter la vidéo via FFmpeg
         const result = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
             text: overlayText,
             musicUrl: finalMusicUrl,
             ttsEnabled,
             ttsVoice,
-            wordDuration,
+            wordDuration: finalWordDuration,
             fontSize,
             musicVolume,
             drawText,
@@ -402,6 +415,24 @@ reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
     } catch (error) {
         console.error('❌ Error generating TTS preview:', error);
         res.status(500).json({ error: 'Erreur lors de la génération de la voix' });
+    }
+});
+
+/**
+ * Calculer la synchronisation texte/voix TTS
+ * POST /api/reels/sync-info
+ */
+reelsRouter.post('/reels/sync-info', async (req: Request, res: Response) => {
+    try {
+        const { text, voice } = req.body;
+        if (!text || !voice) {
+            return res.status(400).json({ error: 'Texte et voix requis' });
+        }
+        const sync = await ttsSyncService.calculateSyncTiming(text, voice);
+        res.json(sync);
+    } catch (error) {
+        console.error('❌ Error calculating sync:', error);
+        res.status(500).json({ error: 'Erreur de calcul de synchronisation' });
     }
 });
 
@@ -562,12 +593,24 @@ async function processReelBackground(
             console.error('Error fetching watermark configuration', e);
         }
 
+        // Calculer le word_duration synchronisé si TTS activé
+        let finalWordDuration = wordDuration ?? 0.6;
+        if (ttsEnabled && overlayText && ttsVoice) {
+            try {
+                const sync = await ttsSyncService.calculateSyncTiming(overlayText, ttsVoice);
+                finalWordDuration = sync.wordDuration;
+                console.log(`🎯 TTS Sync (background): ${sync.wordCount} mots, ${sync.audioDuration.toFixed(2)}s audio, word_duration=${finalWordDuration.toFixed(3)}s`);
+            } catch (syncErr) {
+                console.warn('⚠️ TTS sync failed (background), using default word_duration:', syncErr);
+            }
+        }
+
         const ffmpegResult = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
             text: overlayText,
             musicUrl: finalMusicUrl,
             ttsEnabled,
             ttsVoice,
-            wordDuration,
+            wordDuration: finalWordDuration,
             fontSize,
             musicVolume,
             drawText,

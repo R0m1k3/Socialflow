@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
@@ -64,6 +64,33 @@ export default function MobileNewReel() {
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
     const [stabilize, setStabilize] = useState(true); // Activé par défaut pour les Reels
     const [enableEndingEffect, setEnableEndingEffect] = useState(true);
+
+    // TTS Sync state
+    const [syncInfo, setSyncInfo] = useState<{
+        wordDuration: number;
+        audioDuration: number;
+        wordCount: number;
+        isHealthy: boolean;
+        warnings: string[];
+    } | null>(null);
+
+    // Auto-calculate TTS sync
+    useEffect(() => {
+        if (!ttsEnabled || !overlayText.trim()) {
+            setSyncInfo(null);
+            return;
+        }
+        const timer = setTimeout(() => {
+            apiRequest('POST', '/api/reels/sync-info', {
+                text: overlayText,
+                voice: ttsVoice,
+            })
+                .then(r => r.json())
+                .then(data => setSyncInfo(data))
+                .catch(() => setSyncInfo(null));
+        }, 800);
+        return () => clearTimeout(timer);
+    }, [overlayText, ttsVoice, ttsEnabled]);
 
 
     const { data: pages = [] } = useQuery<SocialPage[]>({
@@ -475,6 +502,23 @@ export default function MobileNewReel() {
                                             <Play className="w-3 h-3 mr-1" /> Tester la voix
                                         </Button>
                                     </div>
+
+                                    {syncInfo && (
+                                        <div className={`p-2 rounded-lg border mt-2 ${syncInfo.isHealthy ? 'bg-green-500/10 border-green-500/30' : 'bg-yellow-500/10 border-yellow-500/30'}`}>
+                                            <div className="flex items-center justify-between text-xs">
+                                                <span className="font-medium">Sync</span>
+                                                <span className={syncInfo.isHealthy ? 'text-green-600' : 'text-yellow-600'}>
+                                                    {syncInfo.wordCount} mots · {syncInfo.audioDuration.toFixed(1)}s
+                                                </span>
+                                            </div>
+                                            {syncInfo.warnings.map((w, i) => (
+                                                <p key={i} className="text-[10px] text-yellow-600 mt-0.5">⚠️ {w}</p>
+                                            ))}
+                                            {syncInfo.isHealthy && syncInfo.warnings.length === 0 && (
+                                                <p className="text-[10px] text-green-600 mt-0.5">✅ Timing OK</p>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             )}
                         </div>

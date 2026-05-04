@@ -70,6 +70,15 @@ export default function NewReel() {
     const [stabilize, setStabilize] = useState(true); // default to true
     const [enableEndingEffect, setEnableEndingEffect] = useState(true);
 
+    // TTS Sync state
+    const [syncInfo, setSyncInfo] = useState<{
+        wordDuration: number;
+        audioDuration: number;
+        wordCount: number;
+        isHealthy: boolean;
+        warnings: string[];
+    } | null>(null);
+
     // Enable TTS by default on mobile
     useEffect(() => {
         const isMobile = window.innerWidth < 768;
@@ -77,6 +86,24 @@ export default function NewReel() {
             setTtsEnabled(true);
         }
     }, []);
+
+    // Auto-calculate TTS sync when text or voice changes
+    useEffect(() => {
+        if (!ttsEnabled || !overlayText.trim()) {
+            setSyncInfo(null);
+            return;
+        }
+        const timer = setTimeout(() => {
+            apiRequest('POST', '/api/reels/sync-info', {
+                text: overlayText,
+                voice: ttsVoice,
+            })
+                .then(r => r.json())
+                .then(data => setSyncInfo(data))
+                .catch(() => setSyncInfo(null));
+        }, 800);
+        return () => clearTimeout(timer);
+    }, [overlayText, ttsVoice, ttsEnabled]);
 
 
     // État audio preview
@@ -795,6 +822,23 @@ export default function NewReel() {
                                                             Tester la voix
                                                         </Button>
                                                     </div>
+
+                                                    {syncInfo && (
+                                                        <div className={`p-3 rounded-lg border mt-3 ${syncInfo.isHealthy ? 'bg-green-500/10 border-green-500/30' : 'bg-yellow-500/10 border-yellow-500/30'}`}>
+                                                            <div className="flex items-center justify-between text-sm">
+                                                                <span className="font-medium">Sync texte/voix</span>
+                                                                <span className={syncInfo.isHealthy ? 'text-green-600' : 'text-yellow-600'}>
+                                                                    {syncInfo.wordCount} mots · {syncInfo.audioDuration.toFixed(1)}s · {syncInfo.wordDuration.toFixed(2)}s/mot
+                                                                </span>
+                                                            </div>
+                                                            {syncInfo.warnings.map((w, i) => (
+                                                                <p key={i} className="text-xs text-yellow-600 mt-1">⚠️ {w}</p>
+                                                            ))}
+                                                            {syncInfo.isHealthy && syncInfo.warnings.length === 0 && (
+                                                                <p className="text-xs text-green-600 mt-1">✅ Timing calculé automatiquement</p>
+                                                            )}
+                                                        </div>
+                                                    )}
 
                                                     <p className="text-xs text-muted-foreground mt-2">
                                                         Le texte sera automatiquement synchronisé avec la voix.
