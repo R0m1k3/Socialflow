@@ -291,16 +291,16 @@ async def generate_tts_with_subs(
                 # Use display_text for subtitle content if provided
                 text_to_display = display_text if display_text else text
 
-                print("⚠️ Using ffsubsync for precise synchronization as requested by user.")
-                unsynced_srt_path = audio_path.with_suffix(".unsynced.srt")
-                synced_srt_path = audio_path.with_suffix(".synced.srt")
-                
-                # Subtitle syncing pipeline using ffsubsync for the generated TTS voice
-                generate_unsynced_srt(text_to_display, unsynced_srt_path, total_duration=audio_duration)
-                run_ffsubsync(audio_path, unsynced_srt_path, synced_srt_path)
-                convert_srt_to_ass(synced_srt_path, ass_path, font_size=65, delay=delay)
-                
-                print(f"✅ TTS synchronisation completed with ffsubsync")
+                print("🎯 Using precise word-boundary timing from TTS engine")
+                generate_ass_from_word_boundaries(
+                    word_boundaries,
+                    text_to_display,
+                    ass_path,
+                    font_size=65,
+                    total_duration=audio_duration,
+                    delay=delay,
+                )
+                print(f"✅ TTS synchronisation completed with word-boundary timing")
                 return
             else:
                 print(f"⚠️ Audio file empty or missing with voice: {attempt_voice}")
@@ -322,19 +322,22 @@ def generate_ass_from_word_boundaries(
 ):
     """Generate ASS subtitles using precise word-level timing from TTS engine.
 
-    Groups words into readable chunks (~5 words or at punctuation) and uses
+    Groups words into readable chunks (~3 words or at punctuation) and uses
     the real start/end timestamps from the TTS engine for each chunk.
+    Includes karaoke fill tags for word-level visual highlighting.
     """
     if not word_boundaries:
         return
 
-    # Group word boundaries into chunks of ~5 words, or split at punctuation
+    # Group word boundaries into chunks of ~3 words, or split at punctuation
     chunks = []
     current_words = []
+    current_boundaries = []
     current_start = word_boundaries[0]["offset"]
 
     for i, wb in enumerate(word_boundaries):
         current_words.append(wb["text"])
+        current_boundaries.append(wb)
         is_last = i == len(word_boundaries) - 1
         # Split at punctuation or every 3 words (tighter sync with voice)
         ends_sentence = wb["text"].rstrip().endswith((".", "!", "?", ":", ","))
@@ -345,12 +348,14 @@ def generate_ass_from_word_boundaries(
             chunk_end = wb["offset"] + wb["duration"]
             chunks.append(
                 {
-                    "text": " ".join(current_words),
+                    "words": current_words,
+                    "boundaries": current_boundaries,
                     "start": current_start + delay,
                     "end": chunk_end + delay,
                 }
             )
             current_words = []
+            current_boundaries = []
             # Next chunk starts at the next word's offset
             if not is_last:
                 current_start = word_boundaries[i + 1]["offset"]
@@ -364,7 +369,7 @@ def generate_ass_from_word_boundaries(
     for i in range(len(chunks) - 1):
         chunks[i]["end"] = max(chunks[i]["end"], chunks[i + 1]["start"] + 0.05)
 
-    # ASS Header
+    # ASS Header (same karaoke style as convert_srt_to_ass)
     header = f"""[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
@@ -373,7 +378,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Sans,{font_size},&H00FFFFFF,&H000000FF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,5,50,50,0,1
+Style: Default,Sans,{font_size},&H0000FFFF,&H00FFFFFF,&H00000000,&H80000000,-1,0,0,0,100,100,0,0,1,4,2,5,50,50,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
@@ -383,8 +388,16 @@ Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
     for chunk in chunks:
         start_ts = format_ass_time(chunk["start"])
         end_ts = format_ass_time(chunk["end"])
-        sanitized = chunk["text"].replace("{", "(").replace("}", ")")
-        events += f"Dialogue: 0,{start_ts},{end_ts},Default,,0,0,0,,{sanitized}\n"
+
+        karaoke_parts = []
+        for wb in chunk["boundaries"]:
+            # duration in centiseconds, minimum 10cs to avoid zero
+            w_dur_cs = max(10, int(wb["duration"] * 100))
+            sanitized = wb["text"].replace("{", "(").replace("}", ")")
+            karaoke_parts.append(f"{{\\kf{w_dur_cs}}}{sanitized}")
+
+        karaoke_text = " ".join(karaoke_parts)
+        events += f"Dialogue: 0,{start_ts},{end_ts},Default,,0,0,0,,{karaoke_text}\n"
 
     with open(ass_path, "w", encoding="utf-8") as f:
         f.write(header + events)

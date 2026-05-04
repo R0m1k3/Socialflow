@@ -350,17 +350,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             console.error('Error fetching watermark configuration', e);
         }
 
-        // Calculer le word_duration synchronisé si TTS activé
-        let finalWordDuration = wordDuration;
-        if (ttsEnabled && overlayText) {
-            try {
-                const sync = await ttsSyncService.calculateSyncTiming(overlayText, ttsVoice);
-                finalWordDuration = sync.wordDuration;
-                console.log(`🎯 TTS Sync (preview): ${sync.wordCount} mots, ${sync.audioDuration.toFixed(2)}s audio, word_duration=${finalWordDuration.toFixed(3)}s`);
-            } catch (syncErr) {
-                console.warn('⚠️ TTS sync failed (preview), using default word_duration:', syncErr);
-            }
-        }
+        const finalWordDuration = wordDuration;
 
         // Traiter la vidéo via FFmpeg
         const result = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
@@ -593,17 +583,7 @@ async function processReelBackground(
             console.error('Error fetching watermark configuration', e);
         }
 
-        // Calculer le word_duration synchronisé si TTS activé
-        let finalWordDuration = wordDuration ?? 0.6;
-        if (ttsEnabled && overlayText && ttsVoice) {
-            try {
-                const sync = await ttsSyncService.calculateSyncTiming(overlayText, ttsVoice);
-                finalWordDuration = sync.wordDuration;
-                console.log(`🎯 TTS Sync (background): ${sync.wordCount} mots, ${sync.audioDuration.toFixed(2)}s audio, word_duration=${finalWordDuration.toFixed(3)}s`);
-            } catch (syncErr) {
-                console.warn('⚠️ TTS sync failed (background), using default word_duration:', syncErr);
-            }
-        }
+        const finalWordDuration = wordDuration ?? 0.6;
 
         const ffmpegResult = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
             text: overlayText,

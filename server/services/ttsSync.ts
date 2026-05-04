@@ -16,11 +16,10 @@ export class TtsSyncService {
    * avec la durée réelle de la voix TTS générée.
    */
   async calculateSyncTiming(text: string, voice: string): Promise<SyncTiming> {
-    const cleanTtsText = this.cleanForTts(text);
-    const cleanDisplayText = this.cleanForDisplay(text);
+    const cleanText = this.cleanText(text);
 
     // 1. Générer le TTS preview et mesurer sa durée exacte
-    const ttsResult = await ffmpegService.previewTTS(cleanTtsText, voice);
+    const ttsResult = await ffmpegService.previewTTS(cleanText, voice);
     if (!ttsResult.success || !ttsResult.audioBase64) {
       throw new Error('TTS preview failed: ' + (ttsResult.error || 'unknown'));
     }
@@ -29,14 +28,11 @@ export class TtsSyncService {
     const metadata = await musicMetadata.parseBuffer(audioBuffer, 'audio/mpeg');
     const audioDuration = metadata.format.duration || 0;
 
-    // 2. Analyser le texte
-    const words = cleanDisplayText.split(/\s+/).filter(w => w.length > 0);
-    const wordCount = words.length;
-    const punctuationPause = this.calculatePunctuationPauses(cleanDisplayText);
+    // 2. Analyser le texte (compte les mots réellement lus par la voix)
+    const wordCount = this.calculateWordCount(cleanText);
 
-    // 3. Calculer le word_duration ajusté
-    const effectiveDuration = Math.max(audioDuration - punctuationPause, 0.5);
-    const wordDuration = wordCount > 0 ? effectiveDuration / wordCount : 0.6;
+    // 3. Calculer le word_duration
+    const wordDuration = wordCount > 0 ? audioDuration / wordCount : 0.6;
 
     // 4. Validation
     const warnings: string[] = [];
@@ -52,13 +48,13 @@ export class TtsSyncService {
       wordDuration,
       audioDuration,
       wordCount,
-      punctuationPause,
+      punctuationPause: 0,
       isHealthy,
       warnings,
     };
   }
 
-  private cleanForTts(text: string): string {
+  private cleanText(text: string): string {
     return text
       .replace(/#\w+/g, '')
       .replace(/https?:\/\/\S+/g, '')
@@ -66,23 +62,9 @@ export class TtsSyncService {
       .trim();
   }
 
-  private cleanForDisplay(text: string): string {
-    return text.trim();
-  }
-
-  private calculatePunctuationPauses(text: string): number {
-    let pause = 0;
-    const chars = text.split('');
-    for (const c of chars) {
-      if (',;'.includes(c)) pause += 0.3;
-      else if ('.!?'.includes(c)) pause += 0.6;
-      else if (':'.includes(c)) pause += 0.4;
-      else if (c === '\n') pause += 0.3;
-    }
-    // "..." compte comme un seul point mais pause plus longue
-    const ellipsisCount = (text.match(/\.\.\./g) || []).length;
-    pause += ellipsisCount * 0.3; // bonus pour les points de suspension
-    return pause;
+  private calculateWordCount(text: string): number {
+    const tokens = text.split(/\s+/).filter(w => w.length > 0);
+    return tokens.filter(w => /[a-zA-Z0-9À-ſ]/.test(w)).length;
   }
 }
 
