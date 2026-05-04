@@ -72,11 +72,9 @@ export class FacebookService {
         throw new Error('Reels require a video media');
       }
 
-      // Upload video bytes directly — Facebook cannot fetch local/Docker URLs
-      const localPath = videoMedia.originalUrl.startsWith('/')
-        ? path.join(process.cwd(), videoMedia.originalUrl)
-        : videoMedia.originalUrl;
-      const nodeBuffer = await fs.promises.readFile(localPath);
+      // Use public URL so getMediaBuffer can fetch via HTTP if local file is missing
+      const publicUrl = resolvePublicUrl(videoMedia.originalUrl);
+      const nodeBuffer = await this.getMediaBuffer(publicUrl);
       return await this.publishVideoFromBuffer(page, nodeBuffer, post.content);
     } else {
       // Default to feed

@@ -125,12 +125,18 @@ export class SchedulerService {
       status: "published",
     });
 
-    // Delete local video files immediately after successful publishing
+    // Delete local video files only when no other unpublished scheduled posts reference them
     for (const mediaItem of mediaList) {
       if (mediaItem.type === 'video' && mediaItem.cloudinaryPublicId) {
         try {
-          await storageService.deleteMedia(mediaItem.cloudinaryPublicId, mediaItem.userId, 'video');
-          console.log(`[Scheduler] Deleted local video file for media ${mediaItem.id}`);
+          const remainingScheduled = await storage.getScheduledPostsByPost(post.id);
+          const hasPending = remainingScheduled.some(sp => !sp.publishedAt);
+          if (!hasPending) {
+            await storageService.deleteMedia(mediaItem.cloudinaryPublicId, mediaItem.userId, 'video');
+            console.log(`[Scheduler] Deleted local video file for media ${mediaItem.id}`);
+          } else {
+            console.log(`[Scheduler] Kept local video file for media ${mediaItem.id} (pending scheduled posts still exist)`);
+          }
         } catch (err) {
           console.warn(`[Scheduler] Failed to delete local video file for media ${mediaItem.id}:`, err);
         }
