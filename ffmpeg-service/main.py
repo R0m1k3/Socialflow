@@ -291,6 +291,16 @@ async def generate_tts_with_subs(
                 # Use display_text for subtitle content if provided
                 text_to_display = display_text if display_text else text
 
+                if len(word_boundaries) == 0:
+                    print("⚠️ No word boundaries captured, falling back to ffsubsync")
+                    unsynced_srt_path = audio_path.with_suffix(".unsynced.srt")
+                    synced_srt_path = audio_path.with_suffix(".synced.srt")
+                    generate_unsynced_srt(text_to_display, unsynced_srt_path, total_duration=audio_duration)
+                    run_ffsubsync(audio_path, unsynced_srt_path, synced_srt_path)
+                    convert_srt_to_ass(synced_srt_path, ass_path, font_size=65, delay=delay)
+                    print(f"✅ TTS synchronisation completed with ffsubsync fallback")
+                    return
+
                 print("🎯 Using precise word-boundary timing from TTS engine")
                 generate_ass_from_word_boundaries(
                     word_boundaries,
