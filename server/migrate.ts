@@ -142,6 +142,16 @@ export async function migrate() {
       );
     `);
 
+    // app_config (global application settings)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "app_config" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "external_api_key" text,
+        "created_at" timestamp DEFAULT now(),
+        "updated_at" timestamp DEFAULT now()
+      );
+    `);
+
     console.log("[Migration] Safe migration completed.");
   } catch (error) {
     console.error("[Migration] Error during migration:", error);

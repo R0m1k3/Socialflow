@@ -37,6 +37,8 @@ import {
   audioTracks,
   type AudioTrack,
   type InsertAudioTrack,
+  appConfig,
+  type AppConfig,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, asc, isNull, inArray } from "drizzle-orm";
@@ -126,6 +128,10 @@ export interface IStorage {
   getFreesoundConfig(userId: string): Promise<FreesoundConfig | undefined>;
   createFreesoundConfig(config: InsertFreesoundConfig): Promise<FreesoundConfig>;
   updateFreesoundConfig(userId: string, config: Partial<InsertFreesoundConfig>): Promise<FreesoundConfig>;
+
+  // App Config
+  getAppConfig(): Promise<AppConfig | undefined>;
+  upsertAppConfig(data: Partial<Pick<AppConfig, 'externalApiKey'>>): Promise<AppConfig>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -583,6 +589,25 @@ export class DatabaseStorage implements IStorage {
       .where(eq(freesoundConfig.userId, userId))
       .returning();
     return updated;
+  }
+
+  // App Config
+  async getAppConfig(): Promise<AppConfig | undefined> {
+    const [config] = await db.select().from(appConfig).limit(1);
+    return config || undefined;
+  }
+
+  async upsertAppConfig(data: Partial<Pick<AppConfig, 'externalApiKey'>>): Promise<AppConfig> {
+    const existing = await this.getAppConfig();
+    if (existing) {
+      const [updated] = await db.update(appConfig)
+        .set({ ...data, updatedAt: new Date() })
+        .where(eq(appConfig.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await db.insert(appConfig).values(data).returning();
+    return created;
   }
 }
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain, Image, Upload, X, Video } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain, Image, Upload, X, Video, Plug } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
@@ -29,6 +29,7 @@ export default function Settings() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [ffmpegApiUrl, setFfmpegApiUrl] = useState("");
   const [ffmpegApiKey, setFfmpegApiKey] = useState("");
+  const [externalApiKey, setExternalApiKey] = useState("");
   const { toast } = useToast();
 
   const { data: session } = useQuery<{ id: string; username: string; role: string }>({
@@ -52,6 +53,11 @@ export default function Settings() {
 
   const { data: ffmpegConfig } = useQuery({
     queryKey: ['/api/ffmpeg/config'],
+  });
+
+  const { data: externalApiConfig } = useQuery({
+    queryKey: ['/api/settings/external-api'],
+    enabled: isAdmin,
   });
 
   useEffect(() => {
@@ -248,6 +254,31 @@ export default function Settings() {
         description: "Impossible de supprimer le logo",
         variant: "destructive",
       });
+    },
+  });
+
+  const hasExistingExternalApiConfig = !!(externalApiConfig as any)?.configured;
+
+  const saveExternalApiMutation = useMutation({
+    mutationFn: () => apiRequest('POST', '/api/settings/external-api', { apiKey: externalApiKey }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/external-api'] });
+      setExternalApiKey("");
+      toast({ title: "Clé API sauvegardée", description: "La clé API externe a été enregistrée" });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de sauvegarder la clé API", variant: "destructive" });
+    },
+  });
+
+  const deleteExternalApiMutation = useMutation({
+    mutationFn: () => apiRequest('DELETE', '/api/settings/external-api', {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/external-api'] });
+      toast({ title: "Clé API supprimée", description: "L'accès à l'API externe a été révoqué" });
+    },
+    onError: () => {
+      toast({ title: "Erreur", description: "Impossible de supprimer la clé API", variant: "destructive" });
     },
   });
 
@@ -685,6 +716,60 @@ export default function Settings() {
                       )}
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            )}
+
+            {isAdmin && (
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
+                  <CardTitle className="flex items-center gap-2">
+                    <Plug className="w-5 h-5" />
+                    API externe
+                  </CardTitle>
+                  <CardDescription>
+                    Clé d'accès pour créer et programmer des publications via l'API externe (<code className="text-xs bg-muted px-1 rounded">POST /api/v1/publish</code>)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {hasExistingExternalApiConfig && (
+                    <div className="rounded-lg bg-muted p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                        <Key className="w-4 h-4" />
+                        <span>Clé API configurée et active</span>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => deleteExternalApiMutation.mutate()}
+                        disabled={deleteExternalApiMutation.isPending}
+                      >
+                        {deleteExternalApiMutation.isPending ? "Suppression..." : "Révoquer"}
+                      </Button>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="externalApiKey">
+                      {hasExistingExternalApiConfig ? "Nouvelle clé API (remplace l'actuelle)" : "Clé API"}
+                    </Label>
+                    <Input
+                      id="externalApiKey"
+                      type="password"
+                      value={externalApiKey}
+                      onChange={(e) => setExternalApiKey(e.target.value)}
+                      placeholder={hasExistingExternalApiConfig ? "Nouvelle clé pour remplacer l'actuelle" : "Générez une clé sécurisée"}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Utilisez cette clé dans le header <code className="bg-muted px-1 rounded">X-API-Key</code> de vos requêtes
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => saveExternalApiMutation.mutate()}
+                    disabled={saveExternalApiMutation.isPending || !externalApiKey.trim()}
+                    className="w-full"
+                  >
+                    {saveExternalApiMutation.isPending ? "Enregistrement..." : hasExistingExternalApiConfig ? "Remplacer la clé" : "Enregistrer la clé"}
+                  </Button>
                 </CardContent>
               </Card>
             )}

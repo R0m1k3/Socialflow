@@ -16,6 +16,7 @@ import { freeSoundService } from "./services/freesound";
 import { analyticsRouter } from "./routes/analytics";
 import { reelsRouter } from "./routes/reels";
 import { remotionRouter } from "./routes/remotion";
+import { externalRouter } from "./routes/external";
 import { insertAudioTrackSchema } from "@shared/schema";
 import * as musicMetadata from "music-metadata";
 
@@ -379,6 +380,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error checking default password status:", error);
       res.status(500).json({ error: "Erreur lors de la vérification du statut du mot de passe" });
+    }
+  });
+
+  // External API (clé API, pas de session)
+  app.use("/api/v1", externalRouter);
+
+  // Paramètres de l'API externe (admin seulement)
+  app.get("/api/settings/external-api", requireAdmin, async (req, res) => {
+    try {
+      const config = await storage.getAppConfig();
+      res.json({ configured: !!(config?.externalApiKey) });
+    } catch (error) {
+      console.error("Error fetching app config:", error);
+      res.status(500).json({ error: "Erreur lors de la récupération de la configuration" });
+    }
+  });
+
+  app.post("/api/settings/external-api", requireAdmin, async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      if (!apiKey || typeof apiKey !== "string" || apiKey.trim() === "") {
+        return res.status(400).json({ error: "La clé API est requise" });
+      }
+      await storage.upsertAppConfig({ externalApiKey: apiKey.trim() });
+      res.json({ success: true, configured: true });
+    } catch (error) {
+      console.error("Error saving app config:", error);
+      res.status(500).json({ error: "Erreur lors de la sauvegarde de la configuration" });
+    }
+  });
+
+  app.delete("/api/settings/external-api", requireAdmin, async (req, res) => {
+    try {
+      await storage.upsertAppConfig({ externalApiKey: null });
+      res.json({ success: true, configured: false });
+    } catch (error) {
+      console.error("Error deleting app config:", error);
+      res.status(500).json({ error: "Erreur lors de la suppression de la clé" });
     }
   });
 

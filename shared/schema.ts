@@ -215,6 +215,13 @@ export const musicFavorites = pgTable("music_favorites", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const appConfig = pgTable("app_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  externalApiKey: text("external_api_key"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const audioTracks = pgTable("audio_tracks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // Nullable if uploaded by system/admin globally
@@ -477,6 +484,8 @@ export const updateFreesoundConfigSchema = insertFreesoundConfigSchema.omit({
 });
 
 export type FreesoundConfig = typeof freesoundConfig.$inferSelect;
+
+export type AppConfig = typeof appConfig.$inferSelect;
 export type InsertFreesoundConfig = z.infer<typeof insertFreesoundConfigSchema>;
 export type UpdateFreesoundConfig = z.infer<typeof updateFreesoundConfigSchema>;
 
