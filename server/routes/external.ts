@@ -245,4 +245,254 @@ router.get("/pages", async (_req, res) => {
   }
 });
 
+/**
+ * GET /api/v1/posts
+ *
+ * Liste les publications planifiées (à venir).
+ *
+ * Query params:
+ *   pageId    string?   Filtrer par page spécifique
+ *   from      ISO8601?  Date de début (scheduledAt >= from)
+ *   to        ISO8601?  Date de fin (scheduledAt <= to)
+ *   status    string?   Statut du post (défaut: scheduled)
+ */
+router.get("/posts", async (req, res) => {
+  try {
+    const { pageId, from, to, status } = req.query as Record<string, string | undefined>;
+    const postStatus = status || "scheduled";
+
+    // Récupérer toutes les pages (ou une seule si filtrée)
+    let pageIds: string[];
+    if (pageId) {
+      const page = await storage.getSocialPage(pageId);
+      if (!page) {
+        return res.status(404).json({ error: `Page introuvable: ${pageId}` });
+      }
+      pageIds = [pageId];
+    } else {
+      const users = await storage.getAllUsers();
+      const allPages = await Promise.all(users.map(u => storage.getSocialPages(u.id)));
+      pageIds = allPages.flat().map(p => p.id);
+    }
+
+    if (pageIds.length === 0) {
+      return res.json([]);
+    }
+
+    const startDate = from ? new Date(from) : undefined;
+    const endDate = to ? new Date(to) : undefined;
+
+    const scheduledPosts = await storage.getScheduledPostsByPages(pageIds, startDate, endDate);
+
+    // Grouper par postId, filtrer par statut et posts non publiés
+    const postMap = new Map<string, {
+      id: string;
+      content: string;
+      status: string;
+      scheduledFor: Date | null;
+      createdAt: Date | null;
+      media: Array<{ id: string; url: string; type: string }>;
+      schedules: Array<{
+        id: string;
+        pageId: string;
+        pageName: string;
+        platform: string;
+        postType: string;
+        scheduledAt: Date;
+      }>;
+    }>();
+
+    for (const sp of scheduledPosts) {
+      // sp = { ...scheduled_posts, post: Post, page: SocialPage }
+      const post = sp.post;
+      if (!post) continue;
+
+      // Ne montrer que les posts non publiés avec le bon statut
+      if (sp.publishedAt) continue;
+      if (post.status !== postStatus && postStatus !== "all") continue;
+
+      if (!postMap.has(post.id)) {
+        // Récupérer les médias du post
+        const postMediaLinks = await storage.getPostMedia(post.id);
+        const mediaItems: Array<{ id: string; url: string; type: string }> = [];
+        for (const link of postMediaLinks) {
+          const mediaItem = await storage.getMediaById(link.mediaId);
+          if (mediaItem) {
+            mediaItems.push({
+              id: mediaItem.id,
+              url: mediaItem.originalUrl,
+              type: mediaItem.type,
+            });
+          }
+        }
+
+        postMap.set(post.id, {
+          id: post.id,
+          content: post.content,
+          status: post.status,
+          scheduledFor: post.scheduledFor,
+          createdAt: post.createdAt,
+          media: mediaItems,
+          schedules: [],
+        });
+      }
+
+      const page = sp.page;
+      postMap.get(post.id)!.schedules.push({
+        id: sp.id,
+        pageId: sp.pageId,
+        pageName: page?.pageName || "Inconnu",
+        platform: page?.platform || "facebook",
+        postType: sp.postType,
+        scheduledAt: sp.scheduledAt,
+      });
+    }
+
+    return res.json(Array.from(postMap.values()));
+  } catch (error) {
+    console.error("[external API] GET /posts error:", error);
+    return res.status(500).json({ error: "Erreur interne" });
+  }
+});
+
+/**
+ * PATCH /api/v1/posts/:id
+ *
+ * Modifier une publication planifiée.
+ *
+ * Body:
+ *   content      string?   Nouveau texte
+ *   scheduledAt  ISO8601?  Nouvelle date/heure de publication
+ *   imageUrl     string?   URL d'une nouvelle image (remplace l'existante)
+ */
+router.patch("/posts/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { content, scheduledAt, imageUrl } = req.body;
+
+    // Vérifier que le post existe et est modifiable
+    const post = await storage.getPost(id);
+    if (!post) {
+      return res.status(404).json({ error: "Post introuvable" });
+    }
+    if (post.status === "published") {
+      return res.status(400).json({ error: "Impossible de modifier un post déjà publié" });
+    }
+
+    // Mettre à jour le contenu si fourni
+    if (content !== undefined) {
+      await storage.updatePost(id, { content });
+    }
+
+    // Mettre à jour la date de planification si fournie
+    if (scheduledAt !== undefined) {
+      const newDate = new Date(scheduledAt);
+      await storage.updatePost(id, { scheduledFor: newDate });
+
+      // Propager à tous les scheduled_posts du post
+      const scheduledPosts = await storage.getScheduledPostsByPost(id);
+      for (const sp of scheduledPosts) {
+        if (!sp.publishedAt) {
+          await storage.updateScheduledPost(sp.id, { scheduledAt: newDate });
+        }
+      }
+    }
+
+    // Remplacer le média si une nouvelle imageUrl est fournie
+    if (imageUrl !== undefined) {
+      // Résoudre le userId pour le stockage du média
+      const ownerId = post.userId;
+      const { buffer, ext, mimeType } = await downloadImage(imageUrl);
+      const fileName = `external-edit-${Date.now()}${ext}`;
+      const uploaded = await minioService.uploadMedia(buffer, fileName, ownerId, mimeType);
+      const mediaType: "image" | "video" = mimeType.startsWith("video/") ? "video" : "image";
+      const mediaRecord = await storage.createMedia({
+        userId: ownerId,
+        type: mediaType,
+        cloudinaryPublicId: uploaded.publicId,
+        originalUrl: uploaded.originalUrl,
+        facebookFeedUrl: uploaded.facebookFeedUrl,
+        instagramFeedUrl: uploaded.instagramFeedUrl,
+        instagramStoryUrl: uploaded.instagramStoryUrl,
+        fileName,
+        fileSize: String(buffer.length),
+      });
+
+      // Remplacer les médias existants par le nouveau
+      await storage.updatePostMedia(id, [mediaRecord.id]);
+    }
+
+    // Retourner le post mis à jour
+    const updatedPost = await storage.getPost(id);
+    const postMediaLinks = await storage.getPostMedia(id);
+    const mediaItems: Array<{ id: string; url: string; type: string }> = [];
+    for (const link of postMediaLinks) {
+      const mediaItem = await storage.getMediaById(link.mediaId);
+      if (mediaItem) {
+        mediaItems.push({
+          id: mediaItem.id,
+          url: mediaItem.originalUrl,
+          type: mediaItem.type,
+        });
+      }
+    }
+
+    const scheduledPosts = await storage.getScheduledPostsByPost(id);
+
+    return res.json({
+      success: true,
+      post: {
+        id: updatedPost!.id,
+        content: updatedPost!.content,
+        status: updatedPost!.status,
+        scheduledFor: updatedPost!.scheduledFor,
+        createdAt: updatedPost!.createdAt,
+        media: mediaItems,
+        schedules: await Promise.all(scheduledPosts.filter(sp => !sp.publishedAt).map(async sp => {
+          const page = await storage.getSocialPage(sp.pageId);
+          return {
+            id: sp.id,
+            pageId: sp.pageId,
+            pageName: page?.pageName || "Inconnu",
+            platform: page?.platform || "facebook",
+            postType: sp.postType,
+            scheduledAt: sp.scheduledAt,
+          };
+        })),
+      },
+    });
+  } catch (error) {
+    console.error("[external API] PATCH /posts/:id error:", error);
+    const message = error instanceof Error ? error.message : "Erreur interne";
+    return res.status(500).json({ error: message });
+  }
+});
+
+/**
+ * DELETE /api/v1/posts/:id
+ *
+ * Supprimer un post planifié et toutes ses planifications associées.
+ * La suppression en cascade gère les scheduled_posts et post_media.
+ */
+router.delete("/posts/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const post = await storage.getPost(id);
+    if (!post) {
+      return res.status(404).json({ error: "Post introuvable" });
+    }
+    if (post.status === "published") {
+      return res.status(400).json({ error: "Impossible de supprimer un post déjà publié" });
+    }
+
+    await storage.deletePost(id);
+
+    return res.json({ success: true, deleted: id });
+  } catch (error) {
+    console.error("[external API] DELETE /posts/:id error:", error);
+    return res.status(500).json({ error: "Erreur interne" });
+  }
+});
+
 export { router as externalRouter };
