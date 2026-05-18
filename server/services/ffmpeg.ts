@@ -27,9 +27,10 @@ interface FFmpegReelRequest {
 
 interface FFmpegReelResponse {
     success: boolean;
-    output_base64?: string;     // Vidéo traitée en base64
-    duration?: number;          // Durée de la vidéo en secondes
-    detail?: string;            // Message d'erreur si échec
+    output_base64?: string;
+    duration?: number;
+    detail?: string;
+    tts_error?: string;
 }
 
 interface FFmpegConfig {
@@ -189,7 +190,7 @@ export class FFmpegService {
             storeName?: string;
             enableEndingEffect?: boolean;
         } = {}
-    ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string }> {
+    ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string; ttsError?: string }> {
         const config = this.ensureConfigured();
 
         const requestBody: FFmpegReelRequest = {
@@ -262,11 +263,15 @@ export class FFmpegService {
                 };
             }
 
+            if (data.tts_error) {
+                console.error('❌ TTS failed in Python service:', data.tts_error);
+            }
             console.log('✅ Reel video processed successfully from URL');
             return {
                 success: true,
                 videoBase64: data.output_base64,
                 duration: data.duration,
+                ttsError: data.tts_error,
             };
 
         } catch (error) {

@@ -872,13 +872,15 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         # 3. Generate TTS (if enabled)
         has_tts = False
         tts_clean_text = ""
+        tts_error_msg = None
 
         if request.tts_enabled and request.text:
             try:
                 # Clean text for TTS (remove hashtags/emojis)
                 tts_clean_text = clean_text_for_tts(request.text)
-                print(f"🔊 TTS enabled. Original: '{request.text}'")
-                print(f"🔊 TTS cleaned: '{tts_clean_text}'")
+                print(f"🔊 TTS enabled. Provider: {request.tts_provider}, Voice: {request.tts_voice}")
+                print(f"🔊 TTS has minimax_api_key: {bool(request.minimax_api_key)}")
+                print(f"🔊 TTS cleaned: '{tts_clean_text[:80]}...'")
 
                 # Check for male/female voice map (edge_tts only)
                 voice = request.tts_voice
@@ -913,12 +915,14 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                         )
                         has_tts = True
                     else:
-                        print("❌ TTS audio file missing or empty!")
+                        tts_error_msg = "TTS audio file missing or empty after generation"
+                        print(f"❌ {tts_error_msg}")
                 else:
-                    print("⚠️ TTS text is empty after cleaning, skipping.")
+                    tts_error_msg = "TTS text empty after cleaning (hashtags/emojis removed)"
+                    print(f"⚠️ {tts_error_msg}")
             except Exception as e:
                 import traceback
-
+                tts_error_msg = str(e)
                 print(f"❌ Failed to generate TTS: {e}")
                 traceback.print_exc()
 
@@ -1247,6 +1251,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             "output_base64": out_b64,
             "duration": duration,
             "processing_stats": stats,
+            "tts_error": tts_error_msg,
         }
 
     except Exception as e:

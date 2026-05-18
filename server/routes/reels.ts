@@ -640,6 +640,11 @@ async function processReelBackground(
 
         console.log(`⏱️ [Background] FFmpeg took ${(Date.now() - startTime) / 1000}s`);
 
+        if (ffmpegResult.ttsError) {
+            console.error(`❌ [Background] TTS FAILED: ${ffmpegResult.ttsError}`);
+            await storage.updatePost(postId, { generationError: `TTS échoué: ${ffmpegResult.ttsError}` });
+        }
+
         if (!ffmpegResult.success || !ffmpegResult.videoBase64) {
             throw new Error(ffmpegResult.error || 'Erreur de traitement vidéo FFmpeg');
         }
