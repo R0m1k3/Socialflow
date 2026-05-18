@@ -202,21 +202,44 @@ def generate_tts_minimax(text: str, voice_id: str, api_key: str, audio_path: Pat
         "Content-Type": "application/json",
     }
     payload = {
-        "model": "speech-2.8-hd",
+        "model": "speech-02-hd",
         "text": text,
-        "voice_setting": {"voice_id": voice_id},
-        "audio_setting": {"format": "mp3", "sample_rate": 24000, "bitrate": 128},
+        "voice_setting": {
+            "voice_id": voice_id,
+            "speed": 1.0,
+            "pitch": 0,
+            "vol": 1.0,
+        },
+        "audio_setting": {
+            "format": "mp3",
+            "sample_rate": 32000,
+            "bitrate": 128000,
+            "channel": 1,
+        },
     }
+    print(f"🔊 Minimax API request: voice_id={voice_id}, model=speech-02-hd, text_len={len(text)}")
     response = requests.post(url, headers=headers, json=payload, timeout=60)
+    print(f"🔊 Minimax API response: status={response.status_code}, content_type={response.headers.get('Content-Type', '?')}")
     response.raise_for_status()
-    data = response.json()
 
-    base_resp = data.get("base_resp", {})
-    if base_resp.get("status_code") != 0:
-        raise Exception(f"Minimax API error: {base_resp.get('status_msg', 'unknown error')}")
+    content_type = response.headers.get("Content-Type", "")
+    if "audio" in content_type:
+        # Direct binary audio response
+        audio_bytes = response.content
+        print(f"🔊 Minimax returned binary audio directly ({len(audio_bytes)} bytes)")
+    else:
+        data = response.json()
+        print(f"🔊 Minimax JSON response keys: {list(data.keys())}")
 
-    audio_hex = data["data"]["audio"]
-    audio_bytes = bytes.fromhex(audio_hex)
+        base_resp = data.get("base_resp", {})
+        if base_resp.get("status_code") != 0:
+            raise Exception(f"Minimax API error: {base_resp.get('status_msg', 'unknown error')}")
+
+        audio_raw = data.get("data", {}).get("audio") or data.get("audio")
+        if not audio_raw:
+            raise Exception(f"Minimax API: no audio field in response. Keys: {list(data.keys())}")
+        audio_bytes = bytes.fromhex(audio_raw)
+
     with open(audio_path, "wb") as f:
         f.write(audio_bytes)
     print(f"✅ Minimax TTS audio saved: {audio_path.stat().st_size} bytes")

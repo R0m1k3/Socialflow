@@ -229,7 +229,9 @@ export class FFmpegService {
             drawText: options.drawText,
         });
 
-        console.log('📤 Sending to FFmpeg API:', JSON.stringify(requestBody, null, 2).substring(0, 500) + '...');
+        const debugBody = { ...requestBody };
+        if (debugBody.minimax_api_key) debugBody.minimax_api_key = '***';
+        console.log('📤 Sending to FFmpeg API:', JSON.stringify({ ...debugBody, text: debugBody.text ? `[${debugBody.text.length} chars]` : undefined }));
 
         try {
             const response = await fetch(`${config.apiUrl}/process-reel`, {

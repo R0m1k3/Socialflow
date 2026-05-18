@@ -614,8 +614,12 @@ async function processReelBackground(
             const minimaxCfg = await storage.getMinimaxConfig(userId);
             if (minimaxCfg?.apiKey) {
                 minimaxApiKeyBg = minimaxCfg.apiKey;
+            } else {
+                console.error('❌ [Background] Minimax API key not found in DB for user:', userId);
             }
         }
+
+        console.log('🔊 [Background] TTS config:', { ttsEnabled, ttsProvider, ttsVoice, hasMinimaxKey: !!minimaxApiKeyBg });
 
         const ffmpegResult = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
             text: overlayText,
