@@ -1898,11 +1898,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId,
         });
 
-        // Si apiKey n'est pas fourni, garder l'ancien
+        // Si apiKey n'est pas fourni ou vide, garder l'ancien
+        const incomingKey = updateData.apiKey?.trim() || undefined;
         const finalData = {
           ...updateData,
-          apiKey: updateData.apiKey || existingConfig.apiKey,
+          apiKey: incomingKey || existingConfig.apiKey,
         };
+
+        if (!finalData.apiKey) {
+          return res.status(400).json({ error: "Clé API OpenRouter manquante. Veuillez entrer une clé API valide." });
+        }
 
         config = await storage.updateOpenrouterConfig(userId, finalData);
       } else {

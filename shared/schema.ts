@@ -410,6 +410,8 @@ export const insertOpenrouterConfigSchema = createInsertSchema(openrouterConfig)
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  apiKey: z.string().min(1, "La clé API ne peut pas être vide"),
 });
 
 export const updateOpenrouterConfigSchema = insertOpenrouterConfigSchema.partial({
