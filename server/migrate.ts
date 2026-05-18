@@ -164,6 +164,12 @@ export async function migrate() {
       );
     `);
 
+    // minimax_config.group_id
+    await client.query(`
+      ALTER TABLE "minimax_config"
+      ADD COLUMN IF NOT EXISTS "group_id" text;
+    `);
+
     console.log("[Migration] Safe migration completed.");
   } catch (error) {
     console.error("[Migration] Error during migration:", error);

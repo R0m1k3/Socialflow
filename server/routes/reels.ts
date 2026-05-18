@@ -354,12 +354,14 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
         const finalWordDuration = wordDuration;
 
         let minimaxApiKey: string | undefined;
+        let minimaxGroupId: string | undefined;
         if (ttsEnabled && ttsProvider === 'minimax') {
             const minimaxCfg = await storage.getMinimaxConfig(user.id);
             if (!minimaxCfg?.apiKey) {
                 return res.status(400).json({ error: 'Clé API Minimax non configurée. Allez dans les Paramètres.' });
             }
             minimaxApiKey = minimaxCfg.apiKey;
+            minimaxGroupId = minimaxCfg.groupId ?? undefined;
         }
 
         // Traiter la vidéo via FFmpeg
@@ -370,6 +372,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             ttsVoice,
             ttsProvider,
             minimaxApiKey,
+            minimaxGroupId,
             wordDuration: finalWordDuration,
             fontSize,
             musicVolume,
@@ -409,15 +412,17 @@ reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
         }
 
         let minimaxApiKey: string | undefined;
+        let minimaxGroupId: string | undefined;
         if (ttsProvider === 'minimax') {
             const minimaxCfg = await storage.getMinimaxConfig(user.id);
             if (!minimaxCfg?.apiKey) {
                 return res.status(400).json({ error: 'Clé API Minimax non configurée. Allez dans les Paramètres.' });
             }
             minimaxApiKey = minimaxCfg.apiKey;
+            minimaxGroupId = minimaxCfg.groupId ?? undefined;
         }
 
-        const result = await ffmpegService.previewTTS(text, voice, ttsProvider, minimaxApiKey);
+        const result = await ffmpegService.previewTTS(text, voice, ttsProvider, minimaxApiKey, minimaxGroupId);
 
         if (!result.success) {
             return res.status(500).json({ error: result.error || 'Erreur de génération TTS' });
@@ -610,16 +615,18 @@ async function processReelBackground(
         const finalWordDuration = wordDuration ?? 0.6;
 
         let minimaxApiKeyBg: string | undefined;
+        let minimaxGroupIdBg: string | undefined;
         if (ttsEnabled && ttsProvider === 'minimax') {
             const minimaxCfg = await storage.getMinimaxConfig(userId);
             if (minimaxCfg?.apiKey) {
                 minimaxApiKeyBg = minimaxCfg.apiKey;
+                minimaxGroupIdBg = minimaxCfg.groupId ?? undefined;
             } else {
                 console.error('❌ [Background] Minimax API key not found in DB for user:', userId);
             }
         }
 
-        console.log('🔊 [Background] TTS config:', { ttsEnabled, ttsProvider, ttsVoice, hasMinimaxKey: !!minimaxApiKeyBg });
+        console.log('🔊 [Background] TTS config:', { ttsEnabled, ttsProvider, ttsVoice, hasMinimaxKey: !!minimaxApiKeyBg, hasGroupId: !!minimaxGroupIdBg });
 
         const ffmpegResult = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
             text: overlayText,
@@ -628,6 +635,7 @@ async function processReelBackground(
             ttsVoice,
             ttsProvider,
             minimaxApiKey: minimaxApiKeyBg,
+            minimaxGroupId: minimaxGroupIdBg,
             wordDuration: finalWordDuration,
             fontSize,
             musicVolume,

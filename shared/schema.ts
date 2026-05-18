@@ -146,6 +146,7 @@ export const minimaxConfig = pgTable("minimax_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
   apiKey: text("api_key").notNull(),
+  groupId: text("group_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

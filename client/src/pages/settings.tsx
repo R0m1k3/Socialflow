@@ -31,6 +31,7 @@ export default function Settings() {
   const [ffmpegApiKey, setFfmpegApiKey] = useState("");
   const [externalApiKey, setExternalApiKey] = useState("");
   const [minimaxApiKey, setMinimaxApiKey] = useState("");
+  const [minimaxGroupId, setMinimaxGroupId] = useState("");
   const { toast } = useToast();
 
   const { data: session } = useQuery<{ id: string; username: string; role: string }>({
@@ -264,6 +265,7 @@ export default function Settings() {
 
   const hasExistingExternalApiConfig = !!(externalApiConfig as any)?.configured;
   const hasExistingMinimaxConfig = !!(minimaxConfig as any)?.apiKey;
+  const hasExistingMinimaxGroupId = !!(minimaxConfig as any)?.groupId;
 
   const saveMinimaxMutation = useMutation({
     mutationFn: () => {
@@ -271,11 +273,15 @@ export default function Settings() {
       if (minimaxApiKey && minimaxApiKey.trim() !== "") {
         payload.apiKey = minimaxApiKey;
       }
+      if (minimaxGroupId && minimaxGroupId.trim() !== "") {
+        payload.groupId = minimaxGroupId;
+      }
       return apiRequest('POST', '/api/minimax/config', payload);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/minimax/config'] });
       setMinimaxApiKey("");
+      setMinimaxGroupId("");
       toast({
         title: "Configuration sauvegardée",
         description: "Votre clé API Minimax a été enregistrée",
@@ -680,6 +686,24 @@ export default function Settings() {
                     )}
                   </p>
                 </div>
+                <div className="space-y-2">
+                  <Label htmlFor="minimaxGroupId">Group ID Minimax</Label>
+                  <Input
+                    id="minimaxGroupId"
+                    type="text"
+                    value={minimaxGroupId}
+                    onChange={(e) => setMinimaxGroupId(e.target.value)}
+                    placeholder={hasExistingMinimaxGroupId ? "••••••••••••••••" : "1234567890"}
+                    data-testid="input-minimax-group-id"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {hasExistingMinimaxGroupId ? (
+                      <span className="text-green-600 dark:text-green-400">✓ Group ID configuré - Laissez vide pour conserver</span>
+                    ) : (
+                      "Requis pour les quotas corrects — trouvez-le sur platform.minimaxi.com dans votre profil"
+                    )}
+                  </p>
+                </div>
                 <div className="rounded-lg bg-muted/50 p-3 space-y-1">
                   <p className="text-xs font-medium">Voix françaises disponibles :</p>
                   <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
@@ -693,7 +717,7 @@ export default function Settings() {
                 </div>
                 <Button
                   onClick={() => saveMinimaxMutation.mutate()}
-                  disabled={saveMinimaxMutation.isPending || (!minimaxApiKey.trim() && !hasExistingMinimaxConfig)}
+                  disabled={saveMinimaxMutation.isPending || (!minimaxApiKey.trim() && !minimaxGroupId.trim() && !hasExistingMinimaxConfig)}
                   data-testid="button-save-minimax"
                   className="w-full"
                 >

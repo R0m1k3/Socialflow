@@ -161,6 +161,7 @@ class ReelRequest(BaseModel):
     tts_voice: str = "fr-FR-VivienneMultilingualNeural"
     tts_provider: str = "edge_tts"  # "edge_tts" or "minimax"
     minimax_api_key: Optional[str] = None
+    minimax_group_id: Optional[str] = None
     draw_text: bool = True
     stabilize: bool = False  # Stabilisation vidéo via vidstab
     enable_ending_effect: bool = True
@@ -194,9 +195,9 @@ def clean_text_for_tts(text: str) -> str:
     return " ".join(text.split())
 
 
-def generate_tts_minimax(text: str, voice_id: str, api_key: str, audio_path: Path) -> None:
+def generate_tts_minimax(text: str, voice_id: str, api_key: str, audio_path: Path, group_id: Optional[str] = None) -> None:
     """Generate TTS audio using Minimax Speech API (T2A v2)."""
-    url = "https://api.minimax.io/v1/t2a_v2"
+    url = f"https://api.minimax.io/v1/t2a_v2?GroupId={group_id}" if group_id else "https://api.minimax.io/v1/t2a_v2"
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -254,6 +255,7 @@ async def generate_tts_with_subs(
     delay: float = 0.0,
     tts_provider: str = "edge_tts",
     minimax_api_key: Optional[str] = None,
+    minimax_group_id: Optional[str] = None,
 ):
     """Generate TTS audio with word-level synchronized subtitles.
 
@@ -267,8 +269,8 @@ async def generate_tts_with_subs(
         if not minimax_api_key:
             raise Exception("Minimax API key required but not provided")
         text_to_display = display_text if display_text else text
-        print(f"🔊 Minimax TTS with voice: {voice}")
-        generate_tts_minimax(text, voice, minimax_api_key, audio_path)
+        print(f"🔊 Minimax TTS with voice: {voice}, group_id={bool(minimax_group_id)}")
+        generate_tts_minimax(text, voice, minimax_api_key, audio_path, group_id=minimax_group_id)
 
         audio_duration = None
         try:
@@ -879,7 +881,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 # Clean text for TTS (remove hashtags/emojis)
                 tts_clean_text = clean_text_for_tts(request.text)
                 print(f"🔊 TTS enabled. Provider: {request.tts_provider}, Voice: {request.tts_voice}")
-                print(f"🔊 TTS has minimax_api_key: {bool(request.minimax_api_key)}")
+                print(f"🔊 TTS has minimax_api_key: {bool(request.minimax_api_key)}, group_id: {bool(request.minimax_group_id)}")
                 print(f"🔊 TTS cleaned: '{tts_clean_text[:80]}...'")
 
                 # Check for male/female voice map (edge_tts only)
@@ -906,6 +908,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                         delay=2.0,
                         tts_provider=request.tts_provider,
                         minimax_api_key=request.minimax_api_key,
+                        minimax_group_id=request.minimax_group_id,
                     )
 
                     # Verify files were created
@@ -1297,6 +1300,9 @@ async def preview_tts(request: ReelRequest, x_api_key: str = Header(None)):
             tts_audio_path,
             tts_srt_path,
             display_text=clean_text_for_display(request.text),
+            tts_provider=request.tts_provider,
+            minimax_api_key=request.minimax_api_key,
+            minimax_group_id=request.minimax_group_id,
         )
 
         if not tts_audio_path.exists():
