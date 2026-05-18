@@ -142,6 +142,14 @@ export const freesoundConfig = pgTable("freesound_config", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+export const minimaxConfig = pgTable("minimax_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  apiKey: text("api_key").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const media = pgTable("media", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -488,5 +496,21 @@ export type FreesoundConfig = typeof freesoundConfig.$inferSelect;
 export type AppConfig = typeof appConfig.$inferSelect;
 export type InsertFreesoundConfig = z.infer<typeof insertFreesoundConfigSchema>;
 export type UpdateFreesoundConfig = z.infer<typeof updateFreesoundConfigSchema>;
+
+export const insertMinimaxConfigSchema = createInsertSchema(minimaxConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateMinimaxConfigSchema = insertMinimaxConfigSchema.omit({
+  userId: true
+}).partial({
+  apiKey: true,
+});
+
+export type MinimaxConfig = typeof minimaxConfig.$inferSelect;
+export type InsertMinimaxConfig = z.infer<typeof insertMinimaxConfigSchema>;
+export type UpdateMinimaxConfig = z.infer<typeof updateMinimaxConfigSchema>;
 
 

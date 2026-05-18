@@ -152,6 +152,18 @@ export async function migrate() {
       );
     `);
 
+    // minimax_config
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "minimax_config" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+        "api_key" text NOT NULL,
+        "created_at" timestamp DEFAULT now(),
+        "updated_at" timestamp DEFAULT now(),
+        CONSTRAINT minimax_config_user_id_unique UNIQUE ("user_id")
+      );
+    `);
+
     console.log("[Migration] Safe migration completed.");
   } catch (error) {
     console.error("[Migration] Error during migration:", error);

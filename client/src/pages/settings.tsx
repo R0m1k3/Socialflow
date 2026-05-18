@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain, Image, Upload, X, Video, Plug } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain, Image, Upload, X, Video, Plug, Mic } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
@@ -30,6 +30,7 @@ export default function Settings() {
   const [ffmpegApiUrl, setFfmpegApiUrl] = useState("");
   const [ffmpegApiKey, setFfmpegApiKey] = useState("");
   const [externalApiKey, setExternalApiKey] = useState("");
+  const [minimaxApiKey, setMinimaxApiKey] = useState("");
   const { toast } = useToast();
 
   const { data: session } = useQuery<{ id: string; username: string; role: string }>({
@@ -58,6 +59,10 @@ export default function Settings() {
   const { data: externalApiConfig } = useQuery({
     queryKey: ['/api/settings/external-api'],
     enabled: isAdmin,
+  });
+
+  const { data: minimaxConfig } = useQuery({
+    queryKey: ['/api/minimax/config'],
   });
 
   useEffect(() => {
@@ -258,6 +263,32 @@ export default function Settings() {
   });
 
   const hasExistingExternalApiConfig = !!(externalApiConfig as any)?.configured;
+  const hasExistingMinimaxConfig = !!(minimaxConfig as any)?.apiKey;
+
+  const saveMinimaxMutation = useMutation({
+    mutationFn: () => {
+      const payload: any = {};
+      if (minimaxApiKey && minimaxApiKey.trim() !== "") {
+        payload.apiKey = minimaxApiKey;
+      }
+      return apiRequest('POST', '/api/minimax/config', payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/minimax/config'] });
+      setMinimaxApiKey("");
+      toast({
+        title: "Configuration sauvegardée",
+        description: "Votre clé API Minimax a été enregistrée",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder la configuration Minimax",
+        variant: "destructive",
+      });
+    },
+  });
 
   const saveExternalApiMutation = useMutation({
     mutationFn: () => apiRequest('POST', '/api/settings/external-api', { apiKey: externalApiKey }),
@@ -616,6 +647,57 @@ export default function Settings() {
                   className="w-full"
                 >
                   {saveFfmpegMutation.isPending ? "Enregistrement..." : "Enregistrer FFmpeg"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="rounded-2xl border-border/50 shadow-lg">
+              <CardHeader className="p-6">
+                <CardTitle className="flex items-center gap-2">
+                  <Mic className="w-5 h-5" />
+                  Configuration Minimax Speech (TTS)
+                </CardTitle>
+                <CardDescription>
+                  Configurez l'API Minimax pour générer des voix françaises premium dans les Reels
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="minimaxApiKey">Clé API Minimax</Label>
+                  <Input
+                    id="minimaxApiKey"
+                    type="password"
+                    value={minimaxApiKey}
+                    onChange={(e) => setMinimaxApiKey(e.target.value)}
+                    placeholder={hasExistingMinimaxConfig ? "••••••••••••••••" : "eyJhbGci..."}
+                    data-testid="input-minimax-api-key"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {hasExistingMinimaxConfig ? (
+                      <span className="text-green-600 dark:text-green-400">✓ Clé API configurée - Laissez vide pour conserver</span>
+                    ) : (
+                      "Votre clé API depuis platform.minimaxi.com"
+                    )}
+                  </p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-3 space-y-1">
+                  <p className="text-xs font-medium">Voix françaises disponibles :</p>
+                  <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+                    <span>• French_Female_News</span>
+                    <span>• French_Male_Speech_New</span>
+                    <span>• French_MovieLeadFemale</span>
+                    <span>• French_CasualMan</span>
+                    <span>• French_FemaleAnchor</span>
+                    <span>• French_MaleNarrator</span>
+                  </div>
+                </div>
+                <Button
+                  onClick={() => saveMinimaxMutation.mutate()}
+                  disabled={saveMinimaxMutation.isPending || (!minimaxApiKey.trim() && !hasExistingMinimaxConfig)}
+                  data-testid="button-save-minimax"
+                  className="w-full"
+                >
+                  {saveMinimaxMutation.isPending ? "Enregistrement..." : "Enregistrer Minimax"}
                 </Button>
               </CardContent>
             </Card>

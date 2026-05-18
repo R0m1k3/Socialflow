@@ -159,6 +159,8 @@ class ReelRequest(BaseModel):
     music_volume: float = 0.25
     tts_enabled: bool = False
     tts_voice: str = "fr-FR-VivienneMultilingualNeural"
+    tts_provider: str = "edge_tts"  # "edge_tts" or "minimax"
+    minimax_api_key: Optional[str] = None
     draw_text: bool = True
     stabilize: bool = False  # Stabilisation vidéo via vidstab
     enable_ending_effect: bool = True
@@ -192,6 +194,34 @@ def clean_text_for_tts(text: str) -> str:
     return " ".join(text.split())
 
 
+def generate_tts_minimax(text: str, voice_id: str, api_key: str, audio_path: Path) -> None:
+    """Generate TTS audio using Minimax Speech API (T2A v2)."""
+    url = "https://api.minimax.io/v1/t2a_v2"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": "speech-2.8-hd",
+        "text": text,
+        "voice_setting": {"voice_id": voice_id},
+        "audio_setting": {"format": "mp3", "sample_rate": 24000, "bitrate": 128},
+    }
+    response = requests.post(url, headers=headers, json=payload, timeout=60)
+    response.raise_for_status()
+    data = response.json()
+
+    base_resp = data.get("base_resp", {})
+    if base_resp.get("status_code") != 0:
+        raise Exception(f"Minimax API error: {base_resp.get('status_msg', 'unknown error')}")
+
+    audio_hex = data["data"]["audio"]
+    audio_bytes = bytes.fromhex(audio_hex)
+    with open(audio_path, "wb") as f:
+        f.write(audio_bytes)
+    print(f"✅ Minimax TTS audio saved: {audio_path.stat().st_size} bytes")
+
+
 async def generate_tts_with_subs(
     text: str,
     voice: str,
@@ -199,12 +229,43 @@ async def generate_tts_with_subs(
     ass_path: Path,
     display_text: Optional[str] = None,
     delay: float = 0.0,
+    tts_provider: str = "edge_tts",
+    minimax_api_key: Optional[str] = None,
 ):
     """Generate TTS audio with word-level synchronized subtitles.
 
     Uses edge_tts.Communicate.stream() to capture WordBoundary events,
     providing millisecond-accurate subtitle timing instead of linear estimation.
+    For Minimax provider, falls back to ffsubsync (no word boundaries available).
     """
+
+    # Minimax branch: no WordBoundary events, use ffsubsync for subtitle sync
+    if tts_provider == "minimax":
+        if not minimax_api_key:
+            raise Exception("Minimax API key required but not provided")
+        text_to_display = display_text if display_text else text
+        print(f"🔊 Minimax TTS with voice: {voice}")
+        generate_tts_minimax(text, voice, minimax_api_key, audio_path)
+
+        audio_duration = None
+        try:
+            dur_cmd = [
+                "ffprobe", "-v", "error", "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path),
+            ]
+            dur_proc = subprocess.run(dur_cmd, stdout=subprocess.PIPE, text=True)
+            audio_duration = float(dur_proc.stdout.strip())
+            print(f"⏱️ Minimax TTS Duration: {audio_duration:.2f}s")
+        except Exception as e:
+            print(f"⚠️ Could not measure Minimax TTS duration: {e}")
+
+        unsynced_srt_path = audio_path.with_suffix(".unsynced.srt")
+        synced_srt_path = audio_path.with_suffix(".synced.srt")
+        generate_unsynced_srt(text_to_display, unsynced_srt_path, total_duration=audio_duration)
+        run_ffsubsync(audio_path, unsynced_srt_path, synced_srt_path)
+        convert_srt_to_ass(synced_srt_path, ass_path, font_size=65, delay=delay)
+        print("✅ Minimax TTS synchronisation completed with ffsubsync")
+        return
 
     # Determine gender of requested voice to choose appropriate fallbacks
     is_male = any(name in voice for name in ["Remi", "Henri", "Paul"])
@@ -796,15 +857,15 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                 print(f"🔊 TTS enabled. Original: '{request.text}'")
                 print(f"🔊 TTS cleaned: '{tts_clean_text}'")
 
-                # Check for male/female voice map
+                # Check for male/female voice map (edge_tts only)
                 voice = request.tts_voice
-                if voice == "male":
-                    voice = "fr-FR-RemyMultilingualNeural"
-                elif voice == "female":
-                    voice = "fr-FR-VivienneMultilingualNeural"
-                elif not voice or "Neural" not in voice:
-                    # Default if invalid
-                    voice = "fr-FR-VivienneMultilingualNeural"
+                if request.tts_provider != "minimax":
+                    if voice == "male":
+                        voice = "fr-FR-RemyMultilingualNeural"
+                    elif voice == "female":
+                        voice = "fr-FR-VivienneMultilingualNeural"
+                    elif not voice or "Neural" not in voice:
+                        voice = "fr-FR-VivienneMultilingualNeural"
 
                 print(f"🔊 Using voice: {voice}")
 
@@ -818,6 +879,8 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                         tts_ass_path,
                         display_text=clean_text_for_display(request.text),
                         delay=2.0,
+                        tts_provider=request.tts_provider,
+                        minimax_api_key=request.minimax_api_key,
                     )
 
                     # Verify files were created
@@ -1189,12 +1252,13 @@ async def preview_tts(request: ReelRequest, x_api_key: str = Header(None)):
 
         # Determine voice (reuse logic)
         voice = request.tts_voice
-        if voice == "male":
-            voice = "fr-FR-RemyMultilingualNeural"
-        elif voice == "female":
-            voice = "fr-FR-VivienneMultilingualNeural"
-        elif not voice or "Neural" not in voice:
-            voice = "fr-FR-VivienneMultilingualNeural"
+        if request.tts_provider != "minimax":
+            if voice == "male":
+                voice = "fr-FR-RemyMultilingualNeural"
+            elif voice == "female":
+                voice = "fr-FR-VivienneMultilingualNeural"
+            elif not voice or "Neural" not in voice:
+                voice = "fr-FR-VivienneMultilingualNeural"
 
         # Pass original text for subtitles (implied in SRT for preview too if needed, though mostly audio)
         # Preview TTS generation doesn't technically need the full 2s video delay, but if the frontend plays it against standard timing it might.

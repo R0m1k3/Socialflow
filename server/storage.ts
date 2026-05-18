@@ -39,6 +39,9 @@ import {
   type InsertAudioTrack,
   appConfig,
   type AppConfig,
+  minimaxConfig,
+  type MinimaxConfig,
+  type InsertMinimaxConfig,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, asc, isNull, inArray } from "drizzle-orm";
@@ -608,6 +611,24 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(appConfig).values(data).returning();
     return created;
+  }
+  // Minimax Config
+  async getMinimaxConfig(userId: string): Promise<MinimaxConfig | undefined> {
+    const [config] = await db.select().from(minimaxConfig).where(eq(minimaxConfig.userId, userId));
+    return config || undefined;
+  }
+
+  async createMinimaxConfig(config: InsertMinimaxConfig): Promise<MinimaxConfig> {
+    const [newConfig] = await db.insert(minimaxConfig).values(config).returning();
+    return newConfig;
+  }
+
+  async updateMinimaxConfig(userId: string, config: Partial<InsertMinimaxConfig>): Promise<MinimaxConfig> {
+    const [updated] = await db.update(minimaxConfig)
+      .set({ ...config, updatedAt: new Date() })
+      .where(eq(minimaxConfig.userId, userId))
+      .returning();
+    return updated;
   }
 }
 

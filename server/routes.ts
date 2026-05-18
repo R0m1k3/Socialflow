@@ -10,7 +10,7 @@ import passport from "./auth";
 import { z } from "zod";
 import { openRouterService } from "./services/openrouter";
 import { minioService as cloudinaryService, buildMinioUrl } from "./services/minio";
-import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertFreesoundConfigSchema, updateFreesoundConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
+import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertFreesoundConfigSchema, updateFreesoundConfigSchema, updateMinimaxConfigSchema, insertMinimaxConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
 import type { User, InsertUser, ScheduledPost, FreesoundConfig } from "@shared/schema";
 import { freeSoundService } from "./services/freesound";
 import { analyticsRouter } from "./routes/analytics";
@@ -473,6 +473,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ success: true });
     } catch (error) {
       console.error("Error saving Freesound config:", error);
+      res.status(500).json({ error: "Failed to save configuration" });
+    }
+  });
+
+  // Minimax Configuration Routes
+  app.get("/api/minimax/config", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const config = await storage.getMinimaxConfig(user.id);
+      if (!config) {
+        return res.json(null);
+      }
+      return res.json({
+        ...config,
+        apiKey: config.apiKey ? "********" : "",
+      });
+    } catch (error) {
+      console.error("Error fetching Minimax config:", error);
+      res.status(500).json({ error: "Failed to fetch configuration" });
+    }
+  });
+
+  app.post("/api/minimax/config", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const data = updateMinimaxConfigSchema.parse(req.body);
+
+      let config = await storage.getMinimaxConfig(user.id);
+      const updateData: any = { ...data };
+
+      if (!updateData.apiKey || updateData.apiKey === "********") {
+        delete updateData.apiKey;
+      }
+
+      if (config) {
+        config = await storage.updateMinimaxConfig(user.id, updateData);
+      } else {
+        if (!data.apiKey) {
+          return res.status(400).json({ error: "API Key is required" });
+        }
+        config = await storage.createMinimaxConfig({ ...data as any, userId: user.id });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving Minimax config:", error);
       res.status(500).json({ error: "Failed to save configuration" });
     }
   });

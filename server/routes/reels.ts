@@ -298,6 +298,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             overlayText,
             ttsEnabled,
             ttsVoice,
+            ttsProvider,
             wordDuration = 0.6,
             fontSize = 64,
             musicVolume = 0.25,
@@ -352,12 +353,23 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
 
         const finalWordDuration = wordDuration;
 
+        let minimaxApiKey: string | undefined;
+        if (ttsEnabled && ttsProvider === 'minimax') {
+            const minimaxCfg = await storage.getMinimaxConfig(user.id);
+            if (!minimaxCfg?.apiKey) {
+                return res.status(400).json({ error: 'Clé API Minimax non configurée. Allez dans les Paramètres.' });
+            }
+            minimaxApiKey = minimaxCfg.apiKey;
+        }
+
         // Traiter la vidéo via FFmpeg
         const result = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
             text: overlayText,
             musicUrl: finalMusicUrl,
             ttsEnabled,
             ttsVoice,
+            ttsProvider,
+            minimaxApiKey,
             wordDuration: finalWordDuration,
             fontSize,
             musicVolume,
@@ -389,13 +401,23 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
  */
 reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
     try {
-        const { text, voice } = req.body;
+        const user = req.user as User;
+        const { text, voice, ttsProvider } = req.body;
 
         if (!text) {
             return res.status(400).json({ error: 'Texte requis' });
         }
 
-        const result = await ffmpegService.previewTTS(text, voice);
+        let minimaxApiKey: string | undefined;
+        if (ttsProvider === 'minimax') {
+            const minimaxCfg = await storage.getMinimaxConfig(user.id);
+            if (!minimaxCfg?.apiKey) {
+                return res.status(400).json({ error: 'Clé API Minimax non configurée. Allez dans les Paramètres.' });
+            }
+            minimaxApiKey = minimaxCfg.apiKey;
+        }
+
+        const result = await ffmpegService.previewTTS(text, voice, ttsProvider, minimaxApiKey);
 
         if (!result.success) {
             return res.status(500).json({ error: result.error || 'Erreur de génération TTS' });
@@ -487,6 +509,7 @@ async function processReelBackground(
         description?: string;
         ttsEnabled?: boolean;
         ttsVoice?: string;
+        ttsProvider?: string;
         pageIds: string[];
         scheduledFor?: string;
         wordDuration?: number;
@@ -506,6 +529,7 @@ async function processReelBackground(
         description,
         ttsEnabled,
         ttsVoice,
+        ttsProvider,
         pageIds,
         scheduledFor,
         wordDuration,
@@ -585,11 +609,21 @@ async function processReelBackground(
 
         const finalWordDuration = wordDuration ?? 0.6;
 
+        let minimaxApiKeyBg: string | undefined;
+        if (ttsEnabled && ttsProvider === 'minimax') {
+            const minimaxCfg = await storage.getMinimaxConfig(userId);
+            if (minimaxCfg?.apiKey) {
+                minimaxApiKeyBg = minimaxCfg.apiKey;
+            }
+        }
+
         const ffmpegResult = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
             text: overlayText,
             musicUrl: finalMusicUrl,
             ttsEnabled,
             ttsVoice,
+            ttsProvider,
+            minimaxApiKey: minimaxApiKeyBg,
             wordDuration: finalWordDuration,
             fontSize,
             musicVolume,
