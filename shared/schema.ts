@@ -133,20 +133,10 @@ export const openrouterConfig = pgTable("openrouter_config", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const freesoundConfig = pgTable("freesound_config", {
+export const piperConfig = pgTable("piper_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
-  clientId: text("client_id").notNull(),
-  clientSecret: text("client_secret").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
-export const minimaxConfig = pgTable("minimax_config", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
-  apiKey: text("api_key").notNull(),
-  groupId: text("group_id"),
+  url: text("url").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -291,7 +281,6 @@ export const usersRelations = relations(users, ({ many, one }) => ({
   pagePermissions: many(userPagePermissions),
   cloudinaryConfig: one(cloudinaryConfig),
   openrouterConfig: one(openrouterConfig),
-  freesoundConfig: one(freesoundConfig),
 }));
 
 // Pas de relation User pour CloudinaryConfig (maintenant global)
@@ -481,39 +470,22 @@ export type InsertMusicFavorite = z.infer<typeof insertMusicFavoriteSchema>;
 export type AudioTrack = typeof audioTracks.$inferSelect;
 export type InsertAudioTrack = z.infer<typeof insertAudioTrackSchema>;
 
-export const insertFreesoundConfigSchema = createInsertSchema(freesoundConfig).omit({
+export const insertPiperConfigSchema = createInsertSchema(piperConfig).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export const updateFreesoundConfigSchema = insertFreesoundConfigSchema.omit({
+export const updatePiperConfigSchema = insertPiperConfigSchema.omit({
   userId: true
 }).partial({
-  clientId: true,
-  clientSecret: true,
+  url: true,
 });
 
-export type FreesoundConfig = typeof freesoundConfig.$inferSelect;
+export type PiperConfig = typeof piperConfig.$inferSelect;
+export type InsertPiperConfig = z.infer<typeof insertPiperConfigSchema>;
+export type UpdatePiperConfig = z.infer<typeof updatePiperConfigSchema>;
 
 export type AppConfig = typeof appConfig.$inferSelect;
-export type InsertFreesoundConfig = z.infer<typeof insertFreesoundConfigSchema>;
-export type UpdateFreesoundConfig = z.infer<typeof updateFreesoundConfigSchema>;
-
-export const insertMinimaxConfigSchema = createInsertSchema(minimaxConfig).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const updateMinimaxConfigSchema = insertMinimaxConfigSchema.omit({
-  userId: true
-}).partial({
-  apiKey: true,
-});
-
-export type MinimaxConfig = typeof minimaxConfig.$inferSelect;
-export type InsertMinimaxConfig = z.infer<typeof insertMinimaxConfigSchema>;
-export type UpdateMinimaxConfig = z.infer<typeof updateMinimaxConfigSchema>;
 
 

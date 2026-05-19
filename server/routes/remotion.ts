@@ -199,7 +199,6 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
       ? req.body.overlayText.trim()
       : undefined;
 
-    const ttsVoice: string = req.body.ttsVoice || "fr-FR-VivienneMultilingualNeural";
     const musicVolume: number = parseFloat(req.body.musicVolume ?? "0.3");
 
     // Music: HTTP URLs are fine for audio (Remotion uses Web Audio API, not <Img>)
@@ -248,7 +247,7 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
       if (ttsText) {
         console.log("🎙️ Generating TTS for:", ttsText);
         try {
-          const ttsResult = await ffmpegService.previewTTS(ttsText, ttsVoice);
+          const ttsResult = await ffmpegService.previewTTS(ttsText);
           if (ttsResult.success && ttsResult.audioBase64) {
             const audioFilename = `tts-${Date.now()}.mp3`;
             const audioPath = path.join(uploadDir, audioFilename);

@@ -5,7 +5,6 @@
 import { Router, Request, Response } from 'express';
 import type { User, Media, SocialPage } from '@shared/schema';
 import { storage } from '../storage';
-import { freeSoundService, type MusicTrack } from '../services/freesound';
 import { ffmpegService } from '../services/ffmpeg';
 import { facebookService } from '../services/facebook';
 import { minioService as cloudinaryService, buildMinioUrl, resolveInternalUrl } from '../services/minio';
@@ -36,21 +35,12 @@ reelsRouter.get('/music/search', async (req: Request, res: Response) => {
             search,
         } = req.query;
 
-        const tracks = await freeSoundService.searchMusicByDuration({
-            minDuration: parseInt(minDuration as string),
-            maxDuration: parseInt(maxDuration as string),
-            genre: genre as string | undefined,
-            limit: parseInt(limit as string),
-            offset: parseInt(offset as string),
-            search: search as string | undefined,
-        });
-
         res.json({
-            tracks,
+            tracks: [],
             pagination: {
                 offset: parseInt(offset as string),
                 limit: parseInt(limit as string),
-                hasMore: tracks.length === parseInt(limit as string),
+                hasMore: false,
             },
         });
     } catch (error) {
@@ -74,21 +64,12 @@ reelsRouter.get('/music/more', async (req: Request, res: Response) => {
             search,
         } = req.query;
 
-        const tracks = await freeSoundService.searchMusicByDuration({
-            minDuration: parseInt(minDuration as string),
-            maxDuration: parseInt(maxDuration as string),
-            genre: genre as string | undefined,
-            limit: parseInt(limit as string),
-            offset: parseInt(offset as string),
-            search: search as string | undefined,
-        });
-
         res.json({
-            tracks,
+            tracks: [],
             pagination: {
                 offset: parseInt(offset as string),
                 limit: parseInt(limit as string),
-                hasMore: tracks.length === parseInt(limit as string),
+                hasMore: false,
             },
         });
     } catch (error) {
@@ -103,9 +84,7 @@ reelsRouter.get('/music/more', async (req: Request, res: Response) => {
  */
 reelsRouter.get('/music/popular', async (req: Request, res: Response) => {
     try {
-        const limit = parseInt(req.query.limit as string) || 10;
-        const tracks = await freeSoundService.getPopularTracks(limit);
-        res.json({ tracks });
+        res.json({ tracks: [] });
     } catch (error) {
         console.error('❌ Error fetching popular music:', error);
         res.status(500).json({ error: 'Erreur lors de la récupération des musiques populaires' });
@@ -229,13 +208,7 @@ reelsRouter.delete('/music/favorites/:trackId', async (req: Request, res: Respon
 reelsRouter.get('/music/:trackId', async (req: Request, res: Response) => {
     try {
         const { trackId } = req.params;
-        const track = await freeSoundService.getMusicDetails(trackId);
-
-        if (!track) {
-            return res.status(404).json({ error: 'Musique non trouvée' });
-        }
-
-        res.json(track);
+        return res.status(404).json({ error: 'Musique non trouvée' });
     } catch (error) {
         console.error('❌ Error fetching music details:', error);
         res.status(500).json({ error: 'Erreur lors de la récupération des détails' });
@@ -297,8 +270,6 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             musicUrl,
             overlayText,
             ttsEnabled,
-            ttsVoice,
-            ttsProvider,
             wordDuration = 0.6,
             fontSize = 64,
             musicVolume = 0.25,
@@ -334,11 +305,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
                     console.log(`🎵 Audio URL for ffmpeg: ${finalMusicUrl}`);
                 }
             } else {
-                const track = await freeSoundService.getMusicDetails(musicTrackId);
-                if (track) {
-                    finalMusicUrl = track.downloadUrl;
-                }
-            }
+                    }
         }
 
         let watermarkUrl: string | undefined = undefined;
@@ -353,15 +320,10 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
 
         const finalWordDuration = wordDuration;
 
-        let minimaxApiKey: string | undefined;
-        let minimaxGroupId: string | undefined;
-        if (ttsEnabled && ttsProvider === 'minimax') {
-            const minimaxCfg = await storage.getMinimaxConfig(user.id);
-            if (!minimaxCfg?.apiKey) {
-                return res.status(400).json({ error: 'Clé API Minimax non configurée. Allez dans les Paramètres.' });
-            }
-            minimaxApiKey = minimaxCfg.apiKey;
-            minimaxGroupId = minimaxCfg.groupId ?? undefined;
+        let piperUrl: string | undefined;
+        if (ttsEnabled) {
+            const piperCfg = await storage.getPiperConfig(user.id);
+            piperUrl = piperCfg?.url ?? undefined;
         }
 
         // Traiter la vidéo via FFmpeg
@@ -369,10 +331,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             text: overlayText,
             musicUrl: finalMusicUrl,
             ttsEnabled,
-            ttsVoice,
-            ttsProvider,
-            minimaxApiKey,
-            minimaxGroupId,
+            piperUrl,
             wordDuration: finalWordDuration,
             fontSize,
             musicVolume,
@@ -405,24 +364,14 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
 reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
     try {
         const user = req.user as User;
-        const { text, voice, ttsProvider } = req.body;
+        const { text } = req.body;
 
         if (!text) {
             return res.status(400).json({ error: 'Texte requis' });
         }
 
-        let minimaxApiKey: string | undefined;
-        let minimaxGroupId: string | undefined;
-        if (ttsProvider === 'minimax') {
-            const minimaxCfg = await storage.getMinimaxConfig(user.id);
-            if (!minimaxCfg?.apiKey) {
-                return res.status(400).json({ error: 'Clé API Minimax non configurée. Allez dans les Paramètres.' });
-            }
-            minimaxApiKey = minimaxCfg.apiKey;
-            minimaxGroupId = minimaxCfg.groupId ?? undefined;
-        }
-
-        const result = await ffmpegService.previewTTS(text, voice, ttsProvider, minimaxApiKey, minimaxGroupId);
+        const piperCfg = await storage.getPiperConfig(user.id);
+        const result = await ffmpegService.previewTTS(text, piperCfg?.url);
 
         if (!result.success) {
             return res.status(500).json({ error: result.error || 'Erreur de génération TTS' });
@@ -513,8 +462,6 @@ async function processReelBackground(
         overlayText?: string;
         description?: string;
         ttsEnabled?: boolean;
-        ttsVoice?: string;
-        ttsProvider?: string;
         pageIds: string[];
         scheduledFor?: string;
         wordDuration?: number;
@@ -533,8 +480,6 @@ async function processReelBackground(
         overlayText,
         description,
         ttsEnabled,
-        ttsVoice,
-        ttsProvider,
         pageIds,
         scheduledFor,
         wordDuration,
@@ -579,15 +524,6 @@ async function processReelBackground(
                         console.log(`🎵 [Background] Audio URL for ffmpeg: ${finalMusicUrl}`);
                     }
                 } catch (e) { console.error('Error fetching internal track', e); }
-            } else {
-                try {
-                    const track = await freeSoundService.getMusicDetails(musicTrackId);
-                    if (track) {
-                        finalMusicUrl = track.downloadUrl;
-                    }
-                } catch (e) {
-                    console.error(`⚠️ [Background] Failed to fetch music details for ${musicTrackId}`, e);
-                }
             }
         }
 
@@ -614,28 +550,19 @@ async function processReelBackground(
 
         const finalWordDuration = wordDuration ?? 0.6;
 
-        let minimaxApiKeyBg: string | undefined;
-        let minimaxGroupIdBg: string | undefined;
-        if (ttsEnabled && ttsProvider === 'minimax') {
-            const minimaxCfg = await storage.getMinimaxConfig(userId);
-            if (minimaxCfg?.apiKey) {
-                minimaxApiKeyBg = minimaxCfg.apiKey;
-                minimaxGroupIdBg = minimaxCfg.groupId ?? undefined;
-            } else {
-                console.error('❌ [Background] Minimax API key not found in DB for user:', userId);
-            }
+        let piperUrlBg: string | undefined;
+        if (ttsEnabled) {
+            const piperCfg = await storage.getPiperConfig(userId);
+            piperUrlBg = piperCfg?.url ?? undefined;
         }
 
-        console.log('🔊 [Background] TTS config:', { ttsEnabled, ttsProvider, ttsVoice, hasMinimaxKey: !!minimaxApiKeyBg, hasGroupId: !!minimaxGroupIdBg });
+        console.log('🔊 [Background] TTS config:', { ttsEnabled, hasPiperUrl: !!piperUrlBg });
 
         const ffmpegResult = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
             text: overlayText,
             musicUrl: finalMusicUrl,
             ttsEnabled,
-            ttsVoice,
-            ttsProvider,
-            minimaxApiKey: minimaxApiKeyBg,
-            minimaxGroupId: minimaxGroupIdBg,
+            piperUrl: piperUrlBg,
             wordDuration: finalWordDuration,
             fontSize,
             musicVolume,
@@ -799,7 +726,6 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             overlayText,
             description,
             ttsEnabled,
-            ttsVoice,
             pageIds,
             scheduledFor,
             wordDuration = 0.6,
@@ -889,12 +815,11 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
  */
 reelsRouter.get('/reels/config', async (req: Request, res: Response) => {
     try {
-        const freesoundConfigured = await freeSoundService.testConnection().catch(() => false);
         const ffmpegConfigured = await ffmpegService.healthCheck().catch(() => false);
 
         res.json({
-            jamendo: { configured: freesoundConfigured }, // Keep legacy key for frontend compatibility
-            freesound: { configured: freesoundConfigured },
+            jamendo: { configured: false },
+            freesound: { configured: false },
             ffmpeg: { configured: ffmpegConfigured },
         });
     } catch (error) {

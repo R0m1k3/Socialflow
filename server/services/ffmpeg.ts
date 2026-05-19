@@ -12,10 +12,7 @@ interface FFmpegReelRequest {
     music_id?: string;          // ID de la musique (catalogue FFmpeg)
     music_url?: string;         // OU URL directe de la musique
     tts_enabled?: boolean;      // Activation du TTS
-    tts_voice?: string;         // Voix TTS (ex: fr-FR-VivienneNeural)
-    tts_provider?: string;      // Provider TTS: "edge_tts" (défaut) ou "minimax"
-    minimax_api_key?: string;   // Clé API Minimax (requis si tts_provider=minimax)
-    minimax_group_id?: string;  // Group ID Minimax (requis pour quotas corrects)
+    piper_url?: string;         // URL du serveur Piper TTS
     word_duration?: number;     // Durée par mot (default: 0.6s)
     font_size?: number;         // Taille police (default: 24)
     music_volume?: number;      // Volume musique (default: 0.25)
@@ -74,10 +71,7 @@ export class FFmpegService {
             musicId?: string;
             musicUrl?: string;
             ttsEnabled?: boolean;
-            ttsVoice?: string;
-            ttsProvider?: string;
-            minimaxApiKey?: string;
-            minimaxGroupId?: string;
+            piperUrl?: string;
             wordDuration?: number;
             fontSize?: number;
             musicVolume?: number;
@@ -96,10 +90,7 @@ export class FFmpegService {
             music_id: options.musicId,
             music_url: options.musicUrl,
             tts_enabled: options.ttsEnabled,
-            tts_voice: options.ttsVoice,
-            tts_provider: options.ttsProvider,
-            minimax_api_key: options.minimaxApiKey,
-            minimax_group_id: options.minimaxGroupId,
+            piper_url: options.piperUrl,
             word_duration: options.wordDuration ?? 0.6,
             font_size: options.fontSize ?? 64,
             music_volume: options.musicVolume ?? 0.25,
@@ -181,10 +172,7 @@ export class FFmpegService {
             musicId?: string;
             musicUrl?: string;
             ttsEnabled?: boolean;
-            ttsVoice?: string;
-            ttsProvider?: string;
-            minimaxApiKey?: string;
-            minimaxGroupId?: string;
+            piperUrl?: string;
             wordDuration?: number;
             fontSize?: number;
             musicVolume?: number;
@@ -203,10 +191,7 @@ export class FFmpegService {
             music_id: options.musicId,
             music_url: options.musicUrl,
             tts_enabled: options.ttsEnabled,
-            tts_voice: options.ttsVoice,
-            tts_provider: options.ttsProvider,
-            minimax_api_key: options.minimaxApiKey,
-            minimax_group_id: options.minimaxGroupId,
+            piper_url: options.piperUrl,
             word_duration: options.wordDuration ?? 0.6,
             font_size: options.fontSize ?? 64,
             music_volume: options.musicVolume ?? 0.25,
@@ -231,12 +216,11 @@ export class FFmpegService {
             hasMusicId: !!options.musicId,
             hasMusicUrl: !!options.musicUrl,
             ttsEnabled: options.ttsEnabled,
-            ttsVoice: options.ttsVoice,
+            hasPiperUrl: !!options.piperUrl,
             drawText: options.drawText,
         });
 
         const debugBody = { ...requestBody };
-        if (debugBody.minimax_api_key) debugBody.minimax_api_key = '***';
         console.log('📤 Sending to FFmpeg API:', JSON.stringify({ ...debugBody, text: debugBody.text ? `[${debugBody.text.length} chars]` : undefined }));
 
         try {
@@ -307,10 +291,7 @@ export class FFmpegService {
     }
     async previewTTS(
         text: string,
-        voice: string,
-        ttsProvider?: string,
-        minimaxApiKey?: string,
-        minimaxGroupId?: string
+        piperUrl?: string
     ): Promise<{ success: boolean; audioBase64?: string; error?: string }> {
         const config = this.ensureConfigured();
 
@@ -323,10 +304,8 @@ export class FFmpegService {
                 },
                 body: JSON.stringify({
                     text,
-                    tts_voice: voice,
-                    tts_provider: ttsProvider,
-                    minimax_api_key: minimaxApiKey,
-                    minimax_group_id: minimaxGroupId,
+                    tts_enabled: true,
+                    piper_url: piperUrl,
                 }),
             });
 

@@ -65,8 +65,6 @@ export default function NewReel() {
     const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
     const [musicVolume, setMusicVolume] = useState([25]);
     const [ttsEnabled, setTtsEnabled] = useState(true);
-    const [ttsVoice, setTtsVoice] = useState("fr-FR-VivienneMultilingualNeural");
-    const [ttsProvider, setTtsProvider] = useState<"edge_tts" | "minimax">("edge_tts");
     const [drawText, setDrawText] = useState(true);
     const [stabilize, setStabilize] = useState(true); // default to true
     const [enableEndingEffect, setEnableEndingEffect] = useState(true);
@@ -88,23 +86,23 @@ export default function NewReel() {
         }
     }, []);
 
-    // Auto-calculate TTS sync when text or voice changes (Edge TTS only)
+    // Auto-calculate TTS sync when text changes (edge_tts fallback)
     useEffect(() => {
-        if (!ttsEnabled || !overlayText.trim() || ttsProvider !== "edge_tts") {
+        if (!ttsEnabled || !overlayText.trim()) {
             setSyncInfo(null);
             return;
         }
         const timer = setTimeout(() => {
             apiRequest('POST', '/api/reels/sync-info', {
                 text: overlayText,
-                voice: ttsVoice,
+                voice: "fr-FR-VivienneMultilingualNeural",
             })
                 .then(r => r.json())
                 .then(data => setSyncInfo(data))
                 .catch(() => setSyncInfo(null));
         }, 800);
         return () => clearTimeout(timer);
-    }, [overlayText, ttsVoice, ttsEnabled, ttsProvider]);
+    }, [overlayText, ttsEnabled]);
 
 
     // État audio preview
@@ -362,8 +360,6 @@ export default function NewReel() {
             scheduledFor: scheduledDate?.toISOString(),
             musicVolume: musicVolume[0] / 100,
             ttsEnabled,
-            ttsVoice,
-            ttsProvider,
             drawText,
             stabilize: stabilize,
             enableEndingEffect,
@@ -764,60 +760,9 @@ export default function NewReel() {
 
                                             {ttsEnabled && (
                                                 <div className="mt-4 space-y-2 ml-12 p-4 bg-muted/30 rounded-lg border border-border/50">
-                                                    <Label className="flex items-center gap-2">
+                                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                                         <Mic className="w-4 h-4" />
-                                                        Moteur TTS
-                                                    </Label>
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => { setTtsProvider("edge_tts"); setTtsVoice("fr-FR-VivienneMultilingualNeural"); }}
-                                                            className={`p-2 rounded-md border-2 text-sm font-medium transition-all ${ttsProvider === "edge_tts" ? "border-primary bg-primary/10" : "border-transparent bg-muted/30 hover:bg-accent"}`}
-                                                        >
-                                                            Edge TTS (local)
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => { setTtsProvider("minimax"); setTtsVoice("French_Female_News"); }}
-                                                            className={`p-2 rounded-md border-2 text-sm font-medium transition-all ${ttsProvider === "minimax" ? "border-primary bg-primary/10" : "border-transparent bg-muted/30 hover:bg-accent"}`}
-                                                        >
-                                                            Minimax (premium)
-                                                        </button>
-                                                    </div>
-
-                                                    <Label className="flex items-center gap-2 mt-3">
-                                                        Voix du narrateur
-                                                    </Label>
-                                                    <div className="grid grid-cols-2 gap-3">
-                                                        {(ttsProvider === "edge_tts" ? [
-                                                            { id: "fr-FR-VivienneMultilingualNeural", label: "Vivienne", type: "Femme (Défaut)", style: "bg-pink-500/10 border-pink-500/50" },
-                                                            { id: "fr-FR-RemyMultilingualNeural", label: "Rémy", type: "Homme", style: "bg-blue-500/10 border-blue-500/50" },
-                                                            { id: "fr-FR-DeniseNeural", label: "Denise", type: "Femme (Calme)", style: "bg-purple-500/10 border-purple-500/50" },
-                                                            { id: "fr-FR-HenriNeural", label: "Henri", type: "Homme (Grave)", style: "bg-slate-500/10 border-slate-500/50" },
-                                                            { id: "fr-FR-EloiseNeural", label: "Éloïse", type: "Enfant", style: "bg-orange-500/10 border-orange-500/50" }
-                                                        ] : [
-                                                            { id: "French_Female_News", label: "News Féminin", type: "Femme (Défaut)", style: "bg-pink-500/10 border-pink-500/50" },
-                                                            { id: "French_Male_Speech_New", label: "Speech Masculin", type: "Homme", style: "bg-blue-500/10 border-blue-500/50" },
-                                                            { id: "French_MovieLeadFemale", label: "Cinéma Femme", type: "Femme (Dramatique)", style: "bg-purple-500/10 border-purple-500/50" },
-                                                            { id: "French_CasualMan", label: "Casual Homme", type: "Homme (Décontracté)", style: "bg-slate-500/10 border-slate-500/50" },
-                                                            { id: "French_FemaleAnchor", label: "Présentatrice", type: "Femme (Média)", style: "bg-rose-500/10 border-rose-500/50" },
-                                                            { id: "French_MaleNarrator", label: "Narrateur", type: "Homme (Narration)", style: "bg-indigo-500/10 border-indigo-500/50" }
-                                                        ]).map((voice) => (
-                                                            <div
-                                                                key={voice.id}
-                                                                onClick={() => setTtsVoice(voice.id)}
-                                                                className={`cursor-pointer p-3 rounded-md border-2 transition-all hover:bg-accent ${ttsVoice === voice.id
-                                                                    ? `border-primary ${voice.style}`
-                                                                    : 'border-transparent bg-muted/30'
-                                                                    }`}
-                                                            >
-                                                                <div className="font-semibold flex items-center justify-between">
-                                                                    {voice.label}
-                                                                    {ttsVoice === voice.id && <Check className="w-3 h-3 text-primary" />}
-                                                                </div>
-                                                                <div className="text-xs text-muted-foreground">{voice.type}</div>
-                                                            </div>
-                                                        ))}
+                                                        <span>Piper TTS — voix configurée sur le serveur</span>
                                                     </div>
 
                                                     <div className="mt-3 flex gap-2">
@@ -831,8 +776,6 @@ export default function NewReel() {
                                                                 try {
                                                                     const response = await apiRequest('POST', '/api/reels/tts-preview', {
                                                                         text: textToTest,
-                                                                        voice: ttsVoice,
-                                                                        ttsProvider,
                                                                     });
                                                                     const data = await response.json();
                                                                     if (data.success && data.audioBase64) {
@@ -853,15 +796,7 @@ export default function NewReel() {
                                                         </Button>
                                                     </div>
 
-                                                    {ttsProvider === "minimax" && (
-                                                        <div className="p-3 rounded-lg border mt-3 bg-blue-500/10 border-blue-500/30">
-                                                            <p className="text-xs text-blue-600 dark:text-blue-400">
-                                                                Minimax utilise ffsubsync pour la synchronisation des sous-titres. Configurez votre clé API dans Paramètres.
-                                                            </p>
-                                                        </div>
-                                                    )}
-
-                                                    {ttsProvider === "edge_tts" && syncInfo && (
+                                                    {syncInfo && (
                                                         <div className={`p-3 rounded-lg border mt-3 ${syncInfo.isHealthy ? 'bg-green-500/10 border-green-500/30' : 'bg-yellow-500/10 border-yellow-500/30'}`}>
                                                             <div className="flex items-center justify-between text-sm">
                                                                 <span className="font-medium">Sync texte/voix</span>

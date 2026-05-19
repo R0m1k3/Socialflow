@@ -15,13 +15,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DateTimePicker } from "@/components/datetime-picker";
 import type { Media, SocialPage } from "@shared/schema";
 
-const TTS_VOICES = [
-  { id: "fr-FR-VivienneMultilingualNeural", label: "Vivienne", type: "Femme" },
-  { id: "fr-FR-RemyMultilingualNeural",     label: "Rémy",     type: "Homme" },
-  { id: "fr-FR-DeniseNeural",               label: "Denise",   type: "Femme" },
-  { id: "fr-FR-HenriNeural",                label: "Henri",    type: "Homme" },
-  { id: "fr-FR-EloiseNeural",               label: "Éloïse",   type: "Enfant" },
-];
 
 interface AudioTrack {
   id: string;
@@ -39,7 +32,6 @@ export default function RemotionVideoPage() {
   const [productInfo, setProductInfo] = useState("");
   const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
   const [ttsEnabled, setTtsEnabled] = useState(true);
-  const [ttsVoice, setTtsVoice] = useState("fr-FR-VivienneMultilingualNeural");
   const [musicFile, setMusicFile] = useState<File | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<AudioTrack | null>(null);
   const [musicVolume, setMusicVolume] = useState(0.3);
@@ -86,7 +78,7 @@ export default function RemotionVideoPage() {
     const ttsText = overlayText.replace(/#\w+/g, '').replace(/[\uD800-\uDFFF\u2600-\u27BF]/g, '').replace(/\s+/g, ' ').trim();
     if (!ttsText) return;
     try {
-      const r = await apiRequest('POST', '/api/reels/tts-preview', { text: ttsText, voice: ttsVoice });
+      const r = await apiRequest('POST', '/api/reels/tts-preview', { text: ttsText });
       const data = await r.json();
       if (data.success && data.audioBase64) new window.Audio(`data:audio/mp3;base64,${data.audioBase64}`).play();
     } catch { toast({ title: "Erreur prévisualisation voix", variant: "destructive" }); }
@@ -107,7 +99,6 @@ export default function RemotionVideoPage() {
       images.forEach(img => formData.append("images", img));
       selectedLibraryImages.forEach(m => formData.append("existingImageUrls", m.originalUrl));
       if (overlayText) formData.append("overlayText", overlayText);
-      if (ttsEnabled && overlayText) formData.append("ttsVoice", ttsVoice);
       if (selectedPageIds[0]) formData.append("selectedPageId", selectedPageIds[0]);
       if (musicFile) { formData.append("music", musicFile); formData.append("musicVolume", String(musicVolume)); }
       else if (selectedTrack) { formData.append("musicTrackUrl", selectedTrack.url); formData.append("musicVolume", String(musicVolume)); }
@@ -261,15 +252,7 @@ export default function RemotionVideoPage() {
           </div>
           {ttsEnabled && (
             <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
-              <div className="grid grid-cols-3 gap-2">
-                {TTS_VOICES.map(v => (
-                  <div key={v.id} onClick={() => setTtsVoice(v.id)}
-                    className={`cursor-pointer p-2 rounded border-2 text-center transition-all ${ttsVoice === v.id ? 'border-primary bg-primary/10' : 'border-transparent bg-muted/30'}`}>
-                    <div className="font-semibold text-sm">{v.label}</div>
-                    <div className="text-xs text-muted-foreground">{v.type}</div>
-                  </div>
-                ))}
-              </div>
+              <p className="text-sm text-muted-foreground">Piper TTS — voix configurée sur le serveur</p>
               <Button size="sm" variant="outline" className="w-full" onClick={handleTtsPreview} disabled={!overlayText}>
                 <Volume2 className="mr-2 w-3 h-3" /> Écouter la voix
               </Button>

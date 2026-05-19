@@ -31,17 +31,14 @@ import {
   musicFavorites,
   type MusicFavorite,
   type InsertMusicFavorite,
-  freesoundConfig,
-  type FreesoundConfig,
-  type InsertFreesoundConfig,
+  piperConfig,
+  type PiperConfig,
+  type InsertPiperConfig,
   audioTracks,
   type AudioTrack,
   type InsertAudioTrack,
   appConfig,
   type AppConfig,
-  minimaxConfig,
-  type MinimaxConfig,
-  type InsertMinimaxConfig,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, asc, isNull, inArray } from "drizzle-orm";
@@ -127,10 +124,10 @@ export interface IStorage {
   createAudioTrack(track: InsertAudioTrack): Promise<AudioTrack>;
   deleteAudioTrack(id: string): Promise<void>;
 
-  // Freesound Config
-  getFreesoundConfig(userId: string): Promise<FreesoundConfig | undefined>;
-  createFreesoundConfig(config: InsertFreesoundConfig): Promise<FreesoundConfig>;
-  updateFreesoundConfig(userId: string, config: Partial<InsertFreesoundConfig>): Promise<FreesoundConfig>;
+  // Piper Config
+  getPiperConfig(userId: string): Promise<PiperConfig | undefined>;
+  createPiperConfig(config: InsertPiperConfig): Promise<PiperConfig>;
+  updatePiperConfig(userId: string, config: Partial<InsertPiperConfig>): Promise<PiperConfig>;
 
   // App Config
   getAppConfig(): Promise<AppConfig | undefined>;
@@ -575,25 +572,6 @@ export class DatabaseStorage implements IStorage {
     await db.delete(audioTracks).where(eq(audioTracks.id, id));
   }
 
-  // Freesound Config
-  async getFreesoundConfig(userId: string): Promise<FreesoundConfig | undefined> {
-    const [config] = await db.select().from(freesoundConfig).where(eq(freesoundConfig.userId, userId));
-    return config || undefined;
-  }
-
-  async createFreesoundConfig(config: InsertFreesoundConfig): Promise<FreesoundConfig> {
-    const [newConfig] = await db.insert(freesoundConfig).values(config).returning();
-    return newConfig;
-  }
-
-  async updateFreesoundConfig(userId: string, config: Partial<InsertFreesoundConfig>): Promise<FreesoundConfig> {
-    const [updated] = await db.update(freesoundConfig)
-      .set({ ...config, updatedAt: new Date() })
-      .where(eq(freesoundConfig.userId, userId))
-      .returning();
-    return updated;
-  }
-
   // App Config
   async getAppConfig(): Promise<AppConfig | undefined> {
     const [config] = await db.select().from(appConfig).limit(1);
@@ -612,21 +590,21 @@ export class DatabaseStorage implements IStorage {
     const [created] = await db.insert(appConfig).values(data).returning();
     return created;
   }
-  // Minimax Config
-  async getMinimaxConfig(userId: string): Promise<MinimaxConfig | undefined> {
-    const [config] = await db.select().from(minimaxConfig).where(eq(minimaxConfig.userId, userId));
+  // Piper Config
+  async getPiperConfig(userId: string): Promise<PiperConfig | undefined> {
+    const [config] = await db.select().from(piperConfig).where(eq(piperConfig.userId, userId));
     return config || undefined;
   }
 
-  async createMinimaxConfig(config: InsertMinimaxConfig): Promise<MinimaxConfig> {
-    const [newConfig] = await db.insert(minimaxConfig).values(config).returning();
+  async createPiperConfig(config: InsertPiperConfig): Promise<PiperConfig> {
+    const [newConfig] = await db.insert(piperConfig).values(config).returning();
     return newConfig;
   }
 
-  async updateMinimaxConfig(userId: string, config: Partial<InsertMinimaxConfig>): Promise<MinimaxConfig> {
-    const [updated] = await db.update(minimaxConfig)
+  async updatePiperConfig(userId: string, config: Partial<InsertPiperConfig>): Promise<PiperConfig> {
+    const [updated] = await db.update(piperConfig)
       .set({ ...config, updatedAt: new Date() })
-      .where(eq(minimaxConfig.userId, userId))
+      .where(eq(piperConfig.userId, userId))
       .returning();
     return updated;
   }

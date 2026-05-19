@@ -30,8 +30,7 @@ export default function Settings() {
   const [ffmpegApiUrl, setFfmpegApiUrl] = useState("");
   const [ffmpegApiKey, setFfmpegApiKey] = useState("");
   const [externalApiKey, setExternalApiKey] = useState("");
-  const [minimaxApiKey, setMinimaxApiKey] = useState("");
-  const [minimaxGroupId, setMinimaxGroupId] = useState("");
+  const [piperUrl, setPiperUrl] = useState("");
   const { toast } = useToast();
 
   const { data: session } = useQuery<{ id: string; username: string; role: string }>({
@@ -62,8 +61,8 @@ export default function Settings() {
     enabled: isAdmin,
   });
 
-  const { data: minimaxConfig } = useQuery({
-    queryKey: ['/api/minimax/config'],
+  const { data: piperConfig } = useQuery({
+    queryKey: ['/api/piper/config'],
   });
 
   useEffect(() => {
@@ -79,50 +78,11 @@ export default function Settings() {
     }
   }, [cloudinaryConfig]);
 
-  const { data: freesoundConfig } = useQuery({
-    queryKey: ['/api/freesound/config'],
-  });
-
-  const [freesoundClientId, setFreesoundClientId] = useState("");
-  const [freesoundClientSecret, setFreesoundClientSecret] = useState("");
-
   useEffect(() => {
-    if (freesoundConfig) {
-      setFreesoundClientId((freesoundConfig as any).clientId || "");
-      setFreesoundClientSecret((freesoundConfig as any).clientSecret || ""); // Usually masked
+    if (piperConfig) {
+      setPiperUrl((piperConfig as any).url || "");
     }
-  }, [freesoundConfig]);
-
-  const hasExistingFreesoundConfig = !!freesoundConfig;
-
-  const saveFreesoundMutation = useMutation({
-    mutationFn: () => {
-      const payload: any = {
-        clientId: freesoundClientId,
-      };
-
-      if (freesoundClientSecret && freesoundClientSecret.trim() !== "" && freesoundClientSecret !== "********") {
-        payload.clientSecret = freesoundClientSecret;
-      }
-
-      return apiRequest('POST', '/api/freesound/config', payload);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/freesound/config'] });
-      toast({
-        title: "Configuration sauvegardée",
-        description: "Vos paramètres Freesound ont été enregistrés",
-      });
-      // On garde l'affichage tel quel ou on remet masked si retourné
-    },
-    onError: () => {
-      toast({
-        title: "Erreur",
-        description: "Impossible de sauvegarder la configuration Freesound",
-        variant: "destructive",
-      });
-    },
-  });
+  }, [piperConfig]);
 
   useEffect(() => {
     if (openrouterConfig) {
@@ -264,33 +224,23 @@ export default function Settings() {
   });
 
   const hasExistingExternalApiConfig = !!(externalApiConfig as any)?.configured;
-  const hasExistingMinimaxConfig = !!(minimaxConfig as any)?.apiKey;
-  const hasExistingMinimaxGroupId = !!(minimaxConfig as any)?.groupId;
+  const hasExistingPiperConfig = !!(piperConfig as any)?.url;
 
-  const saveMinimaxMutation = useMutation({
+  const savePiperMutation = useMutation({
     mutationFn: () => {
-      const payload: any = {};
-      if (minimaxApiKey && minimaxApiKey.trim() !== "") {
-        payload.apiKey = minimaxApiKey;
-      }
-      if (minimaxGroupId && minimaxGroupId.trim() !== "") {
-        payload.groupId = minimaxGroupId;
-      }
-      return apiRequest('POST', '/api/minimax/config', payload);
+      return apiRequest('POST', '/api/piper/config', { url: piperUrl });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/minimax/config'] });
-      setMinimaxApiKey("");
-      setMinimaxGroupId("");
+      queryClient.invalidateQueries({ queryKey: ['/api/piper/config'] });
       toast({
         title: "Configuration sauvegardée",
-        description: "Votre clé API Minimax a été enregistrée",
+        description: "L'URL du serveur Piper TTS a été enregistrée",
       });
     },
     onError: () => {
       toast({
         title: "Erreur",
-        description: "Impossible de sauvegarder la configuration Minimax",
+        description: "Impossible de sauvegarder la configuration Piper",
         variant: "destructive",
       });
     },
@@ -546,53 +496,39 @@ export default function Settings() {
             <Card className="rounded-2xl border-border/50 shadow-lg">
               <CardHeader className="p-6">
                 <CardTitle className="flex items-center gap-2">
-                  <SettingsIcon className="w-5 h-5" />
-                  Configuration Freesound (Musique)
+                  <Mic className="w-5 h-5" />
+                  Configuration Piper TTS (Voix)
                 </CardTitle>
                 <CardDescription>
-                  Configurez l'API Freesound pour la recherche de musique dans les Reels
+                  Configurez l'URL de votre serveur Piper TTS pour la synthèse vocale des Reels
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="freesoundClientId">Client ID</Label>
+                  <Label htmlFor="piperUrl">URL du serveur Piper</Label>
                   <Input
-                    id="freesoundClientId"
-                    type="text"
-                    value={freesoundClientId}
-                    onChange={(e) => setFreesoundClientId(e.target.value)}
-                    placeholder="Votre Client ID Freesound"
-                    data-testid="input-freesound-client-id"
+                    id="piperUrl"
+                    type="url"
+                    value={piperUrl}
+                    onChange={(e) => setPiperUrl(e.target.value)}
+                    placeholder="http://piper-server:5000/api/tts"
+                    data-testid="input-piper-url"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Disponible dans vos paramètres d'API Freesound
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="freesoundClientSecret">Client Secret</Label>
-                  <Input
-                    id="freesoundClientSecret"
-                    type="password"
-                    value={freesoundClientSecret}
-                    onChange={(e) => setFreesoundClientSecret(e.target.value)}
-                    placeholder={hasExistingFreesoundConfig ? "••••••••" : "Votre Client Secret"}
-                    data-testid="input-freesound-client-secret"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {hasExistingFreesoundConfig ? (
-                      <span className="text-green-600 dark:text-green-400">✓ Configuré (Laissez vide pour conserver)</span>
+                    {hasExistingPiperConfig ? (
+                      <span className="text-green-600 dark:text-green-400">✓ Configuré</span>
                     ) : (
-                      "Votre clé secrète ne sera jamais exposée"
+                      "URL de l'endpoint HTTP GET de votre serveur Piper (ex: http://piper:5000/api/tts)"
                     )}
                   </p>
                 </div>
                 <Button
-                  onClick={() => saveFreesoundMutation.mutate()}
-                  disabled={saveFreesoundMutation.isPending || !freesoundClientId}
-                  data-testid="button-save-freesound"
+                  onClick={() => savePiperMutation.mutate()}
+                  disabled={savePiperMutation.isPending || !piperUrl.trim()}
+                  data-testid="button-save-piper"
                   className="w-full"
                 >
-                  {saveFreesoundMutation.isPending ? "Enregistrement..." : "Enregistrer Freesound"}
+                  {savePiperMutation.isPending ? "Enregistrement..." : "Enregistrer Piper TTS"}
                 </Button>
               </CardContent>
             </Card>
@@ -657,74 +593,6 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-2xl border-border/50 shadow-lg">
-              <CardHeader className="p-6">
-                <CardTitle className="flex items-center gap-2">
-                  <Mic className="w-5 h-5" />
-                  Configuration Minimax Speech (TTS)
-                </CardTitle>
-                <CardDescription>
-                  Configurez l'API Minimax pour générer des voix françaises premium dans les Reels
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="minimaxApiKey">Clé API Minimax</Label>
-                  <Input
-                    id="minimaxApiKey"
-                    type="password"
-                    value={minimaxApiKey}
-                    onChange={(e) => setMinimaxApiKey(e.target.value)}
-                    placeholder={hasExistingMinimaxConfig ? "••••••••••••••••" : "eyJhbGci..."}
-                    data-testid="input-minimax-api-key"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {hasExistingMinimaxConfig ? (
-                      <span className="text-green-600 dark:text-green-400">✓ Clé API configurée - Laissez vide pour conserver</span>
-                    ) : (
-                      "Votre clé API depuis platform.minimaxi.com"
-                    )}
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="minimaxGroupId">Group ID Minimax</Label>
-                  <Input
-                    id="minimaxGroupId"
-                    type="text"
-                    value={minimaxGroupId}
-                    onChange={(e) => setMinimaxGroupId(e.target.value)}
-                    placeholder={hasExistingMinimaxGroupId ? "••••••••••••••••" : "1234567890"}
-                    data-testid="input-minimax-group-id"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {hasExistingMinimaxGroupId ? (
-                      <span className="text-green-600 dark:text-green-400">✓ Group ID configuré - Laissez vide pour conserver</span>
-                    ) : (
-                      "Requis pour les quotas corrects — trouvez-le sur platform.minimaxi.com dans votre profil"
-                    )}
-                  </p>
-                </div>
-                <div className="rounded-lg bg-muted/50 p-3 space-y-1">
-                  <p className="text-xs font-medium">Voix françaises disponibles :</p>
-                  <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
-                    <span>• French_Female_News</span>
-                    <span>• French_Male_Speech_New</span>
-                    <span>• French_MovieLeadFemale</span>
-                    <span>• French_CasualMan</span>
-                    <span>• French_FemaleAnchor</span>
-                    <span>• French_MaleNarrator</span>
-                  </div>
-                </div>
-                <Button
-                  onClick={() => saveMinimaxMutation.mutate()}
-                  disabled={saveMinimaxMutation.isPending || (!minimaxApiKey.trim() && !minimaxGroupId.trim() && !hasExistingMinimaxConfig)}
-                  data-testid="button-save-minimax"
-                  className="w-full"
-                >
-                  {saveMinimaxMutation.isPending ? "Enregistrement..." : "Enregistrer Minimax"}
-                </Button>
-              </CardContent>
-            </Card>
 
             {isAdmin && (
               <Card className="rounded-2xl border-border/50 shadow-lg">

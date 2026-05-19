@@ -152,22 +152,16 @@ export async function migrate() {
       );
     `);
 
-    // minimax_config
+    // piper_config
     await client.query(`
-      CREATE TABLE IF NOT EXISTS "minimax_config" (
+      CREATE TABLE IF NOT EXISTS "piper_config" (
         "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
-        "api_key" text NOT NULL,
+        "url" text NOT NULL,
         "created_at" timestamp DEFAULT now(),
         "updated_at" timestamp DEFAULT now(),
-        CONSTRAINT minimax_config_user_id_unique UNIQUE ("user_id")
+        CONSTRAINT piper_config_user_id_unique UNIQUE ("user_id")
       );
-    `);
-
-    // minimax_config.group_id
-    await client.query(`
-      ALTER TABLE "minimax_config"
-      ADD COLUMN IF NOT EXISTS "group_id" text;
     `);
 
     console.log("[Migration] Safe migration completed.");

@@ -10,9 +10,8 @@ import passport from "./auth";
 import { z } from "zod";
 import { openRouterService } from "./services/openrouter";
 import { minioService as cloudinaryService, buildMinioUrl } from "./services/minio";
-import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertFreesoundConfigSchema, updateFreesoundConfigSchema, updateMinimaxConfigSchema, insertMinimaxConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
-import type { User, InsertUser, ScheduledPost, FreesoundConfig } from "@shared/schema";
-import { freeSoundService } from "./services/freesound";
+import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertPiperConfigSchema, updatePiperConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
+import type { User, InsertUser, ScheduledPost } from "@shared/schema";
 import { analyticsRouter } from "./routes/analytics";
 import { reelsRouter } from "./routes/reels";
 import { remotionRouter } from "./routes/remotion";
@@ -424,101 +423,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Analytics Routes
   app.use("/api/analytics", requireAuth, analyticsRouter);
 
-  // Freesound Configuration Routes
-  app.get("/api/freesound/config", requireAuth, async (req, res) => {
+  // Piper TTS Configuration Routes
+  app.get("/api/piper/config", requireAuth, async (req, res) => {
     try {
       const user = req.user as User;
-      const config = await storage.getFreesoundConfig(user.id);
+      const config = await storage.getPiperConfig(user.id);
       if (!config) {
         return res.json(null);
       }
-      return res.json({
-        ...config,
-        clientSecret: config.clientSecret ? "********" : "",
-      });
+      return res.json(config);
     } catch (error) {
-      console.error("Error fetching Freesound config:", error);
+      console.error("Error fetching Piper config:", error);
       res.status(500).json({ error: "Failed to fetch configuration" });
     }
   });
 
-  app.post("/api/freesound/config", requireAuth, async (req, res) => {
+  app.post("/api/piper/config", requireAuth, async (req, res) => {
     try {
       const user = req.user as User;
-      const data = updateFreesoundConfigSchema.parse(req.body);
+      const data = updatePiperConfigSchema.parse(req.body);
 
-      let config = await storage.getFreesoundConfig(user.id);
-      const updateData: any = { ...data };
-
-      if (!updateData.clientSecret || updateData.clientSecret === "********") {
-        delete updateData.clientSecret;
-      }
-
+      let config = await storage.getPiperConfig(user.id);
       if (config) {
-        config = await storage.updateFreesoundConfig(user.id, updateData);
+        config = await storage.updatePiperConfig(user.id, data);
       } else {
-        if (!data.clientId || !data.clientSecret) {
-          return res.status(400).json({ error: "Client ID and Secret are required" });
+        if (!data.url) {
+          return res.status(400).json({ error: "URL is required" });
         }
-        config = await storage.createFreesoundConfig({
-          ...data as any,
-          userId: user.id
-        });
-      }
-
-      if (config && config.clientId && config.clientSecret) {
-        freeSoundService.configure(config.clientId, config.clientSecret);
+        config = await storage.createPiperConfig({ ...data as any, userId: user.id });
       }
 
       res.json({ success: true });
     } catch (error) {
-      console.error("Error saving Freesound config:", error);
-      res.status(500).json({ error: "Failed to save configuration" });
-    }
-  });
-
-  // Minimax Configuration Routes
-  app.get("/api/minimax/config", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as User;
-      const config = await storage.getMinimaxConfig(user.id);
-      if (!config) {
-        return res.json(null);
-      }
-      return res.json({
-        ...config,
-        apiKey: config.apiKey ? "********" : "",
-      });
-    } catch (error) {
-      console.error("Error fetching Minimax config:", error);
-      res.status(500).json({ error: "Failed to fetch configuration" });
-    }
-  });
-
-  app.post("/api/minimax/config", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as User;
-      const data = updateMinimaxConfigSchema.parse(req.body);
-
-      let config = await storage.getMinimaxConfig(user.id);
-      const updateData: any = { ...data };
-
-      if (!updateData.apiKey || updateData.apiKey === "********") {
-        delete updateData.apiKey;
-      }
-
-      if (config) {
-        config = await storage.updateMinimaxConfig(user.id, updateData);
-      } else {
-        if (!data.apiKey) {
-          return res.status(400).json({ error: "API Key is required" });
-        }
-        config = await storage.createMinimaxConfig({ ...data as any, userId: user.id });
-      }
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error saving Minimax config:", error);
+      console.error("Error saving Piper config:", error);
       res.status(500).json({ error: "Failed to save configuration" });
     }
   });
