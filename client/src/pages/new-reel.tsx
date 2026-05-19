@@ -120,14 +120,15 @@ export default function NewReel() {
         const timer = setTimeout(() => {
             apiRequest('POST', '/api/reels/sync-info', {
                 text: overlayText,
-                voice: ttsVoice,
+                ttsVoice,
+                ttsEngine,
             })
                 .then(r => r.json())
                 .then(data => setSyncInfo(data))
                 .catch(() => setSyncInfo(null));
         }, 800);
         return () => clearTimeout(timer);
-    }, [overlayText, ttsEnabled, ttsVoice]);
+    }, [overlayText, ttsEnabled, ttsEngine, ttsVoice]);
 
 
     // État audio preview
