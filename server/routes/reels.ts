@@ -394,11 +394,11 @@ reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
  */
 reelsRouter.post('/reels/sync-info', async (req: Request, res: Response) => {
     try {
-        const { text, voice } = req.body;
-        if (!text || !voice) {
+        const { text, ttsVoice, ttsEngine } = req.body;
+        if (!text || !ttsVoice) {
             return res.status(400).json({ error: 'Texte et voix requis' });
         }
-        const sync = await ttsSyncService.calculateSyncTiming(text, voice);
+        const sync = await ttsSyncService.calculateSyncTiming(text, ttsVoice, ttsEngine);
         res.json(sync);
     } catch (error) {
         console.error('❌ Error calculating sync:', error);

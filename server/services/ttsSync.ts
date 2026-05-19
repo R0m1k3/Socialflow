@@ -15,11 +15,11 @@ export class TtsSyncService {
    * Calcule le word_duration optimal pour synchroniser l'affichage du texte
    * avec la durée réelle de la voix TTS générée.
    */
-  async calculateSyncTiming(text: string, voice: string): Promise<SyncTiming> {
+  async calculateSyncTiming(text: string, voice: string, ttsEngine?: string): Promise<SyncTiming> {
     const cleanText = this.cleanText(text);
 
     // 1. Générer le TTS preview et mesurer sa durée exacte
-    const ttsResult = await ffmpegService.previewTTS(cleanText, voice);
+    const ttsResult = await ffmpegService.previewTTS(cleanText, voice, ttsEngine);
     if (!ttsResult.success || !ttsResult.audioBase64) {
       throw new Error('TTS preview failed: ' + (ttsResult.error || 'unknown'));
     }
