@@ -203,89 +203,72 @@ async def generate_tts_gemini(
     display_text: Optional[str] = None,
     delay: float = 0.0,
 ):
-    """Generate TTS audio using Google Cloud TTS API with word-level synchronized subtitles."""
+    """Generate TTS audio using Gemini native TTS API (gemini-2.5-flash-preview-tts)."""
     try:
         import httpx
 
-        print(f"🔊 Gemini TTS request: voice={voice}, text_len={len(text)}")
+        print(f"\U0001f50a Gemini TTS request: voice={voice}, text_len={len(text)}")
 
-        # Google Cloud TTS REST API
-        url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
+        # Map Google Cloud TTS voice names (fr-FR-Standard-A/B/C/D) to Gemini native voices
+        # A/C = female, B/D = male
+        is_male = voice.endswith(("-B", "-D"))
+        gemini_voice = "Charon" if is_male else "Kore"
 
-        # Map voice name to Google Cloud TTS voice settings
-        # Gemini/GCloud uses format: languageCode-Name-Sex (e.g., "fr-FR-Standard-A")
-        # voice parameter is already in format: fr-FR-Standard-A or fr-FR-Wavenet-A
-        voice_name = voice
+        print(f"\U0001f50a Mapped voice \'{voice}\' -> Gemini native voice \'{gemini_voice}\'")
 
-        # Determine gender from voice name
-        is_male = any(name in voice for name in ["B", "D", "M"])  # B, D are typically male
+        url = (
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"gemini-2.5-flash-preview-tts:generateContent?key={api_key}"
+        )
 
         payload = {
-            "input": {"text": text},
-            "voice": {
-                "languageCode": voice.rsplit("-", 2)[0] if "-" in voice else "fr-FR",
-                "name": voice,
+            "contents": [{"parts": [{"text": text}]}],
+            "generationConfig": {
+                "response_modalities": ["AUDIO"],
+                "speech_config": {
+                    "voice_config": {
+                        "prebuilt_voice_config": {
+                            "voice_name": gemini_voice
+                        }
+                    }
+                },
             },
-            "audioConfig": {
-                "audioEncoding": "MP3",
-                "speakingRate": 1.0,
-                "pitch": 0.0,
-            },
-            "enableWordTimeOffsets": True,
         }
 
-        async with httpx.AsyncClient(timeout=60.0) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             response = await client.post(url, json=payload)
             response.raise_for_status()
             data = response.json()
 
-        # Debug: log response structure
-        print(f"🔊 Gemini API response keys: {list(data.keys())}")
-        if "audioContent" in data:
-            print(f"🔊 Gemini audio content size: {len(data['audioContent'])} bytes (base64)")
-        if "timepoints" in data:
-            print(f"🔊 Gemini timepoints: {len(data['timepoints'])} items")
-            if len(data['timepoints']) > 0:
-                print(f"🔊 Gemini sample timepoint: {data['timepoints'][0]}")
+        # Extract audio from Gemini response
+        inline_data = data["candidates"][0]["content"]["parts"][0]["inlineData"]
+        mime_type = inline_data.get("mimeType", "audio/wav")
+        audio_bytes = base64.b64decode(inline_data["data"])
 
-        audio_content = base64.b64decode(data["audioContent"])
-        with open(audio_path, "wb") as f:
-            f.write(audio_content)
+        print(f"\U0001f50a Gemini audio received: {len(audio_bytes)} bytes, mime={mime_type}")
+
+        # Gemini returns WAV/PCM — convert to MP3 via FFmpeg
+        wav_path = audio_path.with_suffix(".wav")
+        with open(wav_path, "wb") as f:
+            f.write(audio_bytes)
+
+        convert_cmd = [
+            "ffmpeg", "-y",
+            "-i", str(wav_path),
+            "-codec:a", "libmp3lame",
+            "-qscale:a", "2",
+            str(audio_path),
+        ]
+        subprocess.run(convert_cmd, check=True, capture_output=True)
+        wav_path.unlink(missing_ok=True)
 
         print(f"\u2705 Gemini TTS audio saved: {audio_path.stat().st_size} bytes")
-
-        # Parse word time offsets from response
-        # Google Cloud TTS returns timepoints with startOffset/endOffset fields
-        word_boundaries = []
-        timepoints = data.get("timepoints", [])
-        print(f"🔊 Gemini timepoints count: {len(timepoints)}")
-        if len(timepoints) > 0:
-            print(f"🔊 Gemini first timepoint keys: {list(timepoints[0].keys())}")
-        for tp in timepoints:
-            if "word" in tp and "startOffset" in tp and "endOffset" in tp:
-                start_str = str(tp["startOffset"]).rstrip("s")
-                end_str = str(tp["endOffset"]).rstrip("s")
-                try:
-                    start_sec = float(start_str)
-                    end_sec = float(end_str)
-                    word_boundaries.append({
-                        "text": tp["word"],
-                        "offset": start_sec,
-                        "duration": end_sec - start_sec,
-                    })
-                except ValueError:
-                    pass
-            elif "word" in tp:
-                print(f"\u26a0\ufe0f Unexpected timepoint format: {tp}")
-
-        print(f"📍 Captured {len(word_boundaries)} word boundaries from Gemini")
 
         # Measure total audio duration
         audio_duration = None
         try:
             duration_cmd = [
-                "ffprobe",
-                "-v", "error",
+                "ffprobe", "-v", "error",
                 "-show_entries", "format=duration",
                 "-of", "default=noprint_wrappers=1:nokey=1",
                 str(audio_path),
@@ -296,28 +279,14 @@ async def generate_tts_gemini(
         except Exception as e:
             print(f"\u26a0\ufe0f Could not measure TTS duration: {e}")
 
+        # Gemini TTS does not return word boundaries — sync with ffsubsync
         text_to_display = display_text if display_text else text
-
-        if len(word_boundaries) == 0:
-            print("\u26a0\ufe0f No word boundaries from Gemini, falling back to ffsubsync")
-            unsynced_srt_path = audio_path.with_suffix(".unsynced.srt")
-            synced_srt_path = audio_path.with_suffix(".synced.srt")
-            generate_unsynced_srt(text_to_display, unsynced_srt_path, total_duration=audio_duration)
-            run_ffsubsync(audio_path, unsynced_srt_path, synced_srt_path)
-            convert_srt_to_ass(synced_srt_path, ass_path, font_size=65, delay=delay)
-            print(f"\u2705 TTS synchronisation completed with ffsubsync fallback")
-            return
-
-        print("🎯 Using precise word-boundary timing from Gemini TTS")
-        generate_ass_from_word_boundaries(
-            word_boundaries,
-            text_to_display,
-            ass_path,
-            font_size=65,
-            total_duration=audio_duration,
-            delay=delay,
-        )
-        print(f"\u2705 TTS synchronisation completed with word-boundary timing")
+        unsynced_srt_path = audio_path.with_suffix(".unsynced.srt")
+        synced_srt_path = audio_path.with_suffix(".synced.srt")
+        generate_unsynced_srt(text_to_display, unsynced_srt_path, total_duration=audio_duration)
+        run_ffsubsync(audio_path, unsynced_srt_path, synced_srt_path)
+        convert_srt_to_ass(synced_srt_path, ass_path, font_size=65, delay=delay)
+        print("\u2705 TTS synchronisation completed with ffsubsync")
         return
 
     except Exception as e:
