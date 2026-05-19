@@ -159,7 +159,7 @@ class ReelRequest(BaseModel):
     music_volume: float = 0.25
     tts_enabled: bool = False
     tts_voice: str = "fr-FR-VivienneMultilingualNeural"
-    tts_engine: str = "edge"  # "edge" or "gemini"
+    tts_engine: str = "gemini"  # "gemini" or "edge"
     gemini_api_key: Optional[str] = None  # Google Cloud API key for Gemini TTS
     draw_text: bool = True
     stabilize: bool = False  # Stabilisation vidéo via vidstab
@@ -924,18 +924,30 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
 
                 if tts_clean_text:
                     print(f"🔊 Generating TTS audio to: {tts_audio_path}")
-                    engine = request.tts_engine or "edge"
+                    engine = request.tts_engine or "gemini"
 
+                    # Primary: Gemini TTS. Fallback: Edge TTS
                     if engine == "gemini" and request.gemini_api_key:
-                        await generate_tts_gemini(
-                            tts_clean_text,
-                            voice,
-                            request.gemini_api_key,
-                            tts_audio_path,
-                            tts_ass_path,
-                            display_text=clean_text_for_display(request.text),
-                            delay=2.0,
-                        )
+                        try:
+                            await generate_tts_gemini(
+                                tts_clean_text,
+                                voice,
+                                request.gemini_api_key,
+                                tts_audio_path,
+                                tts_ass_path,
+                                display_text=clean_text_for_display(request.text),
+                                delay=2.0,
+                            )
+                        except Exception as gemini_err:
+                            print(f"⚠️ Gemini TTS failed ({gemini_err}), falling back to Edge TTS")
+                            await generate_tts_with_subs(
+                                tts_clean_text,
+                                voice,
+                                tts_audio_path,
+                                tts_ass_path,
+                                display_text=clean_text_for_display(request.text),
+                                delay=2.0,
+                            )
                     else:
                         await generate_tts_with_subs(
                             tts_clean_text,
@@ -1323,17 +1335,28 @@ async def preview_tts(request: ReelRequest, x_api_key: str = Header(None)):
         # Note: Gemini voices (fr-FR-Standard-A etc.) are valid Edge voices too,
         # so we don't check for "Neural" - let edge_tts handle voice resolution
 
-        engine = request.tts_engine or "edge"
+        engine = request.tts_engine or "gemini"
 
+        # Primary: Gemini TTS. Fallback: Edge TTS
         if engine == "gemini" and request.gemini_api_key:
-            await generate_tts_gemini(
-                clean_text,
-                voice,
-                request.gemini_api_key,
-                tts_audio_path,
-                tts_srt_path,
-                display_text=clean_text_for_display(request.text),
-            )
+            try:
+                await generate_tts_gemini(
+                    clean_text,
+                    voice,
+                    request.gemini_api_key,
+                    tts_audio_path,
+                    tts_srt_path,
+                    display_text=clean_text_for_display(request.text),
+                )
+            except Exception as gemini_err:
+                print(f"⚠️ Gemini TTS failed ({gemini_err}), falling back to Edge TTS")
+                await generate_tts_with_subs(
+                    clean_text,
+                    voice,
+                    tts_audio_path,
+                    tts_srt_path,
+                    display_text=clean_text_for_display(request.text),
+                )
         else:
             await generate_tts_with_subs(
                 clean_text,
