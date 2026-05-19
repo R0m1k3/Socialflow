@@ -78,6 +78,31 @@ export default function NewReel() {
         warnings: string[];
     } | null>(null);
 
+    // TTS Engine & Voice
+    const [ttsEngine, setTtsEngine] = useState<'edge' | 'gemini'>('edge');
+    const [ttsVoice, setTtsVoice] = useState('fr-FR-VivienneMultilingualNeural');
+
+    // French Gemini voices
+    const geminiVoices = [
+        { label: 'Français - Standard A (Femme)', value: 'fr-FR-Standard-A' },
+        { label: 'Français - Standard B (Homme)', value: 'fr-FR-Standard-B' },
+        { label: 'Français - Standard C (Femme)', value: 'fr-FR-Standard-C' },
+        { label: 'Français - Standard D (Homme)', value: 'fr-FR-Standard-D' },
+        { label: 'Français - Wavenet A (Femme)', value: 'fr-FR-Wavenet-A' },
+        { label: 'Français - Wavenet B (Homme)', value: 'fr-FR-Wavenet-B' },
+        { label: 'Français - Wavenet C (Femme)', value: 'fr-FR-Wavenet-C' },
+        { label: 'Français - Wavenet D (Homme)', value: 'fr-FR-Wavenet-D' },
+    ];
+
+    // French Edge TTS voices
+    const edgeVoices = [
+        { label: 'Vivienne (Femme)', value: 'fr-FR-VivienneMultilingualNeural' },
+        { label: 'Henri (Homme)', value: 'fr-FR-HenriNeural' },
+        { label: 'Denise (Femme)', value: 'fr-FR-DeniseNeural' },
+        { label: 'Rémy (Homme)', value: 'fr-FR-RemyMultilingualNeural' },
+        { label: 'Jenny (Anglaise, Femme)', value: 'en-US-JennyNeural' },
+    ];
+
     // Enable TTS by default on mobile
     useEffect(() => {
         const isMobile = window.innerWidth < 768;
@@ -86,7 +111,7 @@ export default function NewReel() {
         }
     }, []);
 
-    // Auto-calculate TTS sync when text changes (edge_tts fallback)
+    // Auto-calculate TTS sync when text changes
     useEffect(() => {
         if (!ttsEnabled || !overlayText.trim()) {
             setSyncInfo(null);
@@ -95,14 +120,14 @@ export default function NewReel() {
         const timer = setTimeout(() => {
             apiRequest('POST', '/api/reels/sync-info', {
                 text: overlayText,
-                voice: "fr-FR-VivienneMultilingualNeural",
+                voice: ttsVoice,
             })
                 .then(r => r.json())
                 .then(data => setSyncInfo(data))
                 .catch(() => setSyncInfo(null));
         }, 800);
         return () => clearTimeout(timer);
-    }, [overlayText, ttsEnabled]);
+    }, [overlayText, ttsEnabled, ttsVoice]);
 
 
     // État audio preview
@@ -360,6 +385,8 @@ export default function NewReel() {
             scheduledFor: scheduledDate?.toISOString(),
             musicVolume: musicVolume[0] / 100,
             ttsEnabled,
+            ttsEngine,
+            ttsVoice,
             drawText,
             stabilize: stabilize,
             enableEndingEffect,
@@ -765,6 +792,57 @@ export default function NewReel() {
                                                         <span>TTS — voix activée</span>
                                                     </div>
 
+                                                    {/* TTS Engine Selector */}
+                                                    <div className="flex items-center gap-4 mt-3">
+                                                        <Label className="text-sm font-medium">Moteur:</Label>
+                                                        <div className="flex gap-2">
+                                                            <Button
+                                                                size="sm"
+                                                                variant={ttsEngine === 'edge' ? 'default' : 'outline'}
+                                                                onClick={() => {
+                                                                    setTtsEngine('edge');
+                                                                    setTtsVoice('fr-FR-VivienneMultilingualNeural');
+                                                                }}
+                                                            >
+                                                                Edge TTS
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant={ttsEngine === 'gemini' ? 'default' : 'outline'}
+                                                                onClick={() => {
+                                                                    setTtsEngine('gemini');
+                                                                    setTtsVoice('fr-FR-Standard-A');
+                                                                }}
+                                                            >
+                                                                Gemini TTS
+                                                            </Button>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Voice Selector */}
+                                                    <div className="flex items-center gap-3 mt-3">
+                                                        <Label className="text-sm font-medium shrink-0">Voix:</Label>
+                                                        <Select
+                                                            value={ttsVoice}
+                                                            onValueChange={setTtsVoice}
+                                                        >
+                                                            <SelectTrigger className="flex-1">
+                                                                <SelectValue />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                {ttsEngine === 'edge' ? (
+                                                                    edgeVoices.map(v => (
+                                                                        <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                                                                    ))
+                                                                ) : (
+                                                                    geminiVoices.map(v => (
+                                                                        <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                                                                    ))
+                                                                )}
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+
                                                     <div className="mt-3 flex gap-2">
                                                         <Button
                                                             size="sm"
@@ -776,6 +854,8 @@ export default function NewReel() {
                                                                 try {
                                                                     const response = await apiRequest('POST', '/api/reels/tts-preview', {
                                                                         text: textToTest,
+                                                                        ttsEngine,
+                                                                        ttsVoice,
                                                                     });
                                                                     const data = await response.json();
                                                                     if (data.success && data.audioBase64) {

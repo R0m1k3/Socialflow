@@ -6,3 +6,4 @@ pydantic==2.6.0
 edge-tts==6.1.12
 emoji
 ffsubsync==0.4.26
+httpx>=0.25.0

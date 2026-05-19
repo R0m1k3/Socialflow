@@ -32,6 +32,29 @@ export default function RemotionVideoPage() {
   const [productInfo, setProductInfo] = useState("");
   const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
   const [ttsEnabled, setTtsEnabled] = useState(true);
+  const [ttsEngine, setTtsEngine] = useState<'edge' | 'gemini'>('edge');
+  const [ttsVoice, setTtsVoice] = useState('fr-FR-VivienneMultilingualNeural');
+
+  // French Gemini voices
+  const geminiVoices = [
+    { label: 'Français - Standard A (Femme)', value: 'fr-FR-Standard-A' },
+    { label: 'Français - Standard B (Homme)', value: 'fr-FR-Standard-B' },
+    { label: 'Français - Standard C (Femme)', value: 'fr-FR-Standard-C' },
+    { label: 'Français - Standard D (Homme)', value: 'fr-FR-Standard-D' },
+    { label: 'Français - Wavenet A (Femme)', value: 'fr-FR-Wavenet-A' },
+    { label: 'Français - Wavenet B (Homme)', value: 'fr-FR-Wavenet-B' },
+    { label: 'Français - Wavenet C (Femme)', value: 'fr-FR-Wavenet-C' },
+    { label: 'Français - Wavenet D (Homme)', value: 'fr-FR-Wavenet-D' },
+  ];
+
+  // French Edge TTS voices
+  const edgeVoices = [
+    { label: 'Vivienne (Femme)', value: 'fr-FR-VivienneMultilingualNeural' },
+    { label: 'Henri (Homme)', value: 'fr-FR-HenriNeural' },
+    { label: 'Denise (Femme)', value: 'fr-FR-DeniseNeural' },
+    { label: 'Rémy (Homme)', value: 'fr-FR-RemyMultilingualNeural' },
+    { label: 'Jenny (Anglaise, Femme)', value: 'en-US-JennyNeural' },
+  ];
   const [musicFile, setMusicFile] = useState<File | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<AudioTrack | null>(null);
   const [musicVolume, setMusicVolume] = useState(0.3);
@@ -78,7 +101,7 @@ export default function RemotionVideoPage() {
     const ttsText = overlayText.replace(/#\w+/g, '').replace(/[\uD800-\uDFFF\u2600-\u27BF]/g, '').replace(/\s+/g, ' ').trim();
     if (!ttsText) return;
     try {
-      const r = await apiRequest('POST', '/api/reels/tts-preview', { text: ttsText });
+      const r = await apiRequest('POST', '/api/reels/tts-preview', { text: ttsText, ttsEngine, ttsVoice });
       const data = await r.json();
       if (data.success && data.audioBase64) new window.Audio(`data:audio/mp3;base64,${data.audioBase64}`).play();
     } catch { toast({ title: "Erreur prévisualisation voix", variant: "destructive" }); }
@@ -253,6 +276,39 @@ export default function RemotionVideoPage() {
           {ttsEnabled && (
             <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
               <p className="text-sm text-muted-foreground">TTS — voix activée</p>
+
+              {/* TTS Engine Selector */}
+              <div className="flex items-center gap-2">
+                <Label className="text-xs font-medium">Moteur:</Label>
+                <div className="flex gap-1">
+                  <Button size="sm" variant={ttsEngine === 'edge' ? 'default' : 'outline'} className="h-7 text-xs"
+                    onClick={() => { setTtsEngine('edge'); setTtsVoice('fr-FR-VivienneMultilingualNeural'); }}>
+                    Edge
+                  </Button>
+                  <Button size="sm" variant={ttsEngine === 'gemini' ? 'default' : 'outline'} className="h-7 text-xs"
+                    onClick={() => { setTtsEngine('gemini'); setTtsVoice('fr-FR-Standard-A'); }}>
+                    Gemini
+                  </Button>
+                </div>
+              </div>
+
+              {/* Voice Selector */}
+              <div className="flex items-center gap-2">
+                <Label className="text-xs font-medium shrink-0">Voix:</Label>
+                <Select value={ttsVoice} onValueChange={setTtsVoice}>
+                  <SelectTrigger className="h-7 text-xs flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ttsEngine === 'edge' ? (
+                      edgeVoices.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)
+                    ) : (
+                      geminiVoices.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+
               <Button size="sm" variant="outline" className="w-full" onClick={handleTtsPreview} disabled={!overlayText}>
                 <Volume2 className="mr-2 w-3 h-3" /> Écouter la voix
               </Button>

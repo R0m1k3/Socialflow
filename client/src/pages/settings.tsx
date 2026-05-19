@@ -30,6 +30,7 @@ export default function Settings() {
   const [ffmpegApiUrl, setFfmpegApiUrl] = useState("");
   const [ffmpegApiKey, setFfmpegApiKey] = useState("");
   const [externalApiKey, setExternalApiKey] = useState("");
+  const [geminiApiKey, setGeminiApiKey] = useState("");
   const { toast } = useToast();
 
   const { data: session } = useQuery<{ id: string; username: string; role: string }>({
@@ -60,6 +61,11 @@ export default function Settings() {
     enabled: isAdmin,
   });
 
+  const { data: geminiConfig } = useQuery({
+    queryKey: ['/api/settings/gemini'],
+    enabled: isAdmin,
+  });
+
   useEffect(() => {
     if (cloudinaryConfig) {
       setCloudName((cloudinaryConfig as any).cloudName || "");
@@ -86,9 +92,16 @@ export default function Settings() {
     }
   }, [ffmpegConfig]);
 
+  useEffect(() => {
+    if (geminiConfig) {
+      // Don't pre-fill - user must enter key manually
+    }
+  }, [geminiConfig]);
+
   // Vérifier si une config OpenRouter existe déjà
   const hasExistingConfig = !!openrouterConfig;
   const hasExistingFfmpegConfig = !!ffmpegConfig;
+  const hasExistingGeminiConfig = !!(geminiConfig as any)?.configured;
 
   const saveCloudinaryMutation = useMutation({
     mutationFn: () => {
@@ -152,6 +165,31 @@ export default function Settings() {
       toast({
         title: "Erreur",
         description: "Impossible de sauvegarder la configuration OpenRouter",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const saveGeminiMutation = useMutation({
+    mutationFn: () => {
+      const payload: any = {};
+      if (geminiApiKey && geminiApiKey.trim() !== "") {
+        payload.apiKey = geminiApiKey;
+      }
+      return apiRequest('POST', '/api/settings/gemini', payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/settings/gemini'] });
+      toast({
+        title: "Configuration sauvegardée",
+        description: "Votre clé API Gemini a été enregistrée",
+      });
+      setGeminiApiKey("");
+    },
+    onError: () => {
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder la configuration Gemini",
         variant: "destructive",
       });
     },
@@ -520,6 +558,52 @@ export default function Settings() {
                 </Button>
               </CardContent>
             </Card>
+
+            {/* Google Gemini TTS */}
+            {isAdmin && (
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
+                  <CardTitle className="flex items-center gap-2">
+                    <Mic className="w-5 h-5" />
+                    Google Gemini TTS
+                  </CardTitle>
+                  <CardDescription>
+                    Configurez votre clé API Google pour utiliser Gemini TTS dans les Reels
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="geminiApiKey">Clé API Google Gemini</Label>
+                    <Input
+                      id="geminiApiKey"
+                      type="password"
+                      value={geminiApiKey}
+                      onChange={(e) => setGeminiApiKey(e.target.value)}
+                      placeholder={hasExistingGeminiConfig ? "••••••••••••••••" : "AIza..."}
+                      data-testid="input-gemini-api-key"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {hasExistingGeminiConfig ? (
+                        <span className="text-green-600 dark:text-green-400">✓ Clé API configurée</span>
+                      ) : (
+                        "Obtenez une clé API sur console.cloud.google.com → APIs & Services → Credentials"
+                      )}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => saveGeminiMutation.mutate()}
+                    disabled={
+                      saveGeminiMutation.isPending ||
+                      (!hasExistingGeminiConfig && !geminiApiKey)
+                    }
+                    data-testid="button-save-gemini"
+                    className="w-full"
+                  >
+                    {saveGeminiMutation.isPending ? "Enregistrement..." : "Enregistrer Gemini TTS"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
 
             {isAdmin && (

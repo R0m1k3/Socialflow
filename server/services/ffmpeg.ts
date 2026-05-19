@@ -13,6 +13,8 @@ interface FFmpegReelRequest {
     music_url?: string;         // OU URL directe de la musique
     tts_enabled?: boolean;      // Activation du TTS
     tts_voice?: string;         // Voix TTS (ex: fr-FR-VivienneNeural)
+    tts_engine?: string;         // Moteur TTS: "edge" ou "gemini"
+    gemini_api_key?: string;     // Clé API Google Gemini pour TTS
     word_duration?: number;     // Durée par mot (default: 0.6s)
     font_size?: number;         // Taille police (default: 24)
     music_volume?: number;      // Volume musique (default: 0.25)
@@ -72,6 +74,8 @@ export class FFmpegService {
             musicUrl?: string;
             ttsEnabled?: boolean;
             ttsVoice?: string;
+            ttsEngine?: string;
+            geminiApiKey?: string;
             wordDuration?: number;
             fontSize?: number;
             musicVolume?: number;
@@ -91,6 +95,8 @@ export class FFmpegService {
             music_url: options.musicUrl,
             tts_enabled: options.ttsEnabled,
             tts_voice: options.ttsVoice,
+            tts_engine: options.ttsEngine,
+            gemini_api_key: options.geminiApiKey,
             word_duration: options.wordDuration ?? 0.6,
             font_size: options.fontSize ?? 64,
             music_volume: options.musicVolume ?? 0.25,
@@ -173,6 +179,8 @@ export class FFmpegService {
             musicUrl?: string;
             ttsEnabled?: boolean;
             ttsVoice?: string;
+            ttsEngine?: string;
+            geminiApiKey?: string;
             wordDuration?: number;
             fontSize?: number;
             musicVolume?: number;
@@ -192,6 +200,8 @@ export class FFmpegService {
             music_url: options.musicUrl,
             tts_enabled: options.ttsEnabled,
             tts_voice: options.ttsVoice,
+            tts_engine: options.ttsEngine,
+            gemini_api_key: options.geminiApiKey,
             word_duration: options.wordDuration ?? 0.6,
             font_size: options.fontSize ?? 64,
             music_volume: options.musicVolume ?? 0.25,
@@ -290,7 +300,9 @@ export class FFmpegService {
     }
     async previewTTS(
         text: string,
-        ttsVoice?: string
+        ttsVoice?: string,
+        ttsEngine?: string,
+        geminiApiKey?: string
     ): Promise<{ success: boolean; audioBase64?: string; error?: string }> {
         const config = this.ensureConfigured();
 
@@ -305,6 +317,8 @@ export class FFmpegService {
                     text,
                     tts_enabled: true,
                     tts_voice: ttsVoice,
+                    tts_engine: ttsEngine,
+                    gemini_api_key: geminiApiKey,
                 }),
             });
 

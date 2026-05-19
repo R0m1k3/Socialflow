@@ -58,6 +58,29 @@ export default function MobileNewReel() {
 
     // État TTS
     const [ttsEnabled, setTtsEnabled] = useState(false);
+    const [ttsEngine, setTtsEngine] = useState<'edge' | 'gemini'>('edge');
+    const [ttsVoice, setTtsVoice] = useState('fr-FR-VivienneMultilingualNeural');
+
+    // French Gemini voices
+    const geminiVoices = [
+        { label: 'Français - Standard A (Femme)', value: 'fr-FR-Standard-A' },
+        { label: 'Français - Standard B (Homme)', value: 'fr-FR-Standard-B' },
+        { label: 'Français - Standard C (Femme)', value: 'fr-FR-Standard-C' },
+        { label: 'Français - Standard D (Homme)', value: 'fr-FR-Standard-D' },
+        { label: 'Français - Wavenet A (Femme)', value: 'fr-FR-Wavenet-A' },
+        { label: 'Français - Wavenet B (Homme)', value: 'fr-FR-Wavenet-B' },
+        { label: 'Français - Wavenet C (Femme)', value: 'fr-FR-Wavenet-C' },
+        { label: 'Français - Wavenet D (Homme)', value: 'fr-FR-Wavenet-D' },
+    ];
+
+    // French Edge TTS voices
+    const edgeVoices = [
+        { label: 'Vivienne (Femme)', value: 'fr-FR-VivienneMultilingualNeural' },
+        { label: 'Henri (Homme)', value: 'fr-FR-HenriNeural' },
+        { label: 'Denise (Femme)', value: 'fr-FR-DeniseNeural' },
+        { label: 'Rémy (Homme)', value: 'fr-FR-RemyMultilingualNeural' },
+        { label: 'Jenny (Anglaise, Femme)', value: 'en-US-JennyNeural' },
+    ];
 
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
@@ -82,14 +105,15 @@ export default function MobileNewReel() {
         const timer = setTimeout(() => {
             apiRequest('POST', '/api/reels/sync-info', {
                 text: overlayText,
-                voice: "fr-FR-VivienneMultilingualNeural",
+                ttsEngine,
+                ttsVoice,
             })
                 .then(r => r.json())
                 .then(data => setSyncInfo(data))
                 .catch(() => setSyncInfo(null));
         }, 800);
         return () => clearTimeout(timer);
-    }, [overlayText, ttsEnabled]);
+    }, [overlayText, ttsEnabled, ttsEngine, ttsVoice]);
 
 
     const { data: pages = [] } = useQuery<SocialPage[]>({
@@ -230,6 +254,8 @@ export default function MobileNewReel() {
             stabilize: stabilize,
             drawText: true,
             ttsEnabled,
+            ttsEngine,
+            ttsVoice,
             enableEndingEffect,
         });
     };
@@ -450,7 +476,58 @@ export default function MobileNewReel() {
                                         <Mic className="w-4 h-4" />
                                         <span>TTS — voix activée</span>
                                     </div>
-                                    <div className="mt-3">
+
+                                    {/* TTS Engine Selector */}
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <Label className="text-xs font-medium">Moteur:</Label>
+                                        <div className="flex gap-1">
+                                            <Button
+                                                size="sm"
+                                                variant={ttsEngine === 'edge' ? 'default' : 'outline'}
+                                                className="h-7 text-xs px-2"
+                                                onClick={() => {
+                                                    setTtsEngine('edge');
+                                                    setTtsVoice('fr-FR-VivienneMultilingualNeural');
+                                                }}
+                                            >
+                                                Edge
+                                            </Button>
+                                            <Button
+                                                size="sm"
+                                                variant={ttsEngine === 'gemini' ? 'default' : 'outline'}
+                                                className="h-7 text-xs px-2"
+                                                onClick={() => {
+                                                    setTtsEngine('gemini');
+                                                    setTtsVoice('fr-FR-Standard-A');
+                                                }}
+                                            >
+                                                Gemini
+                                            </Button>
+                                        </div>
+                                    </div>
+
+                                    {/* Voice Selector */}
+                                    <div className="flex items-center gap-2 mt-2">
+                                        <Label className="text-xs font-medium shrink-0">Voix:</Label>
+                                        <Select value={ttsVoice} onValueChange={setTtsVoice}>
+                                            <SelectTrigger className="h-7 text-xs flex-1">
+                                                <SelectValue />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {ttsEngine === 'edge' ? (
+                                                    edgeVoices.map(v => (
+                                                        <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                                                    ))
+                                                ) : (
+                                                    geminiVoices.map(v => (
+                                                        <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
+                                                    ))
+                                                )}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+
+                                    <div className="mt-2">
                                         <Button
                                             size="sm"
                                             variant="secondary"
@@ -461,6 +538,8 @@ export default function MobileNewReel() {
                                                 try {
                                                     const response = await apiRequest('POST', '/api/reels/tts-preview', {
                                                         text: textToTest,
+                                                        ttsEngine,
+                                                        ttsVoice,
                                                     });
                                                     const data = await response.json();
                                                     if (data.success && data.audioBase64) {

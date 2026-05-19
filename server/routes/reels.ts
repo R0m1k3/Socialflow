@@ -270,6 +270,8 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             musicUrl,
             overlayText,
             ttsEnabled,
+            ttsVoice,
+            ttsEngine,
             wordDuration = 0.6,
             fontSize = 64,
             musicVolume = 0.25,
@@ -318,6 +320,13 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             console.error('Error fetching watermark configuration', e);
         }
 
+        // Get Gemini API key if using Gemini TTS
+        let geminiApiKey: string | undefined = undefined;
+        if (ttsEngine === "gemini") {
+            const appCfg = await storage.getAppConfig();
+            geminiApiKey = appCfg?.geminiApiKey ?? undefined;
+        }
+
         const finalWordDuration = wordDuration;
 
         // Traiter la vidéo via FFmpeg
@@ -326,6 +335,8 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             musicUrl: finalMusicUrl,
             ttsEnabled,
             ttsVoice,
+            ttsEngine,
+            geminiApiKey,
             wordDuration: finalWordDuration,
             fontSize,
             musicVolume,
@@ -358,13 +369,13 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
 reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
     try {
         const user = req.user as User;
-        const { text } = req.body;
+        const { text, ttsVoice, ttsEngine } = req.body;
 
         if (!text) {
             return res.status(400).json({ error: 'Texte requis' });
         }
 
-        const result = await ffmpegService.previewTTS(text, voice);
+        const result = await ffmpegService.previewTTS(text, ttsVoice, ttsEngine, undefined);
 
         if (!result.success) {
             return res.status(500).json({ error: result.error || 'Erreur de génération TTS' });
@@ -455,6 +466,8 @@ async function processReelBackground(
         overlayText?: string;
         description?: string;
         ttsEnabled?: boolean;
+        ttsVoice?: string;
+        ttsEngine?: string;
         pageIds: string[];
         scheduledFor?: string;
         wordDuration?: number;
@@ -473,6 +486,8 @@ async function processReelBackground(
         overlayText,
         description,
         ttsEnabled,
+        ttsVoice,
+        ttsEngine,
         pageIds,
         scheduledFor,
         wordDuration,
@@ -541,15 +556,24 @@ async function processReelBackground(
             console.error('Error fetching watermark configuration', e);
         }
 
+        // Get Gemini API key if using Gemini TTS
+        let geminiApiKey: string | undefined = undefined;
+        if (ttsEngine === "gemini") {
+            const appCfg = await storage.getAppConfig();
+            geminiApiKey = appCfg?.geminiApiKey ?? undefined;
+        }
+
         const finalWordDuration = wordDuration ?? 0.6;
 
-        console.log('🔊 [Background] TTS config:', { ttsEnabled, ttsVoice });
+        console.log('🔊 [Background] TTS config:', { ttsEnabled, ttsVoice, ttsEngine });
 
         const ffmpegResult = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
             text: overlayText,
             musicUrl: finalMusicUrl,
             ttsEnabled,
             ttsVoice,
+            ttsEngine,
+            geminiApiKey,
             wordDuration: finalWordDuration,
             fontSize,
             musicVolume,
@@ -713,6 +737,8 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             overlayText,
             description,
             ttsEnabled,
+            ttsVoice,
+            ttsEngine,
             pageIds,
             scheduledFor,
             wordDuration = 0.6,

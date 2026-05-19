@@ -124,7 +124,7 @@ export interface IStorage {
 
   // App Config
   getAppConfig(): Promise<AppConfig | undefined>;
-  upsertAppConfig(data: Partial<Pick<AppConfig, 'externalApiKey'>>): Promise<AppConfig>;
+  upsertAppConfig(data: Partial<Pick<AppConfig, 'externalApiKey' | 'geminiApiKey'>>): Promise<AppConfig>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -571,7 +571,7 @@ export class DatabaseStorage implements IStorage {
     return config || undefined;
   }
 
-  async upsertAppConfig(data: Partial<Pick<AppConfig, 'externalApiKey'>>): Promise<AppConfig> {
+  async upsertAppConfig(data: Partial<Pick<AppConfig, 'externalApiKey' | 'geminiApiKey'>>): Promise<AppConfig> {
     const existing = await this.getAppConfig();
     if (existing) {
       const [updated] = await db.update(appConfig)

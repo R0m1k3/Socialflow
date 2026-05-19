@@ -209,6 +209,7 @@ export const musicFavorites = pgTable("music_favorites", {
 export const appConfig = pgTable("app_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   externalApiKey: text("external_api_key"),
+  geminiApiKey: text("gemini_api_key"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

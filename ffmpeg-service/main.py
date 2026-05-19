@@ -159,6 +159,8 @@ class ReelRequest(BaseModel):
     music_volume: float = 0.25
     tts_enabled: bool = False
     tts_voice: str = "fr-FR-VivienneMultilingualNeural"
+    tts_engine: str = "edge"  # "edge" or "gemini"
+    gemini_api_key: Optional[str] = None  # Google Cloud API key for Gemini TTS
     draw_text: bool = True
     stabilize: bool = False  # Stabilisation vidéo via vidstab
     enable_ending_effect: bool = True
@@ -190,6 +192,123 @@ def clean_text_for_tts(text: str) -> str:
     text = re.sub(r"#\w+", "", text)
     # 3. Cleanup whitespace
     return " ".join(text.split())
+
+
+async def generate_tts_gemini(
+    text: str,
+    voice: str,
+    api_key: str,
+    audio_path: Path,
+    ass_path: Path,
+    display_text: Optional[str] = None,
+    delay: float = 0.0,
+):
+    """Generate TTS audio using Google Cloud TTS API with word-level synchronized subtitles."""
+    try:
+        import httpx
+
+        print(f"\ud83d\udd0a Gemini TTS request: voice={voice}, text_len={len(text)}")
+
+        # Google Cloud TTS REST API
+        url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
+
+        # Map voice name to Google Cloud TTS voice settings
+        # Gemini/GCloud uses format: languageCode-Name-Sex (e.g., "fr-FR-Standard-A")
+        # voice parameter is already in format: fr-FR-Standard-A or fr-FR-Wavenet-A
+        voice_name = voice
+
+        # Determine gender from voice name
+        is_male = any(name in voice for name in ["B", "D", "M"])  # B, D are typically male
+
+        payload = {
+            "input": {"text": text},
+            "voice": {
+                "languageCode": voice.rsplit("-", 2)[0] if "-" in voice else "fr-FR",
+                "name": voice,
+            },
+            "audioConfig": {
+                "audioEncoding": "MP3",
+                "speakingRate": 1.0,
+                "pitch": 0.0,
+            },
+            "enableWordTimeOffsets": True,
+        }
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(url, json=payload)
+            response.raise_for_status()
+            data = response.json()
+
+        audio_content = base64.b64decode(data["audioContent"])
+        with open(audio_path, "wb") as f:
+            f.write(audio_content)
+
+        print(f"\u2705 Gemini TTS audio saved: {audio_path.stat().st_size} bytes")
+
+        # Parse word time offsets from response
+        word_boundaries = []
+        if "wordTimeOffsets" in data.get("timepoints", []):
+            for tp in data["timepoints"]:
+                if "word" in tp and "startTime" in tp and "endTime" in tp:
+                    # Parse Google duration format: "0s" or "0.123s"
+                    start_str = tp["startTime"].rstrip("s")
+                    end_str = tp["endTime"].rstrip("s")
+                    try:
+                        start_sec = float(start_str)
+                        end_sec = float(end_str)
+                        word_boundaries.append({
+                            "text": tp["word"],
+                            "offset": start_sec,
+                            "duration": end_sec - start_sec,
+                        })
+                    except ValueError:
+                        pass
+
+        print(f"\ud83d\udccd Captured {len(word_boundaries)} word boundaries from Gemini")
+
+        # Measure total audio duration
+        audio_duration = None
+        try:
+            duration_cmd = [
+                "ffprobe",
+                "-v", "error",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                str(audio_path),
+            ]
+            dur_proc = subprocess.run(duration_cmd, stdout=subprocess.PIPE, text=True)
+            audio_duration = float(dur_proc.stdout.strip())
+            print(f"\u23f1\ufe0f TTS Audio Duration: {audio_duration:.2f}s")
+        except Exception as e:
+            print(f"\u26a0\ufe0f Could not measure TTS duration: {e}")
+
+        text_to_display = display_text if display_text else text
+
+        if len(word_boundaries) == 0:
+            print("\u26a0\ufe0f No word boundaries from Gemini, falling back to ffsubsync")
+            unsynced_srt_path = audio_path.with_suffix(".unsynced.srt")
+            synced_srt_path = audio_path.with_suffix(".synced.srt")
+            generate_unsynced_srt(text_to_display, unsynced_srt_path, total_duration=audio_duration)
+            run_ffsubsync(audio_path, unsynced_srt_path, synced_srt_path)
+            convert_srt_to_ass(synced_srt_path, ass_path, font_size=65, delay=delay)
+            print(f"\u2705 TTS synchronisation completed with ffsubsync fallback")
+            return
+
+        print("\ud83c\udfaf Using precise word-boundary timing from Gemini TTS")
+        generate_ass_from_word_boundaries(
+            word_boundaries,
+            text_to_display,
+            ass_path,
+            font_size=65,
+            total_duration=audio_duration,
+            delay=delay,
+        )
+        print(f"\u2705 TTS synchronisation completed with word-boundary timing")
+        return
+
+    except Exception as e:
+        print(f"\u274c Gemini TTS failed: {e}")
+        raise
 
 
 async def generate_tts_with_subs(
@@ -807,14 +926,27 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
 
                 if tts_clean_text:
                     print(f"🔊 Generating TTS audio to: {tts_audio_path}")
-                    await generate_tts_with_subs(
-                        tts_clean_text,
-                        voice,
-                        tts_audio_path,
-                        tts_ass_path,
-                        display_text=clean_text_for_display(request.text),
-                        delay=2.0,
-                    )
+                    engine = request.tts_engine or "edge"
+
+                    if engine == "gemini" and request.gemini_api_key:
+                        await generate_tts_gemini(
+                            tts_clean_text,
+                            voice,
+                            request.gemini_api_key,
+                            tts_audio_path,
+                            tts_ass_path,
+                            display_text=clean_text_for_display(request.text),
+                            delay=2.0,
+                        )
+                    else:
+                        await generate_tts_with_subs(
+                            tts_clean_text,
+                            voice,
+                            tts_audio_path,
+                            tts_ass_path,
+                            display_text=clean_text_for_display(request.text),
+                            delay=2.0,
+                        )
 
                     # Verify files were created
                     if tts_audio_path.exists() and tts_audio_path.stat().st_size > 0:
@@ -1191,13 +1323,25 @@ async def preview_tts(request: ReelRequest, x_api_key: str = Header(None)):
         elif not voice or "Neural" not in voice:
             voice = "fr-FR-VivienneMultilingualNeural"
 
-        await generate_tts_with_subs(
-            clean_text,
-            voice,
-            tts_audio_path,
-            tts_srt_path,
-            display_text=clean_text_for_display(request.text),
-        )
+        engine = request.tts_engine or "edge"
+
+        if engine == "gemini" and request.gemini_api_key:
+            await generate_tts_gemini(
+                clean_text,
+                voice,
+                request.gemini_api_key,
+                tts_audio_path,
+                tts_srt_path,
+                display_text=clean_text_for_display(request.text),
+            )
+        else:
+            await generate_tts_with_subs(
+                clean_text,
+                voice,
+                tts_audio_path,
+                tts_srt_path,
+                display_text=clean_text_for_display(request.text),
+            )
 
         if not tts_audio_path.exists():
             raise Exception("TTS generation failed (file missing)")

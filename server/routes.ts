@@ -420,6 +420,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Google Gemini API Key (TTS)
+  app.get("/api/settings/gemini", requireAdmin, async (req, res) => {
+    try {
+      const config = await storage.getAppConfig();
+      res.json({ configured: !!(config?.geminiApiKey) });
+    } catch (error) {
+      console.error("Error fetching Gemini config:", error);
+      res.status(500).json({ error: "Erreur lors de la récupération de la configuration" });
+    }
+  });
+
+  app.post("/api/settings/gemini", requireAdmin, async (req, res) => {
+    try {
+      const { apiKey } = req.body;
+      if (!apiKey || typeof apiKey !== "string" || apiKey.trim() === "") {
+        return res.status(400).json({ error: "La clé API est requise" });
+      }
+      await storage.upsertAppConfig({ geminiApiKey: apiKey.trim() });
+      res.json({ success: true, configured: true });
+    } catch (error) {
+      console.error("Error saving Gemini config:", error);
+      res.status(500).json({ error: "Erreur lors de la sauvegarde de la configuration" });
+    }
+  });
+
+  app.delete("/api/settings/gemini", requireAdmin, async (req, res) => {
+    try {
+      await storage.upsertAppConfig({ geminiApiKey: null });
+      res.json({ success: true, configured: false });
+    } catch (error) {
+      console.error("Error deleting Gemini config:", error);
+      res.status(500).json({ error: "Erreur lors de la suppression de la clé" });
+    }
+  });
+
   // Analytics Routes
   app.use("/api/analytics", requireAuth, analyticsRouter);
 
