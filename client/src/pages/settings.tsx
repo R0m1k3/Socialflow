@@ -30,7 +30,6 @@ export default function Settings() {
   const [ffmpegApiUrl, setFfmpegApiUrl] = useState("");
   const [ffmpegApiKey, setFfmpegApiKey] = useState("");
   const [externalApiKey, setExternalApiKey] = useState("");
-  const [piperUrl, setPiperUrl] = useState("");
   const { toast } = useToast();
 
   const { data: session } = useQuery<{ id: string; username: string; role: string }>({
@@ -61,10 +60,6 @@ export default function Settings() {
     enabled: isAdmin,
   });
 
-  const { data: piperConfig } = useQuery({
-    queryKey: ['/api/piper/config'],
-  });
-
   useEffect(() => {
     if (cloudinaryConfig) {
       setCloudName((cloudinaryConfig as any).cloudName || "");
@@ -77,12 +72,6 @@ export default function Settings() {
       }
     }
   }, [cloudinaryConfig]);
-
-  useEffect(() => {
-    if (piperConfig) {
-      setPiperUrl((piperConfig as any).url || "");
-    }
-  }, [piperConfig]);
 
   useEffect(() => {
     if (openrouterConfig) {
@@ -224,27 +213,6 @@ export default function Settings() {
   });
 
   const hasExistingExternalApiConfig = !!(externalApiConfig as any)?.configured;
-  const hasExistingPiperConfig = !!(piperConfig as any)?.url;
-
-  const savePiperMutation = useMutation({
-    mutationFn: () => {
-      return apiRequest('POST', '/api/piper/config', { url: piperUrl });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/piper/config'] });
-      toast({
-        title: "Configuration sauvegardée",
-        description: "L'URL du serveur Piper TTS a été enregistrée",
-      });
-    },
-    onError: () => {
-      toast({
-        title: "Erreur",
-        description: "Impossible de sauvegarder la configuration Piper",
-        variant: "destructive",
-      });
-    },
-  });
 
   const saveExternalApiMutation = useMutation({
     mutationFn: () => apiRequest('POST', '/api/settings/external-api', { apiKey: externalApiKey }),
@@ -492,46 +460,6 @@ export default function Settings() {
                 </CardContent>
               </Card>
             )}
-
-            <Card className="rounded-2xl border-border/50 shadow-lg">
-              <CardHeader className="p-6">
-                <CardTitle className="flex items-center gap-2">
-                  <Mic className="w-5 h-5" />
-                  Configuration Piper TTS (Voix)
-                </CardTitle>
-                <CardDescription>
-                  Configurez l'URL de votre serveur Piper TTS pour la synthèse vocale des Reels
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="piperUrl">URL du serveur Piper</Label>
-                  <Input
-                    id="piperUrl"
-                    type="url"
-                    value={piperUrl}
-                    onChange={(e) => setPiperUrl(e.target.value)}
-                    placeholder="http://piper-server:5000/api/tts"
-                    data-testid="input-piper-url"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {hasExistingPiperConfig ? (
-                      <span className="text-green-600 dark:text-green-400">✓ Configuré</span>
-                    ) : (
-                      "URL de l'endpoint HTTP GET de votre serveur Piper (ex: http://piper:5000/api/tts)"
-                    )}
-                  </p>
-                </div>
-                <Button
-                  onClick={() => savePiperMutation.mutate()}
-                  disabled={savePiperMutation.isPending || !piperUrl.trim()}
-                  data-testid="button-save-piper"
-                  className="w-full"
-                >
-                  {savePiperMutation.isPending ? "Enregistrement..." : "Enregistrer Piper TTS"}
-                </Button>
-              </CardContent>
-            </Card>
 
             <Card className="rounded-2xl border-border/50 shadow-lg">
               <CardHeader className="p-6">

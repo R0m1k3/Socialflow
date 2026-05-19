@@ -252,7 +252,7 @@ export default function RemotionVideoPage() {
           </div>
           {ttsEnabled && (
             <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
-              <p className="text-sm text-muted-foreground">Piper TTS — voix configurée sur le serveur</p>
+              <p className="text-sm text-muted-foreground">TTS — voix activée</p>
               <Button size="sm" variant="outline" className="w-full" onClick={handleTtsPreview} disabled={!overlayText}>
                 <Volume2 className="mr-2 w-3 h-3" /> Écouter la voix
               </Button>

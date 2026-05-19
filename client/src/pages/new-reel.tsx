@@ -762,7 +762,7 @@ export default function NewReel() {
                                                 <div className="mt-4 space-y-2 ml-12 p-4 bg-muted/30 rounded-lg border border-border/50">
                                                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                                         <Mic className="w-4 h-4" />
-                                                        <span>Piper TTS — voix configurée sur le serveur</span>
+                                                        <span>TTS — voix activée</span>
                                                     </div>
 
                                                     <div className="mt-3 flex gap-2">

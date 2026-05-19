@@ -31,9 +31,6 @@ import {
   musicFavorites,
   type MusicFavorite,
   type InsertMusicFavorite,
-  piperConfig,
-  type PiperConfig,
-  type InsertPiperConfig,
   audioTracks,
   type AudioTrack,
   type InsertAudioTrack,
@@ -120,14 +117,10 @@ export interface IStorage {
 
   // Audio Tracks
   getAudioTracks(): Promise<AudioTrack[]>;
+  // Audio Tracks
   getAudioTrack(id: string): Promise<AudioTrack | undefined>;
   createAudioTrack(track: InsertAudioTrack): Promise<AudioTrack>;
   deleteAudioTrack(id: string): Promise<void>;
-
-  // Piper Config
-  getPiperConfig(userId: string): Promise<PiperConfig | undefined>;
-  createPiperConfig(config: InsertPiperConfig): Promise<PiperConfig>;
-  updatePiperConfig(userId: string, config: Partial<InsertPiperConfig>): Promise<PiperConfig>;
 
   // App Config
   getAppConfig(): Promise<AppConfig | undefined>;
@@ -589,24 +582,6 @@ export class DatabaseStorage implements IStorage {
     }
     const [created] = await db.insert(appConfig).values(data).returning();
     return created;
-  }
-  // Piper Config
-  async getPiperConfig(userId: string): Promise<PiperConfig | undefined> {
-    const [config] = await db.select().from(piperConfig).where(eq(piperConfig.userId, userId));
-    return config || undefined;
-  }
-
-  async createPiperConfig(config: InsertPiperConfig): Promise<PiperConfig> {
-    const [newConfig] = await db.insert(piperConfig).values(config).returning();
-    return newConfig;
-  }
-
-  async updatePiperConfig(userId: string, config: Partial<InsertPiperConfig>): Promise<PiperConfig> {
-    const [updated] = await db.update(piperConfig)
-      .set({ ...config, updatedAt: new Date() })
-      .where(eq(piperConfig.userId, userId))
-      .returning();
-    return updated;
   }
 }
 

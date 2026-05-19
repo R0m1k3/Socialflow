@@ -12,7 +12,7 @@ interface FFmpegReelRequest {
     music_id?: string;          // ID de la musique (catalogue FFmpeg)
     music_url?: string;         // OU URL directe de la musique
     tts_enabled?: boolean;      // Activation du TTS
-    piper_url?: string;         // URL du serveur Piper TTS
+    tts_voice?: string;         // Voix TTS (ex: fr-FR-VivienneNeural)
     word_duration?: number;     // Durée par mot (default: 0.6s)
     font_size?: number;         // Taille police (default: 24)
     music_volume?: number;      // Volume musique (default: 0.25)
@@ -71,7 +71,7 @@ export class FFmpegService {
             musicId?: string;
             musicUrl?: string;
             ttsEnabled?: boolean;
-            piperUrl?: string;
+            ttsVoice?: string;
             wordDuration?: number;
             fontSize?: number;
             musicVolume?: number;
@@ -90,7 +90,7 @@ export class FFmpegService {
             music_id: options.musicId,
             music_url: options.musicUrl,
             tts_enabled: options.ttsEnabled,
-            piper_url: options.piperUrl,
+            tts_voice: options.ttsVoice,
             word_duration: options.wordDuration ?? 0.6,
             font_size: options.fontSize ?? 64,
             music_volume: options.musicVolume ?? 0.25,
@@ -172,7 +172,7 @@ export class FFmpegService {
             musicId?: string;
             musicUrl?: string;
             ttsEnabled?: boolean;
-            piperUrl?: string;
+            ttsVoice?: string;
             wordDuration?: number;
             fontSize?: number;
             musicVolume?: number;
@@ -191,7 +191,7 @@ export class FFmpegService {
             music_id: options.musicId,
             music_url: options.musicUrl,
             tts_enabled: options.ttsEnabled,
-            piper_url: options.piperUrl,
+            tts_voice: options.ttsVoice,
             word_duration: options.wordDuration ?? 0.6,
             font_size: options.fontSize ?? 64,
             music_volume: options.musicVolume ?? 0.25,
@@ -216,7 +216,6 @@ export class FFmpegService {
             hasMusicId: !!options.musicId,
             hasMusicUrl: !!options.musicUrl,
             ttsEnabled: options.ttsEnabled,
-            hasPiperUrl: !!options.piperUrl,
             drawText: options.drawText,
         });
 
@@ -291,7 +290,7 @@ export class FFmpegService {
     }
     async previewTTS(
         text: string,
-        piperUrl?: string
+        ttsVoice?: string
     ): Promise<{ success: boolean; audioBase64?: string; error?: string }> {
         const config = this.ensureConfigured();
 
@@ -305,7 +304,7 @@ export class FFmpegService {
                 body: JSON.stringify({
                     text,
                     tts_enabled: true,
-                    piper_url: piperUrl,
+                    tts_voice: ttsVoice,
                 }),
             });
 

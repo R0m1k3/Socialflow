@@ -158,7 +158,7 @@ class ReelRequest(BaseModel):
     font_size: int = 64
     music_volume: float = 0.25
     tts_enabled: bool = False
-    piper_url: Optional[str] = None
+    tts_voice: str = "fr-FR-VivienneMultilingualNeural"
     draw_text: bool = True
     stabilize: bool = False  # Stabilisation vidéo via vidstab
     enable_ending_effect: bool = True
@@ -192,68 +192,19 @@ def clean_text_for_tts(text: str) -> str:
     return " ".join(text.split())
 
 
-def generate_tts_piper(text: str, piper_url: str, audio_path: Path) -> None:
-    """Generate TTS audio using Piper TTS HTTP API."""
-    print(f"🔊 Piper TTS request: url={piper_url}, text_len={len(text)}")
-    response = requests.get(piper_url, params={"text": text}, timeout=60)
-    print(f"🔊 Piper API response: status={response.status_code}, content_type={response.headers.get('Content-Type', '?')}")
-    response.raise_for_status()
-
-    tmp_path = audio_path.with_suffix(".tmp")
-    with open(tmp_path, "wb") as f:
-        f.write(response.content)
-
-    subprocess.run([
-        "ffmpeg", "-y", "-i", str(tmp_path),
-        "-codec:a", "libmp3lame", "-b:a", "128k",
-        str(audio_path)
-    ], check=True, capture_output=True)
-    tmp_path.unlink(missing_ok=True)
-    print(f"✅ Piper TTS audio saved: {audio_path.stat().st_size} bytes")
-
-
 async def generate_tts_with_subs(
     text: str,
+    voice: str,
     audio_path: Path,
     ass_path: Path,
     display_text: Optional[str] = None,
     delay: float = 0.0,
-    piper_url: Optional[str] = None,
 ):
     """Generate TTS audio with word-level synchronized subtitles.
 
-    Uses Piper TTS when piper_url is set, otherwise falls back to edge_tts.
-    Piper uses ffsubsync for subtitle sync (no word boundaries available).
+    Uses edge_tts.Communicate.stream() to capture WordBoundary events,
+    providing millisecond-accurate subtitle timing.
     """
-
-    # Piper branch: no WordBoundary events, use ffsubsync for subtitle sync
-    if piper_url:
-        text_to_display = display_text if display_text else text
-        generate_tts_piper(text, piper_url, audio_path)
-
-        audio_duration = None
-        try:
-            dur_cmd = [
-                "ffprobe", "-v", "error", "-show_entries", "format=duration",
-                "-of", "default=noprint_wrappers=1:nokey=1", str(audio_path),
-            ]
-            dur_proc = subprocess.run(dur_cmd, stdout=subprocess.PIPE, text=True)
-            audio_duration = float(dur_proc.stdout.strip())
-            print(f"⏱️ Piper TTS Duration: {audio_duration:.2f}s")
-        except Exception as e:
-            print(f"⚠️ Could not measure Piper TTS duration: {e}")
-
-        unsynced_srt_path = audio_path.with_suffix(".unsynced.srt")
-        synced_srt_path = audio_path.with_suffix(".synced.srt")
-        generate_unsynced_srt(text_to_display, unsynced_srt_path, total_duration=audio_duration)
-        run_ffsubsync(audio_path, unsynced_srt_path, synced_srt_path)
-        convert_srt_to_ass(synced_srt_path, ass_path, font_size=65, delay=delay)
-        print("✅ Piper TTS synchronisation completed with ffsubsync")
-        return
-
-    # edge_tts fallback branch
-    voice = "fr-FR-VivienneMultilingualNeural"
-
     # Determine gender of requested voice to choose appropriate fallbacks
     is_male = any(name in voice for name in ["Remi", "Henri", "Paul"])
 
@@ -836,24 +787,33 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
         # 3. Generate TTS (if enabled)
         has_tts = False
         tts_clean_text = ""
-        tts_error_msg = None
 
         if request.tts_enabled and request.text:
             try:
                 # Clean text for TTS (remove hashtags/emojis)
                 tts_clean_text = clean_text_for_tts(request.text)
-                print(f"🔊 TTS enabled. Piper URL: {bool(request.piper_url)}")
-                print(f"🔊 TTS cleaned: '{tts_clean_text[:80]}...'")
+                print(f"🔊 TTS enabled. Original: '{request.text}'")
+                print(f"🔊 TTS cleaned: '{tts_clean_text}'")
+
+                # Determine voice
+                voice = request.tts_voice
+                if voice == "male":
+                    voice = "fr-FR-RemyMultilingualNeural"
+                elif voice == "female":
+                    voice = "fr-FR-VivienneMultilingualNeural"
+                elif not voice or "Neural" not in voice:
+                    voice = "fr-FR-VivienneMultilingualNeural"
+                print(f"🔊 Using voice: {voice}")
 
                 if tts_clean_text:
                     print(f"🔊 Generating TTS audio to: {tts_audio_path}")
                     await generate_tts_with_subs(
                         tts_clean_text,
+                        voice,
                         tts_audio_path,
                         tts_ass_path,
                         display_text=clean_text_for_display(request.text),
                         delay=2.0,
-                        piper_url=request.piper_url,
                     )
 
                     # Verify files were created
@@ -863,14 +823,11 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                         )
                         has_tts = True
                     else:
-                        tts_error_msg = "TTS audio file missing or empty after generation"
-                        print(f"❌ {tts_error_msg}")
+                        print("❌ TTS audio file missing or empty!")
                 else:
-                    tts_error_msg = "TTS text empty after cleaning (hashtags/emojis removed)"
-                    print(f"⚠️ {tts_error_msg}")
+                    print("⚠️ TTS text is empty after cleaning, skipping.")
             except Exception as e:
                 import traceback
-                tts_error_msg = str(e)
                 print(f"❌ Failed to generate TTS: {e}")
                 traceback.print_exc()
 
@@ -1199,7 +1156,6 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             "output_base64": out_b64,
             "duration": duration,
             "processing_stats": stats,
-            "tts_error": tts_error_msg,
         }
 
     except Exception as e:
@@ -1226,12 +1182,21 @@ async def preview_tts(request: ReelRequest, x_api_key: str = Header(None)):
 
         clean_text = clean_text_for_tts(request.text)
 
+        # Determine voice
+        voice = request.tts_voice
+        if voice == "male":
+            voice = "fr-FR-RemyMultilingualNeural"
+        elif voice == "female":
+            voice = "fr-FR-VivienneMultilingualNeural"
+        elif not voice or "Neural" not in voice:
+            voice = "fr-FR-VivienneMultilingualNeural"
+
         await generate_tts_with_subs(
             clean_text,
+            voice,
             tts_audio_path,
             tts_srt_path,
             display_text=clean_text_for_display(request.text),
-            piper_url=request.piper_url,
         )
 
         if not tts_audio_path.exists():

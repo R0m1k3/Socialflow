@@ -133,14 +133,6 @@ export const openrouterConfig = pgTable("openrouter_config", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const piperConfig = pgTable("piper_config", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
-  url: text("url").notNull(),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-});
-
 export const media = pgTable("media", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -469,22 +461,6 @@ export type InsertMusicFavorite = z.infer<typeof insertMusicFavoriteSchema>;
 
 export type AudioTrack = typeof audioTracks.$inferSelect;
 export type InsertAudioTrack = z.infer<typeof insertAudioTrackSchema>;
-
-export const insertPiperConfigSchema = createInsertSchema(piperConfig).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-});
-
-export const updatePiperConfigSchema = insertPiperConfigSchema.omit({
-  userId: true
-}).partial({
-  url: true,
-});
-
-export type PiperConfig = typeof piperConfig.$inferSelect;
-export type InsertPiperConfig = z.infer<typeof insertPiperConfigSchema>;
-export type UpdatePiperConfig = z.infer<typeof updatePiperConfigSchema>;
 
 export type AppConfig = typeof appConfig.$inferSelect;
 

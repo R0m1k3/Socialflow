@@ -320,18 +320,12 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
 
         const finalWordDuration = wordDuration;
 
-        let piperUrl: string | undefined;
-        if (ttsEnabled) {
-            const piperCfg = await storage.getPiperConfig(user.id);
-            piperUrl = piperCfg?.url ?? undefined;
-        }
-
         // Traiter la vidéo via FFmpeg
         const result = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
             text: overlayText,
             musicUrl: finalMusicUrl,
             ttsEnabled,
-            piperUrl,
+            ttsVoice,
             wordDuration: finalWordDuration,
             fontSize,
             musicVolume,
@@ -370,8 +364,7 @@ reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Texte requis' });
         }
 
-        const piperCfg = await storage.getPiperConfig(user.id);
-        const result = await ffmpegService.previewTTS(text, piperCfg?.url);
+        const result = await ffmpegService.previewTTS(text, voice);
 
         if (!result.success) {
             return res.status(500).json({ error: result.error || 'Erreur de génération TTS' });
@@ -550,19 +543,13 @@ async function processReelBackground(
 
         const finalWordDuration = wordDuration ?? 0.6;
 
-        let piperUrlBg: string | undefined;
-        if (ttsEnabled) {
-            const piperCfg = await storage.getPiperConfig(userId);
-            piperUrlBg = piperCfg?.url ?? undefined;
-        }
-
-        console.log('🔊 [Background] TTS config:', { ttsEnabled, hasPiperUrl: !!piperUrlBg });
+        console.log('🔊 [Background] TTS config:', { ttsEnabled, ttsVoice });
 
         const ffmpegResult = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
             text: overlayText,
             musicUrl: finalMusicUrl,
             ttsEnabled,
-            piperUrl: piperUrlBg,
+            ttsVoice,
             wordDuration: finalWordDuration,
             fontSize,
             musicVolume,

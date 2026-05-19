@@ -10,7 +10,7 @@ import passport from "./auth";
 import { z } from "zod";
 import { openRouterService } from "./services/openrouter";
 import { minioService as cloudinaryService, buildMinioUrl } from "./services/minio";
-import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertPiperConfigSchema, updatePiperConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
+import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
 import type { User, InsertUser, ScheduledPost } from "@shared/schema";
 import { analyticsRouter } from "./routes/analytics";
 import { reelsRouter } from "./routes/reels";
@@ -422,43 +422,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Analytics Routes
   app.use("/api/analytics", requireAuth, analyticsRouter);
-
-  // Piper TTS Configuration Routes
-  app.get("/api/piper/config", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as User;
-      const config = await storage.getPiperConfig(user.id);
-      if (!config) {
-        return res.json(null);
-      }
-      return res.json(config);
-    } catch (error) {
-      console.error("Error fetching Piper config:", error);
-      res.status(500).json({ error: "Failed to fetch configuration" });
-    }
-  });
-
-  app.post("/api/piper/config", requireAuth, async (req, res) => {
-    try {
-      const user = req.user as User;
-      const data = updatePiperConfigSchema.parse(req.body);
-
-      let config = await storage.getPiperConfig(user.id);
-      if (config) {
-        config = await storage.updatePiperConfig(user.id, data);
-      } else {
-        if (!data.url) {
-          return res.status(400).json({ error: "URL is required" });
-        }
-        config = await storage.createPiperConfig({ ...data as any, userId: user.id });
-      }
-
-      res.json({ success: true });
-    } catch (error) {
-      console.error("Error saving Piper config:", error);
-      res.status(500).json({ error: "Failed to save configuration" });
-    }
-  });
 
   // Reels & Music Routes
   app.use("/api", requireAuth, reelsRouter);
