@@ -82,16 +82,10 @@ export default function NewReel() {
     const [ttsEngine, setTtsEngine] = useState<'edge' | 'gemini'>('edge');
     const [ttsVoice, setTtsVoice] = useState('fr-FR-VivienneMultilingualNeural');
 
-    // French Gemini voices
+    // Gemini native TTS voices (Charon = homme, Kore = femme)
     const geminiVoices = [
-        { label: 'Français - Standard A (Femme)', value: 'fr-FR-Standard-A' },
-        { label: 'Français - Standard B (Homme)', value: 'fr-FR-Standard-B' },
-        { label: 'Français - Standard C (Femme)', value: 'fr-FR-Standard-C' },
-        { label: 'Français - Standard D (Homme)', value: 'fr-FR-Standard-D' },
-        { label: 'Français - Wavenet A (Femme)', value: 'fr-FR-Wavenet-A' },
-        { label: 'Français - Wavenet B (Homme)', value: 'fr-FR-Wavenet-B' },
-        { label: 'Français - Wavenet C (Femme)', value: 'fr-FR-Wavenet-C' },
-        { label: 'Français - Wavenet D (Homme)', value: 'fr-FR-Wavenet-D' },
+        { label: 'Charon - Voix Homme', value: 'fr-FR-Standard-B' },
+        { label: 'Kore - Voix Femme', value: 'fr-FR-Standard-A' },
     ];
 
     // French Edge TTS voices
@@ -812,7 +806,7 @@ export default function NewReel() {
                                                                 variant={ttsEngine === 'gemini' ? 'default' : 'outline'}
                                                                 onClick={() => {
                                                                     setTtsEngine('gemini');
-                                                                    setTtsVoice('fr-FR-Standard-A');
+                                                                    setTtsVoice('fr-FR-Standard-B');
                                                                 }}
                                                             >
                                                                 Gemini TTS
