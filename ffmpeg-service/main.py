@@ -247,20 +247,32 @@ async def generate_tts_gemini(
 
         print(f"\U0001f50a Gemini audio received: {len(audio_bytes)} bytes, mime={mime_type}")
 
-        # Gemini returns WAV/PCM — convert to MP3 via FFmpeg
-        wav_path = audio_path.with_suffix(".wav")
-        with open(wav_path, "wb") as f:
+        # Gemini returns raw PCM (e.g. "audio/L16;codec=pcm;rate=24000") — parse rate from mime
+        sample_rate = 24000
+        rate_match = re.search(r"rate=(\d+)", mime_type)
+        if rate_match:
+            sample_rate = int(rate_match.group(1))
+
+        pcm_path = audio_path.with_suffix(".pcm")
+        with open(pcm_path, "wb") as f:
             f.write(audio_bytes)
 
         convert_cmd = [
             "ffmpeg", "-y",
-            "-i", str(wav_path),
+            "-f", "s16le",
+            "-ar", str(sample_rate),
+            "-ac", "1",
+            "-i", str(pcm_path),
             "-codec:a", "libmp3lame",
             "-qscale:a", "2",
             str(audio_path),
         ]
-        subprocess.run(convert_cmd, check=True, capture_output=True)
-        wav_path.unlink(missing_ok=True)
+        result = subprocess.run(convert_cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"❌ ffmpeg PCM->MP3 conversion failed (rc={result.returncode}):")
+            print(result.stderr[-1000:])
+            raise RuntimeError(f"ffmpeg conversion failed: {result.stderr[-500:]}")
+        pcm_path.unlink(missing_ok=True)
 
         print(f"\u2705 Gemini TTS audio saved: {audio_path.stat().st_size} bytes")
 
