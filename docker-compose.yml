@@ -36,6 +36,7 @@ services:
       PORT: 5555
       DATABASE_URL: postgresql://${PGUSER:-socialflow}:${PGPASSWORD:-changeme}@postgres:4523/${PGDATABASE:-socialflow}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
       SESSION_SECRET: ${SESSION_SECRET:-your-secret-key-change-me}
       APP_URL: ${APP_URL:-http://localhost:5555}
       # URL interne Docker pour que ffmpeg-api puisse télécharger les fichiers audio

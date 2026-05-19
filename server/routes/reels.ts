@@ -324,7 +324,7 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
         let geminiApiKey: string | undefined = undefined;
         if (ttsEngine === "gemini") {
             const appCfg = await storage.getAppConfig();
-            geminiApiKey = appCfg?.geminiApiKey ?? undefined;
+            geminiApiKey = appCfg?.geminiApiKey ?? process.env.GEMINI_API_KEY ?? undefined;
         }
 
         const finalWordDuration = wordDuration;
@@ -378,7 +378,7 @@ reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
         let geminiApiKey: string | undefined = undefined;
         if (ttsEngine === "gemini") {
             const appCfg = await storage.getAppConfig();
-            geminiApiKey = appCfg?.geminiApiKey ?? undefined;
+            geminiApiKey = appCfg?.geminiApiKey ?? process.env.GEMINI_API_KEY ?? undefined;
         }
 
         const result = await ffmpegService.previewTTS(text, ttsVoice, ttsEngine, geminiApiKey);
@@ -566,7 +566,7 @@ async function processReelBackground(
         let geminiApiKey: string | undefined = undefined;
         if (ttsEngine === "gemini") {
             const appCfg = await storage.getAppConfig();
-            geminiApiKey = appCfg?.geminiApiKey ?? undefined;
+            geminiApiKey = appCfg?.geminiApiKey ?? process.env.GEMINI_API_KEY ?? undefined;
         }
 
         const finalWordDuration = wordDuration ?? 0.6;
