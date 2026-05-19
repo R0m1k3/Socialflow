@@ -375,7 +375,13 @@ reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Texte requis' });
         }
 
-        const result = await ffmpegService.previewTTS(text, ttsVoice, ttsEngine, undefined);
+        let geminiApiKey: string | undefined = undefined;
+        if (ttsEngine === "gemini") {
+            const appCfg = await storage.getAppConfig();
+            geminiApiKey = appCfg?.geminiApiKey ?? undefined;
+        }
+
+        const result = await ffmpegService.previewTTS(text, ttsVoice, ttsEngine, geminiApiKey);
 
         if (!result.success) {
             return res.status(500).json({ error: result.error || 'Erreur de génération TTS' });
