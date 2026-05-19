@@ -207,7 +207,7 @@ async def generate_tts_gemini(
     try:
         import httpx
 
-        print(f"\ud83d\udd0a Gemini TTS request: voice={voice}, text_len={len(text)}")
+        print(f"🔊 Gemini TTS request: voice={voice}, text_len={len(text)}")
 
         # Google Cloud TTS REST API
         url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={api_key}"
@@ -258,9 +258,9 @@ async def generate_tts_gemini(
         # Google Cloud TTS returns timepoints with startOffset/endOffset fields
         word_boundaries = []
         timepoints = data.get("timepoints", [])
-        print(f"\ud83d\udd0a Gemini timepoints count: {len(timepoints)}")
+        print(f"🔊 Gemini timepoints count: {len(timepoints)}")
         if len(timepoints) > 0:
-            print(f"\ud83d\udd0a Gemini first timepoint keys: {list(timepoints[0].keys())}")
+            print(f"🔊 Gemini first timepoint keys: {list(timepoints[0].keys())}")
         for tp in timepoints:
             if "word" in tp and "startOffset" in tp and "endOffset" in tp:
                 start_str = str(tp["startOffset"]).rstrip("s")
@@ -278,7 +278,7 @@ async def generate_tts_gemini(
             elif "word" in tp:
                 print(f"\u26a0\ufe0f Unexpected timepoint format: {tp}")
 
-        print(f"\ud83d\udccd Captured {len(word_boundaries)} word boundaries from Gemini")
+        print(f"📍 Captured {len(word_boundaries)} word boundaries from Gemini")
 
         # Measure total audio duration
         audio_duration = None
@@ -308,7 +308,7 @@ async def generate_tts_gemini(
             print(f"\u2705 TTS synchronisation completed with ffsubsync fallback")
             return
 
-        print("\ud83c\udfaf Using precise word-boundary timing from Gemini TTS")
+        print("🎯 Using precise word-boundary timing from Gemini TTS")
         generate_ass_from_word_boundaries(
             word_boundaries,
             text_to_display,
