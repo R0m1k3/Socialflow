@@ -152,6 +152,12 @@ export async function migrate() {
       );
     `);
 
+    // app_config.gemini_api_key
+    await client.query(`
+      ALTER TABLE "app_config"
+      ADD COLUMN IF NOT EXISTS "gemini_api_key" text;
+    `);
+
     console.log("[Migration] Safe migration completed.");
   } catch (error) {
     console.error("[Migration] Error during migration:", error);
