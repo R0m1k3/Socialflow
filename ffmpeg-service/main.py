@@ -239,6 +239,15 @@ async def generate_tts_gemini(
             response.raise_for_status()
             data = response.json()
 
+        # Debug: log response structure
+        print(f"🔊 Gemini API response keys: {list(data.keys())}")
+        if "audioContent" in data:
+            print(f"🔊 Gemini audio content size: {len(data['audioContent'])} bytes (base64)")
+        if "timepoints" in data:
+            print(f"🔊 Gemini timepoints: {len(data['timepoints'])} items")
+            if len(data['timepoints']) > 0:
+                print(f"🔊 Gemini sample timepoint: {data['timepoints'][0]}")
+
         audio_content = base64.b64decode(data["audioContent"])
         with open(audio_path, "wb") as f:
             f.write(audio_content)
@@ -246,23 +255,28 @@ async def generate_tts_gemini(
         print(f"\u2705 Gemini TTS audio saved: {audio_path.stat().st_size} bytes")
 
         # Parse word time offsets from response
+        # Google Cloud TTS returns timepoints with startOffset/endOffset fields
         word_boundaries = []
-        if "wordTimeOffsets" in data.get("timepoints", []):
-            for tp in data["timepoints"]:
-                if "word" in tp and "startTime" in tp and "endTime" in tp:
-                    # Parse Google duration format: "0s" or "0.123s"
-                    start_str = tp["startTime"].rstrip("s")
-                    end_str = tp["endTime"].rstrip("s")
-                    try:
-                        start_sec = float(start_str)
-                        end_sec = float(end_str)
-                        word_boundaries.append({
-                            "text": tp["word"],
-                            "offset": start_sec,
-                            "duration": end_sec - start_sec,
-                        })
-                    except ValueError:
-                        pass
+        timepoints = data.get("timepoints", [])
+        print(f"\ud83d\udd0a Gemini timepoints count: {len(timepoints)}")
+        if len(timepoints) > 0:
+            print(f"\ud83d\udd0a Gemini first timepoint keys: {list(timepoints[0].keys())}")
+        for tp in timepoints:
+            if "word" in tp and "startOffset" in tp and "endOffset" in tp:
+                start_str = str(tp["startOffset"]).rstrip("s")
+                end_str = str(tp["endOffset"]).rstrip("s")
+                try:
+                    start_sec = float(start_str)
+                    end_sec = float(end_str)
+                    word_boundaries.append({
+                        "text": tp["word"],
+                        "offset": start_sec,
+                        "duration": end_sec - start_sec,
+                    })
+                except ValueError:
+                    pass
+            elif "word" in tp:
+                print(f"\u26a0\ufe0f Unexpected timepoint format: {tp}")
 
         print(f"\ud83d\udccd Captured {len(word_boundaries)} word boundaries from Gemini")
 
