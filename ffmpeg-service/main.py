@@ -325,17 +325,19 @@ async def generate_tts_with_subs(
     providing millisecond-accurate subtitle timing.
     """
     # Determine gender of requested voice to choose appropriate fallbacks
-    is_male = any(name in voice for name in ["Remi", "Henri", "Paul"])
+    is_male = any(name in voice for name in ["Remy", "Henri", "Paul"])
 
     if is_male:
         fallback_voices = [
             voice,
+            "fr-FR-RemyMultilingualNeural",
             "fr-FR-HenriNeural",
             "fr-FR-PaulNeural",
         ]
     else:
         fallback_voices = [
             voice,
+            "fr-FR-VivienneMultilingualNeural",
             "fr-FR-VivienneNeural",
             "fr-FR-DeniseNeural",
         ]
@@ -920,8 +922,9 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                     voice = "fr-FR-RemyMultilingualNeural"
                 elif voice == "female":
                     voice = "fr-FR-VivienneMultilingualNeural"
-                elif not voice or "Neural" not in voice:
+                elif not voice:
                     voice = "fr-FR-VivienneMultilingualNeural"
+                # Note: Gemini voices (fr-FR-Standard-A etc.) are valid Edge voices too
                 print(f"🔊 Using voice: {voice}")
 
                 if tts_clean_text:
@@ -1320,8 +1323,10 @@ async def preview_tts(request: ReelRequest, x_api_key: str = Header(None)):
             voice = "fr-FR-RemyMultilingualNeural"
         elif voice == "female":
             voice = "fr-FR-VivienneMultilingualNeural"
-        elif not voice or "Neural" not in voice:
+        elif not voice:
             voice = "fr-FR-VivienneMultilingualNeural"
+        # Note: Gemini voices (fr-FR-Standard-A etc.) are valid Edge voices too,
+        # so we don't check for "Neural" - let edge_tts handle voice resolution
 
         engine = request.tts_engine or "edge"
 
