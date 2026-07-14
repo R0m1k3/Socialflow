@@ -157,10 +157,17 @@ export default function SettingsMobile() {
       });
       setOpenrouterApiKey("");
     },
-    onError: () => {
+    onError: (error: Error) => {
+      let description = "Impossible de sauvegarder la configuration OpenRouter";
+      const body = error.message.match(/^\d+:\s*(.+)$/)?.[1];
+      if (body) {
+        try {
+          description = JSON.parse(body).error || description;
+        } catch { /* garder le message générique */ }
+      }
       toast({
         title: "Erreur",
-        description: "Impossible de sauvegarder la configuration OpenRouter",
+        description,
         variant: "destructive",
       });
     },

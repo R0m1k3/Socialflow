@@ -215,6 +215,22 @@ VERSION 3 - ÉMOTIONNELLE:
     return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
   }
 
+  /**
+   * Vérifie qu'une clé API est acceptée par OpenRouter.
+   * Retourne false uniquement sur un rejet d'authentification explicite (401/403) ;
+   * en cas d'erreur réseau, on laisse passer pour ne pas bloquer la sauvegarde.
+   */
+  async verifyApiKey(apiKey: string): Promise<boolean> {
+    try {
+      const response = await fetch("https://openrouter.ai/api/v1/key", {
+        headers: { "Authorization": `Bearer ${apiKey}` }
+      });
+      return response.status !== 401 && response.status !== 403;
+    } catch {
+      return true;
+    }
+  }
+
   async getAvailableModels(): Promise<any[]> {
     try {
       const response = await fetch("https://openrouter.ai/api/v1/models", {

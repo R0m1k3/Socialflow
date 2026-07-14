@@ -1844,6 +1844,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           return res.status(400).json({ error: "Clé API OpenRouter manquante. Veuillez entrer une clé API valide." });
         }
 
+        if (incomingKey && !(await openRouterService.verifyApiKey(incomingKey))) {
+          return res.status(400).json({ error: "Clé API refusée par OpenRouter. Vérifiez que vous avez collé la clé complète (sk-or-v1-...)." });
+        }
+
         config = await storage.updateOpenrouterConfig(userId, finalData);
       } else {
         // Pour les créations, exiger tous les champs
@@ -1851,14 +1855,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ...req.body,
           userId,
         });
+
+        if (!(await openRouterService.verifyApiKey(configData.apiKey))) {
+          return res.status(400).json({ error: "Clé API refusée par OpenRouter. Vérifiez que vous avez collé la clé complète (sk-or-v1-...)." });
+        }
+
         config = await storage.createOpenrouterConfig(configData);
       }
 
       // Don't send the API key back
       const { apiKey, ...safeConfig } = config;
       res.json(safeConfig);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving OpenRouter config:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: error.errors[0]?.message || "Données invalides" });
+      }
       res.status(500).json({ error: "Failed to save OpenRouter config" });
     }
   });
