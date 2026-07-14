@@ -12,6 +12,7 @@ interface GeneratedText {
   characterCount: number;
 }
 
+import crypto from 'crypto';
 import { storage } from '../storage';
 
 export class OpenRouterService {
@@ -35,8 +36,8 @@ export class OpenRouterService {
     // Use provided model or fall back to config model
     const modelToUse = modelOverride || config.model;
 
-    const keyPreview = `${config.apiKey.slice(0, 10)}...(len=${config.apiKey.length})`;
-    console.log(`[OpenRouter] Generating with model="${modelToUse}" key=${keyPreview} configUserId=${config.userId}`);
+    const keyFingerprint = crypto.createHash('sha256').update(config.apiKey).digest('hex').slice(0, 8);
+    console.log(`[OpenRouter] Generating with model="${modelToUse}" keyFingerprint=${keyFingerprint} keyLength=${config.apiKey.length} configUserId=${config.userId}`);
 
     try {
       const response = await fetch(this.baseUrl, {
