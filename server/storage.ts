@@ -461,7 +461,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAnyOpenrouterConfig(): Promise<OpenrouterConfig | undefined> {
-    const [config] = await db.select().from(openrouterConfig).limit(1);
+    const [config] = await db.select().from(openrouterConfig).orderBy(desc(openrouterConfig.updatedAt)).limit(1);
     return config || undefined;
   }
 
