@@ -12,6 +12,7 @@ interface GeneratedText {
   characterCount: number;
 }
 
+import crypto from 'crypto';
 import { storage } from '../storage';
 
 export class OpenRouterService {
@@ -26,16 +27,23 @@ export class OpenRouterService {
       throw new Error('Configuration OpenRouter non trouvée. Veuillez demander à un administrateur de configurer OpenRouter dans les Paramètres.');
     }
 
+    if (!config.apiKey || !config.apiKey.trim()) {
+      throw new Error('Clé API OpenRouter manquante ou vide en base de données. Veuillez la ressaisir dans les Paramètres.');
+    }
+
     const prompt = this.buildPrompt(productInfo, config.systemPrompt);
-    
+
     // Use provided model or fall back to config model
     const modelToUse = modelOverride || config.model;
+
+    const keyFingerprint = crypto.createHash('sha256').update(config.apiKey).digest('hex').slice(0, 8);
+    console.log(`[OpenRouter] Generating with model="${modelToUse}" keyFingerprint=${keyFingerprint} keyLength=${config.apiKey.length} configUserId=${config.userId}`);
 
     try {
       const response = await fetch(this.baseUrl, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${config.apiKey}`,
+          "Authorization": `Bearer ${config.apiKey.trim()}`,
           "Content-Type": "application/json",
           "HTTP-Referer": process.env.APP_URL || "http://localhost:5555",
           "X-Title": "Social Flow"
