@@ -23,7 +23,7 @@ export default function SettingsMobile() {
   const [endpointUrl, setEndpointUrl] = useState("");
   const [publicUrl, setPublicUrl] = useState("");
   const [openrouterApiKey, setOpenrouterApiKey] = useState("");
-  const [openrouterModel, setOpenrouterModel] = useState("anthropic/claude-3.5-sonnet");
+  const [openrouterModel, setOpenrouterModel] = useState("anthropic/claude-sonnet-4.5");
   const [openrouterSystemPrompt, setOpenrouterSystemPrompt] = useState("Tu es un expert en marketing des réseaux sociaux. Génère 3 variations de textes engageants pour des publications Facebook et Instagram à partir des informations produit fournies. Chaque variation doit être unique, captivante et optimisée pour l'engagement.");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -64,7 +64,7 @@ export default function SettingsMobile() {
 
   useEffect(() => {
     if (openrouterConfig) {
-      setOpenrouterModel((openrouterConfig as any).model || "anthropic/claude-3.5-sonnet");
+      setOpenrouterModel((openrouterConfig as any).model || "anthropic/claude-sonnet-4.5");
       setOpenrouterSystemPrompt((openrouterConfig as any).systemPrompt || "Tu es un expert en marketing des réseaux sociaux. Génère 3 variations de textes engageants pour des publications Facebook et Instagram à partir des informations produit fournies. Chaque variation doit être unique, captivante et optimisée pour l'engagement.");
     }
   }, [openrouterConfig]);

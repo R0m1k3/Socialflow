@@ -18,8 +18,9 @@ export class OpenRouterService {
   private baseUrl = "https://openrouter.ai/api/v1/chat/completions";
 
   async generatePostText(productInfo: ProductInfo, userId: string, modelOverride?: string): Promise<GeneratedText[]> {
-    // Get any available OpenRouter configuration (shared across all users)
-    const config = await storage.getAnyOpenrouterConfig();
+    // Prefer the requesting user's own configuration; fall back to the most
+    // recently saved shared configuration if this user hasn't set one up.
+    const config = (await storage.getOpenrouterConfig(userId)) || (await storage.getAnyOpenrouterConfig());
     
     if (!config) {
       throw new Error('Configuration OpenRouter non trouvée. Veuillez demander à un administrateur de configurer OpenRouter dans les Paramètres.');

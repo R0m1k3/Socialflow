@@ -32,7 +32,7 @@ export default function AiChat() {
     },
   ]);
   const [input, setInput] = useState("");
-  const [selectedModel, setSelectedModel] = useState("anthropic/claude-3.5-sonnet");
+  const [selectedModel, setSelectedModel] = useState("anthropic/claude-sonnet-4.5");
   const { toast } = useToast();
 
   // Fetch available models from OpenRouter

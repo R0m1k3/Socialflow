@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS openrouter_config (
   id VARCHAR PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id VARCHAR NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
   api_key TEXT NOT NULL,
-  model TEXT NOT NULL DEFAULT 'anthropic/claude-3.5-sonnet',
+  model TEXT NOT NULL DEFAULT 'anthropic/claude-sonnet-4.5',
   system_prompt TEXT NOT NULL DEFAULT 'Tu es un expert en marketing des réseaux sociaux. Génère 3 variations de textes engageants pour des publications Facebook et Instagram à partir des informations produit fournies. Chaque variation doit être unique, captivante et optimisée pour l''engagement.',
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()

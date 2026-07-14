@@ -127,7 +127,7 @@ export const openrouterConfig = pgTable("openrouter_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
   apiKey: text("api_key").notNull(),
-  model: text("model").notNull().default("anthropic/claude-3.5-sonnet"),
+  model: text("model").notNull().default("anthropic/claude-sonnet-4.5"),
   systemPrompt: text("system_prompt").notNull().default("Tu es un expert en marketing des réseaux sociaux. Génère 3 variations de textes engageants pour des publications Facebook et Instagram à partir des informations produit fournies. Chaque variation doit être unique, captivante et optimisée pour l'engagement."),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
