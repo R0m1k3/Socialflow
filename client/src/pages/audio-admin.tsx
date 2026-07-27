@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Trash2, Music, Upload, Loader2, Play, Pause } from "lucide-react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { handleUnauthorized } from "@/lib/queryClient";
 
 interface AudioTrack {
     id: number;
@@ -41,9 +42,11 @@ export default function AudioAdmin() {
             const res = await fetch("/api/audio-tracks", {
                 method: "POST",
                 body: formData,
+                credentials: "include",
             });
 
             if (!res.ok) {
+                if (res.status === 401) handleUnauthorized("/api/audio-tracks");
                 const error = await res.json();
                 throw new Error(error.error || "Erreur lors de l'upload");
             }
@@ -77,9 +80,11 @@ export default function AudioAdmin() {
         mutationFn: async (id: number) => {
             const res = await fetch(`/api/audio-tracks/${id}`, {
                 method: "DELETE",
+                credentials: "include",
             });
 
             if (!res.ok) {
+                if (res.status === 401) handleUnauthorized(`/api/audio-tracks/${id}`);
                 throw new Error("Erreur lors de la suppression");
             }
         },

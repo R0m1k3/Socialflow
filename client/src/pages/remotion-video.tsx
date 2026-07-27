@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { UploadCloud, Video, Loader2, Check, Sparkles, Mic, Volume2, Music, Play, Pause, Send } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -119,8 +119,8 @@ export default function RemotionVideoPage() {
       if (selectedPageIds[0]) formData.append("selectedPageId", selectedPageIds[0]);
       if (musicFile) { formData.append("music", musicFile); formData.append("musicVolume", String(musicVolume)); }
       else if (selectedTrack) { formData.append("musicTrackUrl", selectedTrack.url); formData.append("musicVolume", String(musicVolume)); }
-      const response = await fetch("/api/remotion/render", { method: "POST", body: formData });
-      if (!response.ok) { const e = await response.json().catch(() => ({})); throw new Error(e.error || "Erreur"); }
+      const response = await fetch("/api/remotion/render", { method: "POST", body: formData, credentials: "include" });
+      if (!response.ok) { if (response.status === 401) handleUnauthorized("/api/remotion/render"); const e = await response.json().catch(() => ({})); throw new Error(e.error || "Erreur"); }
       const data = await response.json();
       
       if (data.jobId) {
@@ -128,8 +128,11 @@ export default function RemotionVideoPage() {
         
         const checkStatus = async () => {
           try {
-            const res = await fetch(`/api/remotion/render/status/${data.jobId}`);
-            if (!res.ok) throw new Error("Erreur de suivi du rendu");
+            const res = await fetch(`/api/remotion/render/status/${data.jobId}`, { credentials: "include" });
+            if (!res.ok) {
+              if (res.status === 401) handleUnauthorized(`/api/remotion/render/status/${data.jobId}`);
+              throw new Error("Erreur de suivi du rendu");
+            }
             const job = await res.json();
             
             if (job.status === 'done') {

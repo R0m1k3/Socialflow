@@ -31,7 +31,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
 import { MediaThumbnail } from "@/components/media-thumbnail";
 import type { SocialPage, Media, ScheduledPost } from "@shared/schema";
 import { PreviewModal } from "@/components/preview-modal";
@@ -148,8 +148,12 @@ export default function NewPost() {
       const response = await fetch("/api/media/upload", {
         method: "POST",
         body: formData,
+        credentials: "include",
       });
-      if (!response.ok) throw new Error("Upload failed");
+      if (!response.ok) {
+        if (response.status === 401) handleUnauthorized("/api/media/upload");
+        throw new Error("Upload failed");
+      }
       return response.json();
     },
     onSuccess: (data) => {

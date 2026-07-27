@@ -25,7 +25,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
 import { MediaThumbnail } from "@/components/media-thumbnail";
 import { DateTimePicker } from "@/components/datetime-picker";
@@ -166,8 +166,12 @@ export default function NewReel() {
             const response = await fetch("/api/media/upload", {
                 method: "POST",
                 body: formData,
+                credentials: "include",
             });
-            if (!response.ok) throw new Error("Upload failed");
+            if (!response.ok) {
+                if (response.status === 401) handleUnauthorized("/api/media/upload");
+                throw new Error("Upload failed");
+            }
             return response.json();
         },
         onSuccess: (data) => {

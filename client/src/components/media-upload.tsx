@@ -3,7 +3,7 @@ import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
 import { MediaThumbnail } from "@/components/media-thumbnail";
 import { CloudUpload, Image as ImageIcon, Video, X, Upload, Loader2, ZoomIn, Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -30,8 +30,12 @@ export default function MediaUpload() {
       const response = await fetch("/api/media/upload", {
         method: "POST",
         body: formData,
+        credentials: "include",
       });
-      if (!response.ok) throw new Error("Upload failed");
+      if (!response.ok) {
+        if (response.status === 401) handleUnauthorized("/api/media/upload");
+        throw new Error("Upload failed");
+      }
       return response.json();
     },
     onSuccess: (data) => {
@@ -55,8 +59,12 @@ export default function MediaUpload() {
         const response = await fetch("/api/media/upload", {
           method: "POST",
           body: formData,
+          credentials: "include",
         });
-        if (!response.ok) throw new Error("Upload failed");
+        if (!response.ok) {
+          if (response.status === 401) handleUnauthorized("/api/media/upload");
+          throw new Error("Upload failed");
+        }
         successCount++;
         return response.json();
       } catch (error) {

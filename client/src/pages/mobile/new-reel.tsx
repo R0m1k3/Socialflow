@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
 import { DateTimePicker } from "@/components/datetime-picker";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -145,8 +145,10 @@ export default function MobileNewReel() {
             const response = await fetch("/api/media/upload", {
                 method: "POST",
                 body: formData,
+                credentials: "include",
             });
             if (!response.ok) {
+                if (response.status === 401) handleUnauthorized("/api/media/upload");
                 const errorText = await response.text();
                 throw new Error(`Upload failed: ${response.status} ${response.statusText} - ${errorText.substring(0, 100)}`);
             }
