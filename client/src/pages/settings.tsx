@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ModelCombobox } from "@/components/model-combobox";
+import { SiTiktok } from "react-icons/si";
 
 export default function Settings() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -31,6 +32,8 @@ export default function Settings() {
   const [ffmpegApiKey, setFfmpegApiKey] = useState("");
   const [externalApiKey, setExternalApiKey] = useState("");
   const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [tiktokClientKey, setTiktokClientKey] = useState("");
+  const [tiktokClientSecret, setTiktokClientSecret] = useState("");
   const { toast } = useToast();
 
   const { data: session } = useQuery<{ id: string; username: string; role: string }>({
@@ -54,6 +57,15 @@ export default function Settings() {
 
   const { data: ffmpegConfig } = useQuery({
     queryKey: ['/api/ffmpeg/config'],
+  });
+
+  const { data: tiktokConfig } = useQuery<{
+    configured: boolean;
+    clientKey: string;
+    hasClientSecret: boolean;
+    redirectUri: string;
+  }>({
+    queryKey: ['/api/tiktok/config'],
   });
 
   const { data: externalApiConfig } = useQuery({
@@ -91,6 +103,13 @@ export default function Settings() {
       setFfmpegApiUrl((ffmpegConfig as any).apiUrl || "");
     }
   }, [ffmpegConfig]);
+
+  useEffect(() => {
+    if (tiktokConfig) {
+      // Le client secret n'est jamais renvoyé par l'API : il reste vide
+      setTiktokClientKey(tiktokConfig.clientKey || "");
+    }
+  }, [tiktokConfig]);
 
   useEffect(() => {
     if (geminiConfig) {
@@ -261,6 +280,29 @@ export default function Settings() {
     },
     onError: () => {
       toast({ title: "Erreur", description: "Impossible de sauvegarder la clé API", variant: "destructive" });
+    },
+  });
+
+  const saveTiktokMutation = useMutation({
+    mutationFn: () => {
+      const payload: any = { clientKey: tiktokClientKey.trim() };
+      // Le secret n'est envoyé que s'il est saisi : sinon on conserve l'existant
+      if (tiktokClientSecret.trim() !== "") {
+        payload.clientSecret = tiktokClientSecret.trim();
+      }
+      return apiRequest('PUT', '/api/tiktok/config', payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/tiktok/config'] });
+      setTiktokClientSecret("");
+      toast({ title: "Configuration TikTok enregistrée", description: "Vous pouvez maintenant connecter les comptes TikTok de vos magasins" });
+    },
+    onError: async (error: any) => {
+      toast({
+        title: "Erreur",
+        description: error?.message || "Impossible d'enregistrer la configuration TikTok",
+        variant: "destructive",
+      });
     },
   });
 
@@ -755,6 +797,71 @@ export default function Settings() {
                     className="w-full"
                   >
                     {saveExternalApiMutation.isPending ? "Enregistrement..." : hasExistingExternalApiConfig ? "Remplacer la clé" : "Enregistrer la clé"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {isAdmin && (
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
+                  <CardTitle className="flex items-center gap-2">
+                    <SiTiktok className="w-5 h-5" />
+                    TikTok
+                  </CardTitle>
+                  <CardDescription>
+                    Identifiants de votre application TikTok (developers.tiktok.com). Ils servent à
+                    connecter les comptes TikTok de chaque magasin depuis la page « Pages gérées ».
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {tiktokConfig?.configured && (
+                    <div className="rounded-lg bg-muted p-3 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                      <Key className="w-4 h-4" />
+                      <span>Application TikTok configurée</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="tiktokClientKey">Client key</Label>
+                    <Input
+                      id="tiktokClientKey"
+                      value={tiktokClientKey}
+                      onChange={(e) => setTiktokClientKey(e.target.value)}
+                      placeholder="awxxxxxxxxxxxxxx"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="tiktokClientSecret">
+                      {tiktokConfig?.hasClientSecret ? "Nouveau client secret (laisser vide pour conserver l'actuel)" : "Client secret"}
+                    </Label>
+                    <Input
+                      id="tiktokClientSecret"
+                      type="password"
+                      value={tiktokClientSecret}
+                      onChange={(e) => setTiktokClientSecret(e.target.value)}
+                      placeholder="••••••••••••••••"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>URL de redirection à déclarer chez TikTok</Label>
+                    <code className="block text-xs bg-muted px-3 py-2 rounded break-all">
+                      {tiktokConfig?.redirectUri || `${window.location.origin}/api/tiktok/callback`}
+                    </code>
+                    <p className="text-xs text-muted-foreground">
+                      Tant que l'application n'a pas passé l'audit TikTok, les vidéos publiées
+                      restent privées (visibles du seul propriétaire du compte).
+                    </p>
+                  </div>
+
+                  <Button
+                    onClick={() => saveTiktokMutation.mutate()}
+                    disabled={saveTiktokMutation.isPending || !tiktokClientKey.trim()}
+                    className="w-full"
+                  >
+                    {saveTiktokMutation.isPending ? "Enregistrement..." : "Enregistrer"}
                   </Button>
                 </CardContent>
               </Card>

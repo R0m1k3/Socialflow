@@ -27,6 +27,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
+import { SiFacebook, SiTiktok } from "react-icons/si";
 import { MediaThumbnail } from "@/components/media-thumbnail";
 import { DateTimePicker } from "@/components/datetime-picker";
 
@@ -132,6 +133,32 @@ export default function NewReel() {
     const { data: pages = [] } = useQuery<SocialPage[]>({
         queryKey: ['/api/pages'],
     });
+
+    // Destinations acceptant une vidéo verticale
+    const facebookPages = pages.filter(p => p.platform === 'facebook');
+    const tiktokAccounts = pages.filter(p => p.platform === 'tiktok');
+
+    const renderTargetCheckbox = (page: SocialPage) => (
+        <div key={page.id} className="flex items-center space-x-2">
+            <Checkbox
+                id={`page-${page.id}`}
+                checked={selectedPages.includes(page.id)}
+                onCheckedChange={(checked) => {
+                    if (checked) {
+                        setSelectedPages([...selectedPages, page.id]);
+                    } else {
+                        setSelectedPages(selectedPages.filter(id => id !== page.id));
+                    }
+                }}
+            />
+            <label
+                htmlFor={`page-${page.id}`}
+                className="text-sm font-medium leading-none flex-1"
+            >
+                {page.pageName}
+            </label>
+        </div>
+    );
 
     // Récupérer les vidéos disponibles
     const { data: allMedia = [] } = useQuery<Media[]>({
@@ -918,42 +945,42 @@ export default function NewReel() {
                                 <>
                                     <Card className="rounded-2xl border-border/50 shadow-lg">
                                         <CardHeader>
-                                            <CardTitle>Pages cibles</CardTitle>
-                                            <CardDescription>Sélectionnez les pages où publier</CardDescription>
+                                            <CardTitle>Destinations</CardTitle>
+                                            <CardDescription>
+                                                La même vidéo peut partir sur plusieurs pages Facebook et plusieurs comptes TikTok
+                                            </CardDescription>
                                         </CardHeader>
                                         <CardContent>
-                                            {pages.filter(p => p.platform === 'facebook').length === 0 ? (
+                                            {facebookPages.length === 0 && tiktokAccounts.length === 0 ? (
                                                 <div className="text-center py-8">
                                                     <p className="text-muted-foreground mb-2">
-                                                        Aucune page Facebook connectée
+                                                        Aucune page Facebook ni compte TikTok connecté
                                                     </p>
                                                     <Button variant="link" onClick={() => navigate('/pages')}>
                                                         Ajouter des pages
                                                     </Button>
                                                 </div>
                                             ) : (
-                                                <div className="space-y-3">
-                                                    {pages.filter(p => p.platform === 'facebook').map((page) => (
-                                                        <div key={page.id} className="flex items-center space-x-2">
-                                                            <Checkbox
-                                                                id={`page-${page.id}`}
-                                                                checked={selectedPages.includes(page.id)}
-                                                                onCheckedChange={(checked) => {
-                                                                    if (checked) {
-                                                                        setSelectedPages([...selectedPages, page.id]);
-                                                                    } else {
-                                                                        setSelectedPages(selectedPages.filter(id => id !== page.id));
-                                                                    }
-                                                                }}
-                                                            />
-                                                            <label
-                                                                htmlFor={`page-${page.id}`}
-                                                                className="text-sm font-medium leading-none flex-1"
-                                                            >
-                                                                {page.pageName}
-                                                            </label>
+                                                <div className="space-y-5">
+                                                    {facebookPages.length > 0 && (
+                                                        <div className="space-y-3">
+                                                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                                <SiFacebook className="w-4 h-4 text-[#1877F2]" />
+                                                                Pages Facebook
+                                                            </div>
+                                                            {facebookPages.map(renderTargetCheckbox)}
                                                         </div>
-                                                    ))}
+                                                    )}
+
+                                                    {tiktokAccounts.length > 0 && (
+                                                        <div className="space-y-3">
+                                                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                                                <SiTiktok className="w-4 h-4" />
+                                                                Comptes TikTok
+                                                            </div>
+                                                            {tiktokAccounts.map(renderTargetCheckbox)}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
                                         </CardContent>

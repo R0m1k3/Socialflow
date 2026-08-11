@@ -10,6 +10,7 @@ import { ffmpegService } from "../services/ffmpeg";
 import { storage as dbStorage } from "../storage";
 import { minioService as cloudinaryService, buildMinioUrl } from "../services/minio";
 import { facebookService } from "../services/facebook";
+import { tiktokService } from "../services/tiktok";
 import * as musicMetadata from "music-metadata";
 
 const execAsync = promisify(exec);
@@ -427,7 +428,10 @@ remotionRouter.post("/publish", async (req, res) => {
       try {
         const page = await dbStorage.getSocialPage(pageId);
         if (!page) { results.push({ pageId, success: false, error: "Page introuvable" }); continue; }
-        if (page.platform !== "facebook") { results.push({ pageId, success: false, error: "Seules les pages Facebook sont supportées" }); continue; }
+        if (page.platform !== "facebook" && page.platform !== "tiktok") {
+          results.push({ pageId, success: false, error: `Plateforme non supportée pour les reels : ${page.platform}` });
+          continue;
+        }
 
         const scheduledPost = await dbStorage.createScheduledPost({
           postId: post.id,
@@ -437,12 +441,25 @@ remotionRouter.post("/publish", async (req, res) => {
         });
 
         if (!scheduledFor) {
-          console.log(`🚀 Publishing to ${page.pageName} (direct binary upload)...`);
-          // Upload video bytes directly — Facebook cannot access local URLs
+          console.log(`🚀 Publishing to ${page.platform} ${page.pageName} (direct binary upload)...`);
+          // Upload video bytes directly — les APIs ne peuvent pas lire une URL locale
           const videoBuffer = await fs.promises.readFile(localPath);
-          const reelId = await facebookService.publishVideoFromBuffer(page, videoBuffer, description || "");
-          await dbStorage.updateScheduledPost(scheduledPost.id, { publishedAt: new Date(), externalPostId: reelId });
-          results.push({ pageId, success: true, reelId });
+
+          if (page.platform === "facebook") {
+            const reelId = await facebookService.publishVideoFromBuffer(page, videoBuffer, description || "");
+            await dbStorage.updateScheduledPost(scheduledPost.id, { publishedAt: new Date(), externalPostId: reelId });
+            results.push({ pageId, success: true, reelId });
+          } else {
+            // TikTok finalise la publication de son côté : le poller de statut
+            // renseignera l'identifiant définitif du post.
+            const publishId = await tiktokService.publishVideoFromBuffer(page, videoBuffer, description || "");
+            await dbStorage.updateScheduledPost(scheduledPost.id, {
+              publishedAt: new Date(),
+              publishId,
+              publishStatus: "PROCESSING_UPLOAD",
+            });
+            results.push({ pageId, success: true, reelId: publishId });
+          }
         } else {
           results.push({ pageId, success: true, reelId: "scheduled" });
         }

@@ -1,7 +1,8 @@
 import cron, { ScheduledTask } from "node-cron";
 import { storage } from "../storage";
 import { facebookService } from "./facebook";
-import { minioService as storageService } from "./minio";
+import { tiktokService } from "./tiktok";
+import { minioService as storageService, readMediaBuffer } from "./minio";
 
 export class SchedulerService {
   private task: ScheduledTask | null = null;
@@ -94,11 +95,28 @@ export class SchedulerService {
       return;
     }
 
-    // Publish to Facebook/Instagram
-    let externalPostId: string;
-    
+    // Publish to Facebook/Instagram/TikTok
     if (page.platform === 'facebook') {
-      externalPostId = await facebookService.publishPost(post, page, scheduledPost.postType, mediaList);
+      const externalPostId = await facebookService.publishPost(post, page, scheduledPost.postType, mediaList);
+
+      // Update the scheduled post as published (clear any previous error)
+      await storage.updateScheduledPost(scheduledPost.id, {
+        publishedAt: new Date(),
+        externalPostId,
+        error: null,
+      });
+    } else if (page.platform === 'tiktok') {
+      const publishId = await this.publishToTiktok(post, page, mediaList);
+
+      // TikTok publie de façon asynchrone : on marque l'envoi comme effectué pour
+      // ne pas republier à la minute suivante, et le poller de statut renseignera
+      // l'identifiant définitif du post.
+      await storage.updateScheduledPost(scheduledPost.id, {
+        publishedAt: new Date(),
+        publishId,
+        publishStatus: 'PROCESSING_UPLOAD',
+        error: null,
+      });
     } else if (page.platform === 'instagram') {
       // Instagram publishing not yet implemented
       console.warn(`Instagram publishing not yet implemented for post ${post.id}`);
@@ -112,13 +130,6 @@ export class SchedulerService {
     } else {
       throw new Error(`Unsupported platform: ${page.platform}`);
     }
-
-    // Update the scheduled post as published (clear any previous error)
-    await storage.updateScheduledPost(scheduledPost.id, {
-      publishedAt: new Date(),
-      externalPostId,
-      error: null,
-    });
 
     // Update post status
     await storage.updatePost(post.id, {
@@ -143,7 +154,28 @@ export class SchedulerService {
       }
     }
 
-    console.log(`Successfully published post ${post.id} with external ID: ${externalPostId}`);
+    console.log(`Successfully published post ${post.id} to ${page.platform} page ${page.pageName}`);
+  }
+
+  /**
+   * Envoie la vidéo d'un post planifié sur un compte TikTok.
+   * TikTok ne sait pas programmer une publication : c'est notre planificateur qui
+   * déclenche l'envoi à l'heure voulue.
+   *
+   * @returns le publish_id à suivre pour connaître le résultat final
+   */
+  private async publishToTiktok(post: any, page: any, mediaList: any[]): Promise<string> {
+    const videoMedia = mediaList.find(m => m.type === 'video');
+
+    if (!videoMedia) {
+      throw new Error(
+        `Le compte TikTok "${page.pageName}" ne peut recevoir que des vidéos : ce post n'en contient pas.`
+      );
+    }
+
+    const videoBuffer = await readMediaBuffer(videoMedia.originalUrl);
+
+    return await tiktokService.publishVideoFromBuffer(page, videoBuffer, post.content);
   }
 }
 

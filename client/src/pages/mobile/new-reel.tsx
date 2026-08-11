@@ -18,6 +18,7 @@ import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
+import { SiFacebook, SiTiktok } from "react-icons/si";
 import { DateTimePicker } from "@/components/datetime-picker";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -113,6 +114,24 @@ export default function MobileNewReel() {
     const { data: pages = [] } = useQuery<SocialPage[]>({
         queryKey: ['/api/pages'],
     });
+
+    // Destinations acceptant une vidéo verticale
+    const facebookPages = pages.filter(p => p.platform === 'facebook');
+    const tiktokAccounts = pages.filter(p => p.platform === 'tiktok');
+
+    const renderTargetCheckbox = (page: SocialPage) => (
+        <div key={page.id} className="flex items-center space-x-3 bg-secondary/20 p-3 rounded-lg">
+            <Checkbox
+                id={page.id}
+                checked={selectedPages.includes(page.id)}
+                onCheckedChange={(checked) => {
+                    if (checked) setSelectedPages([...selectedPages, page.id]);
+                    else setSelectedPages(selectedPages.filter(id => id !== page.id));
+                }}
+            />
+            <label htmlFor={page.id} className="font-medium flex-1">{page.pageName}</label>
+        </div>
+    );
 
     const { data: allMedia = [] } = useQuery<Media[]>({
         queryKey: ['/api/media'],
@@ -585,20 +604,32 @@ export default function MobileNewReel() {
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base">Diffusion</CardTitle>
                             </CardHeader>
-                            <CardContent className="space-y-3">
-                                {pages.filter(p => p.platform === 'facebook').map((page) => (
-                                    <div key={page.id} className="flex items-center space-x-3 bg-secondary/20 p-3 rounded-lg">
-                                        <Checkbox
-                                            id={page.id}
-                                            checked={selectedPages.includes(page.id)}
-                                            onCheckedChange={(checked) => {
-                                                if (checked) setSelectedPages([...selectedPages, page.id]);
-                                                else setSelectedPages(selectedPages.filter(id => id !== page.id));
-                                            }}
-                                        />
-                                        <label htmlFor={page.id} className="font-medium flex-1">{page.pageName}</label>
+                            <CardContent className="space-y-4">
+                                {facebookPages.length === 0 && tiktokAccounts.length === 0 && (
+                                    <p className="text-sm text-muted-foreground">
+                                        Aucune page Facebook ni compte TikTok connecté.
+                                    </p>
+                                )}
+
+                                {facebookPages.length > 0 && (
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                            <SiFacebook className="w-4 h-4 text-[#1877F2]" />
+                                            Pages Facebook
+                                        </div>
+                                        {facebookPages.map(renderTargetCheckbox)}
                                     </div>
-                                ))}
+                                )}
+
+                                {tiktokAccounts.length > 0 && (
+                                    <div className="space-y-3">
+                                        <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                                            <SiTiktok className="w-4 h-4" />
+                                            Comptes TikTok
+                                        </div>
+                                        {tiktokAccounts.map(renderTargetCheckbox)}
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
 

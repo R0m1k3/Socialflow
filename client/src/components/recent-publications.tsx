@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Facebook, Instagram, Clock, CheckCircle2, XCircle, Eye, Image as ImageIcon, Smartphone, Clapperboard } from "lucide-react";
+import { SiTiktok } from "react-icons/si";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { ScheduledPost, SocialPage, Post, Media } from "@shared/schema";
@@ -162,10 +163,14 @@ export default function RecentPublications() {
                 {/* Platform icon */}
                 <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${scheduledPost.page?.platform === 'facebook'
                   ? 'bg-blue-500'
-                  : 'bg-gradient-to-br from-purple-500 to-pink-500'
+                  : scheduledPost.page?.platform === 'tiktok'
+                    ? 'bg-black'
+                    : 'bg-gradient-to-br from-purple-500 to-pink-500'
                   }`}>
                   {scheduledPost.page?.platform === 'facebook' ? (
                     <Facebook className="w-5 h-5 text-white" />
+                  ) : scheduledPost.page?.platform === 'tiktok' ? (
+                    <SiTiktok className="w-5 h-5 text-white" />
                   ) : (
                     <Instagram className="w-5 h-5 text-white" />
                   )}

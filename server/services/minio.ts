@@ -40,6 +40,27 @@ export function resolveInternalUrl(url: string): string {
   return `${base}${url}`;
 }
 
+/**
+ * Charge un média en mémoire, que son URL soit locale (/uploads/...) ou distante.
+ * Nécessaire pour les APIs qui veulent recevoir le fichier plutôt qu'une URL
+ * (upload TikTok, Reels Facebook).
+ */
+export async function readMediaBuffer(url: string): Promise<Buffer> {
+  if (url.startsWith('/')) {
+    const localPath = path.join(process.cwd(), url);
+    if (fs.existsSync(localPath)) {
+      return await fs.promises.readFile(localPath);
+    }
+  }
+
+  const absoluteUrl = resolvePublicUrl(url);
+  const response = await fetch(absoluteUrl);
+  if (!response.ok) {
+    throw new Error(`Impossible de récupérer le média depuis ${absoluteUrl} (${response.status})`);
+  }
+  return Buffer.from(await response.arrayBuffer());
+}
+
 class LocalStorageService {
   async uploadMedia(
     file: Buffer | string,

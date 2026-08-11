@@ -48,6 +48,8 @@ export class AnalyticsService {
 
         for (const instance of publishedInstances) {
             if (!instance.externalPostId || !instance.page) continue;
+            // Les métriques TikTok ne sont pas exposées par la Graph API
+            if (instance.page.platform === 'tiktok') continue;
 
             try {
                 // We need the page access token
@@ -278,7 +280,9 @@ export class AnalyticsService {
      */
     static async syncAllPages(): Promise<void> {
         console.log('[AnalyticsService] Starting sync for all pages...');
-        const allPages = await db.query.socialPages.findMany();
+        // Les statistiques passent par la Graph API : les comptes TikTok en sont exclus
+        const allPages = (await db.query.socialPages.findMany())
+            .filter(page => page.platform !== 'tiktok');
 
         for (const page of allPages) {
             try {

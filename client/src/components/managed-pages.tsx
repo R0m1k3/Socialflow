@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Users } from "lucide-react";
-import { SiFacebook, SiInstagram } from "react-icons/si";
+import { SiFacebook, SiInstagram, SiTiktok } from "react-icons/si";
 
 export default function ManagedPages() {
   const { data: pages, isLoading } = useQuery({
@@ -48,10 +48,12 @@ export default function ManagedPages() {
                 <div className="flex items-start justify-between mb-5">
                   <div className={`
                     w-14 h-14 rounded-xl flex items-center justify-center shadow-md
-                    ${page.platform === "facebook" ? "bg-[#1877F2]/10" : "bg-[#E4405F]/10"}
+                    ${page.platform === "facebook" ? "bg-[#1877F2]/10" : page.platform === "tiktok" ? "bg-foreground/10" : "bg-[#E4405F]/10"}
                   `}>
                     {page.platform === "facebook" ? (
                       <SiFacebook className="text-[#1877F2] text-2xl" />
+                    ) : page.platform === "tiktok" ? (
+                      <SiTiktok className="text-foreground text-2xl" />
                     ) : (
                       <SiInstagram className="text-[#E4405F] text-2xl" />
                     )}
@@ -65,7 +67,7 @@ export default function ManagedPages() {
                 </div>
                 <h4 className="font-semibold text-foreground text-lg mb-2">{page.pageName}</h4>
                 <p className="text-sm text-muted-foreground mb-4 font-medium">
-                  {page.platform === "facebook" ? "Facebook Page" : "Instagram Business"}
+                  {page.platform === "facebook" ? "Facebook Page" : page.platform === "tiktok" ? "Compte TikTok" : "Instagram Business"}
                 </p>
                 <div className="flex items-center justify-between pt-4 border-t border-border/50">
                   <div className="flex items-center gap-2">

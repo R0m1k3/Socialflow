@@ -116,9 +116,12 @@ export default function NewPost() {
   const [postType, setPostType] = useState<'feed' | 'story' | 'both'>('feed');
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
-  const { data: pages = [] } = useQuery<SocialPage[]>({
+  // Ce composeur gère les publications feed/story : TikTok n'accepte que des
+  // vidéos et se pilote depuis la création de reel.
+  const { data: allPages = [] } = useQuery<SocialPage[]>({
     queryKey: ['/api/pages'],
   });
+  const pages = allPages.filter(p => p.platform !== 'tiktok');
 
   const { data: allMedia = [] } = useQuery<Media[]>({
     queryKey: ['/api/media'],

@@ -7,6 +7,7 @@ import type { User, Media, SocialPage } from '@shared/schema';
 import { storage } from '../storage';
 import { ffmpegService } from '../services/ffmpeg';
 import { facebookService } from '../services/facebook';
+import { tiktokService } from '../services/tiktok';
 import { minioService as cloudinaryService, buildMinioUrl, resolveInternalUrl } from '../services/minio';
 import { openRouterService } from '../services/openrouter';
 import { db } from '../db';
@@ -642,8 +643,12 @@ async function processReelBackground(
                     continue;
                 }
 
-                if (page.platform !== 'facebook') {
-                    results.push({ pageId, success: false, error: 'Seules les pages Facebook sont supportées' });
+                if (page.platform !== 'facebook' && page.platform !== 'tiktok') {
+                    results.push({
+                        pageId,
+                        success: false,
+                        error: `Plateforme non supportée pour les reels : ${page.platform}`,
+                    });
                     continue;
                 }
 
@@ -656,23 +661,42 @@ async function processReelBackground(
                 });
 
                 if (!scheduledFor) {
-                    // Publication immédiate
-                    console.log(`🚀 [Background] Publishing to Page ${page.pageName}...`);
+                    // Publication immédiate — la même vidéo part sur chaque destination
+                    console.log(`🚀 [Background] Publishing to ${page.platform} ${page.pageName}...`);
                     const finalDescription = description || overlayText || '';
 
-                    const reelId = await facebookService.publishReel(
-                        page,
-                        cloudinaryResult.originalUrl,
-                        finalDescription
-                    );
+                    if (page.platform === 'facebook') {
+                        const reelId = await facebookService.publishReel(
+                            page,
+                            cloudinaryResult.originalUrl,
+                            finalDescription
+                        );
 
-                    // Mise à jour succès
-                    await storage.updateScheduledPost(scheduledPost.id, {
-                        publishedAt: new Date(),
-                        externalPostId: reelId,
-                    });
+                        // Mise à jour succès
+                        await storage.updateScheduledPost(scheduledPost.id, {
+                            publishedAt: new Date(),
+                            externalPostId: reelId,
+                        });
 
-                    results.push({ pageId, success: true, reelId });
+                        results.push({ pageId, success: true, reelId });
+                    } else {
+                        const publishId = await tiktokService.publishVideoFromBuffer(
+                            page,
+                            videoBuffer,
+                            finalDescription
+                        );
+
+                        // TikTok finalise la publication de son côté : on marque l'envoi
+                        // comme effectué pour ne pas republier, et le poller de statut
+                        // renseignera l'identifiant définitif du post.
+                        await storage.updateScheduledPost(scheduledPost.id, {
+                            publishedAt: new Date(),
+                            publishId,
+                            publishStatus: 'PROCESSING_UPLOAD',
+                        });
+
+                        results.push({ pageId, success: true, reelId: publishId });
+                    }
                 } else {
                     // Planifié
                     results.push({ pageId, success: true, reelId: 'scheduled' });
