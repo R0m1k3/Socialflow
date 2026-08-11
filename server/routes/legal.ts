@@ -6,8 +6,10 @@
  * servies en HTML depuis le serveur, sans authentification, pour rester lisibles
  * même par un robot qui n'exécute pas le JavaScript du client.
  *
- * Les mentions de l'exploitant se configurent par variables d'environnement :
- *   LEGAL_COMPANY_NAME, LEGAL_COMPANY_ADDRESS, LEGAL_CONTACT_EMAIL
+ * Les mentions de l'exploitant sont préremplies avec l'identité de la société
+ * exploitante et restent surchargeables par variables d'environnement :
+ *   LEGAL_COMPANY_NAME, LEGAL_TRADE_NAME, LEGAL_COMPANY_LEGAL_FORM,
+ *   LEGAL_COMPANY_RCS, LEGAL_COMPANY_ADDRESS, LEGAL_CONTACT_EMAIL
  */
 
 import { Router, Request, Response } from 'express';
@@ -16,9 +18,15 @@ export const legalRouter = Router();
 
 function getCompanyInfo() {
   return {
-    name: process.env.LEGAL_COMPANY_NAME || "[Raison sociale à renseigner]",
-    address: process.env.LEGAL_COMPANY_ADDRESS || "[Adresse à renseigner]",
-    email: process.env.LEGAL_CONTACT_EMAIL || "[Adresse e-mail de contact à renseigner]",
+    name: process.env.LEGAL_COMPANY_NAME || 'FROUARD DISTRIBUTION',
+    tradeName: process.env.LEGAL_TRADE_NAME || "LA FOIR'FOUILLE",
+    legalForm: process.env.LEGAL_COMPANY_LEGAL_FORM
+      || 'Société par actions simplifiée au capital de 50 000 €',
+    rcs: process.env.LEGAL_COMPANY_RCS || '478 693 518 R.C.S. Nancy',
+    address: process.env.LEGAL_COMPANY_ADDRESS || '13 rue du Saule Gaillard, 54390 Frouard',
+    // Aucune adresse de contact ne figure au registre : elle doit être fournie,
+    // le RGPD imposant un point de contact pour l'exercice des droits.
+    email: process.env.LEGAL_CONTACT_EMAIL || '[Adresse e-mail de contact à renseigner]',
   };
 }
 
@@ -73,8 +81,10 @@ function renderFooter(): string {
   const company = getCompanyInfo();
   return `<footer>
     <p>
-      ${escapeHtml(company.name)}<br>
+      ${escapeHtml(company.name)} &ndash; enseigne ${escapeHtml(company.tradeName)}<br>
+      ${escapeHtml(company.legalForm)}<br>
       ${escapeHtml(company.address)}<br>
+      ${escapeHtml(company.rcs)}<br>
       Contact : ${escapeHtml(company.email)}
     </p>
     <p><a href="/terms">Conditions d'utilisation</a> &middot; <a href="/privacy">Politique de confidentialité</a></p>
@@ -90,9 +100,11 @@ legalRouter.get('/terms', (_req: Request, res: Response) => {
 
   <p>
     Cette application est un outil interne de gestion des réseaux sociaux exploité par
-    ${escapeHtml(company.name)} (« nous »). Elle permet à nos équipes de créer des vidéos et des
-    publications promotionnelles, puis de les diffuser sur les comptes et pages officiels de nos
-    magasins.
+    ${escapeHtml(company.name)}, ${escapeHtml(company.legalForm)}, dont le siège est situé
+    ${escapeHtml(company.address)}, immatriculée au ${escapeHtml(company.rcs)}, qui exploite le
+    magasin sous l'enseigne ${escapeHtml(company.tradeName)} (« nous »). Elle permet à nos équipes
+    de créer des vidéos et des publications promotionnelles, puis de les diffuser sur les comptes
+    et pages officiels de nos magasins.
   </p>
 
   <h2>1. Accès au service</h2>
@@ -158,7 +170,9 @@ legalRouter.get('/privacy', (_req: Request, res: Response) => {
   <p>
     Cette politique décrit les données traitées par notre outil interne de gestion des réseaux
     sociaux. Le responsable de traitement est ${escapeHtml(company.name)},
-    ${escapeHtml(company.address)}.
+    ${escapeHtml(company.legalForm)}, dont le siège est situé ${escapeHtml(company.address)},
+    immatriculée au ${escapeHtml(company.rcs)}, exploitant le magasin sous l'enseigne
+    ${escapeHtml(company.tradeName)}.
   </p>
 
   <h2>1. Données de nos utilisateurs internes</h2>
