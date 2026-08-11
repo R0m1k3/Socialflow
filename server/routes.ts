@@ -1,7 +1,8 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import { createServer, type Server } from "http";
 import fs from "fs";
 import os from "os";
+import path from "path";
 import { storage } from "./storage";
 import { db, pool } from "./db";
 import multer from "multer";
@@ -459,6 +460,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Analytics Routes
   app.use("/api/analytics", requireAuth, analyticsRouter);
+
+  // Fichiers servis à la racine du domaine, sans authentification : vérification
+  // de propriété du domaine par TikTok ("URL properties"), Google, Meta…
+  // Monté ici pour être servi avant le catch-all du frontend, et sans dépendre
+  // d'une reconstruction du client.
+  app.use(express.static(path.resolve(import.meta.dirname, "..", "public-root"), {
+    dotfiles: "ignore",
+    index: false,
+  }));
 
   // Pages légales publiques (exigées par TikTok pour l'audit de l'application)
   app.use(legalRouter);
