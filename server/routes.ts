@@ -17,6 +17,7 @@ import { reelsRouter } from "./routes/reels";
 import { remotionRouter } from "./routes/remotion";
 import { externalRouter } from "./routes/external";
 import { tiktokRouter } from "./routes/tiktok";
+import { legalRouter } from "./routes/legal";
 import { insertAudioTrackSchema } from "@shared/schema";
 import * as musicMetadata from "music-metadata";
 
@@ -458,6 +459,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Analytics Routes
   app.use("/api/analytics", requireAuth, analyticsRouter);
+
+  // Pages légales publiques (exigées par TikTok pour l'audit de l'application)
+  app.use(legalRouter);
 
   // TikTok Routes (OAuth multi-comptes) — avant le routeur Reels monté sur /api
   app.use("/api/tiktok", requireAuth, tiktokRouter);
