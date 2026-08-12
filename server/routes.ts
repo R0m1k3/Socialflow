@@ -9,7 +9,7 @@ import multer from "multer";
 import bcrypt from "bcrypt";
 import passport from "./auth";
 import { z } from "zod";
-import { openRouterService } from "./services/openrouter";
+import { openRouterService, describeGenerationError } from "./services/openrouter";
 import { minioService as cloudinaryService, buildMinioUrl } from "./services/minio";
 import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
 import type { User, InsertUser, ScheduledPost } from "@shared/schema";
@@ -631,7 +631,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ variants: generatedTexts });
     } catch (error) {
       console.error("Error generating text:", error);
-      res.status(500).json({ error: "Failed to generate text" });
+      const { status, message } = describeGenerationError(error);
+      res.status(status).json({ error: message });
     }
   });
 

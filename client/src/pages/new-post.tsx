@@ -31,7 +31,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
+import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
 import { MediaThumbnail } from "@/components/media-thumbnail";
 import type { SocialPage, Media, ScheduledPost } from "@shared/schema";
 import { PreviewModal } from "@/components/preview-modal";
@@ -226,10 +226,10 @@ export default function NewPost() {
       });
       queryClient.invalidateQueries({ queryKey: ['/api/ai/generations'] });
     },
-    onError: () => {
+    onError: (error: unknown) => {
       toast({
         title: "Erreur",
-        description: "Impossible de générer le texte",
+        description: getErrorMessage(error, "Impossible de générer le texte"),
         variant: "destructive",
       });
     },

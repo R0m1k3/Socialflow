@@ -13,7 +13,7 @@ import Sidebar from "@/components/sidebar";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DateTimePicker } from "@/components/datetime-picker";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
+import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
 import type { Media, SocialPage } from "@shared/schema";
 import { SiFacebook, SiTiktok } from "react-icons/si";
 
@@ -91,7 +91,7 @@ export default function MobileRemotionVideoPage() {
   const generateTextMutation = useMutation({
     mutationFn: async (text: string) => (await apiRequest('POST', '/api/reels/generate-text', { productInfo: text })).json(),
     onSuccess: (data: any) => { setGeneratedVariants(data.variants || []); toast({ title: "Textes générés" }); },
-    onError: () => toast({ title: "Erreur IA", variant: "destructive" }),
+    onError: (error: unknown) => toast({ title: "Erreur IA", description: getErrorMessage(error, "Impossible de générer le texte"), variant: "destructive" }),
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

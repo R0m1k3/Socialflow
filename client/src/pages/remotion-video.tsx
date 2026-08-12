@@ -8,7 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { UploadCloud, Video, Loader2, Check, Sparkles, Mic, Volume2, Music, Play, Pause, Send } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
+import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -93,7 +93,7 @@ export default function RemotionVideoPage() {
       setGeneratedVariants(data.variants || []);
       toast({ title: "Textes générés", description: "Cliquez pour appliquer." });
     },
-    onError: () => toast({ title: "Erreur IA", variant: "destructive" }),
+    onError: (error: unknown) => toast({ title: "Erreur IA", description: getErrorMessage(error, "Impossible de générer le texte"), variant: "destructive" }),
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {

@@ -25,7 +25,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
+import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
 import { SiFacebook, SiTiktok } from "react-icons/si";
 import { MediaThumbnail } from "@/components/media-thumbnail";
@@ -235,10 +235,10 @@ export default function NewReel() {
                 description: `${variants.length} variations créées`,
             });
         },
-        onError: () => {
+        onError: (error: unknown) => {
             toast({
                 title: "Erreur",
-                description: "Impossible de générer le texte",
+                description: getErrorMessage(error, "Impossible de générer le texte"),
                 variant: "destructive",
             });
         },

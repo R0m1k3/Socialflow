@@ -9,7 +9,7 @@ import { ffmpegService } from '../services/ffmpeg';
 import { facebookService } from '../services/facebook';
 import { tiktokService } from '../services/tiktok';
 import { minioService as cloudinaryService, buildMinioUrl, resolveInternalUrl } from '../services/minio';
-import { openRouterService } from '../services/openrouter';
+import { openRouterService, describeGenerationError } from '../services/openrouter';
 import { db } from '../db';
 import { cloudinaryConfig } from '@shared/schema';
 import { eq } from 'drizzle-orm';
@@ -254,7 +254,8 @@ reelsRouter.post('/reels/generate-text', async (req: Request, res: Response) => 
         res.json({ variants: generatedTexts });
     } catch (error) {
         console.error('❌ Error generating Reel text:', error);
-        res.status(500).json({ error: 'Erreur lors de la génération du texte' });
+        const { status, message } = describeGenerationError(error);
+        res.status(status).json({ error: message });
     }
 });
 
