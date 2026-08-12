@@ -16,6 +16,36 @@ import crypto from 'crypto';
 import { storage } from '../storage';
 
 /**
+ * Nettoie une clé API collée depuis un navigateur ou une documentation.
+ *
+ * OpenRouter répond « Missing Authentication header » — et non « User not
+ * found » — dès que le jeton qui suit « Bearer » n'a pas la forme d'une clé :
+ * préfixe « Bearer » recopié par mégarde, guillemets autour de la valeur, ou
+ * espace insécable/de largeur nulle ramassé lors d'un copier-coller. Le message
+ * laisse croire à un en-tête absent alors que la clé est simplement souillée.
+ *
+ * Appliqué à l'enregistrement comme à la lecture, pour rattraper les clés déjà
+ * stockées sans imposer une ressaisie.
+ */
+export function sanitizeApiKey(raw: string): string {
+  let key = (raw || '')
+    // Caractères invisibles que String.trim() ne retire pas
+    .replace(/[​-‍﻿]/g, '')
+    .trim();
+
+  // « Bearer sk-… » recopié depuis un exemple de documentation
+  key = key.replace(/^bearer\s+/i, '').trim();
+
+  // Valeur entourée de guillemets, typique d'un copier-coller depuis un JSON
+  const quoted = key.match(/^(["'])(.*)\1$/);
+  if (quoted) {
+    key = quoted[2].trim();
+  }
+
+  return key;
+}
+
+/**
  * Extrait le message d'erreur d'une réponse OpenRouter, qu'elle soit au format
  * JSON ({ error: { message } }) ou en texte brut. Tronqué pour éviter de
  * déverser une page HTML entière dans l'interface.
@@ -70,7 +100,12 @@ export class OpenRouterService {
       throw new Error('Configuration OpenRouter non trouvée. Veuillez demander à un administrateur de configurer OpenRouter dans les Paramètres.');
     }
 
-    if (!config.apiKey || !config.apiKey.trim()) {
+    // Rattrape les clés déjà stockées avec un « Bearer », des guillemets ou un
+    // caractère invisible : sans cela OpenRouter répond « Missing Authentication
+    // header », ce qui laisse croire à tort que la clé est absente.
+    const apiKey = sanitizeApiKey(config.apiKey);
+
+    if (!apiKey) {
       throw new Error('Clé API OpenRouter manquante ou vide en base de données. Veuillez la ressaisir dans les Paramètres.');
     }
 
@@ -79,14 +114,14 @@ export class OpenRouterService {
     // Use provided model or fall back to config model
     const modelToUse = modelOverride || config.model;
 
-    const keyFingerprint = crypto.createHash('sha256').update(config.apiKey).digest('hex').slice(0, 8);
-    console.log(`[OpenRouter] Generating with model="${modelToUse}" keyFingerprint=${keyFingerprint} keyLength=${config.apiKey.length} configUserId=${config.userId}`);
+    const keyFingerprint = crypto.createHash('sha256').update(apiKey).digest('hex').slice(0, 8);
+    console.log(`[OpenRouter] Generating with model="${modelToUse}" keyFingerprint=${keyFingerprint} keyLength=${apiKey.length} configUserId=${config.userId}`);
 
     try {
       const response = await fetch(this.baseUrl, {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${config.apiKey.trim()}`,
+          "Authorization": `Bearer ${apiKey}`,
           "Content-Type": "application/json",
           "HTTP-Referer": process.env.APP_URL || "http://localhost:5555",
           "X-Title": "Social Flow"
@@ -110,9 +145,17 @@ export class OpenRouterService {
         // Le motif renvoyé par OpenRouter (clé invalide, crédits épuisés, modèle
         // inconnu…) est la seule information exploitable : on le fait remonter
         // jusqu'à l'utilisateur, qui n'a pas accès aux logs du serveur.
+        // Sur un refus d'authentification, la forme de la clé est le seul
+        // indice utile — sans jamais en révéler le contenu.
+        const hint = response.status === 401
+          ? ` La clé enregistrée fait ${apiKey.length} caractères et ` +
+            `${apiKey.startsWith('sk-or-') ? 'commence' : 'ne commence pas'} par "sk-or-" : ` +
+            `vérifiez-la dans Paramètres → OpenRouter.`
+          : '';
+
         throw new Error(
           `OpenRouter a refusé la requête (${response.status} ${response.statusText}) ` +
-          `avec le modèle "${modelToUse}" : ${extractUpstreamMessage(errorText)}`
+          `avec le modèle "${modelToUse}" : ${extractUpstreamMessage(errorText)}.${hint}`
         );
       }
 

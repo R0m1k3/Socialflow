@@ -9,7 +9,7 @@ import multer from "multer";
 import bcrypt from "bcrypt";
 import passport from "./auth";
 import { z } from "zod";
-import { openRouterService, describeGenerationError } from "./services/openrouter";
+import { openRouterService, describeGenerationError, sanitizeApiKey } from "./services/openrouter";
 import { minioService as cloudinaryService, buildMinioUrl } from "./services/minio";
 import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
 import type { User, InsertUser, ScheduledPost } from "@shared/schema";
@@ -1852,6 +1852,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Check if config already exists
       const existingConfig = await storage.getOpenrouterConfig(userId);
+
+      // Une clé collée depuis un navigateur traîne souvent un « Bearer », des
+      // guillemets ou un caractère invisible. Stockée telle quelle, elle fait
+      // répondre « Missing Authentication header » à OpenRouter.
+      if (typeof req.body?.apiKey === 'string') {
+        req.body.apiKey = sanitizeApiKey(req.body.apiKey);
+      }
 
       let config;
       if (existingConfig) {
