@@ -49,6 +49,14 @@ async function throwIfResNotOk(res: Response, url: string) {
       handleUnauthorized(url);
     }
     const text = (await res.text()) || res.statusText;
+
+    // Le navigateur ne journalise que « POST … 502 » : le motif renvoyé par le
+    // serveur n'apparaît que dans un bandeau éphémère. On le trace donc dans la
+    // console, seul endroit consultable sans accès aux logs du serveur.
+    console.error(
+      `[API] ${res.status} sur ${url} → ${getErrorMessage(new Error(`${res.status}: ${text}`), text)}`
+    );
+
     throw new Error(`${res.status}: ${text}`);
   }
 }
