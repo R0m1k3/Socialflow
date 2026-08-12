@@ -169,6 +169,7 @@ export default function EditScheduledPostDialog({ open, onOpenChange, scheduledP
                     <MediaThumbnail
                       src={media.instagramFeedUrl || media.originalUrl}
                       alt="Selected"
+                      thumbnailUrl={media.thumbnailUrl ?? undefined}
                       type={media.type === 'video' ? 'video' : 'image'}
                       className="w-full h-24 object-cover rounded-lg border-2 border-primary"
                     />
@@ -203,6 +204,7 @@ export default function EditScheduledPostDialog({ open, onOpenChange, scheduledP
                     <MediaThumbnail
                       src={media.instagramFeedUrl || media.originalUrl}
                       alt={media.fileName}
+                      thumbnailUrl={media.thumbnailUrl ?? undefined}
                       type={media.type === 'video' ? 'video' : 'image'}
                       className={`w-full h-20 object-cover rounded-lg border-2 transition-all ${
                         isSelected ? 'border-primary' : 'border-border hover:border-primary/50'

@@ -31,7 +31,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
+import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
 import { MediaThumbnail } from "@/components/media-thumbnail";
 import type { SocialPage, Media, ScheduledPost } from "@shared/schema";
 import { PreviewModal } from "@/components/preview-modal";
@@ -80,6 +80,7 @@ function SortableMediaItem({
         <MediaThumbnail
           src={media.facebookFeedUrl || media.originalUrl}
           alt={media.fileName}
+          thumbnailUrl={media.thumbnailUrl ?? undefined}
           type={isVideo ? 'video' : 'image'}
         />
       </button>
@@ -116,9 +117,12 @@ export default function NewPost() {
   const [postType, setPostType] = useState<'feed' | 'story' | 'both'>('feed');
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
 
-  const { data: pages = [] } = useQuery<SocialPage[]>({
+  // Ce composeur gère les publications feed/story : TikTok n'accepte que des
+  // vidéos et se pilote depuis la création de reel.
+  const { data: allPages = [] } = useQuery<SocialPage[]>({
     queryKey: ['/api/pages'],
   });
+  const pages = allPages.filter(p => p.platform !== 'tiktok');
 
   const { data: allMedia = [] } = useQuery<Media[]>({
     queryKey: ['/api/media'],
@@ -223,10 +227,10 @@ export default function NewPost() {
       });
       queryClient.invalidateQueries({ queryKey: ['/api/ai/generations'] });
     },
-    onError: () => {
+    onError: (error: unknown) => {
       toast({
         title: "Erreur",
-        description: "Impossible de générer le texte",
+        description: getErrorMessage(error, "Impossible de générer le texte"),
         variant: "destructive",
       });
     },
@@ -540,6 +544,7 @@ export default function NewPost() {
                                   <MediaThumbnail
                                     src={media.facebookFeedUrl || media.originalUrl}
                                     alt={media.fileName}
+                                    thumbnailUrl={media.thumbnailUrl ?? undefined}
                                     type={isVideo ? 'video' : 'image'}
                                   />
                                   {isSelected && (

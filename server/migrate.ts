@@ -17,6 +17,9 @@ export async function migrate() {
     // Add 'reel' to post_type enum if not exists
     await client.query(`ALTER TYPE "post_type" ADD VALUE IF NOT EXISTS 'reel';`);
 
+    // Add 'tiktok' to platform enum if not exists
+    await client.query(`ALTER TYPE "platform" ADD VALUE IF NOT EXISTS 'tiktok';`);
+
     // 2. Create Tables if not exist
 
     // post_analytics
@@ -156,6 +159,39 @@ export async function migrate() {
     await client.query(`
       ALTER TABLE "app_config"
       ADD COLUMN IF NOT EXISTS "gemini_api_key" text;
+    `);
+
+    // media.thumbnail_url (vignette conservée après suppression de la vidéo)
+    await client.query(`
+      ALTER TABLE "media"
+      ADD COLUMN IF NOT EXISTS "thumbnail_url" text;
+    `);
+
+    // tiktok_config (application développeur TikTok, globale)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "tiktok_config" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "client_key" text NOT NULL,
+        "client_secret" text NOT NULL,
+        "created_at" timestamp DEFAULT now(),
+        "updated_at" timestamp DEFAULT now()
+      );
+    `);
+
+    // social_pages : champs OAuth TikTok
+    await client.query(`
+      ALTER TABLE "social_pages"
+      ADD COLUMN IF NOT EXISTS "refresh_token" text,
+      ADD COLUMN IF NOT EXISTS "refresh_token_expires_at" timestamp,
+      ADD COLUMN IF NOT EXISTS "scopes" text,
+      ADD COLUMN IF NOT EXISTS "avatar_url" text;
+    `);
+
+    // scheduled_posts : suivi de la publication asynchrone TikTok
+    await client.query(`
+      ALTER TABLE "scheduled_posts"
+      ADD COLUMN IF NOT EXISTS "publish_id" text,
+      ADD COLUMN IF NOT EXISTS "publish_status" text;
     `);
 
     console.log("[Migration] Safe migration completed.");

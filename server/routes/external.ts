@@ -137,7 +137,7 @@ router.post("/publish", async (req, res) => {
         instagramFeedUrl: uploaded.instagramFeedUrl,
         instagramStoryUrl: uploaded.instagramStoryUrl,
         fileName,
-        fileSize: String(buffer.length),
+        fileSize: buffer.length,
       });
     }
 
@@ -149,7 +149,7 @@ router.post("/publish", async (req, res) => {
       content,
       status: scheduledFor ? "scheduled" : "scheduled",
       scheduledFor: scheduledFor ?? new Date(),
-      aiGenerated: false,
+      aiGenerated: "false",
     });
 
     // Lier le média si présent
@@ -415,7 +415,7 @@ router.patch("/posts/:id", async (req, res) => {
         instagramFeedUrl: uploaded.instagramFeedUrl,
         instagramStoryUrl: uploaded.instagramStoryUrl,
         fileName,
-        fileSize: String(buffer.length),
+        fileSize: buffer.length,
       });
 
       // Remplacer les médias existants par le nouveau

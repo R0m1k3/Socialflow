@@ -4,7 +4,7 @@ import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const platformEnum = pgEnum("platform", ["facebook", "instagram"]);
+export const platformEnum = pgEnum("platform", ["facebook", "instagram", "tiktok"]);
 export const postTypeEnum = pgEnum("post_type", ["feed", "story", "both", "reel"]);
 export const postStatusEnum = pgEnum("post_status", ["draft", "scheduled", "published", "failed"]);
 export const mediaTypeEnum = pgEnum("media_type", ["image", "video"]);
@@ -26,6 +26,7 @@ export const socialPages = pgTable("social_pages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   platform: platformEnum("platform").notNull(),
+  // Identifiant natif de la destination : page_id (Facebook) ou open_id (TikTok)
   pageId: text("page_id").notNull(),
   pageName: text("page_name").notNull(),
   accessToken: text("access_token").notNull(),
@@ -36,6 +37,13 @@ export const socialPages = pgTable("social_pages", {
   // NEW FIELDS
   tokenStatus: tokenStatusEnum("token_status").default("valid"),
   lastTokenCheck: timestamp("last_token_check"),
+
+  // OAuth TikTok : l'access token n'est valable que 24h, il doit être renouvelé
+  // avec le refresh token (valable 1 an) avant chaque publication.
+  refreshToken: text("refresh_token"),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at"),
+  scopes: text("scopes"),
+  avatarUrl: text("avatar_url"),
 
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -133,6 +141,16 @@ export const openrouterConfig = pgTable("openrouter_config", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Application développeur TikTok (globale) : un seul client_key pour toute
+// l'instance, chaque magasin autorise ensuite son propre compte via OAuth.
+export const tiktokConfig = pgTable("tiktok_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientKey: text("client_key").notNull(),
+  clientSecret: text("client_secret").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const media = pgTable("media", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -143,6 +161,9 @@ export const media = pgTable("media", {
   facebookFeedUrl: text("facebook_feed_url"),
   instagramFeedUrl: text("instagram_feed_url"),
   instagramStoryUrl: text("instagram_story_url"),
+  // Image extraite d'une vidéo, conservée après la suppression du fichier source
+  // pour que l'historique reste illustré.
+  thumbnailUrl: text("thumbnail_url"),
   fileName: text("file_name").notNull(),
   fileSize: integer("file_size").notNull(),
   createdAt: timestamp("created_at").defaultNow(),
@@ -180,6 +201,11 @@ export const scheduledPosts = pgTable("scheduled_posts", {
   publishedAt: timestamp("published_at"),
   externalPostId: text("external_post_id"),
   error: text("error"),
+
+  // TikTok publie de façon asynchrone : l'upload rend un publish_id, et le
+  // post_id définitif n'est connu qu'après interrogation du statut.
+  publishId: text("publish_id"),
+  publishStatus: text("publish_status"),
 });
 
 export const aiGenerations = pgTable("ai_generations", {
@@ -406,6 +432,19 @@ export const updateCloudinaryConfigSchema = insertCloudinaryConfigSchema.partial
   apiSecret: true,
 });
 
+export const insertTiktokConfigSchema = createInsertSchema(tiktokConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  clientKey: z.string().trim().min(1, "Le client key ne peut pas être vide"),
+  clientSecret: z.string().trim().min(1, "Le client secret ne peut pas être vide"),
+});
+
+export const updateTiktokConfigSchema = insertTiktokConfigSchema.partial({
+  clientSecret: true,
+});
+
 export const insertUserPagePermissionSchema = createInsertSchema(userPagePermissions).omit({
   id: true,
   createdAt: true,
@@ -464,5 +503,9 @@ export type AudioTrack = typeof audioTracks.$inferSelect;
 export type InsertAudioTrack = z.infer<typeof insertAudioTrackSchema>;
 
 export type AppConfig = typeof appConfig.$inferSelect;
+
+export type TiktokConfig = typeof tiktokConfig.$inferSelect;
+export type InsertTiktokConfig = z.infer<typeof insertTiktokConfigSchema>;
+export type UpdateTiktokConfig = z.infer<typeof updateTiktokConfigSchema>;
 
 

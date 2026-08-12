@@ -15,6 +15,49 @@ interface GeneratedText {
 import crypto from 'crypto';
 import { storage } from '../storage';
 
+/**
+ * Extrait le message d'erreur d'une réponse OpenRouter, qu'elle soit au format
+ * JSON ({ error: { message } }) ou en texte brut. Tronqué pour éviter de
+ * déverser une page HTML entière dans l'interface.
+ */
+function extractUpstreamMessage(body: string): string {
+  const trimmed = (body || '').trim();
+  if (!trimmed) return 'aucun détail fourni';
+
+  try {
+    const parsed = JSON.parse(trimmed);
+    const message = parsed?.error?.message || parsed?.message || parsed?.error;
+    if (typeof message === 'string' && message.trim()) {
+      return message.trim().slice(0, 300);
+    }
+  } catch {
+    // Réponse non-JSON (page d'erreur HTML d'un proxy, par exemple)
+  }
+
+  return trimmed.replace(/\s+/g, ' ').slice(0, 300);
+}
+
+/**
+ * Traduit une erreur de génération en réponse HTTP exploitable côté interface.
+ * Sans cela, l'utilisateur ne voit qu'un 500 générique alors que la cause
+ * (configuration absente, clé invalide, crédits épuisés) est connue du serveur.
+ */
+export function describeGenerationError(error: unknown): { status: number; message: string } {
+  const message = error instanceof Error ? error.message : 'Erreur inconnue lors de la génération';
+
+  // Problème de configuration : l'administrateur peut le corriger lui-même
+  if (/Configuration OpenRouter non trouvée|Clé API OpenRouter manquante/.test(message)) {
+    return { status: 400, message };
+  }
+
+  // Refus du service tiers
+  if (/OpenRouter a refusé la requête|Réponse invalide de l'API OpenRouter/.test(message)) {
+    return { status: 502, message };
+  }
+
+  return { status: 500, message };
+}
+
 export class OpenRouterService {
   private baseUrl = "https://openrouter.ai/api/v1/chat/completions";
 
@@ -64,7 +107,13 @@ export class OpenRouterService {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('OpenRouter API Error Response:', errorText);
-        throw new Error(`OpenRouter API error: ${response.status} ${response.statusText}`);
+        // Le motif renvoyé par OpenRouter (clé invalide, crédits épuisés, modèle
+        // inconnu…) est la seule information exploitable : on le fait remonter
+        // jusqu'à l'utilisateur, qui n'a pas accès aux logs du serveur.
+        throw new Error(
+          `OpenRouter a refusé la requête (${response.status} ${response.statusText}) ` +
+          `avec le modèle "${modelToUse}" : ${extractUpstreamMessage(errorText)}`
+        );
       }
 
       const data = await response.json();

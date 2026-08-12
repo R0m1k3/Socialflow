@@ -8,12 +8,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { UploadCloud, Video, Loader2, Check, Sparkles, Mic, Volume2, Music, Play, Pause, Send } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
+import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DateTimePicker } from "@/components/datetime-picker";
 import type { Media, SocialPage } from "@shared/schema";
+import { SiFacebook, SiTiktok } from "react-icons/si";
 
 
 interface AudioTrack {
@@ -67,6 +69,22 @@ export default function RemotionVideoPage() {
   const { data: socialPages = [] } = useQuery<SocialPage[]>({ queryKey: ['/api/pages'] });
 
   const facebookPages = socialPages.filter(p => p.platform === 'facebook');
+  const tiktokAccounts = socialPages.filter(p => p.platform === 'tiktok');
+
+  const renderTargetCheckbox = (page: SocialPage) => (
+    <div key={page.id} className="flex items-center gap-3">
+      <Checkbox
+        id={`pre-${page.id}`}
+        checked={selectedPageIds.includes(page.id)}
+        onCheckedChange={checked =>
+          setSelectedPageIds(prev => checked ? [...prev, page.id] : prev.filter(id => id !== page.id))
+        }
+      />
+      <label htmlFor={`pre-${page.id}`} className="text-sm font-medium cursor-pointer">
+        {page.pageName}
+      </label>
+    </div>
+  );
   const imageMediaList = allMedia.filter(m => m.type === 'image').slice(0, 20);
   const totalSelected = images.length + selectedLibraryImages.length;
 
@@ -76,7 +94,7 @@ export default function RemotionVideoPage() {
       setGeneratedVariants(data.variants || []);
       toast({ title: "Textes générés", description: "Cliquez pour appliquer." });
     },
-    onError: () => toast({ title: "Erreur IA", variant: "destructive" }),
+    onError: (error: unknown) => toast({ title: "Erreur IA", description: getErrorMessage(error, "Impossible de générer le texte"), variant: "destructive" }),
   });
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -376,30 +394,37 @@ export default function RemotionVideoPage() {
         </CardContent>
       </Card>
 
-      {/* 4. Page Facebook */}
+      {/* 4. Destinations */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Send className="w-4 h-4" /> 4. Page Facebook</CardTitle>
-          <CardDescription>Sélectionnez la page cible (son nom apparaîtra en fin de vidéo).</CardDescription>
+          <CardDescription>Pages Facebook et comptes TikTok cibles (le nom de la première destination apparaîtra en fin de vidéo).</CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
-          {facebookPages.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Aucune page Facebook connectée.</p>
+          {facebookPages.length === 0 && tiktokAccounts.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Aucune page Facebook ni compte TikTok connecté.</p>
           ) : (
-            facebookPages.map(page => (
-              <div key={page.id} className="flex items-center gap-3">
-                <Checkbox
-                  id={`pre-${page.id}`}
-                  checked={selectedPageIds.includes(page.id)}
-                  onCheckedChange={checked =>
-                    setSelectedPageIds(prev => checked ? [...prev, page.id] : prev.filter(id => id !== page.id))
-                  }
-                />
-                <label htmlFor={`pre-${page.id}`} className="text-sm font-medium cursor-pointer">
-                  {page.pageName}
-                </label>
-              </div>
-            ))
+            <>
+              {facebookPages.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <SiFacebook className="w-4 h-4 text-[#1877F2]" />
+                    Pages Facebook
+                  </div>
+                  {facebookPages.map(renderTargetCheckbox)}
+                </div>
+              )}
+
+              {tiktokAccounts.length > 0 && (
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                    <SiTiktok className="w-4 h-4" />
+                    Comptes TikTok
+                  </div>
+                  {tiktokAccounts.map(renderTargetCheckbox)}
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -432,7 +457,7 @@ export default function RemotionVideoPage() {
                 <p className="text-sm text-muted-foreground">Sélectionnez une page ci-dessus avant de générer.</p>
               ) : (
                 <p className="text-sm text-primary font-medium">
-                  Pages : {facebookPages.filter(p => selectedPageIds.includes(p.id)).map(p => p.pageName).join(', ')}
+                  Destinations : {[...facebookPages, ...tiktokAccounts].filter(p => selectedPageIds.includes(p.id)).map(p => p.pageName).join(', ')}
                 </p>
               )}
               <Textarea rows={2} placeholder="Description (optionnel)" value={publishDescription}

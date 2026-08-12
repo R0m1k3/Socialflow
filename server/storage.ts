@@ -36,10 +36,37 @@ import {
   type InsertAudioTrack,
   appConfig,
   type AppConfig,
+  tiktokConfig,
+  type TiktokConfig,
+  type InsertTiktokConfig,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, desc, asc, isNull, inArray } from "drizzle-orm";
+import { eq, and, gte, lte, desc, asc, isNull, isNotNull, inArray, notInArray } from "drizzle-orm";
 import { encrypt, decrypt, isEncrypted } from "./utils/encryption";
+
+/**
+ * Statuts de publication asynchrone (TikTok) qui ne bougeront plus : inutile de
+ * continuer à interroger l'API une fois l'un d'eux atteint.
+ */
+export const TERMINAL_PUBLISH_STATUSES: string[] = [
+  'PUBLISH_COMPLETE',
+  'FAILED',
+  // Vidéo déposée dans la boîte de réception du créateur : elle attend une action
+  // manuelle dans TikTok et n'évoluera plus côté API.
+  'SEND_TO_USER_INBOX',
+];
+
+/**
+ * Déchiffre les tokens d'une page avant de la rendre au reste de l'application.
+ * Les services (Facebook, TikTok) manipulent toujours des tokens en clair.
+ */
+function decryptPageTokens(page: SocialPage): SocialPage {
+  return {
+    ...page,
+    accessToken: decrypt(page.accessToken),
+    refreshToken: page.refreshToken ? decrypt(page.refreshToken) : page.refreshToken,
+  };
+}
 
 export interface IStorage {
   // Users
@@ -85,10 +112,15 @@ export interface IStorage {
   updateScheduledPost(id: string, scheduledPost: Partial<ScheduledPost>): Promise<ScheduledPost>;
   deleteScheduledPost(id: string): Promise<void>;
   getPendingScheduledPosts(): Promise<ScheduledPost[]>;
+  getScheduledPostsAwaitingPublishStatus(): Promise<ScheduledPost[]>;
 
   // AI Generations
   getAiGenerations(userId: string): Promise<AiGeneration[]>;
   createAiGeneration(generation: InsertAiGeneration): Promise<AiGeneration>;
+
+  // TikTok Config
+  getTiktokConfig(): Promise<TiktokConfig | undefined>;
+  upsertTiktokConfig(config: Partial<InsertTiktokConfig>): Promise<TiktokConfig>;
 
   // Cloudinary Config
   getCloudinaryConfig(): Promise<CloudinaryConfig | undefined>;
@@ -160,43 +192,36 @@ export class DatabaseStorage implements IStorage {
   // Social Pages
   async getSocialPages(userId: string): Promise<SocialPage[]> {
     const pages = await db.select().from(socialPages).where(eq(socialPages.userId, userId));
-    // Déchiffrer les tokens pour chaque page
-    return pages.map(page => ({
-      ...page,
-      accessToken: decrypt(page.accessToken)
-    }));
+    return pages.map(page => decryptPageTokens(page));
   }
 
   async getSocialPage(id: string): Promise<SocialPage | undefined> {
     const [page] = await db.select().from(socialPages).where(eq(socialPages.id, id));
-    if (page) {
-      // Déchiffrer le token
-      page.accessToken = decrypt(page.accessToken);
-    }
-    return page || undefined;
+    return page ? decryptPageTokens(page) : undefined;
   }
 
   async createSocialPage(page: InsertSocialPage): Promise<SocialPage> {
-    // Chiffrer le token avant stockage
+    // Chiffrer les tokens avant stockage
     const encryptedPage = {
       ...page,
-      accessToken: encrypt(page.accessToken)
+      accessToken: encrypt(page.accessToken),
+      ...(page.refreshToken ? { refreshToken: encrypt(page.refreshToken) } : {}),
     };
     const [newPage] = await db.insert(socialPages).values(encryptedPage).returning();
-    // Retourner avec le token déchiffré
-    newPage.accessToken = decrypt(newPage.accessToken);
-    return newPage;
+    return decryptPageTokens(newPage);
   }
 
   async updateSocialPage(id: string, page: Partial<SocialPage>): Promise<SocialPage> {
-    // Chiffrer le token si présent dans la mise à jour
-    const updateData = page.accessToken
-      ? { ...page, accessToken: encrypt(page.accessToken) }
-      : page;
+    // Chiffrer les tokens présents dans la mise à jour
+    const updateData: Partial<SocialPage> = { ...page };
+    if (page.accessToken) {
+      updateData.accessToken = encrypt(page.accessToken);
+    }
+    if (page.refreshToken) {
+      updateData.refreshToken = encrypt(page.refreshToken);
+    }
     const [updated] = await db.update(socialPages).set(updateData).where(eq(socialPages.id, id)).returning();
-    // Retourner avec le token déchiffré
-    updated.accessToken = decrypt(updated.accessToken);
-    return updated;
+    return decryptPageTokens(updated);
   }
 
   async deleteSocialPage(id: string): Promise<void> {
@@ -422,6 +447,22 @@ export class DatabaseStorage implements IStorage {
     return results;
   }
 
+  /**
+   * Publications déjà envoyées à TikTok dont le statut final n'est pas encore
+   * connu (l'API répond de façon asynchrone via un publish_id).
+   */
+  async getScheduledPostsAwaitingPublishStatus(): Promise<ScheduledPost[]> {
+    return await db
+      .select()
+      .from(scheduledPosts)
+      .where(
+        and(
+          isNotNull(scheduledPosts.publishId),
+          notInArray(scheduledPosts.publishStatus, TERMINAL_PUBLISH_STATUSES)
+        )
+      );
+  }
+
   // AI Generations
   async getAiGenerations(userId: string): Promise<AiGeneration[]> {
     return await db.select().from(aiGenerations).where(eq(aiGenerations.userId, userId)).orderBy(desc(aiGenerations.createdAt));
@@ -569,6 +610,38 @@ export class DatabaseStorage implements IStorage {
   async getAppConfig(): Promise<AppConfig | undefined> {
     const [config] = await db.select().from(appConfig).limit(1);
     return config || undefined;
+  }
+
+  // TikTok Config
+  async getTiktokConfig(): Promise<TiktokConfig | undefined> {
+    const [config] = await db.select().from(tiktokConfig).limit(1);
+    if (!config) return undefined;
+    return { ...config, clientSecret: decrypt(config.clientSecret) };
+  }
+
+  async upsertTiktokConfig(data: Partial<InsertTiktokConfig>): Promise<TiktokConfig> {
+    const values: Partial<TiktokConfig> = { ...data };
+    if (data.clientSecret) {
+      values.clientSecret = encrypt(data.clientSecret);
+    }
+
+    const [existing] = await db.select().from(tiktokConfig).limit(1);
+    if (existing) {
+      const [updated] = await db.update(tiktokConfig)
+        .set({ ...values, updatedAt: new Date() })
+        .where(eq(tiktokConfig.id, existing.id))
+        .returning();
+      return { ...updated, clientSecret: decrypt(updated.clientSecret) };
+    }
+
+    if (!values.clientKey || !values.clientSecret) {
+      throw new Error("Le client key et le client secret TikTok sont requis");
+    }
+
+    const [created] = await db.insert(tiktokConfig)
+      .values({ clientKey: values.clientKey, clientSecret: values.clientSecret })
+      .returning();
+    return { ...created, clientSecret: decrypt(created.clientSecret) };
   }
 
   async upsertAppConfig(data: Partial<Pick<AppConfig, 'externalApiKey' | 'geminiApiKey'>>): Promise<AppConfig> {

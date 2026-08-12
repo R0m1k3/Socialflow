@@ -6,7 +6,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { ScheduledPost } from "@shared/schema";
-import { SiFacebook, SiInstagram } from "react-icons/si";
+import { SiFacebook, SiInstagram, SiTiktok } from "react-icons/si";
 import EditScheduledPostDialog from "./edit-scheduled-post-dialog";
 import CalendarListView from "./calendar-list-view";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -261,7 +261,7 @@ export default function CalendarView() {
                         const isPublished = !!post.publishedAt;
                         const pageName = post.page?.pageName || 'Page inconnue';
                         const platform = post.page?.platform || 'facebook';
-                        const PlatformIcon = platform === 'instagram' ? SiInstagram : SiFacebook;
+                        const PlatformIcon = platform === 'instagram' ? SiInstagram : platform === 'tiktok' ? SiTiktok : SiFacebook;
 
                         return (
                           <div
@@ -340,7 +340,7 @@ export default function CalendarView() {
                                 const isPublished = !!post.publishedAt;
                                 const pageName = post.page?.pageName || 'Page inconnue';
                                 const platform = post.page?.platform || 'facebook';
-                                const PlatformIcon = platform === 'instagram' ? SiInstagram : SiFacebook;
+                                const PlatformIcon = platform === 'instagram' ? SiInstagram : platform === 'tiktok' ? SiTiktok : SiFacebook;
 
                                 return (
                                   <div

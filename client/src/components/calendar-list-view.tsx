@@ -1,7 +1,7 @@
 import { format, isSameDay, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Edit, Trash2, ChevronDown, ChevronUp, Eye, Image, Smartphone } from "lucide-react";
-import { SiFacebook, SiInstagram } from "react-icons/si";
+import { SiFacebook, SiInstagram, SiTiktok } from "react-icons/si";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 
@@ -159,7 +159,7 @@ export default function CalendarListView({ scheduledPosts, onEditPost, onDeleteP
                     const isPublished = !!post.publishedAt;
                     const pageName = post.page?.pageName || 'Page inconnue';
                     const platform = post.page?.platform || 'facebook';
-                    const PlatformIcon = platform === 'instagram' ? SiInstagram : SiFacebook;
+                    const PlatformIcon = platform === 'instagram' ? SiInstagram : platform === 'tiktok' ? SiTiktok : SiFacebook;
 
                     return (
                       <div

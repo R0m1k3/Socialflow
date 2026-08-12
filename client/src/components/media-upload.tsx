@@ -284,6 +284,7 @@ export default function MediaUpload() {
                       <MediaThumbnail
                         src={media.facebookFeedUrl || media.originalUrl}
                         alt={media.fileName}
+                        thumbnailUrl={media.thumbnailUrl ?? undefined}
                         type={media.type === 'video' ? 'video' : 'image'}
                       />
                       <div className="absolute top-2 right-2 flex gap-2">

@@ -20,6 +20,29 @@ export function handleUnauthorized(url: string) {
   window.location.href = "/login";
 }
 
+/**
+ * Extrait un message lisible d'une erreur d'API.
+ * apiRequest lève des erreurs de la forme `500: {"error":"…"}` : sans ce
+ * décodage, l'interface ne peut afficher qu'un message générique alors que le
+ * serveur a renvoyé la cause exacte.
+ */
+export function getErrorMessage(error: unknown, fallback: string): string {
+  if (!(error instanceof Error) || !error.message) return fallback;
+
+  const withoutStatus = error.message.replace(/^\d{3}:\s*/, '').trim();
+  if (!withoutStatus) return fallback;
+
+  try {
+    const parsed = JSON.parse(withoutStatus);
+    const message = parsed?.error || parsed?.message;
+    if (typeof message === 'string' && message.trim()) return message.trim();
+  } catch {
+    // Corps non-JSON : on affiche le texte tel quel
+  }
+
+  return withoutStatus.startsWith('<') ? fallback : withoutStatus;
+}
+
 async function throwIfResNotOk(res: Response, url: string) {
   if (!res.ok) {
     if (res.status === 401) {

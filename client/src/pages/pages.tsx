@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Plus, Facebook, Instagram, Trash2, RefreshCw, Edit, Bug, Code, Calendar, AlertTriangle } from "lucide-react";
+import { SiTiktok } from "react-icons/si";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import { Button } from "@/components/ui/button";
@@ -66,11 +67,36 @@ function getTokenExpirationStatus(expiresAt: string | null | undefined) {
   }
 }
 
+/**
+ * Un compte TikTok n'a pas de "token de page" à surveiller : ce qui compte est la
+ * validité de l'autorisation, portée par le refresh token (1 an).
+ */
+function getConnectionExpiry(page: SocialPage): string | null {
+  const date = page.platform === 'tiktok' ? page.refreshTokenExpiresAt : page.tokenExpiresAt;
+  return date ? new Date(date).toISOString() : null;
+}
+
 export default function PagesManagement() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPage, setEditingPage] = useState<SocialPage | null>(null);
   const { toast } = useToast();
+
+  // Retour du flux d'autorisation TikTok (/api/tiktok/callback redirige ici)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const result = params.get('tiktok');
+    if (!result) return;
+
+    toast({
+      title: result === 'success' ? 'Compte TikTok connecté' : 'Connexion TikTok impossible',
+      description: params.get('message') || undefined,
+      variant: result === 'success' ? undefined : 'destructive',
+    });
+
+    queryClient.invalidateQueries({ queryKey: ['/api/pages'] });
+    window.history.replaceState({}, '', window.location.pathname);
+  }, [toast]);
 
   const { data: pages = [], isLoading } = useQuery<SocialPage[]>({
     queryKey: ['/api/pages'],
@@ -119,10 +145,13 @@ export default function PagesManagement() {
             <div>
               <h1 className="text-3xl font-bold text-foreground">Pages gérées</h1>
               <p className="text-muted-foreground mt-2">
-                Connectez et gérez vos pages Facebook et Instagram
+                Connectez et gérez vos pages Facebook, Instagram et vos comptes TikTok
               </p>
             </div>
-            <AddPageDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+            <div className="flex items-center gap-3">
+              <ConnectTiktokButton />
+              <AddPageDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+            </div>
             <EditPageDialog page={editingPage} onOpenChange={(open) => !open && setEditingPage(null)} />
           </div>
 
@@ -194,6 +223,10 @@ export default function PagesManagement() {
                           <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
                             <Facebook className="w-6 h-6 text-white" />
                           </div>
+                        ) : page.platform === 'tiktok' ? (
+                          <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
+                            <SiTiktok className="w-6 h-6 text-white" />
+                          </div>
                         ) : (
                           <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
                             <Instagram className="w-6 h-6 text-white" />
@@ -215,20 +248,21 @@ export default function PagesManagement() {
                     
                     {/* Token expiration status */}
                     {(() => {
-                      const expirationStatus = getTokenExpirationStatus(
-                        page.tokenExpiresAt ? new Date(page.tokenExpiresAt).toISOString() : null
-                      );
+                      const expiresAt = getConnectionExpiry(page);
+                      const expirationStatus = getTokenExpirationStatus(expiresAt);
                       return (
                         <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${expirationStatus.bgColor}`}>
                           <Calendar className="w-4 h-4" />
                           <div className="flex-1">
-                            <div className="font-medium">Expiration du token</div>
+                            <div className="font-medium">
+                              {page.platform === 'tiktok' ? 'Expiration de la connexion' : 'Expiration du token'}
+                            </div>
                             <div className={`${expirationStatus.color} font-semibold`}>
                               {expirationStatus.message}
                             </div>
-                            {page.tokenExpiresAt && (
+                            {expiresAt && (
                               <div className="text-muted-foreground mt-0.5">
-                                {format(new Date(page.tokenExpiresAt), "d MMMM yyyy", { locale: fr })}
+                                {format(new Date(expiresAt), "d MMMM yyyy", { locale: fr })}
                               </div>
                             )}
                           </div>
@@ -240,14 +274,27 @@ export default function PagesManagement() {
                     })()}
 
                     <div className="flex items-center justify-end gap-2 pt-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setEditingPage(page)}
-                        data-testid={`button-edit-page-${page.id}`}
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
+                      {page.platform === 'tiktok' ? (
+                        // Un token TikTok ne se saisit pas : on repasse par l'autorisation
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => { window.location.href = '/api/tiktok/connect'; }}
+                          data-testid={`button-reconnect-page-${page.id}`}
+                        >
+                          <RefreshCw className="w-4 h-4 mr-2" />
+                          Reconnecter
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditingPage(page)}
+                          data-testid={`button-edit-page-${page.id}`}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -266,6 +313,37 @@ export default function PagesManagement() {
         </div>
       </main>
     </div>
+  );
+}
+
+/**
+ * Lance l'autorisation TikTok. La connexion se fait par navigation complète du
+ * navigateur (et non en fetch) puisqu'elle passe par le site de TikTok.
+ */
+function ConnectTiktokButton() {
+  const { toast } = useToast();
+
+  const { data: config } = useQuery<{ configured: boolean }>({
+    queryKey: ['/api/tiktok/config'],
+  });
+
+  const handleClick = () => {
+    if (config && !config.configured) {
+      toast({
+        title: "TikTok n'est pas configuré",
+        description: "Renseignez le client key et le client secret de votre application TikTok dans les paramètres.",
+        variant: "destructive",
+      });
+      return;
+    }
+    window.location.href = '/api/tiktok/connect';
+  };
+
+  return (
+    <Button variant="outline" onClick={handleClick} data-testid="button-connect-tiktok">
+      <SiTiktok className="w-4 h-4 mr-2" />
+      Connecter un compte TikTok
+    </Button>
   );
 }
 

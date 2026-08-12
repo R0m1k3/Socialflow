@@ -2,8 +2,19 @@ import cron from 'node-cron';
 import { TokenManager } from './services/token_manager';
 import { AnalyticsService } from './services/analytics';
 import { purgeOldMedia } from './services/media-purge';
+import { tiktokService } from './services/tiktok';
 
 export function startTokenCron() {
+    // Toutes les 2 minutes — suivi des publications TikTok (API asynchrone)
+    cron.schedule('*/2 * * * *', async () => {
+        try {
+            await tiktokService.syncPendingPublications();
+        } catch (error) {
+            console.error('[Cron] TikTok publish status sync failed:', error);
+        }
+    });
+    console.log('[Cron] TikTok publish status job scheduled (*/2 * * * *).');
+
     // Run every day at midnight (00:00) — Token health check
     cron.schedule('0 0 * * *', async () => {
         console.log('[Cron] Running daily token check...');

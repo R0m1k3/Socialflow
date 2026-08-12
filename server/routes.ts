@@ -1,14 +1,15 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import { createServer, type Server } from "http";
 import fs from "fs";
 import os from "os";
+import path from "path";
 import { storage } from "./storage";
 import { db, pool } from "./db";
 import multer from "multer";
 import bcrypt from "bcrypt";
 import passport from "./auth";
 import { z } from "zod";
-import { openRouterService } from "./services/openrouter";
+import { openRouterService, describeGenerationError } from "./services/openrouter";
 import { minioService as cloudinaryService, buildMinioUrl } from "./services/minio";
 import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
 import type { User, InsertUser, ScheduledPost } from "@shared/schema";
@@ -16,6 +17,8 @@ import { analyticsRouter } from "./routes/analytics";
 import { reelsRouter } from "./routes/reels";
 import { remotionRouter } from "./routes/remotion";
 import { externalRouter } from "./routes/external";
+import { tiktokRouter } from "./routes/tiktok";
+import { legalRouter } from "./routes/legal";
 import { insertAudioTrackSchema } from "@shared/schema";
 import * as musicMetadata from "music-metadata";
 
@@ -458,6 +461,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Analytics Routes
   app.use("/api/analytics", requireAuth, analyticsRouter);
 
+  // Fichiers servis à la racine du domaine, sans authentification : vérification
+  // de propriété du domaine par TikTok ("URL properties"), Google, Meta…
+  // Monté ici pour être servi avant le catch-all du frontend, et sans dépendre
+  // d'une reconstruction du client.
+  app.use(express.static(path.resolve(import.meta.dirname, "..", "public-root"), {
+    dotfiles: "ignore",
+    index: false,
+  }));
+
+  // Pages légales publiques (exigées par TikTok pour l'audit de l'application)
+  app.use(legalRouter);
+
+  // TikTok Routes (OAuth multi-comptes) — avant le routeur Reels monté sur /api
+  app.use("/api/tiktok", requireAuth, tiktokRouter);
+
   // Reels & Music Routes
   app.use("/api", requireAuth, reelsRouter);
   app.use("/api/remotion", requireAuth, remotionRouter);
@@ -613,7 +631,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ variants: generatedTexts });
     } catch (error) {
       console.error("Error generating text:", error);
-      res.status(500).json({ error: "Failed to generate text" });
+      const { status, message } = describeGenerationError(error);
+      res.status(status).json({ error: message });
     }
   });
 
@@ -1565,6 +1584,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
 
+      // TikTok n'autorise pas la saisie manuelle d'un token : le compte doit
+      // passer par le flux OAuth (/api/tiktok/connect).
+      if (req.body?.platform === 'tiktok') {
+        return res.status(400).json({
+          error: "Un compte TikTok se connecte via l'autorisation TikTok, pas par saisie manuelle d'un jeton.",
+        });
+      }
+
       // Calculate token expiration date (60 days from now)
       const tokenExpiresAt = new Date();
       tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 60);
@@ -1598,7 +1625,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // If accessToken is being updated, recalculate expiration date (60 days from now)
       // AND reset the status to valid so the UI updates immediately
-      if (parsedData.accessToken) {
+      // (les tokens TikTok ont leur propre cycle de vie, géré par le service OAuth)
+      if (parsedData.accessToken && existingPage.platform !== 'tiktok') {
         const tokenExpiresAt = new Date();
         tokenExpiresAt.setDate(tokenExpiresAt.getDate() + 60);
         pageData = {
