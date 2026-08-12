@@ -61,7 +61,10 @@ export function MediaThumbnail({ src, alt, type, className = "w-full h-full obje
     };
 
     const handleError = () => {
-      console.warn('Video thumbnail generation failed for:', src);
+      // Cas courant et attendu : la vidéo a été supprimée du disque après
+      // publication. Les médias créés depuis embarquent une vignette persistée,
+      // qui évite d'en arriver là.
+      console.warn('Aperçu vidéo indisponible (fichier absent ou illisible):', src);
       setError(true);
       video.remove();
     };

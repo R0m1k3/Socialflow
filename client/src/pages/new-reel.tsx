@@ -568,6 +568,7 @@ export default function NewReel() {
                                                             <MediaThumbnail
                                                                 src={media.originalUrl}
                                                                 alt={media.fileName}
+                                                                thumbnailUrl={media.thumbnailUrl ?? undefined}
                                                                 type="video"
                                                             />
                                                             {selectedVideoId === media.id && (

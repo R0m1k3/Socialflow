@@ -12,6 +12,7 @@ import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DateTimePicker } from "@/components/datetime-picker";
 import type { Media, SocialPage } from "@shared/schema";
 import { SiFacebook, SiTiktok } from "react-icons/si";

@@ -11,6 +11,7 @@ import { MediaThumbnail } from "@/components/media-thumbnail";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import Sidebar from "@/components/sidebar";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DateTimePicker } from "@/components/datetime-picker";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";

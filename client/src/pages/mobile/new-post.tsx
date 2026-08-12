@@ -81,6 +81,7 @@ function SortableMediaItem({
         <MediaThumbnail
           src={media.facebookFeedUrl || media.originalUrl}
           alt={media.fileName}
+          thumbnailUrl={media.thumbnailUrl ?? undefined}
           type={isVideo ? 'video' : 'image'}
           className="absolute inset-0 w-full h-full object-cover"
         />
@@ -535,6 +536,7 @@ export default function NewPostMobile() {
                                 <MediaThumbnail
                                   src={media.facebookFeedUrl || media.originalUrl}
                                   alt={media.fileName}
+                                  thumbnailUrl={media.thumbnailUrl ?? undefined}
                                   type={isVideo ? 'video' : 'image'}
                                   className="absolute inset-0 w-full h-full object-cover"
                                 />

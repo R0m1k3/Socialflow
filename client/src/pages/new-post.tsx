@@ -80,6 +80,7 @@ function SortableMediaItem({
         <MediaThumbnail
           src={media.facebookFeedUrl || media.originalUrl}
           alt={media.fileName}
+          thumbnailUrl={media.thumbnailUrl ?? undefined}
           type={isVideo ? 'video' : 'image'}
         />
       </button>
@@ -543,6 +544,7 @@ export default function NewPost() {
                                   <MediaThumbnail
                                     src={media.facebookFeedUrl || media.originalUrl}
                                     alt={media.fileName}
+                                    thumbnailUrl={media.thumbnailUrl ?? undefined}
                                     type={isVideo ? 'video' : 'image'}
                                   />
                                   {isSelected && (

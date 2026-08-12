@@ -161,6 +161,9 @@ export const media = pgTable("media", {
   facebookFeedUrl: text("facebook_feed_url"),
   instagramFeedUrl: text("instagram_feed_url"),
   instagramStoryUrl: text("instagram_story_url"),
+  // Image extraite d'une vidéo, conservée après la suppression du fichier source
+  // pour que l'historique reste illustré.
+  thumbnailUrl: text("thumbnail_url"),
   fileName: text("file_name").notNull(),
   fileSize: integer("file_size").notNull(),
   createdAt: timestamp("created_at").defaultNow(),

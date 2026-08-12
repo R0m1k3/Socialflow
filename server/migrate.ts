@@ -161,6 +161,12 @@ export async function migrate() {
       ADD COLUMN IF NOT EXISTS "gemini_api_key" text;
     `);
 
+    // media.thumbnail_url (vignette conservée après suppression de la vidéo)
+    await client.query(`
+      ALTER TABLE "media"
+      ADD COLUMN IF NOT EXISTS "thumbnail_url" text;
+    `);
+
     // tiktok_config (application développeur TikTok, globale)
     await client.query(`
       CREATE TABLE IF NOT EXISTS "tiktok_config" (

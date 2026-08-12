@@ -106,6 +106,21 @@ class LocalStorageService {
     return buildMinioUrl('', objectKey);
   }
 
+  /**
+   * Range une vignette vidéo. Elle survit volontairement à la suppression de la
+   * vidéo source, pour que l'historique reste illustré.
+   */
+  async uploadThumbnail(buffer: Buffer, fileName: string): Promise<{ publicId: string; url: string }> {
+    const dir = path.join(UPLOADS_BASE, 'thumbnails');
+    ensureDir(dir);
+
+    const safeName = path.basename(fileName).replace(/[^a-zA-Z0-9._-]/g, '-');
+    const objectKey = `thumbnails/${safeName}`;
+
+    fs.writeFileSync(path.join(UPLOADS_BASE, objectKey), buffer);
+    return { publicId: objectKey, url: buildMinioUrl('', objectKey) };
+  }
+
   async uploadLogo(buffer: Buffer, fileName: string): Promise<{ publicId: string; url: string }> {
     const dir = path.join(UPLOADS_BASE, 'logos');
     ensureDir(dir);

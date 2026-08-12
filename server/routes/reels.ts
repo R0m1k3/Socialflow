@@ -8,6 +8,7 @@ import { storage } from '../storage';
 import { ffmpegService } from '../services/ffmpeg';
 import { facebookService } from '../services/facebook';
 import { tiktokService } from '../services/tiktok';
+import { createVideoThumbnail } from '../services/thumbnail';
 import { minioService as cloudinaryService, buildMinioUrl, resolveInternalUrl } from '../services/minio';
 import { openRouterService, describeGenerationError } from '../services/openrouter';
 import { db } from '../db';
@@ -15,6 +16,19 @@ import { cloudinaryConfig } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
 import { ttsSyncService } from '../services/ttsSync';
+/** Piste musicale telle qu'attendue par le client. */
+interface MusicTrack {
+    id: string;
+    title: string;
+    artist: string;
+    albumName: string;
+    duration: number;
+    previewUrl: string;
+    downloadUrl: string;
+    imageUrl: string;
+    license: string;
+}
+
 export const reelsRouter = Router();
 
 // ============================================
@@ -616,6 +630,10 @@ async function processReelBackground(
         console.log('✅ [Background] Uploaded:', cloudinaryResult.originalUrl);
 
         // 5. Créer l'enregistrement Media pour la vidéo traitée
+        // La vignette est extraite maintenant : la vidéo sera supprimée du disque
+        // après publication, mais l'historique doit rester illustré.
+        const thumbnailUrl = await createVideoThumbnail(videoBuffer);
+
         const processedMedia = await storage.createMedia({
             userId: userId,
             type: 'video',
@@ -624,6 +642,7 @@ async function processReelBackground(
             facebookFeedUrl: cloudinaryResult.facebookFeedUrl || null,
             instagramFeedUrl: cloudinaryResult.instagramFeedUrl || null,
             instagramStoryUrl: cloudinaryResult.instagramStoryUrl || null,
+            thumbnailUrl,
             fileName: `reel-processed-${Date.now()}.mp4`,
             fileSize: videoBuffer.length,
         });

@@ -43,6 +43,12 @@ export async function purgeOldMedia() {
         if (item.cloudinaryPublicId) {
           await storageService.deleteMedia(item.cloudinaryPublicId, item.userId, item.type === 'video' ? 'video' : 'image');
         }
+        // La vignette n'a plus de raison d'être une fois la ligne supprimée
+        if (item.thumbnailUrl?.startsWith('/uploads/')) {
+          await storageService
+            .deleteMedia(item.thumbnailUrl.replace('/uploads/', ''), item.userId, 'image')
+            .catch(err => console.warn(`[Media Purge] Vignette non supprimée pour ${item.id}:`, err));
+        }
         await db.delete(media).where(eq(media.id, item.id));
         successCount++;
       } catch (err) {

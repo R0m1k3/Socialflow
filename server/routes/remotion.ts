@@ -2,8 +2,6 @@ import { Router } from "express";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
-import { exec } from "child_process";
-import { promisify } from "util";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { ffmpegService } from "../services/ffmpeg";
@@ -11,26 +9,9 @@ import { storage as dbStorage } from "../storage";
 import { minioService as cloudinaryService, buildMinioUrl } from "../services/minio";
 import { facebookService } from "../services/facebook";
 import { tiktokService } from "../services/tiktok";
+import { generateVideoThumbnail, createVideoThumbnail } from "../services/thumbnail";
 import * as musicMetadata from "music-metadata";
 
-const execAsync = promisify(exec);
-
-/**
- * Generate a thumbnail from a video file using FFmpeg
- * @param videoPath Path to the video file
- * @param outputPath Path to save the thumbnail
- * @param seekTime Time in seconds to extract the frame (default: 1s)
- */
-async function generateVideoThumbnail(videoPath: string, outputPath: string, seekTime: number = 1): Promise<boolean> {
-  try {
-    const cmd = `ffmpeg -y -ss ${seekTime} -i "${videoPath}" -vframes 1 -q:v 2 "${outputPath}"`;
-    await execAsync(cmd);
-    return fs.existsSync(outputPath);
-  } catch (error) {
-    console.warn('⚠️ Failed to generate video thumbnail:', error);
-    return false;
-  }
-}
 
 export const remotionRouter = Router();
 
@@ -326,10 +307,12 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
           codec: "h264",
           outputLocation,
           inputProps,
+          // Ne pas y remettre "args" : Remotion ne lit jamais cette clé (elle est
+          // absente de ChromiumOptions et de son code), les drapeaux passés là
+          // n'atteignaient donc jamais le navigateur.
           chromiumOptions: {
             disableWebSecurity: true,
             ignoreCertificateErrors: true,
-            args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage", "--disable-gpu"],
           },
           concurrency: 1, // Limit concurrency to prevent Docker memory exhaustion
         });
@@ -408,6 +391,9 @@ remotionRouter.post("/publish", async (req, res) => {
     });
 
     // Create a Media record for the processed video
+    // Vignette extraite avant que la vidéo ne soit purgée du disque
+    const thumbnailUrl = await createVideoThumbnail(localPath);
+
     const mediaRecord = await dbStorage.createMedia({
       userId: user.id,
       type: "video",
@@ -416,6 +402,7 @@ remotionRouter.post("/publish", async (req, res) => {
       facebookFeedUrl: null,
       instagramFeedUrl: null,
       instagramStoryUrl: null,
+      thumbnailUrl,
       fileName: filename,
       fileSize: fs.statSync(localPath).size,
     });
