@@ -270,9 +270,7 @@ router.get("/posts", async (req, res) => {
       }
       pageIds = [pageId];
     } else {
-      const users = await storage.getAllUsers();
-      const allPages = await Promise.all(users.map(u => storage.getSocialPages(u.id)));
-      pageIds = allPages.flat().map(p => p.id);
+      pageIds = (await storage.getAllSocialPages()).map(p => p.id);
     }
 
     if (pageIds.length === 0) {
@@ -312,19 +310,20 @@ router.get("/posts", async (req, res) => {
       if (post.status !== postStatus && postStatus !== "all") continue;
 
       if (!postMap.has(post.id)) {
-        // Récupérer les médias du post
+        // Récupérer les médias du post, en une requête plutôt qu'une par média
         const postMediaLinks = await storage.getPostMedia(post.id);
-        const mediaItems: Array<{ id: string; url: string; type: string }> = [];
-        for (const link of postMediaLinks) {
-          const mediaItem = await storage.getMediaById(link.mediaId);
-          if (mediaItem) {
-            mediaItems.push({
-              id: mediaItem.id,
-              url: mediaItem.originalUrl,
-              type: mediaItem.type,
-            });
-          }
-        }
+        const byId = new Map(
+          (await storage.getMediaByIds(postMediaLinks.map(link => link.mediaId)))
+            .map(item => [item.id, item])
+        );
+        const mediaItems = postMediaLinks
+          .map(link => byId.get(link.mediaId))
+          .filter((item): item is NonNullable<typeof item> => item !== undefined)
+          .map(item => ({
+            id: item.id,
+            url: item.originalUrl,
+            type: item.type,
+          }));
 
         postMap.set(post.id, {
           id: post.id,

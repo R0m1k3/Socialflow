@@ -44,7 +44,7 @@ import {
   type InsertFacebookConfig,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, desc, asc, isNull, isNotNull, inArray, notInArray } from "drizzle-orm";
+import { eq, and, gte, lte, desc, asc, isNull, isNotNull, inArray, notInArray, getTableColumns, sql, type SQL } from "drizzle-orm";
 import { encrypt, decrypt, isEncrypted } from "./utils/encryption";
 
 /**
@@ -71,24 +71,73 @@ function decryptPageTokens(page: SocialPage): SocialPage {
   };
 }
 
+/** Bornes temporelles utilisées pour les comparaisons du tableau de bord. */
+export interface DashboardStatsRange {
+  yesterdayStart: Date;
+  yesterdayEnd: Date;
+  lastMonth: Date;
+}
+
+export interface DashboardStats {
+  scheduledPosts: number;
+  scheduledPostsLastMonth: number;
+  connectedPages: number;
+  aiTextsGenerated: number;
+  aiTextsYesterday: number;
+  mediaStored: number;
+}
+
+/**
+ * Colonnes renvoyées pour une publication planifiée.
+ *
+ * On ne sélectionne pas la ligne `social_pages` entière : elle porte les jetons
+ * d'accès Facebook et TikTok, qui partaient jusqu'ici dans chaque réponse HTTP
+ * — y compris vers le navigateur, qui n'en fait rien.
+ */
+const SCHEDULED_POST_COLUMNS = {
+  ...getTableColumns(scheduledPosts),
+  post: {
+    id: posts.id,
+    userId: posts.userId,
+    content: posts.content,
+    status: posts.status,
+    scheduledFor: posts.scheduledFor,
+    aiGenerated: posts.aiGenerated,
+    generationStatus: posts.generationStatus,
+    generationProgress: posts.generationProgress,
+    createdAt: posts.createdAt,
+  },
+  page: {
+    id: socialPages.id,
+    pageId: socialPages.pageId,
+    pageName: socialPages.pageName,
+    platform: socialPages.platform,
+    avatarUrl: socialPages.avatarUrl,
+  },
+};
+
 export interface IStorage {
   // Users
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getAllUsers(): Promise<User[]>;
+  getDashboardStats(userId: string, options: DashboardStatsRange): Promise<DashboardStats>;
   createUser(user: InsertUser): Promise<User>;
   updateUser(id: string, user: Partial<InsertUser>): Promise<User>;
   deleteUser(id: string): Promise<void>;
 
   // Social Pages
   getSocialPages(userId: string): Promise<SocialPage[]>;
+  getAllSocialPages(): Promise<SocialPage[]>;
   getSocialPage(id: string): Promise<SocialPage | undefined>;
   createSocialPage(page: InsertSocialPage): Promise<SocialPage>;
   updateSocialPage(id: string, page: Partial<SocialPage>): Promise<SocialPage>;
   deleteSocialPage(id: string): Promise<void>;
 
   // Media
-  getMedia(userId: string): Promise<Media[]>;
+  getMedia(userId: string, options?: { limit?: number; offset?: number }): Promise<Media[]>;
+  getMediaByIds(ids: string[]): Promise<Media[]>;
+  getMediaCount(userId: string): Promise<number>;
   getMediaById(id: string): Promise<Media | undefined>;
   createMedia(media: InsertMedia): Promise<Media>;
   deleteMedia(id: string): Promise<void>;
@@ -98,6 +147,7 @@ export interface IStorage {
   getPosts(userId: string): Promise<Post[]>;
   getPost(id: string): Promise<Post | undefined>;
   getPostWithMedia(id: string): Promise<{ post: Post; media: Media[] } | undefined>;
+  getOngoingReelPosts(userId: string): Promise<Post[]>;
   createPost(post: InsertPost): Promise<Post>;
   updatePost(id: string, post: Partial<InsertPost>): Promise<Post>;
   updatePostGenerationStatus(id: string, status: string, progress: number, error?: string): Promise<Post>;
@@ -194,9 +244,55 @@ export class DatabaseStorage implements IStorage {
     await db.delete(users).where(eq(users.id, id));
   }
 
+  /**
+   * Compteurs du tableau de bord.
+   *
+   * Comptés en SQL : les charger en mémoire revenait à lire quatre tables
+   * entières — tous les posts, toutes les pages, tous les médias, toutes les
+   * générations — pour n'en garder que le nombre de lignes.
+   */
+  async getDashboardStats(userId: string, range: DashboardStatsRange): Promise<DashboardStats> {
+    const [postCounts, generationCounts, pageCount, mediaCount] = await Promise.all([
+      db
+        .select({
+          scheduled: sql<string>`count(*) filter (where ${posts.status} = 'scheduled')`,
+          scheduledLastMonth: sql<string>`count(*) filter (where ${posts.status} = 'scheduled' and ${posts.createdAt} < ${range.lastMonth})`,
+        })
+        .from(posts)
+        .where(eq(posts.userId, userId)),
+      db
+        .select({
+          total: sql<string>`count(*)`,
+          yesterday: sql<string>`count(*) filter (where ${aiGenerations.createdAt} >= ${range.yesterdayStart} and ${aiGenerations.createdAt} < ${range.yesterdayEnd})`,
+        })
+        .from(aiGenerations)
+        .where(eq(aiGenerations.userId, userId)),
+      db.select({ total: sql<string>`count(*)` }).from(socialPages).where(eq(socialPages.userId, userId)),
+      db.select({ total: sql<string>`count(*)` }).from(media).where(eq(media.userId, userId)),
+    ]);
+
+    return {
+      scheduledPosts: Number(postCounts[0]?.scheduled ?? 0),
+      scheduledPostsLastMonth: Number(postCounts[0]?.scheduledLastMonth ?? 0),
+      connectedPages: Number(pageCount[0]?.total ?? 0),
+      aiTextsGenerated: Number(generationCounts[0]?.total ?? 0),
+      aiTextsYesterday: Number(generationCounts[0]?.yesterday ?? 0),
+      mediaStored: Number(mediaCount[0]?.total ?? 0),
+    };
+  }
+
   // Social Pages
   async getSocialPages(userId: string): Promise<SocialPage[]> {
     const pages = await db.select().from(socialPages).where(eq(socialPages.userId, userId));
+    return pages.map(page => decryptPageTokens(page));
+  }
+
+  /**
+   * Toutes les pages de l'instance, pour les vues d'administration.
+   * Remplace un `getAllUsers()` suivi d'une requête par utilisateur.
+   */
+  async getAllSocialPages(): Promise<SocialPage[]> {
+    const pages = await db.select().from(socialPages);
     return pages.map(page => decryptPageTokens(page));
   }
 
@@ -234,8 +330,37 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Media
-  async getMedia(userId: string): Promise<Media[]> {
-    return await db.select().from(media).where(eq(media.userId, userId)).orderBy(desc(media.createdAt));
+  /**
+   * Médias d'un utilisateur, du plus récent au plus ancien.
+   * `limit` sert aux écrans qui n'en affichent qu'une poignée : sans lui, la
+   * médiathèque entière transitait pour en montrer cinq.
+   */
+  async getMedia(userId: string, options: { limit?: number; offset?: number } = {}): Promise<Media[]> {
+    let query = db
+      .select()
+      .from(media)
+      .where(eq(media.userId, userId))
+      .orderBy(desc(media.createdAt))
+      .$dynamic();
+
+    if (options.limit !== undefined) query = query.limit(options.limit);
+    if (options.offset !== undefined) query = query.offset(options.offset);
+
+    return await query;
+  }
+
+  async getMediaByIds(ids: string[]): Promise<Media[]> {
+    if (ids.length === 0) return [];
+    return await db.select().from(media).where(inArray(media.id, ids));
+  }
+
+  /** Total de médias, pour que la pagination sache où elle s'arrête. */
+  async getMediaCount(userId: string): Promise<number> {
+    const [row] = await db
+      .select({ total: sql<string>`count(*)` })
+      .from(media)
+      .where(eq(media.userId, userId));
+    return Number(row?.total ?? 0);
   }
 
   async getMediaById(id: string): Promise<Media | undefined> {
@@ -271,14 +396,16 @@ export class DatabaseStorage implements IStorage {
     if (!post) return undefined;
 
     const postMediaLinks = await this.getPostMedia(id);
-    const mediaItems: Media[] = [];
 
-    for (const link of postMediaLinks) {
-      const mediaItem = await this.getMediaById(link.mediaId);
-      if (mediaItem) {
-        mediaItems.push(mediaItem);
-      }
-    }
+    // Une seule requête pour tous les médias, puis remise dans l'ordre
+    // d'affichage : une requête par média rendait le coût proportionnel au
+    // nombre de visuels du post.
+    const byId = new Map(
+      (await this.getMediaByIds(postMediaLinks.map(link => link.mediaId))).map(item => [item.id, item])
+    );
+    const mediaItems = postMediaLinks
+      .map(link => byId.get(link.mediaId))
+      .filter((item): item is Media => item !== undefined);
 
     return { post, media: mediaItems };
   }
@@ -352,67 +479,42 @@ export class DatabaseStorage implements IStorage {
 
   // Scheduled Posts
   async getScheduledPosts(userId: string, startDate?: Date, endDate?: Date): Promise<any[]> {
-    let query = db
-      .select()
-      .from(scheduledPosts)
-      .innerJoin(posts, eq(scheduledPosts.postId, posts.id))
-      .leftJoin(socialPages, eq(scheduledPosts.pageId, socialPages.id))
-      .where(eq(posts.userId, userId));
-
-    if (startDate && endDate) {
-      const results = await query;
-      return results
-        .filter(r => {
-          const scheduledAt = new Date(r.scheduled_posts.scheduledAt);
-          return scheduledAt >= startDate && scheduledAt <= endDate;
-        })
-        .map(r => ({
-          ...r.scheduled_posts,
-          post: r.posts,
-          page: r.social_pages,
-        }));
-    }
-
-    const results = await query;
-    return results.map(r => ({
-      ...r.scheduled_posts,
-      post: r.posts,
-      page: r.social_pages,
-    }));
+    return this.queryScheduledPosts(eq(posts.userId, userId), startDate, endDate);
   }
 
   async getScheduledPostsByPages(pageIds: string[], startDate?: Date, endDate?: Date): Promise<any[]> {
     if (pageIds.length === 0) {
       return [];
     }
+    return this.queryScheduledPosts(inArray(scheduledPosts.pageId, pageIds), startDate, endDate);
+  }
 
-    let query = db
-      .select()
+  /**
+   * Publications planifiées, avec le post et la page auxquels elles se rapportent.
+   *
+   * La période est filtrée en SQL : la charger entière pour la filtrer en
+   * mémoire revenait à lire tout l'historique à chaque affichage du calendrier.
+   */
+  private async queryScheduledPosts(
+    scope: SQL,
+    startDate?: Date,
+    endDate?: Date
+  ): Promise<any[]> {
+    const conditions: SQL[] = [scope];
+    if (startDate) conditions.push(gte(scheduledPosts.scheduledAt, startDate));
+    if (endDate) conditions.push(lte(scheduledPosts.scheduledAt, endDate));
+
+    const rows = await db
+      .select(SCHEDULED_POST_COLUMNS)
       .from(scheduledPosts)
       .innerJoin(posts, eq(scheduledPosts.postId, posts.id))
       .leftJoin(socialPages, eq(scheduledPosts.pageId, socialPages.id))
-      .where(inArray(scheduledPosts.pageId, pageIds));
+      .where(conditions.length === 1 ? conditions[0] : and(...conditions))
+      .orderBy(desc(scheduledPosts.scheduledAt));
 
-    if (startDate && endDate) {
-      const results = await query;
-      return results
-        .filter(r => {
-          const scheduledAt = new Date(r.scheduled_posts.scheduledAt);
-          return scheduledAt >= startDate && scheduledAt <= endDate;
-        })
-        .map(r => ({
-          ...r.scheduled_posts,
-          post: r.posts,
-          page: r.social_pages,
-        }));
-    }
-
-    const results = await query;
-    return results.map(r => ({
-      ...r.scheduled_posts,
-      post: r.posts,
-      page: r.social_pages,
-    }));
+    // La jointure externe renvoie un objet aux champs nuls quand la page a été
+    // supprimée ; les appelants attendent `page: null` dans ce cas.
+    return rows.map(row => ({ ...row, page: row.page?.id ? row.page : null }));
   }
 
   async getScheduledPost(id: string): Promise<ScheduledPost | undefined> {
@@ -466,6 +568,24 @@ export class DatabaseStorage implements IStorage {
           notInArray(scheduledPosts.publishStatus, TERMINAL_PUBLISH_STATUSES)
         )
       );
+  }
+
+  /**
+   * Reels dont la génération est en cours. Filtré en SQL : la route chargeait
+   * tous les posts de l'utilisateur pour n'en garder qu'une poignée, toutes les
+   * trois secondes.
+   */
+  async getOngoingReelPosts(userId: string): Promise<Post[]> {
+    return await db
+      .select()
+      .from(posts)
+      .where(
+        and(
+          eq(posts.userId, userId),
+          inArray(posts.generationStatus, ['processing', 'pending'])
+        )
+      )
+      .orderBy(desc(posts.createdAt));
   }
 
   // AI Generations

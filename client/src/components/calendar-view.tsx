@@ -13,6 +13,24 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { PreviewModal } from "@/components/preview-modal";
 import type { Media } from "@shared/schema";
 
+/**
+ * Bornes de la grille affichée : 42 cases à partir du lundi qui précède le 1er
+ * du mois. Demander cette fenêtre plutôt que tout l'historique évite de charger
+ * des années de publications pour en afficher six semaines.
+ */
+function visibleRange(currentDate: Date): { startDate: string; endDate: string } {
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const startingDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+
+  const start = new Date(year, month, 1 - startingDayOfWeek);
+  const end = new Date(year, month, 1 - startingDayOfWeek + 42);
+  end.setMilliseconds(-1); // fin de la 42e journée
+
+  return { startDate: start.toISOString(), endDate: end.toISOString() };
+}
+
 export default function CalendarView() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -22,8 +40,11 @@ export default function CalendarView() {
   const { toast } = useToast();
   const isDesktop = useMediaQuery("(min-width: 768px)");
 
+  // La fenêtre fait partie de la clé : changer de mois redéclenche la requête.
+  const range = visibleRange(currentDate);
+
   const { data: scheduledPosts = [] } = useQuery<ScheduledPost[]>({
-    queryKey: ["/api/scheduled-posts"],
+    queryKey: ["/api/scheduled-posts", range],
     refetchInterval: 30000, // Auto-refresh every 30 seconds
   });
 

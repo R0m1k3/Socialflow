@@ -898,10 +898,7 @@ reelsRouter.get('/reels/config', async (req: Request, res: Response) => {
 reelsRouter.get('/reels/ongoing', async (req: Request, res: Response) => {
     try {
         const user = req.user as User;
-        const allPosts = await storage.getPosts(user.id);
-        const ongoing = allPosts.filter(
-            (p) => p.generationStatus === 'processing' || p.generationStatus === 'pending'
-        );
+        const ongoing = await storage.getOngoingReelPosts(user.id);
         res.json(ongoing);
     } catch (error) {
         console.error('❌ Error fetching ongoing reels:', error);

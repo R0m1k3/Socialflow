@@ -29,6 +29,16 @@ import { Trash2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 
+/** Profondeur d'historique du bloc « Publications récentes ». */
+const RECENT_WINDOW_DAYS = 90;
+
+/** Minuit, pour que la clé de requête reste stable d'un rendu à l'autre. */
+function startOfDay(date: Date): Date {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
 export default function RecentPublications() {
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [previewData, setPreviewData] = useState<{ postText: string; mediaIds: string[]; allMedia: Media[] }>({ postText: '', mediaIds: [], allMedia: [] });
@@ -37,8 +47,13 @@ export default function RecentPublications() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Ce bloc n'affiche que les dix dernières publications : inutile de faire
+  // remonter tout l'historique pour cela.
+  const since = new Date();
+  since.setDate(since.getDate() - RECENT_WINDOW_DAYS);
+
   const { data: scheduledPosts = [], isLoading } = useQuery<ScheduledPostWithRelations[]>({
-    queryKey: ['/api/scheduled-posts'],
+    queryKey: ['/api/scheduled-posts', { startDate: startOfDay(since).toISOString() }],
   });
 
   // Filter and sort attempted posts (scheduled in the past)

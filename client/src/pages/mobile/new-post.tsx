@@ -104,6 +104,16 @@ function SortableMediaItem({
   );
 }
 
+/** Nombre de médias récents proposés à la sélection. */
+const RECENT_MEDIA_COUNT = 12;
+
+/** Minuit, pour que la clé de requête reste stable d'un rendu à l'autre. */
+function startOfToday(): Date {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
 export default function NewPostMobile() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [, navigate] = useLocation();
@@ -127,8 +137,10 @@ export default function NewPostMobile() {
   });
   const pages = allPages.filter(p => p.platform !== 'tiktok');
 
+  // Seuls les douze derniers médias sont proposés ici : autant ne demander
+  // que ceux-là plutôt que toute la médiathèque.
   const { data: allMedia = [] } = useQuery<Media[]>({
-    queryKey: ['/api/media'],
+    queryKey: ['/api/media', { limit: RECENT_MEDIA_COUNT }],
   });
 
   const mediaList = useMemo(() => {
@@ -142,11 +154,13 @@ export default function NewPostMobile() {
         const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
         return dateB - dateA;
       })
-      .slice(0, 12);
+      .slice(0, RECENT_MEDIA_COUNT);
   }, [allMedia, recentUploads]);
 
+  // Ne sert qu'à griser les créneaux déjà pris dans le sélecteur de date : le
+  // passé n'a aucune influence sur une planification à venir.
   const { data: scheduledPosts = [] } = useQuery<ScheduledPost[]>({
-    queryKey: ['/api/scheduled-posts'],
+    queryKey: ['/api/scheduled-posts', { startDate: startOfToday().toISOString() }],
   });
 
   const uploadMutation = useMutation({

@@ -69,13 +69,40 @@ export async function apiRequest(
   return res;
 }
 
+/**
+ * Construit l'URL d'une requête à partir de sa clé.
+ *
+ * Les segments texte forment le chemin (`['/api/posts', id]`). Un objet en
+ * dernière position porte les paramètres de requête : c'est ce qui permet de
+ * demander une fenêtre de dates plutôt que tout l'historique
+ * (`['/api/scheduled-posts', { startDate, endDate }]`).
+ */
+export function urlFromQueryKey(queryKey: readonly unknown[]): string {
+  const segments = [...queryKey];
+  const last = segments[segments.length - 1];
+
+  if (last !== null && typeof last === "object") {
+    segments.pop();
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(last as Record<string, unknown>)) {
+      if (value !== undefined && value !== null && value !== "") {
+        params.set(key, String(value));
+      }
+    }
+    const query = params.toString();
+    return query ? `${segments.join("/")}?${query}` : segments.join("/");
+  }
+
+  return segments.join("/");
+}
+
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const url = queryKey.join("/") as string;
+    const url = urlFromQueryKey(queryKey);
     const res = await fetch(url, {
       credentials: "include",
     });

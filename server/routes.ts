@@ -111,6 +111,20 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
+/** Convertit un paramètre de requête en entier positif, ou `undefined`. */
+function parsePositiveInt(value: unknown): number | undefined {
+  if (typeof value !== "string" || value === "") return undefined;
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : undefined;
+}
+
+/** Convertit un paramètre de requête en date, ou `undefined` s'il est inutilisable. */
+function parseDateParam(value: unknown): Date | undefined {
+  if (typeof value !== "string" || value === "") return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
 
 
@@ -544,39 +558,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = req.user as User;
       const userId = user.id;
 
-      const posts = await storage.getPosts(userId);
-      const pages = await storage.getSocialPages(userId);
-      const media = await storage.getMedia(userId);
-      const aiGenerations = await storage.getAiGenerations(userId);
-
-      // Statistiques actuelles
-      const scheduledPosts = posts.filter(p => p.status === "scheduled").length;
-      const currentAiTexts = aiGenerations.length;
-      const currentMedia = media.length;
-
       // Calculer les statistiques de la période précédente (hier pour les textes IA, mois dernier pour les posts)
       const now = new Date();
       const yesterday = new Date(now);
       yesterday.setDate(yesterday.getDate() - 1);
       yesterday.setHours(0, 0, 0, 0);
 
+      const today = new Date(yesterday);
+      today.setDate(today.getDate() + 1);
+
       const lastMonth = new Date(now);
       lastMonth.setMonth(lastMonth.getMonth() - 1);
 
-      // Textes IA générés hier
-      const aiTextsYesterday = aiGenerations.filter(gen => {
-        if (!gen.createdAt) return false;
-        const genDate = new Date(gen.createdAt);
-        genDate.setHours(0, 0, 0, 0);
-        return genDate.getTime() === yesterday.getTime();
-      }).length;
+      const stats = await storage.getDashboardStats(userId, {
+        yesterdayStart: yesterday,
+        yesterdayEnd: today,
+        lastMonth,
+      });
 
-      // Posts planifiés le mois dernier
-      const scheduledPostsLastMonth = posts.filter(p => {
-        if (!p.createdAt) return false;
-        const createdDate = new Date(p.createdAt);
-        return p.status === "scheduled" && createdDate < lastMonth;
-      }).length;
+      const scheduledPosts = stats.scheduledPosts;
+      const scheduledPostsLastMonth = stats.scheduledPostsLastMonth;
+      const currentAiTexts = stats.aiTextsGenerated;
+      const aiTextsYesterday = stats.aiTextsYesterday;
 
       // Calculer les variations en pourcentage
       const aiTextChange = aiTextsYesterday > 0
@@ -591,11 +594,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         scheduledPosts,
         scheduledPostsChange: scheduledPostsChange > 0 ? `+${scheduledPostsChange}%` : `${scheduledPostsChange}%`,
         scheduledPostsTrending: scheduledPostsChange >= 0 ? "up" : "down",
-        connectedPages: pages.length,
+        connectedPages: stats.connectedPages,
         aiTextsGenerated: currentAiTexts,
         aiTextsChange: aiTextChange > 0 ? `+${aiTextChange}%` : `${aiTextChange}%`,
         aiTextsTrending: aiTextChange >= 0 ? "up" : "down",
-        mediaStored: media.length,
+        mediaStored: stats.mediaStored,
       });
     } catch (error) {
       console.error("Error fetching stats:", error);
@@ -723,7 +726,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const userId = user.id;
-      const media = await storage.getMedia(userId);
+
+      // Sans paramètre, la médiathèque entière est renvoyée comme avant : les
+      // écrans qui doivent retrouver un média par son identifiant en dépendent.
+      const limit = parsePositiveInt(req.query.limit);
+      const offset = parsePositiveInt(req.query.offset);
+      const media = await storage.getMedia(userId, { limit, offset });
+
+      // Le total permet à l'appelant paginé de savoir s'il reste des pages —
+      // et à la médiathèque d'afficher un compteur juste sans tout charger.
+      if (limit !== undefined) {
+        res.setHeader("X-Total-Count", String(await storage.getMediaCount(userId)));
+      }
+
       res.json(media);
     } catch (error) {
       console.error("Error fetching media:", error);
@@ -1415,16 +1430,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = user.id;
       const { startDate, endDate } = req.query;
 
-      const start = startDate ? new Date(startDate as string) : undefined;
-      const end = endDate ? new Date(endDate as string) : undefined;
+      // Une date illisible est ignorée plutôt que transmise telle quelle à SQL.
+      const start = parseDateParam(startDate);
+      const end = parseDateParam(endDate);
 
       let scheduledPosts;
 
       if (user.role === 'admin') {
         // Admin voit tous les posts programmés - on récupère toutes les pages
-        const allPages = await storage.getAllUsers().then(users =>
-          Promise.all(users.map(u => storage.getSocialPages(u.id)))
-        ).then(pagesArrays => pagesArrays.flat());
+        const allPages = await storage.getAllSocialPages();
         const allPageIds = allPages.map(p => p.id);
 
         if (allPageIds.length > 0) {
@@ -1577,11 +1591,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (user.role === 'admin') {
         // Les admins voient toutes les pages de tous les utilisateurs
-        const allUsers = await storage.getAllUsers();
-        const allPages = await Promise.all(
-          allUsers.map(u => storage.getSocialPages(u.id))
-        );
-        pages = allPages.flat();
+        pages = await storage.getAllSocialPages();
       } else {
         // Les utilisateurs normaux voient uniquement les pages auxquelles ils ont accès
         pages = await storage.getUserAccessiblePages(userId);

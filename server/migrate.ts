@@ -213,6 +213,53 @@ export async function migrate() {
       ADD COLUMN IF NOT EXISTS "publish_status" text;
     `);
 
+    // 4. Index de performance
+    //
+    // Postgres n'indexe pas les clés étrangères tout seul : sans ces index, le
+    // calendrier, l'historique et le scheduler faisaient des parcours complets
+    // de table à chaque appel. Ils existaient dans migration-docker.sql, qui
+    // n'est monté nulle part — ce fichier-ci est le seul exécuté au démarrage.
+    //
+    // Chaque index est créé isolément : une table absente sur une vieille
+    // installation ne doit pas empêcher la création des suivants.
+    const indexes: [string, string][] = [
+      // Filtres par propriétaire
+      ["idx_posts_user_id", `CREATE INDEX IF NOT EXISTS "idx_posts_user_id" ON "posts" ("user_id")`],
+      ["idx_media_user_id", `CREATE INDEX IF NOT EXISTS "idx_media_user_id" ON "media" ("user_id")`],
+      ["idx_social_pages_user_id", `CREATE INDEX IF NOT EXISTS "idx_social_pages_user_id" ON "social_pages" ("user_id")`],
+      ["idx_ai_generations_user_id", `CREATE INDEX IF NOT EXISTS "idx_ai_generations_user_id" ON "ai_generations" ("user_id")`],
+
+      // Jointures
+      ["idx_scheduled_posts_post_id", `CREATE INDEX IF NOT EXISTS "idx_scheduled_posts_post_id" ON "scheduled_posts" ("post_id")`],
+      ["idx_post_media_post_id", `CREATE INDEX IF NOT EXISTS "idx_post_media_post_id" ON "post_media" ("post_id")`],
+      ["idx_post_media_media_id", `CREATE INDEX IF NOT EXISTS "idx_post_media_media_id" ON "post_media" ("media_id")`],
+      ["idx_post_analytics_post_id", `CREATE INDEX IF NOT EXISTS "idx_post_analytics_post_id" ON "post_analytics" ("post_id")`],
+      ["idx_page_analytics_history_page_date", `CREATE INDEX IF NOT EXISTS "idx_page_analytics_history_page_date" ON "page_analytics_history" ("page_id", "date")`],
+      ["idx_user_page_permissions_user_id", `CREATE INDEX IF NOT EXISTS "idx_user_page_permissions_user_id" ON "user_page_permissions" ("user_id")`],
+      ["idx_user_page_permissions_page_id", `CREATE INDEX IF NOT EXISTS "idx_user_page_permissions_page_id" ON "user_page_permissions" ("page_id")`],
+
+      // Calendrier et historique : « les publications de ces pages, sur cette période »
+      ["idx_scheduled_posts_page_scheduled_at", `CREATE INDEX IF NOT EXISTS "idx_scheduled_posts_page_scheduled_at" ON "scheduled_posts" ("page_id", "scheduled_at")`],
+
+      // Scheduler (toutes les minutes) : seules les publications non encore
+      // traitées comptent, d'où un index partiel qui reste minuscule.
+      ["idx_scheduled_posts_pending", `CREATE INDEX IF NOT EXISTS "idx_scheduled_posts_pending" ON "scheduled_posts" ("scheduled_at") WHERE "published_at" IS NULL`],
+
+      // Suivi asynchrone TikTok (toutes les deux minutes)
+      ["idx_scheduled_posts_publish_id", `CREATE INDEX IF NOT EXISTS "idx_scheduled_posts_publish_id" ON "scheduled_posts" ("publish_id") WHERE "publish_id" IS NOT NULL`],
+
+      // Reels en cours de génération
+      ["idx_posts_generation_status", `CREATE INDEX IF NOT EXISTS "idx_posts_generation_status" ON "posts" ("generation_status") WHERE "generation_status" IS NOT NULL`],
+    ];
+
+    for (const [name, statement] of indexes) {
+      try {
+        await client.query(statement);
+      } catch (error) {
+        console.warn(`[Migration] Index ${name} non créé:`, error instanceof Error ? error.message : error);
+      }
+    }
+
     console.log("[Migration] Safe migration completed.");
   } catch (error) {
     console.error("[Migration] Error during migration:", error);

@@ -2,24 +2,56 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
 import { MediaThumbnail } from "@/components/media-thumbnail";
 import { CloudUpload, Image as ImageIcon, Video, X, Upload, Loader2, ZoomIn, Camera } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { SiFacebook, SiInstagram } from "react-icons/si";
 
+/** Nombre de vignettes chargées par page. */
+const MEDIA_PAGE_SIZE = 15;
+
 export default function MediaUpload() {
   const { toast } = useToast();
   const [selectedFile, setSelectedFile] = useState<any>(null);
-  const [visibleCount, setVisibleCount] = useState(5);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: mediaList } = useQuery({
-    queryKey: ["/api/media"],
+  // Pagination côté serveur : la médiathèque entière transitait pour n'afficher
+  // que les premières vignettes. La clé reste préfixée par « /api/media » afin
+  // que les invalidations existantes continuent de la rafraîchir.
+  const {
+    data: mediaPages,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["/api/media", "pages"],
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const response = await fetch(`/api/media?limit=${MEDIA_PAGE_SIZE}&offset=${pageParam}`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        // Même traitement que les autres requêtes : une session expirée renvoie
+        // vers l'écran de connexion plutôt que sur une médiathèque vide.
+        if (response.status === 401) handleUnauthorized("/api/media");
+        throw new Error("Impossible de charger la médiathèque");
+      }
+      const items = (await response.json()) as any[];
+      const total = Number(response.headers.get("X-Total-Count"));
+      return { items, total: Number.isFinite(total) ? total : items.length };
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((count, page) => count + page.items.length, 0);
+      return loaded < lastPage.total ? loaded : undefined;
+    },
   });
+
+  const mediaList = mediaPages?.pages.flatMap(page => page.items) ?? [];
+  const totalMedia = mediaPages?.pages[0]?.total ?? 0;
 
   const [uploadingCount, setUploadingCount] = useState(0);
 
@@ -163,8 +195,8 @@ export default function MediaUpload() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && mediaList && visibleCount < (mediaList as any[]).length) {
-          setVisibleCount(prev => Math.min(prev + 5, (mediaList as any[]).length));
+        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+          fetchNextPage();
         }
       },
       { threshold: 0.1 }
@@ -179,7 +211,7 @@ export default function MediaUpload() {
         observer.unobserve(loadMoreRef.current);
       }
     };
-  }, [mediaList, visibleCount]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
   return (
     <div className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-lg">
@@ -268,13 +300,13 @@ export default function MediaUpload() {
               <h4 className="text-sm font-semibold text-foreground flex items-center justify-between">
                 <span>Fichiers téléchargés</span>
                 <span className="text-xs font-medium text-muted-foreground bg-muted/30 px-3 py-1 rounded-full">
-                  {(mediaList as any[])?.length || 0} média(s)
+                  {totalMedia} média(s)
                 </span>
               </h4>
 
               <div className="max-h-[500px] overflow-y-auto">
                 <div className="grid grid-cols-3 gap-3">
-                  {(mediaList as any[])?.slice(0, visibleCount).map((media: any) => (
+                  {mediaList.map((media: any) => (
                     <div
                       key={media.id}
                       onClick={() => setSelectedFile(media)}
@@ -316,7 +348,7 @@ export default function MediaUpload() {
                 </div>
 
                 {/* Élément sentinelle pour le scroll infini */}
-                {(mediaList && visibleCount < (mediaList as any[]).length) ? (
+                {hasNextPage ? (
                   <div ref={loadMoreRef} className="flex justify-center py-4 mt-3">
                     <Loader2 className="w-5 h-5 text-primary animate-spin" />
                   </div>
