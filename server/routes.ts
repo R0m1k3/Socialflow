@@ -18,6 +18,7 @@ import { reelsRouter } from "./routes/reels";
 import { remotionRouter } from "./routes/remotion";
 import { externalRouter } from "./routes/external";
 import { tiktokRouter } from "./routes/tiktok";
+import { facebookRouter } from "./routes/facebook";
 import { legalRouter } from "./routes/legal";
 import { insertAudioTrackSchema } from "@shared/schema";
 import * as musicMetadata from "music-metadata";
@@ -475,6 +476,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // TikTok Routes (OAuth multi-comptes) — avant le routeur Reels monté sur /api
   app.use("/api/tiktok", requireAuth, tiktokRouter);
+  app.use("/api/facebook", requireAuth, facebookRouter);
 
   // Reels & Music Routes
   app.use("/api", requireAuth, reelsRouter);
@@ -1553,6 +1555,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Social pages
+
+  /**
+   * Vue client d'une page : sans jetons, avec un indicateur de renouvellement
+   * automatique (vrai quand un jeton utilisateur longue durée est enregistré).
+   */
+  function toClientPage(page: SocialPage) {
+    const { accessToken, userAccessToken, refreshToken, ...safe } = page;
+    return {
+      ...safe,
+      autoRenew: page.platform === 'tiktok' ? !!refreshToken : !!userAccessToken,
+    };
+  }
+
   app.get("/api/pages", requireAuth, async (req, res) => {
     try {
       const user = req.user as User;
@@ -1572,7 +1587,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pages = await storage.getUserAccessiblePages(userId);
       }
 
-      res.json(pages);
+      // Les jetons n'ont rien à faire dans le navigateur : on ne renvoie que
+      // l'information dont l'UI a besoin, dont la capacité à se renouveler seule.
+      res.json(pages.map(toClientPage));
     } catch (error) {
       console.error("Error fetching pages:", error);
       res.status(500).json({ error: "Failed to fetch pages" });
@@ -1602,7 +1619,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         tokenExpiresAt
       });
       const page = await storage.createSocialPage(pageData);
-      res.json(page);
+      res.json(toClientPage(page));
     } catch (error) {
       console.error("Error creating page:", error);
       res.status(500).json({ error: "Failed to create page" });
@@ -1638,7 +1655,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const updatedPage = await storage.updateSocialPage(pageId, pageData);
-      res.json(updatedPage);
+      res.json(toClientPage(updatedPage));
     } catch (error) {
       console.error("Error updating page:", error);
       res.status(500).json({ error: "Failed to update page" });

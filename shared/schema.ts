@@ -38,6 +38,15 @@ export const socialPages = pgTable("social_pages", {
   tokenStatus: tokenStatusEnum("token_status").default("valid"),
   lastTokenCheck: timestamp("last_token_check"),
 
+  // Jeton utilisateur longue durée (~60 j) obtenu via OAuth Facebook, chiffré au
+  // repos. C'est lui qui permet de régénérer un token de page sans intervention
+  // humaine : sans lui, un token révoqué impose une reconnexion manuelle.
+  userAccessToken: text("user_access_token"),
+  userTokenExpiresAt: timestamp("user_token_expires_at"),
+  // Dernière erreur rencontrée lors du contrôle du token, affichée dans l'UI
+  // pour que l'utilisateur sache quoi faire (reconnecter, réautoriser…).
+  tokenError: text("token_error"),
+
   // OAuth TikTok : l'access token n'est valable que 24h, il doit être renouvelé
   // avec le refresh token (valable 1 an) avant chaque publication.
   refreshToken: text("refresh_token"),
@@ -93,6 +102,7 @@ export const insertSocialPageSchema = createInsertSchema(socialPages).omit({
   createdAt: true,
   tokenStatus: true,     // Managed by System
   lastTokenCheck: true,  // Managed by System
+  tokenError: true,      // Managed by System
 });
 
 export const insertPostAnalyticsSchema = createInsertSchema(postAnalytics).omit({
@@ -143,6 +153,20 @@ export const openrouterConfig = pgTable("openrouter_config", {
 
 // Application développeur TikTok (globale) : un seul client_key pour toute
 // l'instance, chaque magasin autorise ensuite son propre compte via OAuth.
+/**
+ * Application développeur Facebook (globale à l'instance). Elle rend possible le
+ * renouvellement automatique des tokens de page : sans app id / app secret, on
+ * ne peut ni échanger un code OAuth, ni prolonger un jeton, ni interroger
+ * /debug_token.
+ */
+export const facebookConfig = pgTable("facebook_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  appId: text("app_id").notNull(),
+  appSecret: text("app_secret").notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const tiktokConfig = pgTable("tiktok_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   clientKey: text("client_key").notNull(),
@@ -432,6 +456,19 @@ export const updateCloudinaryConfigSchema = insertCloudinaryConfigSchema.partial
   apiSecret: true,
 });
 
+export const insertFacebookConfigSchema = createInsertSchema(facebookConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  appId: z.string().trim().min(1, "L'App ID ne peut pas être vide"),
+  appSecret: z.string().trim().min(1, "L'App Secret ne peut pas être vide"),
+});
+
+export const updateFacebookConfigSchema = insertFacebookConfigSchema.partial({
+  appSecret: true,
+});
+
 export const insertTiktokConfigSchema = createInsertSchema(tiktokConfig).omit({
   id: true,
   createdAt: true,
@@ -503,6 +540,19 @@ export type AudioTrack = typeof audioTracks.$inferSelect;
 export type InsertAudioTrack = z.infer<typeof insertAudioTrackSchema>;
 
 export type AppConfig = typeof appConfig.$inferSelect;
+
+/**
+ * Page telle qu'elle est renvoyée au navigateur : les jetons restent au serveur,
+ * `autoRenew` dit simplement si la page sait se renouveler toute seule.
+ */
+export type ClientSocialPage = Omit<
+  SocialPage,
+  'accessToken' | 'userAccessToken' | 'refreshToken'
+> & { autoRenew: boolean };
+
+export type FacebookConfig = typeof facebookConfig.$inferSelect;
+export type InsertFacebookConfig = z.infer<typeof insertFacebookConfigSchema>;
+export type UpdateFacebookConfig = z.infer<typeof updateFacebookConfigSchema>;
 
 export type TiktokConfig = typeof tiktokConfig.$inferSelect;
 export type InsertTiktokConfig = z.infer<typeof insertTiktokConfigSchema>;

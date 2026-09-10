@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain, Image, Upload, X, Video, Plug, Mic } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain, Image, Upload, X, Video, Plug, Mic, Facebook } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
@@ -32,6 +32,8 @@ export default function Settings() {
   const [ffmpegApiKey, setFfmpegApiKey] = useState("");
   const [externalApiKey, setExternalApiKey] = useState("");
   const [geminiApiKey, setGeminiApiKey] = useState("");
+  const [facebookAppId, setFacebookAppId] = useState("");
+  const [facebookAppSecret, setFacebookAppSecret] = useState("");
   const [tiktokClientKey, setTiktokClientKey] = useState("");
   const [tiktokClientSecret, setTiktokClientSecret] = useState("");
   const { toast } = useToast();
@@ -66,6 +68,16 @@ export default function Settings() {
     redirectUri: string;
   }>({
     queryKey: ['/api/tiktok/config'],
+  });
+
+  const { data: facebookConfig } = useQuery<{
+    configured: boolean;
+    appId: string;
+    hasAppSecret: boolean;
+    redirectUri: string;
+    scopes: string[];
+  }>({
+    queryKey: ['/api/facebook/config'],
   });
 
   const { data: externalApiConfig } = useQuery({
@@ -110,6 +122,13 @@ export default function Settings() {
       setTiktokClientKey(tiktokConfig.clientKey || "");
     }
   }, [tiktokConfig]);
+
+  useEffect(() => {
+    if (facebookConfig) {
+      // L'App Secret n'est jamais renvoyé par l'API : il reste vide
+      setFacebookAppId(facebookConfig.appId || "");
+    }
+  }, [facebookConfig]);
 
   useEffect(() => {
     if (geminiConfig) {
@@ -280,6 +299,32 @@ export default function Settings() {
     },
     onError: () => {
       toast({ title: "Erreur", description: "Impossible de sauvegarder la clé API", variant: "destructive" });
+    },
+  });
+
+  const saveFacebookMutation = useMutation({
+    mutationFn: () => {
+      const payload: any = { appId: facebookAppId.trim() };
+      // Le secret n'est envoyé que s'il est saisi : sinon on conserve l'existant
+      if (facebookAppSecret.trim() !== "") {
+        payload.appSecret = facebookAppSecret.trim();
+      }
+      return apiRequest('PUT', '/api/facebook/config', payload);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/facebook/config'] });
+      setFacebookAppSecret("");
+      toast({
+        title: "Configuration Facebook enregistrée",
+        description: "Les jetons de page se renouvellent désormais automatiquement",
+      });
+    },
+    onError: async (error: any) => {
+      toast({
+        title: "Erreur",
+        description: error?.message || "Impossible d'enregistrer la configuration Facebook",
+        variant: "destructive",
+      });
     },
   });
 
@@ -797,6 +842,80 @@ export default function Settings() {
                     className="w-full"
                   >
                     {saveExternalApiMutation.isPending ? "Enregistrement..." : hasExistingExternalApiConfig ? "Remplacer la clé" : "Enregistrer la clé"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {isAdmin && (
+              <Card className="rounded-2xl border-border/50 shadow-lg">
+                <CardHeader className="p-6">
+                  <CardTitle className="flex items-center gap-2">
+                    <Facebook className="w-5 h-5" />
+                    Facebook
+                  </CardTitle>
+                  <CardDescription>
+                    Identifiants de votre application Facebook (developers.facebook.com). Ils
+                    permettent de connecter vos pages en un clic et de renouveler leurs jetons
+                    automatiquement, sans jamais recoller un token à la main.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {facebookConfig?.configured && (
+                    <div className="rounded-lg bg-muted p-3 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                      <Key className="w-4 h-4" />
+                      <span>Application Facebook configurée</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="facebookAppId">App ID</Label>
+                    <Input
+                      id="facebookAppId"
+                      value={facebookAppId}
+                      onChange={(e) => setFacebookAppId(e.target.value)}
+                      placeholder="1234567890123456"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="facebookAppSecret">
+                      {facebookConfig?.hasAppSecret ? "Nouvel App Secret (laisser vide pour conserver l'actuel)" : "App Secret"}
+                    </Label>
+                    <Input
+                      id="facebookAppSecret"
+                      type="password"
+                      value={facebookAppSecret}
+                      onChange={(e) => setFacebookAppSecret(e.target.value)}
+                      placeholder="••••••••••••••••"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>URI de redirection à déclarer chez Facebook</Label>
+                    <code className="block text-xs bg-muted px-3 py-2 rounded break-all">
+                      {facebookConfig?.redirectUri || `${window.location.origin}/api/facebook/callback`}
+                    </code>
+                    <p className="text-xs text-muted-foreground">
+                      À ajouter dans « Connexion Facebook › Paramètres › URI de redirection OAuth valides ».
+                    </p>
+                  </div>
+
+                  {facebookConfig?.scopes?.length ? (
+                    <div className="space-y-2">
+                      <Label>Permissions demandées</Label>
+                      <p className="text-xs text-muted-foreground break-all">
+                        {facebookConfig.scopes.join(', ')}
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <Button
+                    onClick={() => saveFacebookMutation.mutate()}
+                    disabled={saveFacebookMutation.isPending || !facebookAppId.trim()}
+                    className="w-full"
+                  >
+                    {saveFacebookMutation.isPending ? "Enregistrement..." : "Enregistrer"}
                   </Button>
                 </CardContent>
               </Card>

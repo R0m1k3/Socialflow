@@ -187,6 +187,25 @@ export async function migrate() {
       ADD COLUMN IF NOT EXISTS "avatar_url" text;
     `);
 
+    // facebook_config (application développeur Facebook, globale)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "facebook_config" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "app_id" text NOT NULL,
+        "app_secret" text NOT NULL,
+        "created_at" timestamp DEFAULT now(),
+        "updated_at" timestamp DEFAULT now()
+      );
+    `);
+
+    // social_pages : renouvellement automatique des tokens Facebook
+    await client.query(`
+      ALTER TABLE "social_pages"
+      ADD COLUMN IF NOT EXISTS "user_access_token" text,
+      ADD COLUMN IF NOT EXISTS "user_token_expires_at" timestamp,
+      ADD COLUMN IF NOT EXISTS "token_error" text;
+    `);
+
     // scheduled_posts : suivi de la publication asynchrone TikTok
     await client.query(`
       ALTER TABLE "scheduled_posts"

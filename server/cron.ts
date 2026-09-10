@@ -15,12 +15,17 @@ export function startTokenCron() {
     });
     console.log('[Cron] TikTok publish status job scheduled (*/2 * * * *).');
 
-    // Run every day at midnight (00:00) — Token health check
-    cron.schedule('0 0 * * *', async () => {
-        console.log('[Cron] Running daily token check...');
-        await TokenManager.checkAndRefreshTokens();
+    // Deux fois par jour (00:00 et 12:00) — contrôle et renouvellement des jetons.
+    // Un jeton révoqué par Meta ne prévient pas : passer deux fois par jour
+    // réduit d'autant la fenêtre pendant laquelle une publication échouerait.
+    cron.schedule('0 0,12 * * *', async () => {
+        console.log('[Cron] Running token check...');
+        const results = await TokenManager.checkAndRefreshTokens();
+        const renewed = results.filter(r => r.renewed).length;
+        const failing = results.filter(r => r.status === 'expired' || r.status === 'error').length;
+        console.log(`[Cron] Token check done: ${results.length} contrôlés, ${renewed} renouvelés, ${failing} en échec.`);
     });
-    console.log('[Cron] Token refresh job scheduled (0 0 * * *).');
+    console.log('[Cron] Token refresh job scheduled (0 0,12 * * *).');
 
     // Run twice daily (08:00 and 20:00) — Analytics sync for all pages
     cron.schedule('0 8,20 * * *', async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Facebook, Instagram, Trash2, RefreshCw, Edit, Bug, Code, Calendar, AlertTriangle } from "lucide-react";
+import { Plus, Facebook, Instagram, Trash2, RefreshCw, Edit, Bug, Code, AlertTriangle } from "lucide-react";
 import { SiTiktok } from "react-icons/si";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
@@ -12,84 +12,32 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import type { SocialPage } from "@shared/schema";
-import { format } from "date-fns";
-import { fr } from "date-fns/locale";
-
-function getTokenExpirationStatus(expiresAt: string | null | undefined) {
-  if (!expiresAt) {
-    return { 
-      status: 'unknown' as const, 
-      color: 'text-gray-500',
-      bgColor: 'bg-gray-100',
-      daysLeft: null,
-      message: 'Date inconnue'
-    };
-  }
-
-  const now = new Date();
-  const expiration = new Date(expiresAt);
-  const diffTime = expiration.getTime() - now.getTime();
-  const daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-  if (daysLeft < 0) {
-    return {
-      status: 'expired' as const,
-      color: 'text-red-600',
-      bgColor: 'bg-red-100',
-      daysLeft,
-      message: 'Expiré'
-    };
-  } else if (daysLeft <= 7) {
-    return {
-      status: 'urgent' as const,
-      color: 'text-red-600',
-      bgColor: 'bg-red-100',
-      daysLeft,
-      message: `${daysLeft} jour${daysLeft > 1 ? 's' : ''} restant${daysLeft > 1 ? 's' : ''}`
-    };
-  } else if (daysLeft <= 15) {
-    return {
-      status: 'warning' as const,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-100',
-      daysLeft,
-      message: `${daysLeft} jours restants`
-    };
-  } else {
-    return {
-      status: 'good' as const,
-      color: 'text-green-600',
-      bgColor: 'bg-green-100',
-      daysLeft,
-      message: `${daysLeft} jours restants`
-    };
-  }
-}
-
-/**
- * Un compte TikTok n'a pas de "token de page" à surveiller : ce qui compte est la
- * validité de l'autorisation, portée par le refresh token (1 an).
- */
-function getConnectionExpiry(page: SocialPage): string | null {
-  const date = page.platform === 'tiktok' ? page.refreshTokenExpiresAt : page.tokenExpiresAt;
-  return date ? new Date(date).toISOString() : null;
-}
+import type { ClientSocialPage } from "@shared/schema";
+import {
+  ConnectFacebookButton,
+  RefreshTokenButton,
+  TokenAlertBanner,
+  TokenHealthPanel,
+} from "@/components/facebook-token-status";
 
 export default function PagesManagement() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingPage, setEditingPage] = useState<SocialPage | null>(null);
+  const [editingPage, setEditingPage] = useState<ClientSocialPage | null>(null);
   const { toast } = useToast();
 
-  // Retour du flux d'autorisation TikTok (/api/tiktok/callback redirige ici)
+  // Retour des flux d'autorisation (/api/tiktok/callback et /api/facebook/callback
+  // redirigent ici avec le résultat en paramètre)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const result = params.get('tiktok');
-    if (!result) return;
+    const network = params.get('tiktok') ? 'tiktok' : params.get('facebook') ? 'facebook' : null;
+    if (!network) return;
+
+    const result = params.get(network);
+    const label = network === 'tiktok' ? 'TikTok' : 'Facebook';
 
     toast({
-      title: result === 'success' ? 'Compte TikTok connecté' : 'Connexion TikTok impossible',
+      title: result === 'success' ? `${label} connecté` : `Connexion ${label} impossible`,
       description: params.get('message') || undefined,
       variant: result === 'success' ? undefined : 'destructive',
     });
@@ -98,7 +46,7 @@ export default function PagesManagement() {
     window.history.replaceState({}, '', window.location.pathname);
   }, [toast]);
 
-  const { data: pages = [], isLoading } = useQuery<SocialPage[]>({
+  const { data: pages = [], isLoading } = useQuery<ClientSocialPage[]>({
     queryKey: ['/api/pages'],
   });
 
@@ -149,24 +97,29 @@ export default function PagesManagement() {
               </p>
             </div>
             <div className="flex items-center gap-3">
+              <ConnectFacebookButton />
               <ConnectTiktokButton />
               <AddPageDialog open={dialogOpen} onOpenChange={setDialogOpen} />
             </div>
             <EditPageDialog page={editingPage} onOpenChange={(open) => !open && setEditingPage(null)} />
           </div>
 
+          <TokenAlertBanner pages={pages} />
+
           {/* Permissions required notice */}
           <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
             <div className="text-sm">
-              <p className="font-semibold text-amber-600 dark:text-amber-400 mb-1">Permissions Facebook requises pour la publication vidéo</p>
+              <p className="font-semibold text-amber-600 dark:text-amber-400 mb-1">Connectez vos pages plutôt que de coller un jeton</p>
               <p className="text-muted-foreground mb-2">
-                Le token de page doit inclure : <code className="bg-muted px-1 rounded text-xs">pages_manage_posts</code>{" "}
-                <code className="bg-muted px-1 rounded text-xs">pages_read_engagement</code>{" "}
-                <code className="bg-muted px-1 rounded text-xs">publish_video</code>
+                « Connecter des pages Facebook » récupère les jetons de page via l'autorisation Facebook :
+                ils n'expirent pas et SocialFlow les régénère seul en cas de révocation. Un jeton collé à la
+                main expire au bout de 60 jours et devra être remplacé manuellement.
               </p>
               <p className="text-muted-foreground text-xs">
-                Dans Graph API Explorer → Sélectionnez votre app → Ajoutez ces 3 permissions → Générez un User Token → Échangez via <code className="bg-muted px-1 rounded">/me/accounts</code> pour obtenir le Page Token.
+                Le jeton doit couvrir : <code className="bg-muted px-1 rounded text-xs">pages_manage_posts</code>{" "}
+                <code className="bg-muted px-1 rounded text-xs">pages_read_engagement</code>{" "}
+                <code className="bg-muted px-1 rounded text-xs">publish_video</code>
               </p>
             </div>
           </div>
@@ -246,34 +199,11 @@ export default function PagesManagement() {
                       ID: {page.pageId}
                     </div>
                     
-                    {/* Token expiration status */}
-                    {(() => {
-                      const expiresAt = getConnectionExpiry(page);
-                      const expirationStatus = getTokenExpirationStatus(expiresAt);
-                      return (
-                        <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg ${expirationStatus.bgColor}`}>
-                          <Calendar className="w-4 h-4" />
-                          <div className="flex-1">
-                            <div className="font-medium">
-                              {page.platform === 'tiktok' ? 'Expiration de la connexion' : 'Expiration du token'}
-                            </div>
-                            <div className={`${expirationStatus.color} font-semibold`}>
-                              {expirationStatus.message}
-                            </div>
-                            {expiresAt && (
-                              <div className="text-muted-foreground mt-0.5">
-                                {format(new Date(expiresAt), "d MMMM yyyy", { locale: fr })}
-                              </div>
-                            )}
-                          </div>
-                          {(expirationStatus.status === 'expired' || expirationStatus.status === 'urgent') && (
-                            <AlertTriangle className="w-4 h-4 text-red-600" />
-                          )}
-                        </div>
-                      );
-                    })()}
+                    {/* État du jeton, tel que constaté par le dernier contrôle serveur */}
+                    <TokenHealthPanel page={page} />
 
                     <div className="flex items-center justify-end gap-2 pt-2">
+                      {page.platform !== 'tiktok' && <RefreshTokenButton page={page} />}
                       {page.platform === 'tiktok' ? (
                         // Un token TikTok ne se saisit pas : on repasse par l'autorisation
                         <Button
@@ -495,7 +425,7 @@ function AddPageDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
   );
 }
 
-function EditPageDialog({ page, onOpenChange }: { page: SocialPage | null; onOpenChange: (open: boolean) => void }) {
+function EditPageDialog({ page, onOpenChange }: { page: ClientSocialPage | null; onOpenChange: (open: boolean) => void }) {
   const [accessToken, setAccessToken] = useState('');
   const { toast } = useToast();
 

@@ -39,6 +39,9 @@ import {
   tiktokConfig,
   type TiktokConfig,
   type InsertTiktokConfig,
+  facebookConfig,
+  type FacebookConfig,
+  type InsertFacebookConfig,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, gte, lte, desc, asc, isNull, isNotNull, inArray, notInArray } from "drizzle-orm";
@@ -121,6 +124,8 @@ export interface IStorage {
   // TikTok Config
   getTiktokConfig(): Promise<TiktokConfig | undefined>;
   upsertTiktokConfig(config: Partial<InsertTiktokConfig>): Promise<TiktokConfig>;
+  getFacebookConfig(): Promise<FacebookConfig | undefined>;
+  upsertFacebookConfig(config: Partial<InsertFacebookConfig>): Promise<FacebookConfig>;
 
   // Cloudinary Config
   getCloudinaryConfig(): Promise<CloudinaryConfig | undefined>;
@@ -610,6 +615,38 @@ export class DatabaseStorage implements IStorage {
   async getAppConfig(): Promise<AppConfig | undefined> {
     const [config] = await db.select().from(appConfig).limit(1);
     return config || undefined;
+  }
+
+  // Facebook Config (application développeur, globale à l'instance)
+  async getFacebookConfig(): Promise<FacebookConfig | undefined> {
+    const [config] = await db.select().from(facebookConfig).limit(1);
+    if (!config) return undefined;
+    return { ...config, appSecret: decrypt(config.appSecret) };
+  }
+
+  async upsertFacebookConfig(data: Partial<InsertFacebookConfig>): Promise<FacebookConfig> {
+    const values: Partial<FacebookConfig> = { ...data };
+    if (data.appSecret) {
+      values.appSecret = encrypt(data.appSecret);
+    }
+
+    const [existing] = await db.select().from(facebookConfig).limit(1);
+    if (existing) {
+      const [updated] = await db.update(facebookConfig)
+        .set({ ...values, updatedAt: new Date() })
+        .where(eq(facebookConfig.id, existing.id))
+        .returning();
+      return { ...updated, appSecret: decrypt(updated.appSecret) };
+    }
+
+    if (!values.appId || !values.appSecret) {
+      throw new Error("L'App ID et l'App Secret Facebook sont requis");
+    }
+
+    const [created] = await db.insert(facebookConfig)
+      .values({ appId: values.appId, appSecret: values.appSecret })
+      .returning();
+    return { ...created, appSecret: decrypt(created.appSecret) };
   }
 
   // TikTok Config
