@@ -24,7 +24,10 @@ interface OngoingReelsProps {
 export default function OngoingReels({ compact = false }: OngoingReelsProps) {
     const { data: ongoingPosts = [] } = useQuery<Post[]>({
         queryKey: ["/api/reels/ongoing"],
-        refetchInterval: 3000, // Poll every 3 seconds
+        // Cette route ne renvoie que les générations en cours : tant qu'elle est
+        // vide il n'y a pas de barre de progression à animer. On garde une veille
+        // lente, qui suffit à détecter une génération lancée depuis un autre écran.
+        refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 3000 : 30000),
     });
 
     // Nothing to show — render nothing (not even a card)

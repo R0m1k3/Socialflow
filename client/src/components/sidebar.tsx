@@ -1,7 +1,7 @@
 import { Home, PlusCircle, Calendar, Images, Users, Bot, Clock, Settings, Database, UserCog, LogOut, ChevronLeft, ChevronRight, ChevronDown, Wand2, BarChart3, Video, Music, Shield } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, AUTH_MUTATION, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -52,6 +52,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
   };
 
   const logoutMutation = useMutation({
+    mutationKey: [AUTH_MUTATION, "logout"],
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/auth/logout", {});
       return await res.json();

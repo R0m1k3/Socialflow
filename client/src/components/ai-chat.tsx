@@ -38,6 +38,9 @@ export default function AiChat() {
   // Fetch available models from OpenRouter
   const { data: modelsData, isLoading: modelsLoading } = useQuery<{ data: OpenRouterModel[] }>({
     queryKey: ['/api/openrouter/models'],
+    // Liste servie par un appel sortant vers OpenRouter : elle ne bouge pas d'une
+    // heure à l'autre, inutile de la redemander à chaque retour sur l'onglet.
+    staleTime: 60 * 60 * 1000,
   });
 
   const availableModels = modelsData?.data || [];

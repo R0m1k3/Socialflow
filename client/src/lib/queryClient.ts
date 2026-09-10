@@ -1,4 +1,4 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { MutationCache, QueryClient, QueryFunction } from "@tanstack/react-query";
 
 // Les routes d'authentification elles-mêmes ne doivent jamais déclencher
 // de redirection automatique (ex: mauvais mot de passe sur /login).
@@ -88,13 +88,42 @@ export const getQueryFn: <T>(options: {
     return await res.json();
   };
 
+/**
+ * Marque les mutations d'authentification, exclues de l'invalidation globale
+ * ci-dessous. À passer en `mutationKey` : `[AUTH_MUTATION, 'logout']`.
+ */
+export const AUTH_MUTATION = "auth";
+
 export const queryClient = new QueryClient({
+  // Les compteurs du tableau de bord et la liste des posts dérivent de tout le
+  // reste : publier, supprimer un média, générer un texte… Aucune mutation ne
+  // peut raisonnablement se souvenir de les invalider, et aucune ne le faisait :
+  // ils restaient figés jusqu'au rechargement de la page. On les invalide donc
+  // ici, une bonne fois, après chaque mutation réussie.
+  mutationCache: new MutationCache({
+    onSuccess: (_data, _variables, _context, mutation) => {
+      // Sauf pour l'authentification : au moment où la déconnexion réussit, la
+      // session est déjà détruite. Relancer des requêtes ici ne produirait que
+      // des 401 et une redirection brutale, avant même que le cache soit vidé.
+      if (mutation.options.mutationKey?.[0] === AUTH_MUTATION) return;
+
+      queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/posts"] });
+    },
+  }),
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
-      refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      // Le serveur agit de son côté — le scheduler publie toutes les minutes, le
+      // renouvellement des jetons tourne en tâche de fond — sans que le
+      // navigateur en soit averti. Avec `staleTime: Infinity`, un écran restait
+      // sur le cache de sa première visite pour toute la session : d'où la
+      // nécessité de recharger la page pour voir quoi que ce soit. Une
+      // péremption courte, plus un rafraîchissement au retour sur l'onglet,
+      // suffit à garder l'affichage juste sans marteler l'API.
+      staleTime: 30_000,
+      refetchOnWindowFocus: true,
+      refetchOnReconnect: true,
       retry: false,
     },
     mutations: {

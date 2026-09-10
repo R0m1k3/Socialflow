@@ -17,6 +17,15 @@ type ScheduledPostWithRelations = ScheduledPost & {
   page?: SocialPage;
 };
 
+/** Publication dont l'heure est passée mais que le scheduler n'a pas encore traitée. */
+function isAwaitingPublication(scheduledPost: ScheduledPostWithRelations): boolean {
+  return (
+    !!scheduledPost.scheduledAt &&
+    new Date(scheduledPost.scheduledAt) <= new Date() &&
+    !scheduledPost.publishedAt
+  );
+}
+
 export default function History() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
@@ -25,7 +34,11 @@ export default function History() {
 
   const { data: scheduledPosts = [], isLoading } = useQuery<ScheduledPostWithRelations[]>({
     queryKey: ['/api/scheduled-posts'],
-    refetchInterval: 3000,
+    // Le scheduler publie en tâche de fond : on ne suit à la seconde que ce qui
+    // est réellement en attente. Le reste du temps, une veille lente suffit —
+    // sans quoi la page entière était rechargée 20 fois par minute pour rien.
+    refetchInterval: (query) =>
+      (query.state.data ?? []).some(isAwaitingPublication) ? 3000 : 30000,
   });
 
   // Filter attempted posts (scheduled in the past)

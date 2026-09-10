@@ -47,6 +47,9 @@ export default function SettingsMobile() {
 
   const { data: openrouterModels, isLoading: modelsLoading } = useQuery({
     queryKey: ['/api/openrouter/models'],
+    // Liste servie par un appel sortant vers OpenRouter : elle ne bouge pas d'une
+    // heure à l'autre, inutile de la redemander à chaque retour sur l'onglet.
+    staleTime: 60 * 60 * 1000,
   });
 
   useEffect(() => {

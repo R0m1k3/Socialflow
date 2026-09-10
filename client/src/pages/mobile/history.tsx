@@ -19,13 +19,25 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
+/** Post dont le statut peut changer d'un instant à l'autre. */
+function isChanging(post: any): boolean {
+    if (post?.generationStatus === 'pending' || post?.generationStatus === 'processing') {
+        return true;
+    }
+    return post?.status === 'scheduled' && !!post?.scheduledFor && new Date(post.scheduledFor) <= new Date();
+}
+
 export default function MobileHistory() {
     const [searchTerm, setSearchTerm] = useState("");
 
     // Fetch posts history with polling to see status updates
     const { data: posts } = useQuery<any[]>({
         queryKey: ['/api/posts'],
-        refetchInterval: 3000, // Poll every 3 seconds
+        // Un post planifié pour la semaine prochaine ne bougera pas d'ici une
+        // seconde : on ne suit de près que ce dont le statut peut basculer
+        // maintenant (génération en cours, ou heure de publication dépassée).
+        refetchInterval: (query) =>
+            (query.state.data ?? []).some(isChanging) ? 3000 : 30000,
     });
 
     const getStatusIcon = (status: string) => {
