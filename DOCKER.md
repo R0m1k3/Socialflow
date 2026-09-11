@@ -157,6 +157,23 @@ Si `APP_URL` est absent, l'URL est déduite des en-têtes `X-Forwarded-Proto` et
 (voir la configuration Nginx ci-dessus). Un `APP_URL` réglé sur
 `http://localhost:5555` en production produit une URI que Facebook refuse.
 
+## 🧩 Déploiement via Portainer (stack Git)
+
+La stack se construit depuis les sources : `app` et `ffmpeg-api` ont une section
+`build:`, leurs images n'existent sur aucun registre.
+
+- **« Pull and redeploy » échoue** avec `pull access denied for <stack>-app,
+  repository does not exist` : Docker cherche sur Docker Hub une image qui est
+  construite localement. Le `pull_policy: build` du `docker-compose.yml` évite
+  cette tentative ; si votre version de Portainer déclenche quand même le pull,
+  décochez **« Re-pull image »** dans la mise à jour de la stack.
+- Pour reconstruire après une mise à jour du dépôt : *Stack → Editor →
+  Update the stack*, en laissant Docker rebâtir les images (ou
+  `docker compose up -d --build` en ligne de commande).
+- Le nom des images est figé (`socialflow-app:latest`,
+  `socialflow-ffmpeg-api:latest`) : il ne dépend donc plus du nom donné à la
+  stack dans Portainer.
+
 ## 🔒 Sécurité en production
 
 1. **Variables d'environnement** : Ne commitez JAMAIS le fichier `.env`

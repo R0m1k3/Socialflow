@@ -29,6 +29,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Image construite sur place : nom figé pour ne pas dépendre du nom de la
+    # stack, et `pull_policy: build` pour que Docker la reconstruise au lieu
+    # d'aller la chercher sur Docker Hub (où elle n'existe pas).
+    image: socialflow-app:latest
+    pull_policy: build
     container_name: socialflow-app
     restart: unless-stopped
     environment:
@@ -66,6 +71,8 @@ services:
     build:
       context: ./ffmpeg-service
       dockerfile: Dockerfile
+    image: socialflow-ffmpeg-api:latest
+    pull_policy: build
     container_name: socialflow-ffmpeg
     restart: unless-stopped
     environment:
