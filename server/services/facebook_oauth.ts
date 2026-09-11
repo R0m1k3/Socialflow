@@ -21,7 +21,9 @@
  * chaîne se renouvelle toute seule.
  */
 
+import type { Request } from 'express';
 import { storage } from '../storage';
+import { resolvePublicBaseUrl } from '../utils/public_url';
 
 const GRAPH_VERSION = process.env.FACEBOOK_GRAPH_VERSION?.trim() || 'v19.0';
 const GRAPH_URL = `https://graph.facebook.com/${GRAPH_VERSION}`;
@@ -99,12 +101,16 @@ export class FacebookOAuthService {
     }
   }
 
-  getRedirectUri(): string {
+  /**
+   * URI de redirection OAuth. `req` permet de la déduire du domaine réellement
+   * utilisé quand `APP_URL` n'est pas défini : sans lui on renverrait
+   * `http://localhost:5555`, que Facebook rejette.
+   */
+  getRedirectUri(req?: Request): string {
     if (process.env.FACEBOOK_REDIRECT_URI) {
       return process.env.FACEBOOK_REDIRECT_URI;
     }
-    const base = (process.env.APP_URL || 'http://localhost:5555').replace(/\/$/, '');
-    return `${base}/api/facebook/callback`;
+    return `${resolvePublicBaseUrl(req)}/api/facebook/callback`;
   }
 
   getScopes(): string {
@@ -112,12 +118,12 @@ export class FacebookOAuthService {
   }
 
   /** URL d'autorisation à ouvrir pour connecter les pages d'un compte Facebook. */
-  async buildAuthorizationUrl(state: string): Promise<string> {
+  async buildAuthorizationUrl(state: string, req?: Request): Promise<string> {
     const { appId } = await this.getCredentials();
 
     const params = new URLSearchParams({
       client_id: appId,
-      redirect_uri: this.getRedirectUri(),
+      redirect_uri: this.getRedirectUri(req),
       state,
       scope: this.getScopes(),
       response_type: 'code',
@@ -131,13 +137,13 @@ export class FacebookOAuthService {
    * L'étape intermédiaire (token court) n'est jamais conservée : seul le token
    * longue durée rend les tokens de page permanents.
    */
-  async exchangeCodeForUserToken(code: string): Promise<FacebookLongLivedToken> {
+  async exchangeCodeForUserToken(code: string, req?: Request): Promise<FacebookLongLivedToken> {
     const { appId, appSecret } = await this.getCredentials();
 
     const shortLived = await this.graphGet<{ access_token?: string }>('/oauth/access_token', {
       client_id: appId,
       client_secret: appSecret,
-      redirect_uri: this.getRedirectUri(),
+      redirect_uri: this.getRedirectUri(req),
       code,
     }, "échange du code d'autorisation");
 

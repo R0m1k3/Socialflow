@@ -106,8 +106,10 @@ if (!process.env.SESSION_SECRET) {
 // Générer un secret aléatoire pour le dev si non défini
 const sessionSecret = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
 
-// Déterminer si on utilise HTTPS basé sur APP_URL
-const isHttps = process.env.APP_URL?.startsWith('https://') || false;
+// HTTPS déduit d'APP_URL ; à défaut, 'auto' laisse express-session décider par
+// requête à partir de X-Forwarded-Proto (cf. `trust proxy` plus haut), ce qui
+// évite un cookie non sécurisé derrière un reverse proxy HTTPS sans APP_URL.
+const isHttps: boolean | 'auto' = process.env.APP_URL?.startsWith('https://') || 'auto';
 
 // Configuration du store de session pour production
 const sessionStore = process.env.NODE_ENV === 'production' && process.env.DATABASE_URL

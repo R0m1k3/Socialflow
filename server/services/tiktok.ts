@@ -15,7 +15,9 @@
  * compte). Le code s'adapte automatiquement à ce que le compte autorise.
  */
 
+import type { Request } from 'express';
 import { storage } from '../storage';
+import { resolvePublicBaseUrl } from '../utils/public_url';
 import type { SocialPage } from '@shared/schema';
 
 const AUTH_BASE_URL = 'https://www.tiktok.com/v2/auth/authorize/';
@@ -98,26 +100,30 @@ export class TiktokService {
     }
   }
 
-  getRedirectUri(): string {
+  /**
+   * URI de redirection OAuth. `req` sert de repli quand `APP_URL` n'est pas
+   * défini : le domaine public est alors lu sur la requête plutôt que remplacé
+   * par `http://localhost:5555`.
+   */
+  getRedirectUri(req?: Request): string {
     if (process.env.TIKTOK_REDIRECT_URI) {
       return process.env.TIKTOK_REDIRECT_URI;
     }
-    const base = (process.env.APP_URL || 'http://localhost:5555').replace(/\/$/, '');
-    return `${base}/api/tiktok/callback`;
+    return `${resolvePublicBaseUrl(req)}/api/tiktok/callback`;
   }
 
   /**
    * URL d'autorisation à ouvrir pour connecter le compte TikTok d'un magasin.
    * Chaque magasin répète ce flux : un compte = une ligne dans social_pages.
    */
-  async buildAuthorizationUrl(state: string): Promise<string> {
+  async buildAuthorizationUrl(state: string, req?: Request): Promise<string> {
     const { clientKey } = await this.getCredentials();
 
     const params = new URLSearchParams({
       client_key: clientKey,
       scope: process.env.TIKTOK_SCOPES || DEFAULT_SCOPES,
       response_type: 'code',
-      redirect_uri: this.getRedirectUri(),
+      redirect_uri: this.getRedirectUri(req),
       state,
     });
 
@@ -125,7 +131,7 @@ export class TiktokService {
   }
 
   /** Échange le code d'autorisation contre un couple access/refresh token. */
-  async exchangeCodeForToken(code: string): Promise<TiktokTokenResponse> {
+  async exchangeCodeForToken(code: string, req?: Request): Promise<TiktokTokenResponse> {
     const { clientKey, clientSecret } = await this.getCredentials();
 
     return await this.requestToken({
@@ -134,7 +140,7 @@ export class TiktokService {
       // TikTok renvoie le code URL-encodé dans la query string
       code: decodeURIComponent(code),
       grant_type: 'authorization_code',
-      redirect_uri: this.getRedirectUri(),
+      redirect_uri: this.getRedirectUri(req),
     });
   }
 

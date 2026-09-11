@@ -47,7 +47,7 @@ tiktokRouter.get('/config', async (req: Request, res: Response) => {
       configured,
       clientKey: config?.clientKey || (process.env.TIKTOK_CLIENT_KEY ? '(défini par variable d\'environnement)' : ''),
       hasClientSecret: !!(config?.clientSecret || process.env.TIKTOK_CLIENT_SECRET),
-      redirectUri: tiktokService.getRedirectUri(),
+      redirectUri: tiktokService.getRedirectUri(req),
     });
   } catch (error) {
     console.error('❌ [TikTok] Erreur lecture configuration:', error);
@@ -72,7 +72,7 @@ tiktokRouter.put('/config', async (req: Request, res: Response) => {
     res.json({
       success: true,
       clientKey: config.clientKey,
-      redirectUri: tiktokService.getRedirectUri(),
+      redirectUri: tiktokService.getRedirectUri(req),
     });
   } catch (error: any) {
     console.error('❌ [TikTok] Erreur enregistrement configuration:', error);
@@ -98,7 +98,7 @@ tiktokRouter.get('/connect', async (req: Request, res: Response) => {
     const state = crypto.randomBytes(16).toString('hex');
     (req.session as any).tiktokOAuthState = state;
 
-    const authUrl = await tiktokService.buildAuthorizationUrl(state);
+    const authUrl = await tiktokService.buildAuthorizationUrl(state, req);
 
     // La session doit être écrite avant la redirection, sinon l'état est perdu
     req.session.save((err) => {
@@ -141,7 +141,7 @@ tiktokRouter.get('/callback', async (req: Request, res: Response) => {
       return res.redirect(buildReturnUrl('error', "Aucun code d'autorisation reçu de TikTok."));
     }
 
-    const tokens = await tiktokService.exchangeCodeForToken(code);
+    const tokens = await tiktokService.exchangeCodeForToken(code, req);
     const profile = await tiktokService.getUserInfo(tokens.access_token);
     const openId = profile.openId || tokens.open_id;
 

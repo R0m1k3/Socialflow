@@ -38,7 +38,10 @@ services:
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
       SESSION_SECRET: ${SESSION_SECRET:-your-secret-key-change-me}
-      APP_URL: ${APP_URL:-http://localhost:5555}
+      # URL publique (ex. https://socialflow.exemple.fr). Laissée vide, elle est
+      # déduite des en-têtes du reverse proxy — ne jamais forcer localhost ici,
+      # les URI de redirection OAuth (Facebook/TikTok) en dépendent.
+      APP_URL: ${APP_URL:-}
       # URL interne Docker pour que ffmpeg-api puisse télécharger les fichiers audio
       INTERNAL_APP_URL: http://socialflow-app:5555
       # Configuration FFmpeg Service

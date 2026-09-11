@@ -136,6 +136,27 @@ docker-compose down
 docker-compose down -v
 ```
 
+## 🔗 URL publique et connexions OAuth (Facebook / TikTok)
+
+Les boutons « Connecter une page » construisent une URI de redirection à partir
+de l'URL publique de l'application. Renseignez donc `APP_URL` avec le domaine
+réel :
+
+```bash
+APP_URL=https://socialflow.exemple.fr
+```
+
+Puis déclarez l'URI correspondante chez le fournisseur :
+
+- Facebook : *Connexion Facebook → Paramètres → URI de redirection OAuth valides*
+  → `https://socialflow.exemple.fr/api/facebook/callback`
+- TikTok : *Login Kit → Redirect URI* → `https://socialflow.exemple.fr/api/tiktok/callback`
+
+Si `APP_URL` est absent, l'URL est déduite des en-têtes `X-Forwarded-Proto` et
+`X-Forwarded-Host` envoyés par Nginx — vérifiez que le proxy les transmet
+(voir la configuration Nginx ci-dessus). Un `APP_URL` réglé sur
+`http://localhost:5555` en production produit une URI que Facebook refuse.
+
 ## 🔒 Sécurité en production
 
 1. **Variables d'environnement** : Ne commitez JAMAIS le fichier `.env`

@@ -50,7 +50,7 @@ facebookRouter.get('/config', async (req: Request, res: Response) => {
       configured,
       appId: config?.appId || (process.env.FACEBOOK_APP_ID ? "(défini par variable d'environnement)" : ''),
       hasAppSecret: !!(config?.appSecret || process.env.FACEBOOK_APP_SECRET),
-      redirectUri: facebookOAuthService.getRedirectUri(),
+      redirectUri: facebookOAuthService.getRedirectUri(req),
       scopes: facebookOAuthService.getScopes().split(','),
     });
   } catch (error) {
@@ -76,7 +76,7 @@ facebookRouter.put('/config', async (req: Request, res: Response) => {
     res.json({
       success: true,
       appId: config.appId,
-      redirectUri: facebookOAuthService.getRedirectUri(),
+      redirectUri: facebookOAuthService.getRedirectUri(req),
     });
   } catch (error: any) {
     console.error('❌ [Facebook] Erreur enregistrement configuration:', error);
@@ -102,7 +102,7 @@ facebookRouter.get('/connect', async (req: Request, res: Response) => {
     const state = crypto.randomBytes(16).toString('hex');
     (req.session as any).facebookOAuthState = state;
 
-    const authUrl = await facebookOAuthService.buildAuthorizationUrl(state);
+    const authUrl = await facebookOAuthService.buildAuthorizationUrl(state, req);
 
     // La session doit être écrite avant la redirection, sinon l'état est perdu
     req.session.save((err) => {
@@ -145,7 +145,7 @@ facebookRouter.get('/callback', async (req: Request, res: Response) => {
       return res.redirect(buildReturnUrl('error', "Aucun code d'autorisation reçu de Facebook."));
     }
 
-    const userToken = await facebookOAuthService.exchangeCodeForUserToken(code);
+    const userToken = await facebookOAuthService.exchangeCodeForUserToken(code, req);
     const targets = await facebookOAuthService.listPages(userToken.accessToken);
 
     if (targets.length === 0) {
