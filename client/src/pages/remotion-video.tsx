@@ -2,6 +2,8 @@ import { useState, useRef } from "react";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import { useToast } from "@/hooks/use-toast";
+import { VoicePicker, type VoiceSettings } from "@/components/reels/voice-picker";
+import { DEFAULT_TTS_STYLE, DEFAULT_VOICE } from "@shared/voices";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,23 +36,11 @@ export default function RemotionVideoPage() {
   const [productInfo, setProductInfo] = useState("");
   const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
   const [ttsEnabled, setTtsEnabled] = useState(true);
-  const [ttsEngine, setTtsEngine] = useState<'edge' | 'gemini'>('edge');
-  const [ttsVoice, setTtsVoice] = useState('fr-FR-VivienneMultilingualNeural');
-
-  // Gemini native TTS voices (Charon = homme, Kore = femme)
-  const geminiVoices = [
-    { label: 'Charon - Voix Homme', value: 'fr-FR-Standard-B' },
-    { label: 'Kore - Voix Femme', value: 'fr-FR-Standard-A' },
-  ];
-
-  // French Edge TTS voices
-  const edgeVoices = [
-    { label: 'Vivienne (Femme)', value: 'fr-FR-VivienneMultilingualNeural' },
-    { label: 'Henri (Homme)', value: 'fr-FR-HenriNeural' },
-    { label: 'Denise (Femme)', value: 'fr-FR-DeniseNeural' },
-    { label: 'Rémy (Homme)', value: 'fr-FR-RemyMultilingualNeural' },
-    { label: 'Jenny (Anglaise, Femme)', value: 'en-US-JennyNeural' },
-  ];
+  const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>({
+    engine: 'gemini',
+    voice: DEFAULT_VOICE.gemini,
+    style: DEFAULT_TTS_STYLE,
+  });
   const [musicFile, setMusicFile] = useState<File | null>(null);
   const [selectedTrack, setSelectedTrack] = useState<AudioTrack | null>(null);
   const [musicVolume, setMusicVolume] = useState(0.3);
@@ -109,16 +99,6 @@ export default function RemotionVideoPage() {
     });
   };
 
-  const handleTtsPreview = async () => {
-    const ttsText = overlayText.replace(/#\w+/g, '').replace(/[\uD800-\uDFFF\u2600-\u27BF]/g, '').replace(/\s+/g, ' ').trim();
-    if (!ttsText) return;
-    try {
-      const r = await apiRequest('POST', '/api/reels/tts-preview', { text: ttsText, ttsEngine, ttsVoice });
-      const data = await r.json();
-      if (data.success && data.audioBase64) new window.Audio(`data:audio/mp3;base64,${data.audioBase64}`).play();
-    } catch { toast({ title: "Erreur prévisualisation voix", variant: "destructive" }); }
-  };
-
   const togglePlayPreview = (track: AudioTrack) => {
     if (!audioRef.current) return;
     if (isPlaying === track.id) { audioRef.current.pause(); setIsPlaying(null); }
@@ -134,8 +114,10 @@ export default function RemotionVideoPage() {
       images.forEach(img => formData.append("images", img));
       selectedLibraryImages.forEach(m => formData.append("existingImageUrls", m.originalUrl));
       if (overlayText) formData.append("overlayText", overlayText);
-      formData.append("ttsEngine", ttsEngine);
-      formData.append("ttsVoice", ttsVoice);
+      formData.append("ttsEnabled", String(ttsEnabled));
+      formData.append("ttsEngine", voiceSettings.engine);
+      formData.append("ttsVoice", voiceSettings.voice);
+      formData.append("ttsStyle", voiceSettings.style);
       if (selectedPageIds[0]) formData.append("selectedPageId", selectedPageIds[0]);
       if (musicFile) { formData.append("music", musicFile); formData.append("musicVolume", String(musicVolume)); }
       else if (selectedTrack) { formData.append("musicTrackUrl", selectedTrack.url); formData.append("musicVolume", String(musicVolume)); }
@@ -294,41 +276,7 @@ export default function RemotionVideoPage() {
             <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
               <p className="text-sm text-muted-foreground">TTS — voix activée</p>
 
-              {/* TTS Engine Selector */}
-              <div className="flex items-center gap-2">
-                <Label className="text-xs font-medium">Moteur:</Label>
-                <div className="flex gap-1">
-                  <Button size="sm" variant={ttsEngine === 'edge' ? 'default' : 'outline'} className="h-7 text-xs"
-                    onClick={() => { setTtsEngine('edge'); setTtsVoice('fr-FR-VivienneMultilingualNeural'); }}>
-                    Edge
-                  </Button>
-                  <Button size="sm" variant={ttsEngine === 'gemini' ? 'default' : 'outline'} className="h-7 text-xs"
-                    onClick={() => { setTtsEngine('gemini'); setTtsVoice('fr-FR-Standard-B'); }}>
-                    Gemini
-                  </Button>
-                </div>
-              </div>
-
-              {/* Voice Selector */}
-              <div className="flex items-center gap-2">
-                <Label className="text-xs font-medium shrink-0">Voix:</Label>
-                <Select value={ttsVoice} onValueChange={setTtsVoice}>
-                  <SelectTrigger className="h-7 text-xs flex-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ttsEngine === 'edge' ? (
-                      edgeVoices.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)
-                    ) : (
-                      geminiVoices.map(v => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Button size="sm" variant="outline" className="w-full" onClick={handleTtsPreview} disabled={!overlayText}>
-                <Volume2 className="mr-2 w-3 h-3" /> Écouter la voix
-              </Button>
+              <VoicePicker value={voiceSettings} onChange={setVoiceSettings} sampleText={overlayText} />
             </div>
           )}
         </CardContent>

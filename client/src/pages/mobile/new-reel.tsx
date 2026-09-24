@@ -16,6 +16,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
+import { VoicePicker, type VoiceSettings } from "@/components/reels/voice-picker";
+import { DEFAULT_TTS_STYLE, DEFAULT_VOICE } from "@shared/voices";
 import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
 import { SiFacebook, SiTiktok } from "react-icons/si";
@@ -59,27 +61,17 @@ export default function MobileNewReel() {
 
     // État TTS
     const [ttsEnabled, setTtsEnabled] = useState(false);
-    const [ttsEngine, setTtsEngine] = useState<'edge' | 'gemini'>('edge');
-    const [ttsVoice, setTtsVoice] = useState('fr-FR-VivienneMultilingualNeural');
-
-    // Gemini native TTS voices (Charon = homme, Kore = femme)
-    const geminiVoices = [
-        { label: 'Charon - Voix Homme', value: 'fr-FR-Standard-B' },
-        { label: 'Kore - Voix Femme', value: 'fr-FR-Standard-A' },
-    ];
-
-    // French Edge TTS voices
-    const edgeVoices = [
-        { label: 'Vivienne (Femme)', value: 'fr-FR-VivienneMultilingualNeural' },
-        { label: 'Henri (Homme)', value: 'fr-FR-HenriNeural' },
-        { label: 'Denise (Femme)', value: 'fr-FR-DeniseNeural' },
-        { label: 'Rémy (Homme)', value: 'fr-FR-RemyMultilingualNeural' },
-        { label: 'Jenny (Anglaise, Femme)', value: 'en-US-JennyNeural' },
-    ];
+    const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>({
+        engine: 'gemini',
+        voice: DEFAULT_VOICE.gemini,
+        style: DEFAULT_TTS_STYLE,
+    });
+    const { engine: ttsEngine, voice: ttsVoice, style: ttsStyle } = voiceSettings;
 
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
-    const [stabilize, setStabilize] = useState(true); // Activé par défaut pour les Reels
+    // Désactivée par défaut : double le temps de rendu, utile seulement pour une vidéo tremblée
+    const [stabilize, setStabilize] = useState(false);
     const [enableEndingEffect, setEnableEndingEffect] = useState(true);
 
     // TTS Sync state
@@ -271,6 +263,7 @@ export default function MobileNewReel() {
             ttsEnabled,
             ttsEngine,
             ttsVoice,
+            ttsStyle,
             enableEndingEffect,
         });
     };
@@ -492,82 +485,13 @@ export default function MobileNewReel() {
                                         <span>TTS — voix activée</span>
                                     </div>
 
-                                    {/* TTS Engine Selector */}
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <Label className="text-xs font-medium">Moteur:</Label>
-                                        <div className="flex gap-1">
-                                            <Button
-                                                size="sm"
-                                                variant={ttsEngine === 'edge' ? 'default' : 'outline'}
-                                                className="h-7 text-xs px-2"
-                                                onClick={() => {
-                                                    setTtsEngine('edge');
-                                                    setTtsVoice('fr-FR-VivienneMultilingualNeural');
-                                                }}
-                                            >
-                                                Edge
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant={ttsEngine === 'gemini' ? 'default' : 'outline'}
-                                                className="h-7 text-xs px-2"
-                                                onClick={() => {
-                                                    setTtsEngine('gemini');
-                                                    setTtsVoice('fr-FR-Standard-B');
-                                                }}
-                                            >
-                                                Gemini
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    {/* Voice Selector */}
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <Label className="text-xs font-medium shrink-0">Voix:</Label>
-                                        <Select value={ttsVoice} onValueChange={setTtsVoice}>
-                                            <SelectTrigger className="h-7 text-xs flex-1">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {ttsEngine === 'edge' ? (
-                                                    edgeVoices.map(v => (
-                                                        <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
-                                                    ))
-                                                ) : (
-                                                    geminiVoices.map(v => (
-                                                        <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
-                                                    ))
-                                                )}
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-
                                     <div className="mt-2">
-                                        <Button
-                                            size="sm"
-                                            variant="secondary"
-                                            className="w-full h-8 text-xs"
-                                            onClick={async (e) => {
-                                                e.stopPropagation();
-                                                const textToTest = overlayText || "Ceci est un test de voix.";
-                                                try {
-                                                    const response = await apiRequest('POST', '/api/reels/tts-preview', {
-                                                        text: textToTest,
-                                                        ttsEngine,
-                                                        ttsVoice,
-                                                    });
-                                                    const data = await response.json();
-                                                    if (data.success && data.audioBase64) {
-                                                        const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
-                                                        audio.play();
-                                                    }
-                                                } catch (err) {
-                                                    toast({ title: "Erreur", description: "Impossible de lire la voix", variant: "destructive" });
-                                                }
-                                            }}
-                                        >
-                                            <Play className="w-3 h-3 mr-1" /> Tester la voix
-                                        </Button>
+                                        <VoicePicker
+                                            value={voiceSettings}
+                                            onChange={setVoiceSettings}
+                                            sampleText={overlayText}
+                                            compact
+                                        />
                                     </div>
 
                                     {syncInfo && (

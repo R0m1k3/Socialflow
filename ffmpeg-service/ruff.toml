@@ -1,0 +1,9 @@
+line-length = 110
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+  "B008",  # Depends() dans les signatures FastAPI
+  "B905",  # zip() sur des séquences dont les longueurs sont liées par construction
+]

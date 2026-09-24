@@ -94,6 +94,7 @@ export async function startReelWorker(): Promise<void> {
     console.error("❌ [ReelQueue] Récupération des jobs orphelins impossible :", error);
   }
 
+  console.log(`🎬 [ReelQueue] Worker démarré (traitements : ${Array.from(handlers.keys()).join(", ")})`);
   pollTimer = setInterval(kick, POLL_INTERVAL_MS);
   pollTimer.unref();
   kick();

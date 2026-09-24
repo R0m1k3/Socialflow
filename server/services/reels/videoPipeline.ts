@@ -30,14 +30,14 @@ export async function runVideoReelJob({ job, progress }: JobContext) {
 
   await progress(15, "render");
   const startedAt = Date.now();
-  const rendered = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
+  const rendered = await ffmpegService.renderReel(resolveInternalUrl(media.originalUrl), {
     text: params.overlayText,
     musicUrl,
     ttsEnabled: params.ttsEnabled,
     ttsVoice: params.ttsVoice,
     ttsEngine: params.ttsEngine,
+    ttsStyle: params.ttsStyle,
     geminiApiKey,
-    wordDuration: params.wordDuration,
     fontSize: params.fontSize,
     musicVolume: params.musicVolume,
     drawText: params.drawText,
@@ -46,18 +46,10 @@ export async function runVideoReelJob({ job, progress }: JobContext) {
     storeName: params.storeName,
     enableEndingEffect: params.enableEndingEffect,
   });
-  console.log(`⏱️ [Reels] FFmpeg : ${((Date.now() - startedAt) / 1000).toFixed(1)} s`);
-
-  if (!rendered.success || !rendered.videoBase64) {
-    throw new Error(rendered.error || "Erreur de traitement vidéo FFmpeg");
-  }
-  if (rendered.ttsError) {
-    // Voix demandée mais absente : ne jamais publier un Reel muet sans le dire
-    throw new Error(`La voix n'a pas pu être générée : ${rendered.ttsError}`);
-  }
+  console.log(`⏱️ [Reels] Rendu : ${((Date.now() - startedAt) / 1000).toFixed(1)} s, vidéo de ${rendered.duration.toFixed(1)} s`);
 
   await progress(65, "store");
-  const videoBuffer = Buffer.from(rendered.videoBase64, "base64");
+  const videoBuffer = rendered.video;
   const processedMedia = await storeRenderedVideo(job.userId, videoBuffer, `reel-${Date.now()}.mp4`);
   await storage.updatePostMedia(postId, [processedMedia.id]);
 

@@ -174,6 +174,20 @@ La stack se construit depuis les sources : `app` et `ffmpeg-api` ont une section
   `socialflow-ffmpeg-api:latest`) : il ne dépend donc plus du nom donné à la
   stack dans Portainer.
 
+## 🎙️ Service ffmpeg-api (voix et rendu des Reels)
+
+- **Premier build plus long** : l'image embarque FFmpeg 7.0.2 (version
+  épinglée), les polices des sous-titres et le modèle Whisper qui cale les
+  sous-titres mot à mot sur la voix (~150 Mo avec `WHISPER_MODEL=base`).
+- **Voix Gemini** : renseignez `GEMINI_API_KEY` (ou la clé dans l'application).
+  Sans clé, la voix Edge gratuite est utilisée et un avertissement apparaît
+  dans les logs.
+- **Vérifier la version déployée** : au démarrage, les logs de `socialflow-app`
+  affichent `[ReelQueue] Worker démarré`, et `socialflow-ffmpeg` répond
+  `{"status":"ok","version":2}` sur `/health`.
+- **Tests du service** : `pip install -r requirements-dev.txt`, puis `pytest`
+  et `ruff check .` dans `ffmpeg-service/`.
+
 ## 🔒 Sécurité en production
 
 1. **Variables d'environnement** : Ne commitez JAMAIS le fichier `.env`

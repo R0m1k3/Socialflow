@@ -70,8 +70,10 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
       overlayText: req.body.overlayText,
       musicUrl: musicFile ? `/uploads/temp/${path.basename(musicFile.path)}` : req.body.musicTrackUrl,
       musicVolume: Number.isFinite(musicVolume) ? musicVolume : undefined,
+      ttsEnabled: req.body.ttsEnabled !== "false",
       ttsEngine: req.body.ttsEngine || undefined,
       ttsVoice: req.body.ttsVoice,
+      ttsStyle: req.body.ttsStyle || undefined,
       storeName: await resolveStoreName(user.id, req.body.selectedPageId),
       tempFiles: uploaded.map((f) => f.path),
     });

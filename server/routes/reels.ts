@@ -5,14 +5,13 @@
 import { Router, Request, Response } from 'express';
 import type { User } from '@shared/schema';
 import { storage } from '../storage';
-import { ffmpegService } from '../services/ffmpeg';
-import { resolveInternalUrl } from '../services/minio';
-import { videoReelParamsSchema, type VideoReelParams } from '@shared/reel';
+import { ffmpegService, FFmpegServiceError } from '../services/ffmpeg';
+import { ttsPreviewSchema, videoReelParamsSchema, type VideoReelParams } from '@shared/reel';
 import { enqueueReelJob, countActiveReelJobs } from '../services/reels/queue';
-import { resolveGeminiApiKey, resolveLogoPath, resolveMusicUrl, resolveStoreName } from '../services/reels/assets';
+import { resolveGeminiApiKey, resolveStoreName } from '../services/reels/assets';
 import { openRouterService, describeGenerationError } from '../services/openrouter';
 
-import { ttsSyncService } from '../services/ttsSync';
+import { estimateVoiceTiming } from '../services/ttsSync';
 /** Piste musicale telle qu'attendue par le client. */
 interface MusicTrack {
     id: string;
@@ -271,104 +270,36 @@ reelsRouter.post('/reels/generate-text', async (req: Request, res: Response) => 
 });
 
 /**
- * Prévisualiser un Reel (traitement sans publication)
- * POST /api/reels/preview
- */
-reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
-    try {
-        const user = req.user as User;
-        const {
-            videoMediaId,
-            musicTrackId,
-            musicUrl,
-            overlayText,
-            ttsEnabled,
-            ttsVoice,
-            ttsEngine,
-            wordDuration = 0.6,
-            fontSize = 64,
-            musicVolume = 0.25,
-            drawText = true,
-            stabilize = false,
-            enableEndingEffect = true,
-        } = req.body;
-
-        // Récupérer le média vidéo
-        const media = await storage.getMediaById(videoMediaId);
-        if (!media) {
-            return res.status(404).json({ error: 'Vidéo non trouvée' });
-        }
-
-        if (media.type !== 'video') {
-            return res.status(400).json({ error: 'Le média doit être une vidéo' });
-        }
-
-        const [finalMusicUrl, logoPath, geminiApiKey] = await Promise.all([
-            resolveMusicUrl(musicTrackId, musicUrl),
-            resolveLogoPath(),
-            resolveGeminiApiKey(ttsEngine),
-        ]);
-        const watermarkUrl = logoPath ? resolveInternalUrl(logoPath) : undefined;
-
-        const finalWordDuration = wordDuration;
-
-        // Traiter la vidéo via FFmpeg
-        const result = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
-            text: overlayText,
-            musicUrl: finalMusicUrl,
-            ttsEnabled,
-            ttsVoice,
-            ttsEngine,
-            geminiApiKey,
-            wordDuration: finalWordDuration,
-            fontSize,
-            musicVolume,
-            drawText,
-            stabilize,
-            watermarkUrl,
-            enableEndingEffect,
-        });
-
-        if (!result.success) {
-            return res.status(500).json({ error: result.error || 'Erreur de traitement vidéo' });
-        }
-
-        // Retourner la vidéo en base64 pour prévisualisation
-        res.json({
-            success: true,
-            videoBase64: result.videoBase64,
-            duration: result.duration,
-        });
-    } catch (error) {
-        console.error('❌ Error previewing Reel:', error);
-        res.status(500).json({ error: 'Erreur lors de la prévisualisation du Reel' });
-    }
-});
-
-/**
  * Prévisualiser la voix TTS
  * POST /api/reels/tts-preview
  */
 reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
+    const parsed = ttsPreviewSchema.safeParse(req.body);
+    if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Paramètres invalides' });
+    }
+    const { text, ttsVoice, ttsEngine, ttsStyle } = parsed.data;
+
     try {
-        const user = req.user as User;
-        const { text, ttsVoice, ttsEngine } = req.body;
-
-        if (!text) {
-            return res.status(400).json({ error: 'Texte requis' });
-        }
-
-        const geminiApiKey = await resolveGeminiApiKey(ttsEngine);
-        const result = await ffmpegService.previewTTS(text, ttsVoice, ttsEngine, geminiApiKey);
-
-        if (!result.success) {
-            return res.status(500).json({ error: result.error || 'Erreur de génération TTS' });
-        }
-
-        res.json({ success: true, audioBase64: result.audioBase64 });
+        const preview = await ffmpegService.previewVoice(text, {
+            voice: ttsVoice,
+            engine: ttsEngine,
+            style: ttsStyle,
+            geminiApiKey: await resolveGeminiApiKey(ttsEngine),
+        });
+        res.json({
+            success: true,
+            audioBase64: preview.audio.toString('base64'),
+            duration: preview.duration,
+            words: preview.words,
+            engine: preview.engine,
+            voice: preview.voice,
+            warnings: preview.warnings,
+        });
     } catch (error) {
         console.error('❌ Error generating TTS preview:', error);
-        res.status(500).json({ error: 'Erreur lors de la génération de la voix' });
+        const message = error instanceof Error ? error.message : 'Erreur lors de la génération de la voix';
+        res.status(error instanceof FFmpegServiceError && error.status === 400 ? 400 : 502).json({ error: message });
     }
 });
 
@@ -378,13 +309,12 @@ reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
  */
 reelsRouter.post('/reels/sync-info', async (req: Request, res: Response) => {
     try {
-        const { text, ttsVoice, ttsEngine } = req.body;
-        if (!text || !ttsVoice) {
-            return res.status(400).json({ error: 'Texte et voix requis' });
+        const { text } = req.body;
+        if (!text) {
+            return res.status(400).json({ error: 'Texte requis' });
         }
-        const geminiApiKey = await resolveGeminiApiKey(ttsEngine);
-        const sync = await ttsSyncService.calculateSyncTiming(text, ttsVoice, ttsEngine, geminiApiKey);
-        res.json(sync);
+        // Estimation locale : ne déclenche aucune synthèse (payante avec Gemini)
+        res.json(estimateVoiceTiming(text));
     } catch (error) {
         console.error('❌ Error calculating sync:', error);
         res.status(500).json({ error: 'Erreur de calcul de synchronisation' });

@@ -1,214 +1,120 @@
 /**
- * FFmpeg Docker API Service
- * 
- * Intégration avec l'API FFmpeg Docker locale pour le traitement vidéo des Reels.
- * L'API attend une vidéo en base64 et retourne la vidéo traitée en base64.
+ * Client du service FFmpeg (conteneur Python `ffmpeg-service`).
+ *
+ * Le service rend le Reel puis expose le MP4 en téléchargement
+ * (GET /files/{job}/output.mp4) : la vidéo ne transite plus en base64 dans du
+ * JSON, qui gonflait sa taille d'un tiers et la gardait entière en mémoire.
  */
 
-interface FFmpegReelRequest {
-    video_base64?: string;      // Vidéo source en base64
-    video_url?: string;         // OU URL de la vidéo source
-    text?: string;              // Texte overlay style TikTok
-    music_id?: string;          // ID de la musique (catalogue FFmpeg)
-    music_url?: string;         // OU URL directe de la musique
-    tts_enabled?: boolean;      // Activation du TTS
-    tts_voice?: string;         // Voix TTS (ex: fr-FR-VivienneNeural)
-    tts_engine?: string;         // Moteur TTS: "edge" ou "gemini"
-    gemini_api_key?: string;     // Clé API Google Gemini pour TTS
-    word_duration?: number;     // Durée par mot (default: 0.6s)
-    font_size?: number;         // Taille police (default: 24)
-    music_volume?: number;      // Volume musique (default: 0.25)
-    draw_text?: boolean;        // Dessiner le texte sur la vidéo (default: true)
-    stabilize?: boolean;        // Stabilisation vidéo via vidstab (default: false)
-    watermark_url?: string;     // URL du logo
-    store_name?: string;        // Nom du magasin pour l'outro
-    enable_ending_effect?: boolean; // Activer l'effet de fin (logo+fondu)
-}
-
-interface FFmpegReelResponse {
-    success: boolean;
-    output_base64?: string;
-    duration?: number;
-    detail?: string;
-    tts_error?: string;
-}
+import type { TtsEngine, TtsStyle } from '@shared/voices';
 
 /** Un rendu long (stabilisation + encodage) peut dépasser plusieurs minutes. */
-const PROCESS_TIMEOUT_MS = 15 * 60_000;
-const TTS_TIMEOUT_MS = 2 * 60_000;
+const PROCESS_TIMEOUT_MS = 20 * 60_000;
+const DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
+const TTS_TIMEOUT_MS = 3 * 60_000;
 const HEALTH_TIMEOUT_MS = 5_000;
+
+export interface ReelRenderOptions {
+    text?: string;
+    musicUrl?: string;
+    ttsEnabled?: boolean;
+    ttsVoice?: string;
+    ttsEngine?: TtsEngine;
+    ttsStyle?: TtsStyle;
+    geminiApiKey?: string;
+    fontSize?: number;
+    musicVolume?: number;
+    drawText?: boolean;
+    stabilize?: boolean;
+    watermarkUrl?: string;
+    storeName?: string;
+    enableEndingEffect?: boolean;
+}
+
+export interface ReelRenderResult {
+    video: Buffer;
+    duration: number;
+    ttsEngine?: string | null;
+    ttsVoice?: string | null;
+    warnings: string[];
+}
+
+export interface TimedWord {
+    text: string;
+    start: number;
+    end: number;
+}
+
+export interface VoicePreview {
+    audio: Buffer;
+    duration: number;
+    words: TimedWord[];
+    engine: string;
+    voice: string;
+    warnings: string[];
+}
 
 interface FFmpegConfig {
     apiUrl: string;
     apiKey: string;
 }
 
+/** Erreur renvoyée par le service, avec son message lisible. */
+export class FFmpegServiceError extends Error {
+    constructor(message: string, readonly status?: number) {
+        super(message);
+        this.name = 'FFmpegServiceError';
+    }
+}
+
 export class FFmpegService {
     private config: FFmpegConfig | null = null;
 
-    /**
-     * Configure le service avec l'URL et la clé API
-     */
     configure(apiUrl: string, apiKey: string): void {
-        this.config = { apiUrl, apiKey };
-        console.log('🎬 FFmpeg Service configured:', apiUrl);
+        this.config = { apiUrl: apiUrl.replace(/\/$/, ''), apiKey };
+        console.log('🎬 FFmpeg Service configured:', this.config.apiUrl);
     }
 
-    /**
-     * Vérifie que le service est configuré
-     */
     private ensureConfigured(): FFmpegConfig {
         if (!this.config) {
-            throw new Error('FFmpeg Service not configured. Call configure() first.');
+            throw new FFmpegServiceError("Le service FFmpeg n'est pas configuré (FFMPEG_API_URL / FFMPEG_API_KEY).");
         }
         return this.config;
     }
 
-    /**
-     * Traite une vidéo pour créer un Reel avec musique et texte overlay
-     * 
-     * @param videoBase64 - Vidéo source encodée en base64
-     * @param options - Options de traitement (texte, musique, etc.)
-     * @returns Vidéo traitée en base64
-     */
-    async processReelVideo(
-        videoBase64: string,
-        options: {
-            text?: string;
-            musicId?: string;
-            musicUrl?: string;
-            ttsEnabled?: boolean;
-            ttsVoice?: string;
-            ttsEngine?: string;
-            geminiApiKey?: string;
-            wordDuration?: number;
-            fontSize?: number;
-            musicVolume?: number;
-            drawText?: boolean;
-            stabilize?: boolean;
-            watermarkUrl?: string;
-            storeName?: string;
-            enableEndingEffect?: boolean;
-        } = {}
-    ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string }> {
+    private async call(path: string, init: RequestInit & { timeoutMs: number }): Promise<Response> {
         const config = this.ensureConfigured();
-
-        const requestBody: FFmpegReelRequest = {
-            video_base64: videoBase64,
-            text: options.text,
-            music_id: options.musicId,
-            music_url: options.musicUrl,
-            tts_enabled: options.ttsEnabled,
-            tts_voice: options.ttsVoice,
-            tts_engine: options.ttsEngine,
-            gemini_api_key: options.geminiApiKey,
-            word_duration: options.wordDuration ?? 0.6,
-            font_size: options.fontSize ?? 64,
-            music_volume: options.musicVolume ?? 0.25,
-            draw_text: options.drawText ?? true,
-            stabilize: options.stabilize ?? false,
-            watermark_url: options.watermarkUrl,
-            store_name: options.storeName,
-            enable_ending_effect: options.enableEndingEffect ?? true,
-        };
-
-        // Remove undefined values
-        Object.keys(requestBody).forEach(key => {
-            if (requestBody[key as keyof FFmpegReelRequest] === undefined) {
-                delete requestBody[key as keyof FFmpegReelRequest];
-            }
+        const { timeoutMs, headers, ...rest } = init;
+        const response = await fetch(`${config.apiUrl}${path}`, {
+            ...rest,
+            headers: { 'X-API-Key': config.apiKey, ...headers },
+            signal: AbortSignal.timeout(timeoutMs),
         });
-
-        console.log('🎬 Processing Reel video:', {
-            hasVideo: !!videoBase64,
-            hasText: !!options.text,
-            hasMusicId: !!options.musicId,
-            hasMusicUrl: !!options.musicUrl,
-            hasTTS: options.ttsEnabled,
-            drawText: options.drawText,
-        });
-
-        try {
-            const response = await fetch(`${config.apiUrl}/process-reel`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-API-Key': config.apiKey,
-                },
-                body: JSON.stringify(requestBody),
-                signal: AbortSignal.timeout(PROCESS_TIMEOUT_MS),
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('❌ FFmpeg API error:', response.status, errorText);
-                return {
-                    success: false,
-                    error: `FFmpeg API error: ${response.status} - ${errorText}`,
-                };
-            }
-
-            const data = await response.json() as FFmpegReelResponse;
-
-            if (!data.success) {
-                console.error('❌ FFmpeg processing failed:', data.detail);
-                return {
-                    success: false,
-                    error: data.detail || 'Unknown FFmpeg processing error',
-                };
-            }
-
-            console.log('✅ Reel video processed successfully, duration:', data.duration);
-            return {
-                success: true,
-                videoBase64: data.output_base64,
-                duration: data.duration,
-            };
-
-        } catch (error) {
-            console.error('❌ FFmpeg Service error:', error);
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Unknown error',
-            };
+        if (!response.ok) {
+            const body = await response.text();
+            let detail = body;
+            try {
+                detail = JSON.parse(body).detail ?? body;
+            } catch { /* corps non JSON */ }
+            throw new FFmpegServiceError(String(detail).slice(0, 2000), response.status);
         }
+        return response;
     }
 
     /**
-     * Traite une vidéo depuis une URL (télécharge, traite, retourne base64)
+     * Rend un Reel à partir de l'URL d'une vidéo et renvoie le MP4 produit.
+     * Lève FFmpegServiceError en cas d'échec (voix comprise).
      */
-    async processReelFromUrl(
-        videoUrl: string,
-        options: {
-            text?: string;
-            musicId?: string;
-            musicUrl?: string;
-            ttsEnabled?: boolean;
-            ttsVoice?: string;
-            ttsEngine?: string;
-            geminiApiKey?: string;
-            wordDuration?: number;
-            fontSize?: number;
-            musicVolume?: number;
-            drawText?: boolean;
-            stabilize?: boolean;
-            watermarkUrl?: string;
-            storeName?: string;
-            enableEndingEffect?: boolean;
-        } = {}
-    ): Promise<{ success: boolean; videoBase64?: string; duration?: number; error?: string; ttsError?: string }> {
-        const config = this.ensureConfigured();
-
-        const requestBody: FFmpegReelRequest = {
+    async renderReel(videoUrl: string, options: ReelRenderOptions = {}): Promise<ReelRenderResult> {
+        const body = {
             video_url: videoUrl,
             text: options.text,
-            music_id: options.musicId,
             music_url: options.musicUrl,
-            tts_enabled: options.ttsEnabled,
+            tts_enabled: options.ttsEnabled ?? false,
             tts_voice: options.ttsVoice,
             tts_engine: options.ttsEngine,
+            tts_style: options.ttsStyle,
             gemini_api_key: options.geminiApiKey,
-            word_duration: options.wordDuration ?? 0.6,
             font_size: options.fontSize ?? 64,
             music_volume: options.musicVolume ?? 0.25,
             draw_text: options.drawText ?? true,
@@ -218,139 +124,88 @@ export class FFmpegService {
             enable_ending_effect: options.enableEndingEffect ?? true,
         };
 
-        // Remove undefined values
-        Object.keys(requestBody).forEach(key => {
-            if (requestBody[key as keyof FFmpegReelRequest] === undefined) {
-                delete requestBody[key as keyof FFmpegReelRequest];
-            }
-        });
-
-        console.log('🎬 Processing Reel from URL:', {
+        console.log('🎬 Rendu du Reel :', {
             videoUrl,
-            hasText: !!options.text,
-            textLength: options.text?.length || 0,
-            hasMusicId: !!options.musicId,
-            hasMusicUrl: !!options.musicUrl,
-            ttsEnabled: options.ttsEnabled,
-            drawText: options.drawText,
+            textLength: options.text?.length ?? 0,
+            music: !!options.musicUrl,
+            tts: options.ttsEnabled ? `${options.ttsEngine}/${options.ttsVoice}/${options.ttsStyle ?? 'neutral'}` : false,
         });
 
-        const debugBody = { ...requestBody };
-        console.log('📤 Sending to FFmpeg API:', JSON.stringify({ ...debugBody, text: debugBody.text ? `[${debugBody.text.length} chars]` : undefined }));
+        const response = await this.call('/process-reel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            timeoutMs: PROCESS_TIMEOUT_MS,
+        });
+        const data = await response.json() as {
+            job_id: string;
+            output_path: string;
+            duration: number;
+            tts_engine?: string | null;
+            tts_voice?: string | null;
+            warnings?: string[];
+        };
 
         try {
-            const response = await fetch(`${config.apiUrl}/process-reel`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-API-Key': config.apiKey,
-                },
-                body: JSON.stringify(requestBody),
-                signal: AbortSignal.timeout(PROCESS_TIMEOUT_MS),
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('❌ FFmpeg API error:', response.status, errorText);
-                return {
-                    success: false,
-                    error: `FFmpeg API error: ${response.status} - ${errorText}`,
-                };
-            }
-
-            const data = await response.json() as FFmpegReelResponse;
-
-            if (!data.success) {
-                console.error('❌ FFmpeg processing failed:', data.detail);
-                return {
-                    success: false,
-                    error: data.detail || 'Unknown FFmpeg processing error',
-                };
-            }
-
-            if (data.tts_error) {
-                console.error('❌ TTS failed in Python service:', data.tts_error);
-            }
-            console.log('✅ Reel video processed successfully from URL');
+            const file = await this.call(data.output_path, { method: 'GET', timeoutMs: DOWNLOAD_TIMEOUT_MS });
+            const video = Buffer.from(await file.arrayBuffer());
+            for (const warning of data.warnings ?? []) console.warn(`⚠️ [FFmpeg] ${warning}`);
             return {
-                success: true,
-                videoBase64: data.output_base64,
+                video,
                 duration: data.duration,
-                ttsError: data.tts_error,
+                ttsEngine: data.tts_engine,
+                ttsVoice: data.tts_voice,
+                warnings: data.warnings ?? [],
             };
-
-        } catch (error) {
-            console.error('❌ FFmpeg Service error:', error);
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Unknown error',
-            };
+        } finally {
+            // Le fichier n'est plus utile au service une fois récupéré
+            this.call(`/jobs/${data.job_id}`, { method: 'DELETE', timeoutMs: HEALTH_TIMEOUT_MS })
+                .catch(() => { /* purgé plus tard par le service */ });
         }
     }
 
-    /**
-     * Vérifie la santé de l'API FFmpeg
-     */
     async healthCheck(): Promise<boolean> {
         try {
-            const config = this.ensureConfigured();
-            const response = await fetch(`${config.apiUrl}/health`, {
-                method: 'GET',
-                headers: {
-                    'X-API-Key': config.apiKey,
-                },
-                signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
-            });
-            return response.ok;
+            await this.call('/health', { method: 'GET', timeoutMs: HEALTH_TIMEOUT_MS });
+            return true;
         } catch {
             return false;
         }
     }
-    async previewTTS(
+
+    /** Génère la voix seule (aperçu), avec le minutage de chaque mot. */
+    async previewVoice(
         text: string,
-        ttsVoice?: string,
-        ttsEngine?: string,
-        geminiApiKey?: string
-    ): Promise<{ success: boolean; audioBase64?: string; error?: string }> {
-        const config = this.ensureConfigured();
-
-        try {
-            const response = await fetch(`${config.apiUrl}/preview-tts`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-API-Key': config.apiKey,
-                },
-                body: JSON.stringify({
-                    text,
-                    tts_enabled: true,
-                    tts_voice: ttsVoice,
-                    tts_engine: ttsEngine,
-                    gemini_api_key: geminiApiKey,
-                }),
-                signal: AbortSignal.timeout(TTS_TIMEOUT_MS),
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                return { success: false, error: `FFmpeg API error: ${response.status} - ${errorText}` };
-            }
-
-            const data = await response.json();
-
-            if (!data.success) {
-                return { success: false, error: data.detail };
-            }
-
-            return { success: true, audioBase64: data.audio_base64 };
-
-        } catch (error) {
-            console.error('❌ TTS Preview error:', error);
-            return {
-                success: false,
-                error: error instanceof Error ? error.message : 'Unknown error',
-            };
-        }
+        options: { voice?: string; engine?: TtsEngine; style?: TtsStyle; geminiApiKey?: string } = {},
+    ): Promise<VoicePreview> {
+        const response = await this.call('/preview-tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                text,
+                tts_voice: options.voice,
+                tts_engine: options.engine,
+                tts_style: options.style,
+                gemini_api_key: options.geminiApiKey,
+            }),
+            timeoutMs: TTS_TIMEOUT_MS,
+        });
+        const data = await response.json() as {
+            audio_base64: string;
+            duration: number;
+            words: TimedWord[];
+            engine: string;
+            voice: string;
+            warnings?: string[];
+        };
+        return {
+            audio: Buffer.from(data.audio_base64, 'base64'),
+            duration: data.duration,
+            words: data.words ?? [],
+            engine: data.engine,
+            voice: data.voice,
+            warnings: data.warnings ?? [],
+        };
     }
 }
 

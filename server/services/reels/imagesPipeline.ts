@@ -6,11 +6,10 @@
 
 import fs from "fs";
 import path from "path";
-import * as musicMetadata from "music-metadata";
 import { bundle } from "@remotion/bundler";
 import { renderMedia, selectComposition } from "@remotion/renderer";
 import { imagesReelParamsSchema, type ImagesReelResult } from "@shared/reel";
-import { ffmpegService } from "../ffmpeg";
+import { ffmpegService, type TimedWord } from "../ffmpeg";
 import { generateVideoThumbnail } from "../thumbnail";
 import type { JobContext } from "./queue";
 import { resolveGeminiApiKey, resolveLogoPath } from "./assets";
@@ -88,43 +87,31 @@ export function stripForTTS(text: string): string {
     .trim();
 }
 
-/** Nombre de syllabes d'un mot français (groupes de voyelles). */
-function countSyllablesFr(word: string): number {
-  const clean = word.replace(/[^a-zàâéèêëîïôùûüç]/gi, "").toLowerCase();
-  if (!clean) return 1;
-  return Math.max(1, clean.match(/[aeiouyàâéèêëîïôùûü]+/gi)?.length ?? 1);
+const EDGE_PUNCT = /^[.,!?;:…«»"'()\[\]]+|[.,!?;:…«»"'()\[\]]+$/g;
+
+export interface WordTiming {
+  word: string;
+  startFrame: number;
+  endFrame: number;
 }
 
-const PUNCT_ONLY = /^[.,!?;:…\-—«»"''()\[\]]+$/;
-const EDGE_PUNCT = /^[.,!?;:…«»"''()\[\]]+|[.,!?;:…«»"''()\[\]]+$/g;
-
 /**
- * Timings des mots prononcés (en images), répartis au prorata des syllabes.
- * Estimation provisoire : remplacée par les vrais timings de la voix au lot
- * « voix et sous-titres ».
+ * Convertit le minutage réel des mots (en secondes, fourni par la voix) en
+ * images. Chaque mot reste affiché jusqu'au début du suivant : pas de trou
+ * pendant les respirations.
  */
-export function computeWordTimings(
-  displayText: string,
-  audioDurationSeconds: number,
-  fps: number,
-  startFrame: number,
-): Array<{ word: string; startFrame: number; endFrame: number }> {
-  const spokenWords = stripForTTS(displayText)
-    .split(/\s+/)
-    .filter((w) => w && !PUNCT_ONLY.test(w));
-  if (spokenWords.length === 0) return [];
-
-  const cleanWords = spokenWords.map((w) => w.replace(EDGE_PUNCT, "") || w);
-  const syllables = cleanWords.map(countSyllablesFr);
-  const totalSyllables = syllables.reduce((a, b) => a + b, 0);
-  const totalFrames = audioDurationSeconds * fps;
-
-  let currentFrame = startFrame;
-  return cleanWords.map((word, i) => {
-    const wordStart = currentFrame;
-    currentFrame += Math.round((syllables[i] / totalSyllables) * totalFrames);
-    return { word, startFrame: wordStart, endFrame: currentFrame };
-  });
+export function toWordTimings(words: TimedWord[], fps: number): WordTiming[] {
+  const timings = words
+    .map((w) => ({ word: w.text.replace(EDGE_PUNCT, "") || w.text, start: w.start, end: w.end }))
+    .filter((w) => w.word.trim());
+  return timings.map((w, i) => ({
+    word: w.word,
+    startFrame: Math.round(w.start * fps),
+    endFrame: Math.max(
+      Math.round(w.start * fps) + 1,
+      Math.round((i + 1 < timings.length ? timings[i + 1].start : w.end) * fps),
+    ),
+  }));
 }
 
 export async function runImagesReelJob({ job, progress }: JobContext): Promise<ImagesReelResult> {
@@ -141,32 +128,27 @@ export async function runImagesReelJob({ job, progress }: JobContext): Promise<I
 
     // --- Voix ---
     let audioUrl: string | undefined;
-    let wordTimings: ReturnType<typeof computeWordTimings> | undefined;
+    let wordTimings: WordTiming[] | undefined;
     let audioDuration = 0;
 
     const ttsText = overlayText ? stripForTTS(overlayText) : "";
-    if (overlayText && ttsText) {
+    if (params.ttsEnabled && overlayText && ttsText) {
       await progress(15, "voice");
-      const geminiApiKey = await resolveGeminiApiKey(params.ttsEngine);
-      const tts = await ffmpegService.previewTTS(ttsText, params.ttsVoice, params.ttsEngine, geminiApiKey);
-      if (!tts.success || !tts.audioBase64) {
-        throw new Error(`La voix n'a pas pu être générée : ${tts.error ?? "réponse vide"}`);
-      }
+      const voice = await ffmpegService.previewVoice(ttsText, {
+        voice: params.ttsVoice,
+        engine: params.ttsEngine,
+        style: params.ttsStyle,
+        geminiApiKey: await resolveGeminiApiKey(params.ttsEngine),
+      });
+      for (const warning of voice.warnings) console.warn(`⚠️ [Reels] ${warning}`);
 
       const audioFilename = `tts-${job.id}.mp3`;
       const audioPath = path.join(REMOTION_TEMP_DIR, audioFilename);
-      const audioBuffer = Buffer.from(tts.audioBase64, "base64");
-      await fs.promises.writeFile(audioPath, audioBuffer);
+      await fs.promises.writeFile(audioPath, voice.audio);
       jobTempFiles.push(audioPath);
       audioUrl = localHttpUrl(`/uploads/temp/${audioFilename}`);
-
-      try {
-        audioDuration = (await musicMetadata.parseFile(audioPath)).format.duration ?? 0;
-      } catch {
-        audioDuration = audioBuffer.length / 16000; // estimation à 128 kb/s
-      }
-      audioDuration = Math.max(audioDuration, ttsText.split(/\s+/).length * 0.35);
-      wordTimings = computeWordTimings(overlayText, audioDuration, FPS, 0);
+      audioDuration = voice.duration;
+      wordTimings = toWordTimings(voice.words, FPS);
     }
 
     // --- Durée : 25 à 30 s ---

@@ -5,6 +5,7 @@
  */
 
 import { z } from "zod";
+import { TTS_ENGINES, TTS_STYLES } from "./voices";
 
 const optionalText = z
   .string()
@@ -24,9 +25,11 @@ export const videoReelParamsSchema = z.object({
   description: optionalText,
   ttsEnabled: z.boolean().default(false),
   ttsVoice: optionalText,
-  ttsEngine: z.enum(["gemini", "edge"]).optional(),
+  ttsEngine: z.enum(TTS_ENGINES).optional(),
+  ttsStyle: z.enum(TTS_STYLES).optional(),
   scheduledFor: optionalText,
-  wordDuration: z.number().positive().max(5).default(0.6),
+  // Ancien réglage, ignoré : le minutage vient désormais de la voix elle-même
+  wordDuration: z.number().optional(),
   fontSize: z.number().int().min(16).max(200).default(64),
   musicVolume: z.number().min(0).max(2).default(0.25),
   drawText: z.boolean().default(true),
@@ -45,11 +48,21 @@ export const imagesReelParamsSchema = z.object({
   overlayText: optionalText,
   musicUrl: optionalText,
   musicVolume: z.number().min(0).max(2).default(0.3),
-  ttsEngine: z.enum(["gemini", "edge"]).optional(),
+  ttsEnabled: z.boolean().default(true),
+  ttsEngine: z.enum(TTS_ENGINES).optional(),
   ttsVoice: optionalText,
+  ttsStyle: z.enum(TTS_STYLES).optional(),
   storeName: z.string().optional(),
   // Fichiers temporaires à supprimer une fois le rendu terminé
   tempFiles: z.array(z.string()).default([]),
+});
+
+/** Aperçu de la voix. */
+export const ttsPreviewSchema = z.object({
+  text: z.string({ required_error: "Texte requis" }).trim().min(1, "Texte requis").max(2000),
+  ttsVoice: optionalText,
+  ttsEngine: z.enum(TTS_ENGINES).optional(),
+  ttsStyle: z.enum(TTS_STYLES).optional(),
 });
 
 export type ImagesReelParams = z.infer<typeof imagesReelParamsSchema>;

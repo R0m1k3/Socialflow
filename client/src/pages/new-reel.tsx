@@ -25,6 +25,8 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { VoicePicker, type VoiceSettings } from "@/components/reels/voice-picker";
+import { DEFAULT_TTS_STYLE, DEFAULT_VOICE } from "@shared/voices";
 import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
 import { SiFacebook, SiTiktok } from "react-icons/si";
@@ -67,7 +69,8 @@ export default function NewReel() {
     const [musicVolume, setMusicVolume] = useState([25]);
     const [ttsEnabled, setTtsEnabled] = useState(true);
     const [drawText, setDrawText] = useState(true);
-    const [stabilize, setStabilize] = useState(true); // default to true
+    // Désactivée par défaut : double le temps de rendu, utile seulement pour une vidéo tremblée
+    const [stabilize, setStabilize] = useState(false);
     const [enableEndingEffect, setEnableEndingEffect] = useState(true);
 
     // TTS Sync state
@@ -79,24 +82,13 @@ export default function NewReel() {
         warnings: string[];
     } | null>(null);
 
-    // TTS Engine & Voice
-    const [ttsEngine, setTtsEngine] = useState<'edge' | 'gemini'>('edge');
-    const [ttsVoice, setTtsVoice] = useState('fr-FR-VivienneMultilingualNeural');
-
-    // Gemini native TTS voices (Charon = homme, Kore = femme)
-    const geminiVoices = [
-        { label: 'Charon - Voix Homme', value: 'fr-FR-Standard-B' },
-        { label: 'Kore - Voix Femme', value: 'fr-FR-Standard-A' },
-    ];
-
-    // French Edge TTS voices
-    const edgeVoices = [
-        { label: 'Vivienne (Femme)', value: 'fr-FR-VivienneMultilingualNeural' },
-        { label: 'Henri (Homme)', value: 'fr-FR-HenriNeural' },
-        { label: 'Denise (Femme)', value: 'fr-FR-DeniseNeural' },
-        { label: 'Rémy (Homme)', value: 'fr-FR-RemyMultilingualNeural' },
-        { label: 'Jenny (Anglaise, Femme)', value: 'en-US-JennyNeural' },
-    ];
+    // Voix : moteur, voix et ton de lecture
+    const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>({
+        engine: 'gemini',
+        voice: DEFAULT_VOICE.gemini,
+        style: DEFAULT_TTS_STYLE,
+    });
+    const { engine: ttsEngine, voice: ttsVoice, style: ttsStyle } = voiceSettings;
 
     // Enable TTS by default on mobile
     useEffect(() => {
@@ -413,6 +405,7 @@ export default function NewReel() {
             ttsEnabled,
             ttsEngine,
             ttsVoice,
+            ttsStyle,
             drawText,
             stabilize: stabilize,
             enableEndingEffect,
@@ -819,88 +812,12 @@ export default function NewReel() {
                                                         <span>TTS — voix activée</span>
                                                     </div>
 
-                                                    {/* TTS Engine Selector */}
-                                                    <div className="flex items-center gap-4 mt-3">
-                                                        <Label className="text-sm font-medium">Moteur:</Label>
-                                                        <div className="flex gap-2">
-                                                            <Button
-                                                                size="sm"
-                                                                variant={ttsEngine === 'edge' ? 'default' : 'outline'}
-                                                                onClick={() => {
-                                                                    setTtsEngine('edge');
-                                                                    setTtsVoice('fr-FR-VivienneMultilingualNeural');
-                                                                }}
-                                                            >
-                                                                Edge TTS
-                                                            </Button>
-                                                            <Button
-                                                                size="sm"
-                                                                variant={ttsEngine === 'gemini' ? 'default' : 'outline'}
-                                                                onClick={() => {
-                                                                    setTtsEngine('gemini');
-                                                                    setTtsVoice('fr-FR-Standard-B');
-                                                                }}
-                                                            >
-                                                                Gemini TTS
-                                                            </Button>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Voice Selector */}
-                                                    <div className="flex items-center gap-3 mt-3">
-                                                        <Label className="text-sm font-medium shrink-0">Voix:</Label>
-                                                        <Select
-                                                            value={ttsVoice}
-                                                            onValueChange={setTtsVoice}
-                                                        >
-                                                            <SelectTrigger className="flex-1">
-                                                                <SelectValue />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                {ttsEngine === 'edge' ? (
-                                                                    edgeVoices.map(v => (
-                                                                        <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
-                                                                    ))
-                                                                ) : (
-                                                                    geminiVoices.map(v => (
-                                                                        <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>
-                                                                    ))
-                                                                )}
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-
-                                                    <div className="mt-3 flex gap-2">
-                                                        <Button
-                                                            size="sm"
-                                                            variant="secondary"
-                                                            className="w-full"
-                                                            onClick={async (e) => {
-                                                                e.stopPropagation();
-                                                                const textToTest = overlayText || "Ceci est un test de voix pour votre vidéo.";
-                                                                try {
-                                                                    const response = await apiRequest('POST', '/api/reels/tts-preview', {
-                                                                        text: textToTest,
-                                                                        ttsEngine,
-                                                                        ttsVoice,
-                                                                    });
-                                                                    const data = await response.json();
-                                                                    if (data.success && data.audioBase64) {
-                                                                        const audio = new Audio(`data:audio/mp3;base64,${data.audioBase64}`);
-                                                                        audio.play();
-                                                                    }
-                                                                } catch (err) {
-                                                                    toast({
-                                                                        title: "Erreur",
-                                                                        description: "Impossible de tester la voix",
-                                                                        variant: "destructive"
-                                                                    });
-                                                                }
-                                                            }}
-                                                        >
-                                                            <Play className="w-3 h-3 mr-2" />
-                                                            Tester la voix
-                                                        </Button>
+                                                    <div className="mt-3">
+                                                        <VoicePicker
+                                                            value={voiceSettings}
+                                                            onChange={setVoiceSettings}
+                                                            sampleText={overlayText}
+                                                        />
                                                     </div>
 
                                                     {syncInfo && (

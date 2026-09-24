@@ -71,12 +71,16 @@ services:
     build:
       context: ./ffmpeg-service
       dockerfile: Dockerfile
+      args:
+        # Modèle Whisper (calage des sous-titres) intégré à l'image
+        WHISPER_MODEL: ${WHISPER_MODEL:-base}
     image: socialflow-ffmpeg-api:latest
     pull_policy: build
     container_name: socialflow-ffmpeg
     restart: unless-stopped
     environment:
       API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
+      GEMINI_TTS_MODEL: ${GEMINI_TTS_MODEL:-gemini-2.5-flash-preview-tts}
     networks:
       - internal
     expose:
