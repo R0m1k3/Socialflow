@@ -46,7 +46,9 @@ run_diagnostics()
 
 
 @app.get("/debug-ffmpeg")
-async def debug_ffmpeg():
+async def debug_ffmpeg(x_api_key: str = Header(None)):
+    if x_api_key != API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API Key")
     try:
         filters = subprocess.run(
             ["ffmpeg", "-filters"], capture_output=True, text=True
@@ -57,7 +59,6 @@ async def debug_ffmpeg():
                 "subtitles": "subtitles" in filters,
                 "drawtext": "drawtext" in filters,
             },
-            "env": {k: v for k, v in os.environ.items() if "API" not in k},
             "fonts": fonts.splitlines()[:50],  # First 50
             "raw_filters_hint": filters[:500],
         }
@@ -337,7 +338,6 @@ async def generate_tts_with_subs(
             "fr-FR-DeniseNeural",
         ]
 
-    fallback_voices.append("en-US-JennyNeural")
     fallback_voices = list(dict.fromkeys(fallback_voices))
 
     last_error = None
@@ -902,6 +902,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
 
         # 3. Generate TTS (if enabled)
         has_tts = False
+        tts_error = None
         tts_clean_text = ""
 
         if request.tts_enabled and request.text:
@@ -966,12 +967,14 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
                         has_tts = True
                     else:
                         print("❌ TTS audio file missing or empty!")
+                        tts_error = "Fichier audio de la voix vide"
                 else:
                     print("⚠️ TTS text is empty after cleaning, skipping.")
             except Exception as e:
                 import traceback
                 print(f"❌ Failed to generate TTS: {e}")
                 traceback.print_exc()
+                tts_error = str(e) or type(e).__name__
 
         stats["tts_duration"] = time.time() - start_step
         start_step = time.time()
@@ -1298,6 +1301,7 @@ async def process_reel(request: ReelRequest, x_api_key: str = Header(None)):
             "output_base64": out_b64,
             "duration": duration,
             "processing_stats": stats,
+            "tts_error": tts_error,
         }
 
     except Exception as e:

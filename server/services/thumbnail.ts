@@ -13,11 +13,11 @@
 
 import fs from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
 import { minioService } from './minio';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 const TEMP_DIR = path.join(process.cwd(), 'uploads', 'temp');
 
@@ -35,8 +35,10 @@ export async function generateVideoThumbnail(
   seekTime: number = 1
 ): Promise<boolean> {
   try {
-    const cmd = `ffmpeg -y -ss ${seekTime} -i "${videoPath}" -vframes 1 -q:v 2 "${outputPath}"`;
-    await execAsync(cmd);
+    // Arguments séparés : aucun passage par le shell, les chemins ne sont jamais interprétés
+    await execFileAsync('ffmpeg', [
+      '-y', '-ss', String(seekTime), '-i', videoPath, '-vframes', '1', '-q:v', '2', outputPath,
+    ]);
     return fs.existsSync(outputPath);
   } catch (error) {
     console.warn('⚠️ Failed to generate video thumbnail:', error);

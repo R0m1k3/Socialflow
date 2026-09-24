@@ -281,6 +281,31 @@ export const userPagePermissions = pgTable("user_page_permissions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+/**
+ * File d'attente persistante des rendus de Reels.
+ *
+ * Un job survit à un redémarrage du serveur : le worker le réserve avec
+ * `FOR UPDATE SKIP LOCKED`, entretient `heartbeat_at` pendant le rendu, et les
+ * jobs dont le cœur ne bat plus sont remis en file au démarrage suivant.
+ */
+export const reelJobs = pgTable("reel_jobs", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  // Post suivi par l'interface (reel vidéo). Absent pour un rendu d'images non publié.
+  postId: varchar("post_id").references(() => posts.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),  // 'video' | 'images'
+  params: jsonb("params").notNull(),
+  status: text("status").notNull().default("pending"),  // 'pending' | 'processing' | 'completed' | 'failed'
+  step: text("step"),
+  progress: integer("progress").notNull().default(0),
+  attempts: integer("attempts").notNull().default(0),
+  result: jsonb("result"),
+  error: text("error"),
+  heartbeatAt: timestamp("heartbeat_at"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
 export const socialPagesRelations = relations(socialPages, ({ one, many }) => ({
   user: one(users, {
     fields: [socialPages.userId],
@@ -558,4 +583,5 @@ export type TiktokConfig = typeof tiktokConfig.$inferSelect;
 export type InsertTiktokConfig = z.infer<typeof insertTiktokConfigSchema>;
 export type UpdateTiktokConfig = z.infer<typeof updateTiktokConfigSchema>;
 
-
+export type ReelJob = typeof reelJobs.$inferSelect;
+export type InsertReelJob = typeof reelJobs.$inferInsert;

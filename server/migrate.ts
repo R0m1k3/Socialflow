@@ -213,6 +213,26 @@ export async function migrate() {
       ADD COLUMN IF NOT EXISTS "publish_status" text;
     `);
 
+    // reel_jobs : file d'attente persistante des rendus de Reels
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS "reel_jobs" (
+        "id" varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        "user_id" varchar NOT NULL REFERENCES "users"("id") ON DELETE cascade,
+        "post_id" varchar REFERENCES "posts"("id") ON DELETE cascade,
+        "kind" text NOT NULL,
+        "params" jsonb NOT NULL,
+        "status" text NOT NULL DEFAULT 'pending',
+        "step" text,
+        "progress" integer NOT NULL DEFAULT 0,
+        "attempts" integer NOT NULL DEFAULT 0,
+        "result" jsonb,
+        "error" text,
+        "heartbeat_at" timestamp,
+        "created_at" timestamp NOT NULL DEFAULT now(),
+        "updated_at" timestamp NOT NULL DEFAULT now()
+      );
+    `);
+
     // 4. Index de performance
     //
     // Postgres n'indexe pas les clés étrangères tout seul : sans ces index, le
@@ -249,6 +269,7 @@ export async function migrate() {
       ["idx_scheduled_posts_publish_id", `CREATE INDEX IF NOT EXISTS "idx_scheduled_posts_publish_id" ON "scheduled_posts" ("publish_id") WHERE "publish_id" IS NOT NULL`],
 
       // Reels en cours de génération
+      ["idx_reel_jobs_queue", `CREATE INDEX IF NOT EXISTS "idx_reel_jobs_queue" ON "reel_jobs" ("created_at") WHERE "status" IN ('pending', 'processing')`],
       ["idx_posts_generation_status", `CREATE INDEX IF NOT EXISTS "idx_posts_generation_status" ON "posts" ("generation_status") WHERE "generation_status" IS NOT NULL`],
     ];
 

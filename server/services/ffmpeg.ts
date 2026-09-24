@@ -33,6 +33,11 @@ interface FFmpegReelResponse {
     tts_error?: string;
 }
 
+/** Un rendu long (stabilisation + encodage) peut dépasser plusieurs minutes. */
+const PROCESS_TIMEOUT_MS = 15 * 60_000;
+const TTS_TIMEOUT_MS = 2 * 60_000;
+const HEALTH_TIMEOUT_MS = 5_000;
+
 interface FFmpegConfig {
     apiUrl: string;
     apiKey: string;
@@ -131,6 +136,7 @@ export class FFmpegService {
                     'X-API-Key': config.apiKey,
                 },
                 body: JSON.stringify(requestBody),
+                signal: AbortSignal.timeout(PROCESS_TIMEOUT_MS),
             });
 
             if (!response.ok) {
@@ -240,6 +246,7 @@ export class FFmpegService {
                     'X-API-Key': config.apiKey,
                 },
                 body: JSON.stringify(requestBody),
+                signal: AbortSignal.timeout(PROCESS_TIMEOUT_MS),
             });
 
             if (!response.ok) {
@@ -292,6 +299,7 @@ export class FFmpegService {
                 headers: {
                     'X-API-Key': config.apiKey,
                 },
+                signal: AbortSignal.timeout(HEALTH_TIMEOUT_MS),
             });
             return response.ok;
         } catch {
@@ -320,6 +328,7 @@ export class FFmpegService {
                     tts_engine: ttsEngine,
                     gemini_api_key: geminiApiKey,
                 }),
+                signal: AbortSignal.timeout(TTS_TIMEOUT_MS),
             });
 
             if (!response.ok) {

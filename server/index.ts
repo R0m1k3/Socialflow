@@ -14,6 +14,7 @@ import { schedulerService } from "./services/scheduler";
 import { ensureAdminUserExists } from "./init-admin";
 import { startTokenCron } from "./cron";
 import { migrate } from "./migrate";
+import { startReelProcessing } from "./services/reels";
 import { jamendoService } from "./services/jamendo";
 import { ffmpegService } from "./services/ffmpeg";
 
@@ -230,5 +231,11 @@ app.use((req, res, next) => {
 
     // Start Token Refresh Cron
     startTokenCron();
+
+    // File des rendus de Reels : démarrée une fois le serveur à l'écoute, car
+    // le rendu d'images lit la voix et la musique via http://localhost.
+    startReelProcessing().catch((error) => {
+      console.error("❌ Démarrage de la file des Reels impossible :", error);
+    });
   });
 })();

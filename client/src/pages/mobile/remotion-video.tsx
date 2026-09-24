@@ -168,6 +168,8 @@ export default function MobileRemotionVideoPage() {
       images.forEach(img => formData.append("images", img));
       selectedLibraryImages.forEach(m => formData.append("existingImageUrls", m.originalUrl));
       if (overlayText) formData.append("overlayText", overlayText);
+      formData.append("ttsEngine", ttsEngine);
+      formData.append("ttsVoice", ttsVoice);
       if (selectedPageIds[0]) formData.append("selectedPageId", selectedPageIds[0]);
       if (musicFile) { formData.append("music", musicFile); formData.append("musicVolume", String(musicVolume)); }
       else if (selectedTrack) { formData.append("musicTrackUrl", selectedTrack.url); formData.append("musicVolume", String(musicVolume)); }

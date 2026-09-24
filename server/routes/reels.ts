@@ -3,17 +3,14 @@
  */
 
 import { Router, Request, Response } from 'express';
-import type { User, Media, SocialPage } from '@shared/schema';
+import type { User } from '@shared/schema';
 import { storage } from '../storage';
 import { ffmpegService } from '../services/ffmpeg';
-import { facebookService } from '../services/facebook';
-import { tiktokService } from '../services/tiktok';
-import { createVideoThumbnail } from '../services/thumbnail';
-import { minioService as cloudinaryService, buildMinioUrl, resolveInternalUrl } from '../services/minio';
+import { resolveInternalUrl } from '../services/minio';
+import { videoReelParamsSchema, type VideoReelParams } from '@shared/reel';
+import { enqueueReelJob, countActiveReelJobs } from '../services/reels/queue';
+import { resolveGeminiApiKey, resolveLogoPath, resolveMusicUrl, resolveStoreName } from '../services/reels/assets';
 import { openRouterService, describeGenerationError } from '../services/openrouter';
-import { db } from '../db';
-import { cloudinaryConfig } from '@shared/schema';
-import { eq } from 'drizzle-orm';
 
 import { ttsSyncService } from '../services/ttsSync';
 /** Piste musicale telle qu'attendue par le client. */
@@ -306,42 +303,12 @@ reelsRouter.post('/reels/preview', async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Le média doit être une vidéo' });
         }
 
-        // Récupérer l'URL de la musique si trackId fourni
-        let finalMusicUrl = musicUrl;
-        if (musicTrackId && !musicUrl) {
-            if (musicTrackId.startsWith('internal_')) {
-                const internalId = musicTrackId.replace('internal_', '');
-                const track = await storage.getAudioTrack(internalId);
-                if (track) {
-                    // Utiliser INTERNAL_APP_URL pour que le container ffmpeg (réseau Docker interne)
-                    // puisse télécharger le fichier audio. APP_URL (HTTPS public) n'est pas accessible  
-                    // depuis le réseau internal Docker.
-                    const internalBaseUrl = process.env.INTERNAL_APP_URL || process.env.APP_URL || 'http://localhost:5555';
-                    finalMusicUrl = track.url.startsWith('http')
-                        ? track.url
-                        : `${internalBaseUrl}${track.url}`;
-                    console.log(`🎵 Audio URL for ffmpeg: ${finalMusicUrl}`);
-                }
-            } else {
-                    }
-        }
-
-        let watermarkUrl: string | undefined = undefined;
-        try {
-            const config = await storage.getCloudinaryConfig();
-            if (config && config.logoPublicId) {
-                watermarkUrl = resolveInternalUrl(buildMinioUrl(config.cloudName, config.logoPublicId, config.publicUrl));
-            }
-        } catch (e) {
-            console.error('Error fetching watermark configuration', e);
-        }
-
-        // Get Gemini API key if using Gemini TTS
-        let geminiApiKey: string | undefined = undefined;
-        if (ttsEngine === "gemini") {
-            const appCfg = await storage.getAppConfig();
-            geminiApiKey = appCfg?.geminiApiKey ?? process.env.GEMINI_API_KEY ?? undefined;
-        }
+        const [finalMusicUrl, logoPath, geminiApiKey] = await Promise.all([
+            resolveMusicUrl(musicTrackId, musicUrl),
+            resolveLogoPath(),
+            resolveGeminiApiKey(ttsEngine),
+        ]);
+        const watermarkUrl = logoPath ? resolveInternalUrl(logoPath) : undefined;
 
         const finalWordDuration = wordDuration;
 
@@ -391,12 +358,7 @@ reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Texte requis' });
         }
 
-        let geminiApiKey: string | undefined = undefined;
-        if (ttsEngine === "gemini") {
-            const appCfg = await storage.getAppConfig();
-            geminiApiKey = appCfg?.geminiApiKey ?? process.env.GEMINI_API_KEY ?? undefined;
-        }
-
+        const geminiApiKey = await resolveGeminiApiKey(ttsEngine);
         const result = await ffmpegService.previewTTS(text, ttsVoice, ttsEngine, geminiApiKey);
 
         if (!result.success) {
@@ -420,7 +382,8 @@ reelsRouter.post('/reels/sync-info', async (req: Request, res: Response) => {
         if (!text || !ttsVoice) {
             return res.status(400).json({ error: 'Texte et voix requis' });
         }
-        const sync = await ttsSyncService.calculateSyncTiming(text, ttsVoice, ttsEngine);
+        const geminiApiKey = await resolveGeminiApiKey(ttsEngine);
+        const sync = await ttsSyncService.calculateSyncTiming(text, ttsVoice, ttsEngine, geminiApiKey);
         res.json(sync);
     } catch (error) {
         console.error('❌ Error calculating sync:', error);
@@ -429,444 +392,51 @@ reelsRouter.post('/reels/sync-info', async (req: Request, res: Response) => {
 });
 
 /**
- * Traitement d'arrière-plan pour les Reels
- * Gère le pipeline FFmpeg -> Cloudinary -> Facebook de manière asynchrone
- */
-
-/**
- * Vérifie la file d'attente et lance le prochain job si disponible
- */
-async function checkQueueAndProcessNext() {
-    try {
-        const nextPost = await storage.getNextPendingReel();
-        if (nextPost) {
-            console.log(`📥 [Queue] Found pending job: ${nextPost.id}. Starting processing...`);
-
-            // Marquer comme processing immédiatement
-            await storage.updatePostGenerationStatus(nextPost.id, 'processing', 0);
-
-            // Reconstruire le payload depuis les données stockées (si stockées) ou les defaults
-            // Note: En mode "pending", on a perdu le body de la requête initiale car on ne stocke pas tout dans Post.
-            // Pour une solution robuste, il faudrait stocker les paramètres de génération dans une table 'reel_jobs'.
-            // ICI: HACK PROVISOIRE -> On suppose que les données sont stockées dans 'content' ou 'productInfo' mais ce n'est pas le cas.
-            // SOLUTION: On ne peut pas relancer processReelBackground sans les arguments (ttsVoice, music, etc).
-            //
-            // FIX: Pour le MVP, comme on n'a pas de table 'jobs', on va devoir stocker les paramètres requis dans 'productInfo' (jsonb) du Post
-            // lors de la création en mode 'pending'.
-
-            // Récupérer les paramètres stockés
-            const jobData = nextPost.productInfo as any;
-
-            if (!jobData || !jobData.videoMediaId) {
-                console.error(`❌ [Queue] Job ${nextPost.id} has no stored job data in productInfo.`);
-                await storage.updatePostGenerationStatus(nextPost.id, 'failed', 0, "Données de job manquantes");
-                return;
-            }
-
-            // Lancer le traitement
-            processReelBackground(nextPost.userId, nextPost.id, jobData)
-                .catch(err => console.error('🔥 [Queue] Unhandled error starting queued job:', err));
-        } else {
-            console.log('🏁 [Queue] No more pending jobs.');
-        }
-    } catch (error) {
-        console.error('❌ [Queue] Error checking queue:', error);
-    }
-}
-
-/**
- * Traitement d'arrière-plan pour les Reels
- * Gère le pipeline FFmpeg -> Cloudinary -> Facebook de manière asynchrone
- */
-async function processReelBackground(
-    userId: string,
-    postId: string,
-    data: {
-        videoMediaId: string;
-        musicTrackId?: string;
-        musicUrl?: string;
-        overlayText?: string;
-        description?: string;
-        ttsEnabled?: boolean;
-        ttsVoice?: string;
-        ttsEngine?: string;
-        pageIds: string[];
-        scheduledFor?: string;
-        wordDuration?: number;
-        fontSize?: number;
-        musicVolume?: number;
-        drawText?: boolean;
-        stabilize?: boolean;
-        enableEndingEffect?: boolean;
-    },
-    storeName?: string
-) {
-    const {
-        videoMediaId,
-        musicTrackId,
-        musicUrl,
-        overlayText,
-        description,
-        ttsEnabled,
-        ttsVoice,
-        ttsEngine,
-        pageIds,
-        scheduledFor,
-        wordDuration,
-        fontSize,
-        musicVolume,
-        drawText,
-        stabilize,
-        enableEndingEffect,
-    } = data;
-
-    console.log(`🔄 [Background] Starting processing for Post ${postId}`);
-
-    // Helper to update generation progress
-    const updateProgress = async (progress: number, status: string = 'processing') => {
-        try {
-            await storage.updatePostGenerationStatus(postId, status, progress);
-        } catch (e) {
-            console.error(`⚠️ [Background] Failed to update progress for ${postId}:`, e);
-        }
-    };
-
-    try {
-        await updateProgress(5);
-        // 1. Récupérer le média vidéo source
-        const media = await storage.getMediaById(videoMediaId);
-        if (!media || media.type !== 'video') {
-            throw new Error('Vidéo source introuvable ou invalide');
-        }
-
-        // 2. Récupérer l'URL de la musique
-        let finalMusicUrl = musicUrl;
-        if (musicTrackId && !musicUrl) {
-            if (musicTrackId.startsWith('internal_')) {
-                try {
-                    const internalId = musicTrackId.replace('internal_', '');
-                    const track = await storage.getAudioTrack(internalId);
-                    if (track) {
-                        const internalBaseUrl = process.env.INTERNAL_APP_URL || process.env.APP_URL || 'http://localhost:5555';
-                        finalMusicUrl = track.url.startsWith('http')
-                            ? track.url
-                            : `${internalBaseUrl}${track.url}`;
-                        console.log(`🎵 [Background] Audio URL for ffmpeg: ${finalMusicUrl}`);
-                    }
-                } catch (e) { console.error('Error fetching internal track', e); }
-            }
-        }
-
-        console.log('🎬 [Background] FFmpeg Processing:', {
-            postId,
-            videoUrl: media.originalUrl,
-            hasMusic: !!finalMusicUrl, // Log boolean to avoid long URL
-            hasText: !!overlayText
-        });
-
-        // 3. Traiter la vidéo via FFmpeg
-        await updateProgress(15);
-        const startTime = Date.now();
-
-        let watermarkUrl: string | undefined = undefined;
-        try {
-            const config = await storage.getCloudinaryConfig();
-            if (config && config.logoPublicId) {
-                watermarkUrl = resolveInternalUrl(buildMinioUrl(config.cloudName, config.logoPublicId, config.publicUrl));
-            }
-        } catch (e) {
-            console.error('Error fetching watermark configuration', e);
-        }
-
-        // Get Gemini API key if using Gemini TTS
-        let geminiApiKey: string | undefined = undefined;
-        if (ttsEngine === "gemini") {
-            const appCfg = await storage.getAppConfig();
-            geminiApiKey = appCfg?.geminiApiKey ?? process.env.GEMINI_API_KEY ?? undefined;
-        }
-
-        const finalWordDuration = wordDuration ?? 0.6;
-
-        console.log('🔊 [Background] TTS config:', { ttsEnabled, ttsVoice, ttsEngine });
-
-        const ffmpegResult = await ffmpegService.processReelFromUrl(resolveInternalUrl(media.originalUrl), {
-            text: overlayText,
-            musicUrl: finalMusicUrl,
-            ttsEnabled,
-            ttsVoice,
-            ttsEngine,
-            geminiApiKey,
-            wordDuration: finalWordDuration,
-            fontSize,
-            musicVolume,
-            drawText,
-            stabilize,
-            watermarkUrl,
-            storeName,
-            enableEndingEffect,
-        });
-
-        console.log(`⏱️ [Background] FFmpeg took ${(Date.now() - startTime) / 1000}s`);
-
-        if (ffmpegResult.ttsError) {
-            console.error(`❌ [Background] TTS FAILED: ${ffmpegResult.ttsError}`);
-            await storage.updatePost(postId, { generationError: `TTS échoué: ${ffmpegResult.ttsError}` });
-        }
-
-        if (!ffmpegResult.success || !ffmpegResult.videoBase64) {
-            throw new Error(ffmpegResult.error || 'Erreur de traitement vidéo FFmpeg');
-        }
-
-        // 4. Upload sur Cloudinary
-        await updateProgress(65);
-        console.log('☁️ [Background] Uploading to Cloudinary...');
-        const videoBuffer = Buffer.from(ffmpegResult.videoBase64, 'base64');
-        const cloudinaryResult = await cloudinaryService.uploadMedia(
-            videoBuffer,
-            `reel-${Date.now()}.mp4`,
-            userId,
-            'video/mp4'
-        );
-        console.log('✅ [Background] Uploaded:', cloudinaryResult.originalUrl);
-
-        // 5. Créer l'enregistrement Media pour la vidéo traitée
-        // La vignette est extraite maintenant : la vidéo sera supprimée du disque
-        // après publication, mais l'historique doit rester illustré.
-        const thumbnailUrl = await createVideoThumbnail(videoBuffer);
-
-        const processedMedia = await storage.createMedia({
-            userId: userId,
-            type: 'video',
-            cloudinaryPublicId: cloudinaryResult.publicId,
-            originalUrl: cloudinaryResult.originalUrl,
-            facebookFeedUrl: cloudinaryResult.facebookFeedUrl || null,
-            instagramFeedUrl: cloudinaryResult.instagramFeedUrl || null,
-            instagramStoryUrl: cloudinaryResult.instagramStoryUrl || null,
-            thumbnailUrl,
-            fileName: `reel-processed-${Date.now()}.mp4`,
-            fileSize: videoBuffer.length,
-        });
-
-        // 6. Lier le média traité au Post existant
-        await storage.updatePostMedia(postId, [processedMedia.id]);
-        await updateProgress(85);
-
-        // 7. Publier sur les pages
-        await updateProgress(90);
-        const results: { pageId: string; success: boolean; reelId?: string; error?: string }[] = [];
-
-        for (const pageId of pageIds) {
-            try {
-                const page = await storage.getSocialPage(pageId);
-                if (!page) {
-                    results.push({ pageId, success: false, error: 'Page non trouvée' });
-                    continue;
-                }
-
-                if (page.platform !== 'facebook' && page.platform !== 'tiktok') {
-                    results.push({
-                        pageId,
-                        success: false,
-                        error: `Plateforme non supportée pour les reels : ${page.platform}`,
-                    });
-                    continue;
-                }
-
-                // Créer l'entrée scheduled_post (log de publication)
-                const scheduledPost = await storage.createScheduledPost({
-                    postId: postId,
-                    pageId: page.id,
-                    postType: 'reel',
-                    scheduledAt: scheduledFor ? new Date(scheduledFor) : new Date(),
-                });
-
-                if (!scheduledFor) {
-                    // Publication immédiate — la même vidéo part sur chaque destination
-                    console.log(`🚀 [Background] Publishing to ${page.platform} ${page.pageName}...`);
-                    const finalDescription = description || overlayText || '';
-
-                    if (page.platform === 'facebook') {
-                        const reelId = await facebookService.publishReel(
-                            page,
-                            cloudinaryResult.originalUrl,
-                            finalDescription
-                        );
-
-                        // Mise à jour succès
-                        await storage.updateScheduledPost(scheduledPost.id, {
-                            publishedAt: new Date(),
-                            externalPostId: reelId,
-                        });
-
-                        results.push({ pageId, success: true, reelId });
-                    } else {
-                        const publishId = await tiktokService.publishVideoFromBuffer(
-                            page,
-                            videoBuffer,
-                            finalDescription
-                        );
-
-                        // TikTok finalise la publication de son côté : on marque l'envoi
-                        // comme effectué pour ne pas republier, et le poller de statut
-                        // renseignera l'identifiant définitif du post.
-                        await storage.updateScheduledPost(scheduledPost.id, {
-                            publishedAt: new Date(),
-                            publishId,
-                            publishStatus: 'PROCESSING_UPLOAD',
-                        });
-
-                        results.push({ pageId, success: true, reelId: publishId });
-                    }
-                } else {
-                    // Planifié
-                    results.push({ pageId, success: true, reelId: 'scheduled' });
-                }
-
-            } catch (pageError: any) {
-                console.error(`❌ [Background] Error publishing to page ${pageId}:`, pageError);
-                results.push({
-                    pageId,
-                    success: false,
-                    error: pageError.message || 'Erreur inconnue',
-                });
-            }
-        }
-
-        // 8. Mettre à jour le statut global du Post
-        const allSuccess = results.every(r => r.success);
-        const anySuccess = results.some(r => r.success);
-
-        // Si au moins une réussite, on considère "published" (ou partial), sinon "failed"
-        // Si planifié, reste "scheduled".
-        let finalStatus: 'failed' | 'scheduled' | 'published' = 'failed';
-        if (scheduledFor) {
-            finalStatus = 'scheduled';
-        } else if (allSuccess) {
-            finalStatus = 'published';
-        } else if (anySuccess) {
-            finalStatus = 'published'; // Partiellement publié
-        }
-
-        await storage.updatePost(postId, {
-            status: finalStatus,
-        });
-        await updateProgress(100, 'completed');
-
-        console.log(`✅ [Background] Processing complete for Post ${postId}. Status: ${finalStatus}`);
-
-    } catch (error: any) {
-        console.error(`❌ [Background] Critical error for Post ${postId}:`, error);
-        await storage.updatePost(postId, {
-            status: 'failed',
-        });
-        try {
-            await storage.updatePostGenerationStatus(
-                postId, 'failed', 0,
-                error?.message || 'Erreur inconnue lors du traitement'
-            );
-        } catch (e) {
-            console.error(`⚠️ [Background] Failed to update error status for ${postId}:`, e);
-        }
-    } finally {
-        // IMPORTANT: Toujours vérifier la file d'attente à la fin (succès ou échec)
-        await checkQueueAndProcessNext();
-    }
-}
-
-/**
- * Créer et publier un Reel (Asynchrone avec File d'Attente)
+ * Créer et publier un Reel : le rendu part dans la file persistante.
  * POST /api/reels
  */
 reelsRouter.post('/reels', async (req: Request, res: Response) => {
     try {
         const user = req.user as User;
-        const {
-            videoMediaId,
-            musicTrackId,
-            musicUrl,
-            overlayText,
-            description,
-            ttsEnabled,
-            ttsVoice,
-            ttsEngine,
-            pageIds,
-            scheduledFor,
-            wordDuration = 0.6,
-            fontSize = 64,
-            musicVolume = 0.25,
-            drawText = true,
-            stabilize = false,
-            enableEndingEffect = true,
-        } = req.body;
-
-        // Validation immédiate
-        if (!videoMediaId) {
-            return res.status(400).json({ error: 'Vidéo requise' });
+        const parsed = videoReelParamsSchema.safeParse(req.body);
+        if (!parsed.success) {
+            return res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Paramètres invalides' });
         }
 
-        if (!pageIds || pageIds.length === 0) {
-            return res.status(400).json({ error: 'Au moins une page requise' });
-        }
+        const params: VideoReelParams = {
+            ...parsed.data,
+            storeName: await resolveStoreName(user.id, parsed.data.pageIds[0]),
+        };
 
-        // Vérifier le nombre de jobs en cours
-        const processingCount = await storage.countProcessingReels();
-        // MAX_CONCURRENT = 1
-        const isQueueBusy = processingCount >= 1;
+        const waiting = await countActiveReelJobs();
 
-        const initialStatus = isQueueBusy ? 'pending' : 'processing';
-        const initialMessage = isQueueBusy
-            ? "File d'attente pleine. Votre vidéo sera traitée dès que possible."
-            : "Traitement démarré en arrière-plan.";
-
-        // Récupérer le nom de la première page pour l'utiliser comme storeName
-        let storeName: string | undefined = undefined;
-        try {
-            const page = await storage.getSocialPage(pageIds[0]);
-            if (page) {
-                storeName = page.pageName;
-            }
-        } catch (e) {
-            console.error('Erreur récupération nom de page', e);
-        }
-
-        // Créer immédiatement le Post en base
-        // ON STOCKE LES PARAMS DU JOB DANS productInfo POUR POUVOIR LE REPRENDRE PLUS TARD
-        // C'est un hack car on n'a pas de table params_job, mais ça marche car productInfo est jsonb
         const post = await storage.createPost({
             userId: user.id,
-            content: description || overlayText || '',
+            content: params.description || params.overlayText || '',
             aiGenerated: 'false',
-            status: scheduledFor ? 'scheduled' : 'draft',
-            scheduledFor: scheduledFor ? new Date(scheduledFor) : undefined,
-            generationStatus: initialStatus,
+            status: params.scheduledFor ? 'scheduled' : 'draft',
+            scheduledFor: params.scheduledFor ? new Date(params.scheduledFor) : undefined,
+            generationStatus: 'pending',
             generationProgress: 0,
-            productInfo: req.body, // Stockage complet des paramètres
         });
 
-        console.log(`✨ Reel Request accepted. Post ID: ${post.id}. Status: ${initialStatus}`);
+        await enqueueReelJob({ kind: 'video', userId: user.id, postId: post.id, params });
+        console.log(`✨ Reel en file. Post ${post.id}, ${waiting} job(s) avant lui.`);
 
-        if (!isQueueBusy) {
-            // Démarrer le traitement en arrière-plan (Fire & Forget)
-            processReelBackground(user.id, post.id, req.body, storeName).catch(err => {
-                console.error('🔥 Unhandled background error:', err);
-            });
-        } else {
-            console.log(`⏳ [Queue] Worker busy (count=${processingCount}). Job ${post.id} is queued.`);
-        }
-
-        // Réponse immédiate au client
         res.json({
             success: true,
             postId: post.id,
-            message: initialMessage,
-            queued: isQueueBusy,
+            queued: waiting > 0,
+            message: waiting > 0
+                ? "File d'attente occupée. Votre vidéo sera traitée dès que possible."
+                : 'Traitement démarré en arrière-plan.',
             results: [],
-            videoUrl: ""
+            videoUrl: '',
         });
-
     } catch (error) {
         console.error('❌ Error initiating Reel:', error);
         res.status(500).json({
+            success: false,
             error: error instanceof Error ? error.message : 'Erreur lors de l\'initialisation du Reel',
         });
     }
