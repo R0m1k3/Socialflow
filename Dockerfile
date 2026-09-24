@@ -70,7 +70,7 @@ RUN rm -rf client/node_modules \
          /tmp/remotion-*
 
 # Pré-bundler la composition Remotion
-RUN node scripts/prebundle-remotion.js || true
+RUN node scripts/prebundle-remotion.mjs || true
 
 # Télécharger le Chrome headless shell de Remotion (binaire glibc natif sur Debian)
 RUN npx remotion browser ensure && echo "✓ Remotion browser prêt"

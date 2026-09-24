@@ -25,7 +25,10 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { VoicePicker, type VoiceSettings } from "@/components/reels/voice-picker";
+import { VoicePicker, isVoicePreviewCurrent, type VoicePreviewResult, type VoiceSettings } from "@/components/reels/voice-picker";
+import { CaptionStylePicker } from "@/components/reels/caption-style-picker";
+import { ReelPreview } from "@/components/reels/reel-preview";
+import { DEFAULT_CAPTION_STYLE, type CaptionStyle } from "@shared/captions";
 import { DEFAULT_TTS_STYLE, DEFAULT_VOICE } from "@shared/voices";
 import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
@@ -89,6 +92,11 @@ export default function NewReel() {
         style: DEFAULT_TTS_STYLE,
     });
     const { engine: ttsEngine, voice: ttsVoice, style: ttsStyle } = voiceSettings;
+    const [captionStyle, setCaptionStyle] = useState<CaptionStyle>(DEFAULT_CAPTION_STYLE);
+    // Dernière voix générée : l'aperçu l'utilise tant que texte et réglages n'ont pas changé
+    const [voicePreview, setVoicePreview] = useState<VoicePreviewResult | null>(null);
+    const currentVoice = isVoicePreviewCurrent(voicePreview, overlayText, voiceSettings) ? voicePreview : null;
+    const { data: reelConfig } = useQuery<{ logoUrl: string | null }>({ queryKey: ['/api/reels/config'] });
 
     // Enable TTS by default on mobile
     useEffect(() => {
@@ -245,10 +253,10 @@ export default function NewReel() {
         onSuccess: async (data) => {
             await queryClient.invalidateQueries({ queryKey: ['/api/scheduled-posts'], refetchType: 'all' });
             toast({
-                title: data.success ? "Reel créé !" : "Reel créé avec avertissements",
-                description: data.success
-                    ? "Votre Reel a été publié avec succès"
-                    : "Certaines pages ont échoué",
+                title: "Création du Reel lancée",
+                description: data.queued
+                    ? "Un autre Reel est en cours : le vôtre démarrera juste après. Suivez l'avancement sur le tableau de bord."
+                    : "Suivez l'avancement sur le tableau de bord.",
             });
             navigate('/');
         },
@@ -406,6 +414,7 @@ export default function NewReel() {
             ttsEngine,
             ttsVoice,
             ttsStyle,
+            captionStyle,
             drawText,
             stabilize: stabilize,
             enableEndingEffect,
@@ -783,6 +792,15 @@ export default function NewReel() {
                                                 </Label>
                                             </div>
 
+                                            {drawText && (
+                                                <div className="mt-3 ml-12">
+                                                    <Label className="text-sm font-medium">Style des sous-titres</Label>
+                                                    <div className="mt-2">
+                                                        <CaptionStylePicker value={captionStyle} onChange={setCaptionStyle} />
+                                                    </div>
+                                                </div>
+                                            )}
+
                                             <div className="flex items-center space-x-2 mt-4">
                                                 <Switch
                                                     id="enable-ending-effect"
@@ -817,6 +835,7 @@ export default function NewReel() {
                                                             value={voiceSettings}
                                                             onChange={setVoiceSettings}
                                                             sampleText={overlayText}
+                                                            onPreview={setVoicePreview}
                                                         />
                                                     </div>
 
@@ -962,31 +981,20 @@ export default function NewReel() {
                                 </CardHeader>
                                 <CardContent>
                                     {selectedVideo ? (
-                                        <div className="relative aspect-[9/16] bg-black rounded-lg overflow-hidden">
-                                            <video
-                                                src={selectedVideo.originalUrl}
-                                                className="w-full h-full object-cover"
-                                                muted
-                                                playsInline
-                                                loop
-                                                autoPlay
-                                            />
-                                            {overlayText && (
-                                                <div className="absolute inset-0 flex items-center justify-center p-4">
-                                                    <p className="text-white text-center text-lg font-bold drop-shadow-lg">
-                                                        {overlayText}
-                                                    </p>
-                                                </div>
-                                            )}
-                                            {selectedTrack && (
-                                                <div className="absolute bottom-4 left-4 right-4 bg-black/50 rounded-lg p-2 flex items-center gap-2">
-                                                    <Music className="w-4 h-4 text-white" />
-                                                    <span className="text-white text-sm truncate">
-                                                        {selectedTrack.title} - {selectedTrack.artist}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
+                                        <ReelPreview
+                                            kind="video"
+                                            videoUrl={selectedVideo.originalUrl}
+                                            text={overlayText}
+                                            showCaptions={drawText}
+                                            captionStyle={captionStyle}
+                                            ttsEnabled={ttsEnabled}
+                                            voice={currentVoice}
+                                            musicUrl={selectedTrack?.previewUrl}
+                                            musicVolume={musicVolume[0] / 100}
+                                            logoUrl={reelConfig?.logoUrl}
+                                            storeName={pages.find((p) => p.id === selectedPages[0])?.pageName}
+                                            endingEffect={enableEndingEffect}
+                                        />
                                     ) : (
                                         <div className="aspect-[9/16] bg-muted rounded-lg flex items-center justify-center">
                                             <div className="text-center text-muted-foreground">
@@ -1026,115 +1034,6 @@ export default function NewReel() {
                     </div >
                 </div >
             </main >
-            {/* Overlay de progression */}
-            < ProcessingOverlay
-                isVisible={createReelMutation.isPending}
-                stabilize={stabilize}
-                ttsEnabled={ttsEnabled}
-            />
         </div >
-    );
-}
-
-function ProcessingOverlay({ isVisible, stabilize, ttsEnabled }: { isVisible: boolean; stabilize: boolean; ttsEnabled: boolean }) {
-    const [progress, setProgress] = useState(0);
-    const [status, setStatus] = useState("Initialisation...");
-
-    useEffect(() => {
-        if (!isVisible) {
-            setProgress(0);
-            return;
-        }
-
-        setProgress(0);
-        setStatus("Préparation des fichiers...");
-
-        const timeouts: any[] = [];
-        let interval: any;
-
-        // Sequence de simulation
-        // 1. 2s: Téléchargement
-        timeouts.push(setTimeout(() => {
-            setStatus("Téléchargement des médias...");
-            setProgress(10);
-        }, 1500));
-
-        // 2. 4s: Audio/TTS
-        timeouts.push(setTimeout(() => {
-            setStatus(ttsEnabled ? "Génération de la voix IA..." : "Mixage audio...");
-            setProgress(25);
-        }, 3500));
-
-        // 3. 7s: Stabilisation ou Encodage
-        timeouts.push(setTimeout(() => {
-            if (stabilize) {
-                setStatus("Stabilisation vidéo (Traitement long)...");
-                setProgress(35);
-
-                // Progression lente : +1% toutes les 800ms
-                // Ça permet de couvrir ~45 secondes avant d'arriver à 90%
-                let p = 35;
-                interval = setInterval(() => {
-                    if (p < 90) {
-                        p++;
-                        setProgress(p);
-                    }
-                }, 800);
-            } else {
-                setStatus("Encodage optimisé...");
-                setProgress(40);
-
-                // Progression pour encodage standard (~10-15s)
-                let p = 40;
-                interval = setInterval(() => {
-                    if (p < 90) {
-                        p += 2;
-                        setProgress(p);
-                    }
-                }, 500);
-            }
-        }, 6500));
-
-        // Nettoyage
-        return () => {
-            timeouts.forEach(clearTimeout);
-            if (interval) clearInterval(interval);
-        };
-    }, [isVisible, stabilize, ttsEnabled]);
-
-    if (!isVisible) return null;
-
-    return (
-        <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center p-4 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="w-full max-w-md space-y-8 text-center">
-                <div className="relative w-24 h-24 mx-auto mb-8">
-                    <Loader2 className="w-full h-full text-primary animate-spin" />
-                    <div className="absolute inset-0 flex items-center justify-center font-bold text-xl">
-                        {progress}%
-                    </div>
-                </div>
-
-                <div className="space-y-4">
-                    <h3 className="text-2xl font-bold text-white tracking-tight">Création de votre Reel</h3>
-                    <p className="text-lg text-muted-foreground animate-pulse">
-                        {status}
-                    </p>
-                </div>
-
-                <div className="w-full h-2 bg-secondary/30 rounded-full overflow-hidden">
-                    <div
-                        className="h-full bg-primary transition-all duration-300 ease-out"
-                        style={{ width: `${progress}%` }}
-                    />
-                </div>
-
-                {stabilize && (
-                    <div className="flex items-center justify-center gap-2 text-sm text-yellow-500/80 bg-yellow-500/10 py-2 px-4 rounded-full mx-auto w-fit">
-                        <Sparkles className="w-4 h-4" />
-                        <span>Stabilisation activée : traitement prolongé</span>
-                    </div>
-                )}
-            </div>
-        </div>
     );
 }

@@ -1,21 +1,22 @@
-import { AbsoluteFill, Img, Sequence, useVideoConfig, useCurrentFrame, Html5Audio, spring, interpolate } from "remotion";
-
-export type WordTiming = {
-  word: string;
-  startFrame: number;
-  endFrame: number;
-};
+import React from "react";
+import { AbsoluteFill, Html5Audio, Img, Sequence, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import type { CaptionStyle, TimedWord } from "@shared/captions";
+import { Captions } from "./components/Captions";
+import { Outro, Watermark } from "./components/Branding";
 
 export type ImageCompositionProps = {
   images: string[];
-  overlayText?: string;
+  totalDuration: number;
+  /** Mots minutés depuis le début de la vidéo (la voix démarre à 0). */
+  words: TimedWord[];
+  captionStyle: CaptionStyle;
   audioUrl?: string;
-  wordTimings?: WordTiming[];
   musicUrl?: string;
   musicVolume?: number;
   logoUrl?: string;
   storeName?: string;
-  endingFrames?: number;
+  /** Durée de la diapositive de fin (logo + nom du magasin), en secondes. */
+  endingSeconds?: number;
 };
 
 /**
@@ -75,217 +76,45 @@ const ImageSlide: React.FC<{ src: string; effectIndex: number }> = ({ src, effec
   );
 };
 
-/**
- * CaptionGroup — renders a group of words (CapCut-style).
- * Active word is highlighted in yellow with glow; others are white.
- * Background: semi-transparent dark pill.
- */
-const CaptionGroup: React.FC<{
-  words: WordTiming[];
-  activeIdx: number;   // index within this group (0-3), -1 if none active
-  groupFirstFrame: number;
-  fps: number;
-}> = ({ words, activeIdx, groupFirstFrame, fps }) => {
-  const frame = useCurrentFrame();
-
-  // Fade in when this group first appears
-  const fadeIn = spring({
-    frame: frame - groupFirstFrame,
-    fps,
-    config: { damping: 30, stiffness: 120 },
-    durationInFrames: 10,
-  });
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "row",
-        flexWrap: "wrap",
-        justifyContent: "center",
-        alignItems: "center",
-        gap: "0 22px",
-        maxWidth: "90%",
-        opacity: fadeIn,
-      }}
-    >
-      {words.map((w, i) => {
-        const isActive = i === activeIdx;
-        return (
-          <span
-            key={i}
-            style={{
-              fontFamily: "'Arial Black', 'Impact', 'Helvetica Neue', sans-serif",
-              fontSize: isActive ? 82 : 74,
-              fontWeight: 900,
-              lineHeight: 1.15,
-              color: isActive ? "#FFE600" : "white",
-              textTransform: "uppercase",
-              textShadow: isActive
-                ? "0 0 30px rgba(255,230,0,0.6), 0 4px 24px rgba(0,0,0,0.95)"
-                : "0 3px 18px rgba(0,0,0,0.9)",
-              WebkitTextStroke: isActive ? "3px rgba(0,0,0,0.85)" : "2px rgba(0,0,0,0.75)",
-              display: "inline-block",
-              transform: isActive ? "scale(1.1)" : "scale(1)",
-              transition: "transform 0.05s",
-            }}
-          >
-            {w.word}
-          </span>
-        );
-      })}
-    </div>
-  );
-};
-
-export const ImageComposition = ({
-  images, audioUrl, wordTimings, musicUrl, musicVolume = 0.3,
-  logoUrl, storeName, endingFrames = 90,
-}: ImageCompositionProps) => {
+/** Reel à partir d'images : diaporama animé, voix, sous-titres et diapositive de fin. */
+export const ImageComposition: React.FC<ImageCompositionProps> = ({
+  images, words, captionStyle, audioUrl, musicUrl, musicVolume = 0.3, logoUrl, storeName, endingSeconds = 3,
+}) => {
   const { fps, durationInFrames } = useVideoConfig();
-  const frame = useCurrentFrame();
-
-  const hasEnding = !!(logoUrl || storeName);
-  const effectiveEndingFrames = hasEnding ? endingFrames : 0;
-  const contentFrames = durationInFrames - effectiveEndingFrames;
-  const durationPerImage = Math.floor(contentFrames / Math.max(images.length, 1));
-  const endingStart = contentFrames;
-
-  // Ending slide spring animation
-  const endingProgress = spring({
-    frame: frame - endingStart,
-    fps,
-    config: { damping: 20, stiffness: 80 },
-    durationInFrames: 30,
-  });
-
-  // Group words into sets of 3 for caption display
-  const WORDS_PER_GROUP = 3;
-  const activeWordIdx = wordTimings
-    ? wordTimings.findIndex(w => frame >= w.startFrame && frame < w.endFrame)
-    : -1;
-
-  // Only show caption when a word is actively being spoken
-  const renderCaption = frame < endingStart && activeWordIdx >= 0;
-
-  const groupIdx = activeWordIdx >= 0 ? Math.floor(activeWordIdx / WORDS_PER_GROUP) : 0;
-  const groupStart = groupIdx * WORDS_PER_GROUP;
-  const groupWords = wordTimings ? wordTimings.slice(groupStart, groupStart + WORDS_PER_GROUP) : [];
-  const activeIdxInGroup = activeWordIdx - groupStart;
-
-  // First frame of the current group (for fade-in)
-  const groupFirstFrame = groupWords.length > 0 ? groupWords[0].startFrame : 0;
+  const hasEnding = Boolean(logoUrl || storeName) && endingSeconds > 0;
+  const endingFrames = hasEnding ? Math.round(endingSeconds * fps) : 0;
+  const contentFrames = durationInFrames - endingFrames;
+  const perImage = Math.floor(contentFrames / Math.max(images.length, 1));
+  const endingStart = contentFrames / fps;
 
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
-      {/* Images — displayed immediately, no entrance transition */}
       {images.map((imgUrl, index) => (
-        <Sequence key={index} from={index * durationPerImage} durationInFrames={durationPerImage}>
+        <Sequence key={index} from={index * perImage} durationInFrames={perImage}>
           <ImageSlide src={imgUrl} effectIndex={index} />
         </Sequence>
       ))}
 
-      {/* TTS Audio */}
       {audioUrl && <Html5Audio src={audioUrl} />}
-
-      {/* Background music */}
-      {musicUrl && <Html5Audio src={musicUrl} volume={musicVolume} />}
-
-      {/* Caption overlay — CapCut style */}
-      {renderCaption && (
-        <AbsoluteFill
-          style={{
-            justifyContent: "flex-end",
-            alignItems: "center",
-            paddingBottom: 180,
-          }}
-        >
-          {/* Semi-transparent dark background pill */}
-          <div
-            style={{
-              backgroundColor: "rgba(0,0,0,0.55)",
-              borderRadius: 28,
-              paddingTop: 22,
-              paddingBottom: 22,
-              paddingLeft: 36,
-              paddingRight: 36,
-              maxWidth: "92%",
-              backdropFilter: "blur(4px)",
-            }}
-          >
-            <CaptionGroup
-              words={groupWords}
-              activeIdx={activeIdxInGroup}
-              groupFirstFrame={groupFirstFrame}
-              fps={fps}
-            />
-          </div>
-        </AbsoluteFill>
+      {musicUrl && (
+        <Html5Audio
+          src={musicUrl}
+          loop
+          volume={(frame) =>
+            (words.some((w) => frame / fps >= w.start - 0.2 && frame / fps <= w.end + 0.3)
+              ? musicVolume * 0.35
+              : musicVolume) *
+            interpolate(frame, [durationInFrames - fps, durationInFrames], [1, 0], {
+              extrapolateLeft: "clamp",
+              extrapolateRight: "clamp",
+            })
+          }
+        />
       )}
 
-      {/* Logo watermark — bottom right during content */}
-      {logoUrl && frame < endingStart && (
-        <AbsoluteFill style={{ justifyContent: "flex-end", alignItems: "flex-end", padding: 48 }}>
-          <Img
-            src={logoUrl}
-            style={{
-              width: 150,
-              height: 150,
-              objectFit: "contain",
-              opacity: 0.85,
-              borderRadius: 20,
-              filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.5))",
-            }}
-          />
-        </AbsoluteFill>
-      )}
-
-      {/* Ending slide — large centered logo + store name */}
-      {hasEnding && (
-        <Sequence from={endingStart} durationInFrames={effectiveEndingFrames}>
-          <AbsoluteFill
-            style={{
-              backgroundColor: "black",
-              justifyContent: "center",
-              alignItems: "center",
-              flexDirection: "column",
-              gap: 48,
-            }}
-          >
-            {logoUrl && (
-              <Img
-                src={logoUrl}
-                style={{
-                  width: 520,
-                  height: 520,
-                  objectFit: "contain",
-                  opacity: endingProgress,
-                  transform: `scale(${interpolate(endingProgress, [0, 1], [0.65, 1])})`,
-                  borderRadius: 32,
-                  filter: "drop-shadow(0 4px 32px rgba(255,255,255,0.2))",
-                }}
-              />
-            )}
-            {storeName && (
-              <div
-                style={{
-                  color: "white",
-                  fontSize: 90,
-                  fontFamily: "'Arial Black', Impact, sans-serif",
-                  fontWeight: 900,
-                  textAlign: "center",
-                  opacity: endingProgress,
-                  letterSpacing: 3,
-                  textShadow: "0 4px 24px rgba(255,255,255,0.2)",
-                  transform: `translateY(${interpolate(endingProgress, [0, 1], [30, 0])}px)`,
-                }}
-              >
-                {storeName}
-              </div>
-            )}
-          </AbsoluteFill>
-        </Sequence>
-      )}
+      <Captions words={words} style={captionStyle} hideAfter={hasEnding ? endingStart : null} />
+      {logoUrl && <Watermark logoUrl={logoUrl} until={hasEnding ? endingStart : null} />}
+      {hasEnding && <Outro start={endingStart} logoUrl={logoUrl} storeName={storeName} opaque />}
     </AbsoluteFill>
   );
 };

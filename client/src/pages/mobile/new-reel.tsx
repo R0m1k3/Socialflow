@@ -16,7 +16,10 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
-import { VoicePicker, type VoiceSettings } from "@/components/reels/voice-picker";
+import { VoicePicker, isVoicePreviewCurrent, type VoicePreviewResult, type VoiceSettings } from "@/components/reels/voice-picker";
+import { CaptionStylePicker } from "@/components/reels/caption-style-picker";
+import { ReelPreview } from "@/components/reels/reel-preview";
+import { DEFAULT_CAPTION_STYLE, type CaptionStyle } from "@shared/captions";
 import { DEFAULT_TTS_STYLE, DEFAULT_VOICE } from "@shared/voices";
 import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
@@ -67,6 +70,10 @@ export default function MobileNewReel() {
         style: DEFAULT_TTS_STYLE,
     });
     const { engine: ttsEngine, voice: ttsVoice, style: ttsStyle } = voiceSettings;
+    const [captionStyle, setCaptionStyle] = useState<CaptionStyle>(DEFAULT_CAPTION_STYLE);
+    const [voicePreview, setVoicePreview] = useState<VoicePreviewResult | null>(null);
+    const currentVoice = isVoicePreviewCurrent(voicePreview, overlayText, voiceSettings) ? voicePreview : null;
+    const { data: reelConfig } = useQuery<{ logoUrl: string | null }>({ queryKey: ['/api/reels/config'] });
 
     // État audio preview
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
@@ -203,8 +210,10 @@ export default function MobileNewReel() {
         onSuccess: async (data) => {
             await queryClient.invalidateQueries({ queryKey: ['/api/scheduled-posts'], refetchType: 'all' });
             toast({
-                title: data.success ? "Reel créé !" : "Attention",
-                description: data.success ? "Publication réussie" : "Certaines erreurs",
+                title: "Création du Reel lancée",
+                description: data.queued
+                    ? "Un autre Reel est en cours : le vôtre démarrera juste après."
+                    : "Suivez l'avancement sur l'accueil.",
             });
             navigate('/');
         },
@@ -264,6 +273,7 @@ export default function MobileNewReel() {
             ttsEngine,
             ttsVoice,
             ttsStyle,
+            captionStyle,
             enableEndingEffect,
         });
     };
@@ -456,6 +466,10 @@ export default function MobileNewReel() {
                                 className="text-lg"
                                 rows={3}
                             />
+                            <div className="space-y-1.5 mt-3">
+                                <Label className="text-xs font-medium">Style des sous-titres</Label>
+                                <CaptionStylePicker value={captionStyle} onChange={setCaptionStyle} compact />
+                            </div>
                             <div className="flex items-center space-x-2 mt-4">
                                 <Switch
                                     id="enable-ending-effect"
@@ -490,6 +504,7 @@ export default function MobileNewReel() {
                                             value={voiceSettings}
                                             onChange={setVoiceSettings}
                                             sampleText={overlayText}
+                                            onPreview={setVoicePreview}
                                             compact
                                         />
                                     </div>
@@ -524,6 +539,31 @@ export default function MobileNewReel() {
                 {/* PUBLISH STEP */}
                 {currentStep === 'publish' && (
                     <div className="space-y-6">
+                        {selectedVideo && (
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base">Aperçu</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="max-w-[260px] mx-auto">
+                                        <ReelPreview
+                                            kind="video"
+                                            videoUrl={selectedVideo.originalUrl}
+                                            text={overlayText}
+                                            showCaptions
+                                            captionStyle={captionStyle}
+                                            ttsEnabled={ttsEnabled}
+                                            voice={currentVoice}
+                                            musicUrl={selectedTrack?.previewUrl}
+                                            musicVolume={musicVolume[0] / 100}
+                                            logoUrl={reelConfig?.logoUrl}
+                                            storeName={pages.find((p) => p.id === selectedPages[0])?.pageName}
+                                            endingEffect={enableEndingEffect}
+                                        />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
                         <Card>
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base">Diffusion</CardTitle>

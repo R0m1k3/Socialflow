@@ -8,7 +8,8 @@ import { storage } from '../storage';
 import { ffmpegService, FFmpegServiceError } from '../services/ffmpeg';
 import { ttsPreviewSchema, videoReelParamsSchema, type VideoReelParams } from '@shared/reel';
 import { enqueueReelJob, countActiveReelJobs } from '../services/reels/queue';
-import { resolveGeminiApiKey, resolveStoreName } from '../services/reels/assets';
+import { resolveGeminiApiKey, resolveLogoPath, resolveStoreName } from '../services/reels/assets';
+import { configuredRenderer } from '../services/reels/videoPipeline';
 import { openRouterService, describeGenerationError } from '../services/openrouter';
 
 import { estimateVoiceTiming } from '../services/ttsSync';
@@ -378,12 +379,18 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
  */
 reelsRouter.get('/reels/config', async (req: Request, res: Response) => {
     try {
-        const ffmpegConfigured = await ffmpegService.healthCheck().catch(() => false);
+        const [ffmpegConfigured, logoUrl] = await Promise.all([
+            ffmpegService.healthCheck().catch(() => false),
+            resolveLogoPath(),
+        ]);
 
         res.json({
             jamendo: { configured: false },
             freesound: { configured: false },
             ffmpeg: { configured: ffmpegConfigured },
+            // Aperçu : logo affiché par le lecteur, moteur de rendu utilisé
+            logoUrl: logoUrl ?? null,
+            renderer: configuredRenderer(),
         });
     } catch (error) {
         console.error('❌ Error fetching Reels config:', error);

@@ -75,3 +75,29 @@ def test_big_logo_waits_for_the_end_of_the_voice():
     assert plan.logo_start == 6.8
     assert plan.total_duration == 9.3
     assert "gte(t,6.800)" in _graph(build_command(plan))
+
+
+def test_prepared_video_has_no_audio_and_final_duration():
+    from app.render import build_prepared_video_command
+
+    plan = RenderPlan(
+        video=Path("in.mp4"),
+        video_duration=6.0,
+        output=Path("out.mp4"),
+        voice=Path("v.wav"),
+        voice_duration=5.0,
+        outro_expected=True,
+    )
+    cmd = build_prepared_video_command(plan, Path("video.mp4"))
+    assert "-an" in cmd
+    assert cmd[cmd.index("-t") + 1] == "9.500"  # 2 s + 5 s de voix + 2,5 s d'effet de fin
+    assert plan.logo_start == 7.0
+
+
+def test_audio_mix_absent_without_any_sound():
+    from app.render import build_audio_mix_command
+
+    plan = RenderPlan(video=Path("in.mp4"), video_duration=6.0, output=Path("out.mp4"))
+    assert build_audio_mix_command(plan, Path("a.wav")) is None
+    plan.keep_original_audio = True
+    assert "loudnorm=I=-14" in " ".join(build_audio_mix_command(plan, Path("a.wav")))

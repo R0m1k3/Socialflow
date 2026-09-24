@@ -6,6 +6,10 @@
  * JSON, qui gonflait sa taille d'un tiers et la gardait entière en mémoire.
  */
 
+import fs from 'fs';
+import { Readable } from 'stream';
+import { pipeline } from 'stream/promises';
+import type { ReadableStream as WebReadableStream } from 'stream/web';
 import type { TtsEngine, TtsStyle } from '@shared/voices';
 
 /** Un rendu long (stabilisation + encodage) peut dépasser plusieurs minutes. */
@@ -34,6 +38,19 @@ export interface ReelRenderOptions {
 export interface ReelRenderResult {
     video: Buffer;
     duration: number;
+    ttsEngine?: string | null;
+    ttsVoice?: string | null;
+    warnings: string[];
+}
+
+/** Rendu préparé pour Remotion : fichiers déjà écrits sur le disque. */
+export interface PreparedReel {
+    videoPath: string;
+    audioPath: string | null;
+    totalDuration: number;
+    videoDuration: number;
+    logoStart: number | null;
+    words: TimedWord[];
     ttsEngine?: string | null;
     ttsVoice?: string | null;
     warnings: string[];
@@ -162,6 +179,86 @@ export class FFmpegService {
             this.call(`/jobs/${data.job_id}`, { method: 'DELETE', timeoutMs: HEALTH_TIMEOUT_MS })
                 .catch(() => { /* purgé plus tard par le service */ });
         }
+    }
+
+    /**
+     * Prépare un rendu Remotion : image recadrée à la durée finale et piste son
+     * finale, écrites dans `targetDir`, plus le minutage des mots.
+     */
+    async prepareReel(
+        videoUrl: string,
+        options: ReelRenderOptions & { hasLogo: boolean },
+        targetDir: string,
+    ): Promise<PreparedReel> {
+        const response = await this.call('/prepare-reel', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                video_url: videoUrl,
+                text: options.text,
+                music_url: options.musicUrl,
+                tts_enabled: options.ttsEnabled ?? false,
+                tts_voice: options.ttsVoice,
+                tts_engine: options.ttsEngine,
+                tts_style: options.ttsStyle,
+                gemini_api_key: options.geminiApiKey,
+                music_volume: options.musicVolume ?? 0.25,
+                draw_text: options.drawText ?? true,
+                stabilize: options.stabilize ?? false,
+                store_name: options.storeName,
+                enable_ending_effect: options.enableEndingEffect ?? true,
+                has_logo: options.hasLogo,
+            }),
+            timeoutMs: PROCESS_TIMEOUT_MS,
+        });
+        const data = await response.json() as {
+            job_id: string;
+            video_path: string;
+            audio_path: string | null;
+            total_duration: number;
+            video_duration: number;
+            logo_start: number | null;
+            words: TimedWord[];
+            tts_engine?: string | null;
+            tts_voice?: string | null;
+            warnings?: string[];
+        };
+
+        try {
+            await fs.promises.mkdir(targetDir, { recursive: true });
+            const videoPath = `${targetDir}/video.mp4`;
+            await this.downloadTo(data.video_path, videoPath);
+            let audioPath: string | null = null;
+            if (data.audio_path) {
+                audioPath = `${targetDir}/audio.wav`;
+                await this.downloadTo(data.audio_path, audioPath);
+            }
+            for (const warning of data.warnings ?? []) console.warn(`⚠️ [FFmpeg] ${warning}`);
+            return {
+                videoPath,
+                audioPath,
+                totalDuration: data.total_duration,
+                videoDuration: data.video_duration,
+                logoStart: data.logo_start,
+                words: data.words ?? [],
+                ttsEngine: data.tts_engine,
+                ttsVoice: data.tts_voice,
+                warnings: data.warnings ?? [],
+            };
+        } finally {
+            this.call(`/jobs/${data.job_id}`, { method: 'DELETE', timeoutMs: HEALTH_TIMEOUT_MS })
+                .catch(() => { /* purgé plus tard par le service */ });
+        }
+    }
+
+    /** Télécharge un fichier du service en flux, sans le charger en mémoire. */
+    private async downloadTo(servicePath: string, target: string): Promise<void> {
+        const response = await this.call(servicePath, { method: 'GET', timeoutMs: DOWNLOAD_TIMEOUT_MS });
+        if (!response.body) throw new FFmpegServiceError(`Réponse vide pour ${servicePath}`);
+        await pipeline(
+            Readable.fromWeb(response.body as unknown as WebReadableStream<Uint8Array>),
+            fs.createWriteStream(target),
+        );
     }
 
     async healthCheck(): Promise<boolean> {

@@ -5,6 +5,7 @@
  */
 
 import { z } from "zod";
+import { CAPTION_STYLES, DEFAULT_CAPTION_STYLE } from "./captions";
 import { TTS_ENGINES, TTS_STYLES } from "./voices";
 
 const optionalText = z
@@ -33,6 +34,7 @@ export const videoReelParamsSchema = z.object({
   fontSize: z.number().int().min(16).max(200).default(64),
   musicVolume: z.number().min(0).max(2).default(0.25),
   drawText: z.boolean().default(true),
+  captionStyle: z.enum(CAPTION_STYLES).default(DEFAULT_CAPTION_STYLE),
   stabilize: z.boolean().default(false),
   enableEndingEffect: z.boolean().default(true),
   // Déterminé par le serveur à partir de la première page, jamais par le client
@@ -52,6 +54,7 @@ export const imagesReelParamsSchema = z.object({
   ttsEngine: z.enum(TTS_ENGINES).optional(),
   ttsVoice: optionalText,
   ttsStyle: z.enum(TTS_STYLES).optional(),
+  captionStyle: z.enum(CAPTION_STYLES).default(DEFAULT_CAPTION_STYLE),
   storeName: z.string().optional(),
   // Fichiers temporaires à supprimer une fois le rendu terminé
   tempFiles: z.array(z.string()).default([]),

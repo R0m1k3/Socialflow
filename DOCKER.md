@@ -182,6 +182,10 @@ La stack se construit depuis les sources : `app` et `ffmpeg-api` ont une section
 - **Voix Gemini** : renseignez `GEMINI_API_KEY` (ou la clé dans l'application).
   Sans clé, la voix Edge gratuite est utilisée et un avertissement apparaît
   dans les logs.
+- **Moteur de rendu** : par défaut, les Reels vidéo sont montés par Remotion
+  (sous-titres animés, identiques à l'aperçu de l'application). En cas de
+  serveur trop lent, `REEL_RENDERER=ffmpeg` revient au rendu FFmpeg, plus
+  rapide. `RENDER_CONCURRENCY` limite le nombre d'onglets Chromium.
 - **Vérifier la version déployée** : au démarrage, les logs de `socialflow-app`
   affichent `[ReelQueue] Worker démarré`, et `socialflow-ffmpeg` répond
   `{"status":"ok","version":2}` sur `/health`.

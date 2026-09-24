@@ -6,113 +6,16 @@
 
 import fs from "fs";
 import path from "path";
-import { bundle } from "@remotion/bundler";
-import { renderMedia, selectComposition } from "@remotion/renderer";
+import { cleanCaptionText, computeImagesTiming } from "@shared/captions";
 import { imagesReelParamsSchema, type ImagesReelResult } from "@shared/reel";
-import { ffmpegService, type TimedWord } from "../ffmpeg";
+import { ffmpegService } from "../ffmpeg";
 import { generateVideoThumbnail } from "../thumbnail";
 import type { JobContext } from "./queue";
 import { resolveGeminiApiKey, resolveLogoPath } from "./assets";
+import { REMOTION_TEMP_DIR, localHttpUrl, tempFileUrl, toDataUrl } from "./remotionAssets";
+import { renderReelComposition } from "./remotionRenderer";
 
-export const REMOTION_TEMP_DIR = path.join(process.cwd(), "uploads", "temp");
-
-// Durées
-const FPS = 30;
-const ENDING_SECONDS = 3; // diapositive de fin (logo + nom du magasin)
-const MIN_CONTENT_SECONDS = 22; // total >= 25 s
-const MAX_CONTENT_SECONDS = 27; // total <= 30 s
-
-/** Bundle Remotion mis en cache : un seul bundle par processus. */
-let bundleCache: Promise<string> | null = null;
-
-function getBundle(): Promise<string> {
-  if (!bundleCache) {
-    // process.cwd() = /app dans Docker, racine du projet en dev
-    const entryPoint = path.resolve(process.cwd(), "client/src/remotion/index.ts");
-    console.log("📦 Bundling Remotion from:", entryPoint);
-    bundleCache = bundle({ entryPoint }).catch((error) => {
-      bundleCache = null; // réessayer au prochain rendu
-      throw error;
-    });
-  }
-  return bundleCache;
-}
-
-/** URL HTTP locale : l'audio est lu par Chromium, trop lourd pour une data URL. */
-function localHttpUrl(url: string): string {
-  if (!url.startsWith("/")) return url;
-  const port = process.env.PORT || "5555";
-  return `http://localhost:${port}${url}`;
-}
-
-const MIME_BY_EXT: Record<string, string> = {
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-};
-
-/**
- * Convertit un chemin local /uploads/... en data URL : Chromium dans Docker ne
- * lit pas http://localhost de façon fiable, les images sont donc embarquées.
- */
-async function toDataUrl(relativeUrl: string): Promise<string> {
-  if (!relativeUrl.startsWith("/uploads/")) return relativeUrl;
-  const uploadsRoot = path.join(process.cwd(), "uploads") + path.sep;
-  const filePath = path.resolve(process.cwd(), "." + relativeUrl);
-  if (!filePath.startsWith(uploadsRoot)) {
-    throw new Error(`Chemin d'image refusé : ${relativeUrl}`);
-  }
-  try {
-    const buffer = await fs.promises.readFile(filePath);
-    const ext = path.extname(filePath).slice(1).toLowerCase();
-    const mime = MIME_BY_EXT[ext] ?? "image/jpeg";
-    return `data:${mime};base64,${buffer.toString("base64")}`;
-  } catch {
-    console.warn(`⚠️ toDataUrl: fichier introuvable : ${filePath}`);
-    return relativeUrl;
-  }
-}
-
-/**
- * Retire hashtags et emojis avant la synthèse vocale. Les lettres accentuées
- * font partie du hashtag (#AménagementExtérieur est retiré en entier).
- */
-export function stripForTTS(text: string): string {
-  return text
-    .replace(/#[\wÀ-ɏḀ-ỿ]*/g, " ")
-    .replace(/[\uD800-\uDFFF][\uDC00-\uDFFF]/g, " ") // paires de substitution (la plupart des emojis)
-    .replace(/[☀-➿]/g, " ") // symboles divers
-    .replace(/[⬀-⯿]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-const EDGE_PUNCT = /^[.,!?;:…«»"'()\[\]]+|[.,!?;:…«»"'()\[\]]+$/g;
-
-export interface WordTiming {
-  word: string;
-  startFrame: number;
-  endFrame: number;
-}
-
-/**
- * Convertit le minutage réel des mots (en secondes, fourni par la voix) en
- * images. Chaque mot reste affiché jusqu'au début du suivant : pas de trou
- * pendant les respirations.
- */
-export function toWordTimings(words: TimedWord[], fps: number): WordTiming[] {
-  const timings = words
-    .map((w) => ({ word: w.text.replace(EDGE_PUNCT, "") || w.text, start: w.start, end: w.end }))
-    .filter((w) => w.word.trim());
-  return timings.map((w, i) => ({
-    word: w.word,
-    startFrame: Math.round(w.start * fps),
-    endFrame: Math.max(
-      Math.round(w.start * fps) + 1,
-      Math.round((i + 1 < timings.length ? timings[i + 1].start : w.end) * fps),
-    ),
-  }));
-}
+export { REMOTION_TEMP_DIR };
 
 export async function runImagesReelJob({ job, progress }: JobContext): Promise<ImagesReelResult> {
   const params = imagesReelParamsSchema.parse(job.params);
@@ -126,15 +29,15 @@ export async function runImagesReelJob({ job, progress }: JobContext): Promise<I
     const musicUrl = params.musicUrl ? localHttpUrl(params.musicUrl) : undefined;
     const { overlayText, storeName } = params;
 
-    // --- Voix ---
+    // --- Voix et minutage réel des mots ---
     let audioUrl: string | undefined;
-    let wordTimings: WordTiming[] | undefined;
+    let words: { text: string; start: number; end: number }[] = [];
     let audioDuration = 0;
 
-    const ttsText = overlayText ? stripForTTS(overlayText) : "";
-    if (params.ttsEnabled && overlayText && ttsText) {
+    const spokenText = overlayText ? cleanCaptionText(overlayText) : "";
+    if (params.ttsEnabled && spokenText) {
       await progress(15, "voice");
-      const voice = await ffmpegService.previewVoice(ttsText, {
+      const voice = await ffmpegService.previewVoice(spokenText, {
         voice: params.ttsVoice,
         engine: params.ttsEngine,
         style: params.ttsStyle,
@@ -142,52 +45,40 @@ export async function runImagesReelJob({ job, progress }: JobContext): Promise<I
       });
       for (const warning of voice.warnings) console.warn(`⚠️ [Reels] ${warning}`);
 
-      const audioFilename = `tts-${job.id}.mp3`;
-      const audioPath = path.join(REMOTION_TEMP_DIR, audioFilename);
+      const audioPath = path.join(REMOTION_TEMP_DIR, `tts-${job.id}.mp3`);
       await fs.promises.writeFile(audioPath, voice.audio);
       jobTempFiles.push(audioPath);
-      audioUrl = localHttpUrl(`/uploads/temp/${audioFilename}`);
+      audioUrl = tempFileUrl(audioPath);
       audioDuration = voice.duration;
-      wordTimings = toWordTimings(voice.words, FPS);
+      words = voice.words;
     }
 
-    // --- Durée : 25 à 30 s ---
-    const naturalContent = Math.max(audioDuration, images.length * 3);
-    const contentSeconds = Math.min(Math.max(naturalContent, MIN_CONTENT_SECONDS), MAX_CONTENT_SECONDS);
-    const endingFrames = logoUrl || storeName ? ENDING_SECONDS * FPS : 0;
-    const totalFrames = Math.round(contentSeconds * FPS) + endingFrames;
+    // --- Durée : 25 à 30 s (mêmes règles que l'aperçu) ---
+    const { total, endingSeconds } = computeImagesTiming({
+      imageCount: images.length,
+      voiceDuration: audioDuration,
+      hasEnding: Boolean(logoUrl || storeName),
+    });
 
     await progress(25, "render");
-    const serveUrl = await getBundle();
-    const inputProps = {
-      images,
-      overlayText,
-      audioUrl,
-      wordTimings,
-      musicUrl,
-      musicVolume: params.musicVolume,
-      logoUrl,
-      storeName,
-      endingFrames,
-    };
-    const composition = await selectComposition({ serveUrl, id: "ImageVideo", inputProps });
-
-    const outputFilename = `out-${job.id}.mp4`;
-    const outputLocation = path.join(REMOTION_TEMP_DIR, outputFilename);
+    const outputLocation = path.join(REMOTION_TEMP_DIR, `out-${job.id}.mp4`);
     let lastReported = 25;
-
-    await renderMedia({
-      composition: { ...composition, durationInFrames: totalFrames },
-      serveUrl,
-      codec: "h264",
+    await renderReelComposition({
+      compositionId: "ImageVideo",
       outputLocation,
-      inputProps,
-      chromiumOptions: {
-        disableWebSecurity: true,
-        ignoreCertificateErrors: true,
+      inputProps: {
+        images,
+        totalDuration: total,
+        words,
+        captionStyle: params.captionStyle,
+        audioUrl,
+        musicUrl,
+        musicVolume: params.musicVolume,
+        logoUrl,
+        storeName,
+        endingSeconds,
       },
-      concurrency: 1, // évite d'épuiser la mémoire du conteneur
-      onProgress: ({ progress: ratio }) => {
+      onProgress: (ratio) => {
         const pct = 25 + Math.floor(ratio * 70);
         if (pct >= lastReported + 5) {
           lastReported = pct;
@@ -196,16 +87,12 @@ export async function runImagesReelJob({ job, progress }: JobContext): Promise<I
       },
     });
 
-    const thumbnailFilename = outputFilename.replace(".mp4", "-thumb.jpg");
-    const thumbnailOk = await generateVideoThumbnail(
-      outputLocation,
-      path.join(REMOTION_TEMP_DIR, thumbnailFilename),
-      2,
-    );
+    const thumbnailPath = outputLocation.replace(/\.mp4$/, "-thumb.jpg");
+    const thumbnailOk = await generateVideoThumbnail(outputLocation, thumbnailPath, 2);
 
     return {
-      url: `/uploads/temp/${outputFilename}`,
-      thumbnailUrl: thumbnailOk ? `/uploads/temp/${thumbnailFilename}` : null,
+      url: `/uploads/temp/${path.basename(outputLocation)}`,
+      thumbnailUrl: thumbnailOk ? `/uploads/temp/${path.basename(thumbnailPath)}` : null,
     };
   } finally {
     // Images, musique importée et voix ne servent plus une fois le rendu fini

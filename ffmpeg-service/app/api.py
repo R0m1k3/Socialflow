@@ -74,6 +74,9 @@ class ReelRequest(BaseModel):
     draw_text: bool = True
     stabilize: bool = False
     enable_ending_effect: bool = True
+    # Préparation Remotion : le logo est composé par Remotion, mais sa présence
+    # allonge la vidéo pour laisser place à l'effet de fin.
+    has_logo: bool = False
     # Champs d'anciennes versions, acceptés et ignorés
     music_id: str | None = None
     word_duration: float | None = None
@@ -115,13 +118,23 @@ async def preview_tts(request: TtsRequest):
 
 @app.post("/process-reel", dependencies=[Depends(require_key)])
 async def process_reel(request: ReelRequest):
-    """Produit le Reel ; le MP4 se récupère ensuite via GET /files/{job_id}/output.mp4."""
+    """Rendu complet par FFmpeg ; le MP4 se récupère via GET /files/{job_id}/output.mp4."""
+    return await _guarded(_process, request)
+
+
+@app.post("/prepare-reel", dependencies=[Depends(require_key)])
+async def prepare_reel(request: ReelRequest):
+    """Prépare un rendu Remotion : image recadrée à la durée finale, piste son
+    finale et minutage des mots. Rien n'est incrusté dans l'image."""
+    return await _guarded(_prepare, request)
+
+
+async def _guarded(handler, request: ReelRequest) -> dict:
     job_id, workdir = jobs.new_job()
-    stats: dict[str, float] = {}
     started = time.monotonic()
     try:
         async with render_slot:
-            return await _process(request, job_id, workdir, stats, started)
+            return await handler(request, job_id, workdir, started)
     except HTTPException:
         jobs.remove_job(job_id)
         raise
@@ -140,7 +153,8 @@ async def get_file(job_id: str, name: str):
     path = jobs.job_file(job_id, name)
     if not path:
         raise HTTPException(status_code=404, detail="Fichier introuvable ou expiré")
-    return FileResponse(path, media_type="video/mp4" if name.endswith(".mp4") else None)
+    media_type = {"mp4": "video/mp4", "wav": "audio/wav"}.get(name.rsplit(".", 1)[-1])
+    return FileResponse(path, media_type=media_type)
 
 
 @app.delete("/jobs/{job_id}", dependencies=[Depends(require_key)])
@@ -185,8 +199,23 @@ async def _download(url: str, target: Path, what: str, required: bool) -> bool:
         return False
 
 
-async def _process(request: ReelRequest, job_id: str, workdir: Path, stats: dict, started: float) -> dict:
-    step = time.monotonic()
+class Stopwatch:
+    def __init__(self, started: float):
+        self.started = started
+        self.last = time.monotonic()
+        self.stats: dict[str, float] = {}
+
+    def lap(self, name: str) -> None:
+        now = time.monotonic()
+        self.stats[name] = round(now - self.last, 2)
+        self.last = now
+
+    def summary(self) -> dict[str, float]:
+        return {**self.stats, "total": round(time.monotonic() - self.started, 2)}
+
+
+async def _gather(request: ReelRequest, workdir: Path, clock: Stopwatch, *, fetch_logo: bool):
+    """Téléchargements, analyse, voix et stabilisation : communs aux deux modes."""
     video = workdir / "input.mp4"
     if request.video_base64:
         video.write_bytes(base64.b64decode(request.video_base64))
@@ -200,21 +229,21 @@ async def _process(request: ReelRequest, job_id: str, workdir: Path, stats: dict
         request.music_url, music, "la musique", required=False
     )
     watermark = workdir / "watermark.png"
-    has_watermark = bool(request.watermark_url) and await _download(
-        request.watermark_url, watermark, "le logo", required=False
+    has_watermark = (
+        fetch_logo
+        and bool(request.watermark_url)
+        and await _download(request.watermark_url, watermark, "le logo", required=False)
     )
     info = await proc.probe(video)
     if info.duration <= 0:
         raise HTTPException(status_code=400, detail="Vidéo illisible (durée nulle)")
-    stats["download"] = time.monotonic() - step
+    clock.lap("download")
 
-    # --- Voix ---
-    step = time.monotonic()
     track = None
     spoken_text = clean_text(request.text)
     if request.tts_enabled and spoken_text:
         track = await _synthesize(spoken_text, request.text, request, workdir)
-    stats["tts"] = time.monotonic() - step
+    clock.lap("tts")
 
     plan = render.RenderPlan(
         video=video,
@@ -226,30 +255,11 @@ async def _process(request: ReelRequest, job_id: str, workdir: Path, stats: dict
         voice=track.path if track else None,
         voice_duration=track.duration if track else 0.0,
         watermark=watermark if has_watermark else None,
+        outro_expected=not fetch_logo and request.has_logo,
         ending_effect=request.enable_ending_effect,
         keep_original_audio=info.has_audio,
     )
 
-    # --- Sous-titres ---
-    step = time.monotonic()
-    font_size = max(48, round(request.font_size * 1.4))
-    display = clean_text(request.text)
-    if request.draw_text and display:
-        captions = workdir / "captions.ass"
-        if track:
-            subtitles.write_captions(track.words, captions, offset=plan.voice_delay, font_size=font_size)
-        else:
-            words = await _caption_words_without_voice(display, video, info, plan)
-            subtitles.write_captions(words, captions, offset=0.0, font_size=font_size)
-        plan.captions = captions
-    if request.store_name and request.enable_ending_effect and has_watermark:
-        outro = workdir / "outro.ass"
-        subtitles.write_outro(request.store_name, outro, plan.logo_start, plan.total_duration)
-        plan.outro = outro
-    stats["subtitles"] = time.monotonic() - step
-
-    # --- Stabilisation (1re passe) ---
-    step = time.monotonic()
     if request.stabilize:
         transforms = workdir / "transforms.trf"
         try:
@@ -257,36 +267,95 @@ async def _process(request: ReelRequest, job_id: str, workdir: Path, stats: dict
             plan.stabilize_transforms = transforms
         except proc.CommandError as error:
             log.warning("Stabilisation ignorée : %s", error)
-    stats["stabilize"] = time.monotonic() - step
+    clock.lap("stabilize")
+    return plan, track, info
 
-    # --- Encodage ---
-    step = time.monotonic()
-    await proc.run(render.build_command(plan), timeout=1200)
-    stats["encode"] = time.monotonic() - step
-    stats["total"] = time.monotonic() - started
 
-    duration = (await proc.probe(plan.output)).duration
-    log.info(
-        "Rendu %s terminé : %.1f s de vidéo, étapes %s",
-        job_id,
-        duration,
-        {k: round(v, 1) for k, v in stats.items()},
-    )
+async def _caption_words(request: ReelRequest, plan: render.RenderPlan, track, info) -> list[align.Word]:
+    """Mots à afficher, en secondes depuis le début de la vidéo."""
+    display = clean_text(request.text)
+    if not request.draw_text or not display:
+        return []
+    if track:
+        return [align.Word(w.text, w.start + plan.voice_delay, w.end + plan.voice_delay) for w in track.words]
+    return await _caption_words_without_voice(display, plan.video, info, plan)
 
-    # Seul le résultat est conservé jusqu'au téléchargement
+
+def _keep_only(workdir: Path, keep: set[Path]) -> None:
+    """Seuls les fichiers à télécharger restent jusqu'à la récupération."""
     for entry in workdir.iterdir():
-        if entry != plan.output:
+        if entry not in keep:
             entry.unlink(missing_ok=True)
 
+
+def _voice_info(track) -> dict:
+    return {
+        "tts_engine": track.engine if track else None,
+        "tts_voice": track.voice if track else None,
+        "warnings": track.warnings if track else [],
+    }
+
+
+async def _process(request: ReelRequest, job_id: str, workdir: Path, started: float) -> dict:
+    clock = Stopwatch(started)
+    plan, track, info = await _gather(request, workdir, clock, fetch_logo=True)
+
+    words = await _caption_words(request, plan, track, info)
+    if words:
+        captions = workdir / "captions.ass"
+        font_size = max(48, round(request.font_size * 1.4))
+        subtitles.write_captions(words, captions, offset=0.0, font_size=font_size)
+        plan.captions = captions
+    if request.store_name and plan.has_outro and plan.watermark:
+        outro = workdir / "outro.ass"
+        subtitles.write_outro(request.store_name, outro, plan.logo_start, plan.total_duration)
+        plan.outro = outro
+    clock.lap("subtitles")
+
+    await proc.run(render.build_command(plan), timeout=1200)
+    clock.lap("encode")
+    duration = (await proc.probe(plan.output)).duration
+    log.info("Rendu %s terminé : %.1f s de vidéo, étapes %s", job_id, duration, clock.summary())
+
+    _keep_only(workdir, {plan.output})
     return {
         "success": True,
         "job_id": job_id,
         "output_path": f"/files/{job_id}/output.mp4",
         "duration": duration,
-        "tts_engine": track.engine if track else None,
-        "tts_voice": track.voice if track else None,
-        "warnings": track.warnings if track else [],
-        "processing_stats": stats,
+        **_voice_info(track),
+        "processing_stats": clock.summary(),
+    }
+
+
+async def _prepare(request: ReelRequest, job_id: str, workdir: Path, started: float) -> dict:
+    clock = Stopwatch(started)
+    plan, track, info = await _gather(request, workdir, clock, fetch_logo=False)
+    words = await _caption_words(request, plan, track, info)
+    clock.lap("subtitles")
+
+    video_out = workdir / "video.mp4"
+    audio_out = workdir / "audio.wav"
+    await proc.run(render.build_prepared_video_command(plan, video_out), timeout=1200)
+    clock.lap("video")
+    mix = render.build_audio_mix_command(plan, audio_out)
+    if mix:
+        await proc.run(mix, timeout=600)
+    clock.lap("audio")
+    log.info("Préparation %s terminée : %.1f s, étapes %s", job_id, plan.total_duration, clock.summary())
+
+    _keep_only(workdir, {video_out, audio_out})
+    return {
+        "success": True,
+        "job_id": job_id,
+        "video_path": f"/files/{job_id}/video.mp4",
+        "audio_path": f"/files/{job_id}/audio.wav" if mix else None,
+        "total_duration": plan.total_duration,
+        "video_duration": info.duration,
+        "logo_start": plan.logo_start if plan.has_outro else None,
+        "words": [w.to_dict() for w in words],
+        **_voice_info(track),
+        "processing_stats": clock.summary(),
     }
 
 
@@ -300,5 +369,5 @@ async def _caption_words_without_voice(display: str, video: Path, info, plan: re
                 return align.align_words(display, spoken, info.duration)
         except Exception as error:  # noqa: BLE001 — on retombe sur la répartition
             log.warning("Transcription de la vidéo impossible : %s", error)
-    end = plan.logo_start if plan.ending_effect and plan.watermark else plan.total_duration
+    end = plan.logo_start if plan.has_outro else plan.total_duration
     return align.align_words(display, [], max(1.0, end - 0.5))

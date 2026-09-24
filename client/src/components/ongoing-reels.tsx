@@ -4,16 +4,20 @@ import { Progress } from "@/components/ui/progress";
 import { Clapperboard, Loader2, CheckCircle2, XCircle } from "lucide-react";
 import type { Post } from "@shared/schema";
 
-/** Labels for each progress stage */
-function getStageLabel(progress: number, status?: string): string {
-    if (status === 'pending') return "En attente de traitement...";
-    if (progress <= 5) return "Démarrage du traitement…";
-    if (progress <= 15) return "Traitement vidéo (FFmpeg)…";
-    if (progress <= 65) return "Encodage en cours…";
-    if (progress <= 85) return "Upload vers le cloud…";
-    if (progress <= 90) return "Liaison du média…";
-    if (progress <= 95) return "Publication en cours…";
-    return "Finalisation…";
+type OngoingReel = Post & { generationStep?: string | null };
+
+/** Libellé de l'étape en cours, telle que rapportée par la file de rendu. */
+const STEP_LABELS: Record<string, string> = {
+    prepare: "Préparation…",
+    voice: "Voix et préparation de la vidéo…",
+    render: "Montage : sous-titres, logo, effets…",
+    store: "Enregistrement dans la médiathèque…",
+    publish: "Publication…",
+};
+
+function getStageLabel(post: OngoingReel): string {
+    if (post.generationStatus === "pending") return "En attente : un autre Reel est en cours…";
+    return (post.generationStep && STEP_LABELS[post.generationStep]) || "Démarrage du traitement…";
 }
 
 interface OngoingReelsProps {
@@ -22,12 +26,13 @@ interface OngoingReelsProps {
 }
 
 export default function OngoingReels({ compact = false }: OngoingReelsProps) {
-    const { data: ongoingPosts = [] } = useQuery<Post[]>({
+    const { data: ongoingPosts = [] } = useQuery<OngoingReel[]>({
         queryKey: ["/api/reels/ongoing"],
         // Cette route ne renvoie que les générations en cours : tant qu'elle est
         // vide il n'y a pas de barre de progression à animer. On garde une veille
         // lente, qui suffit à détecter une génération lancée depuis un autre écran.
-        refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 3000 : 30000),
+        refetchInterval: (query) =>
+            (query.state.data ?? []).some((p) => p.generationStatus !== "failed") ? 3000 : 30000,
     });
 
     // Nothing to show — render nothing (not even a card)
@@ -43,8 +48,12 @@ export default function OngoingReels({ compact = false }: OngoingReelsProps) {
         >
             <CardHeader className={compact ? "pb-2 px-4 pt-4" : ""}>
                 <CardTitle className={`flex items-center gap-2 ${compact ? "text-base" : ""}`}>
-                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                    Génération en cours
+                    {ongoingPosts.some((p) => p.generationStatus !== "failed") ? (
+                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    ) : (
+                        <XCircle className="w-5 h-5 text-destructive" />
+                    )}
+                    Reels en cours
                 </CardTitle>
             </CardHeader>
             <CardContent className={compact ? "px-4 pb-4 pt-0" : ""}>
@@ -73,8 +82,8 @@ export default function OngoingReels({ compact = false }: OngoingReelsProps) {
                                     {isFailed ? (
                                         <div className="flex items-center gap-1.5 mt-2 text-destructive">
                                             <XCircle className="w-4 h-4" />
-                                            <span className="text-xs">
-                                                {post.generationError || "Erreur lors du traitement"}
+                                            <span className="text-xs break-words">
+                                                Échec : {post.generationError || "erreur lors du traitement"}
                                             </span>
                                         </div>
                                     ) : (
@@ -87,7 +96,7 @@ export default function OngoingReels({ compact = false }: OngoingReelsProps) {
                                             </div>
                                             <div className="flex items-center justify-between mt-1.5">
                                                 <span className="text-xs text-muted-foreground">
-                                                    {getStageLabel(progress)}
+                                                    {getStageLabel(post)}
                                                 </span>
                                                 <span className="text-xs font-medium text-primary">
                                                     {progress}%

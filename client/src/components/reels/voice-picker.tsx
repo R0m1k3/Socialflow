@@ -20,11 +20,36 @@ import {
   type TtsEngine,
   type TtsStyle,
 } from "@shared/voices";
+import type { TimedWord } from "@shared/captions";
 
 export interface VoiceSettings {
   engine: TtsEngine;
   voice: string;
   style: TtsStyle;
+}
+
+/** Voix générée par « Tester la voix », réutilisée par l'aperçu vidéo. */
+export interface VoicePreviewResult {
+  audioUrl: string;
+  duration: number;
+  words: TimedWord[];
+  /** Texte et réglages ayant servi : l'aperçu n'est valable que s'ils n'ont pas changé. */
+  text: string;
+  settings: VoiceSettings;
+}
+
+export function isVoicePreviewCurrent(
+  preview: VoicePreviewResult | null,
+  text: string,
+  settings: VoiceSettings,
+): preview is VoicePreviewResult {
+  return (
+    !!preview &&
+    preview.text === text.trim() &&
+    preview.settings.engine === settings.engine &&
+    preview.settings.voice === settings.voice &&
+    preview.settings.style === settings.style
+  );
 }
 
 interface VoicePickerProps {
@@ -33,6 +58,8 @@ interface VoicePickerProps {
   /** Texte lu par le bouton « Tester la voix ». */
   sampleText?: string;
   compact?: boolean;
+  /** Appelé avec la voix générée (audio et minutage des mots). */
+  onPreview?: (result: VoicePreviewResult) => void;
 }
 
 const FALLBACK_SAMPLE = "Découvrez nos nouveautés en magasin, on vous attend !";
@@ -41,7 +68,7 @@ const FALLBACK_SAMPLE = "Découvrez nos nouveautés en magasin, on vous attend !
  * Choix du moteur, de la voix et du ton, avec écoute de l'aperçu.
  * Partagé par les pages Reel (vidéo et images, bureau et mobile).
  */
-export function VoicePicker({ value, onChange, sampleText, compact = false }: VoicePickerProps) {
+export function VoicePicker({ value, onChange, sampleText, compact = false, onPreview }: VoicePickerProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [playing, setPlaying] = useState(false);
@@ -68,8 +95,9 @@ export function VoicePicker({ value, onChange, sampleText, compact = false }: Vo
     if (playing) return stop();
     setLoading(true);
     try {
+      const text = sampleText?.trim() || FALLBACK_SAMPLE;
       const response = await apiRequest("POST", "/api/reels/tts-preview", {
-        text: sampleText?.trim() || FALLBACK_SAMPLE,
+        text,
         ttsEngine: value.engine,
         ttsVoice: value.voice,
         ttsStyle: value.style,
@@ -78,7 +106,11 @@ export function VoicePicker({ value, onChange, sampleText, compact = false }: Vo
       for (const warning of data.warnings ?? []) {
         toast({ title: "Voix de secours utilisée", description: warning });
       }
-      const audio = new Audio(`data:audio/mpeg;base64,${data.audioBase64}`);
+      const audioUrl = `data:audio/mpeg;base64,${data.audioBase64}`;
+      if (sampleText?.trim()) {
+        onPreview?.({ audioUrl, duration: data.duration, words: data.words ?? [], text, settings: value });
+      }
+      const audio = new Audio(audioUrl);
       audioRef.current?.pause();
       audioRef.current = audio;
       audio.onended = () => setPlaying(false);

@@ -3,6 +3,7 @@ import {
   socialPages,
   media,
   posts,
+  reelJobs,
   postMedia,
   scheduledPosts,
   aiGenerations,
@@ -44,7 +45,7 @@ import {
   type InsertFacebookConfig,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, gte, lte, desc, asc, isNull, isNotNull, inArray, notInArray, getTableColumns, sql, type SQL } from "drizzle-orm";
+import { eq, and, or, gte, lte, desc, asc, isNull, isNotNull, inArray, notInArray, getTableColumns, sql, type SQL } from "drizzle-orm";
 import { encrypt, decrypt, isEncrypted } from "./utils/encryption";
 
 /**
@@ -147,7 +148,7 @@ export interface IStorage {
   getPosts(userId: string): Promise<Post[]>;
   getPost(id: string): Promise<Post | undefined>;
   getPostWithMedia(id: string): Promise<{ post: Post; media: Media[] } | undefined>;
-  getOngoingReelPosts(userId: string): Promise<Post[]>;
+  getOngoingReelPosts(userId: string): Promise<(Post & { generationStep: string | null })[]>;
   createPost(post: InsertPost): Promise<Post>;
   updatePost(id: string, post: Partial<InsertPost>): Promise<Post>;
   updatePostGenerationStatus(id: string, status: string, progress: number, error?: string): Promise<Post>;
@@ -551,21 +552,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   /**
-   * Reels dont la génération est en cours. Filtré en SQL : la route chargeait
-   * tous les posts de l'utilisateur pour n'en garder qu'une poignée, toutes les
-   * trois secondes.
+   * Reels dont la génération est en cours, plus ceux qui ont échoué dans les
+   * dernières 24 h (pour que l'utilisateur en voie la cause), avec l'étape
+   * courante du rendu. Filtré en SQL : la route est interrogée toutes les
+   * trois secondes pendant un rendu.
    */
-  async getOngoingReelPosts(userId: string): Promise<Post[]> {
-    return await db
+  async getOngoingReelPosts(userId: string): Promise<(Post & { generationStep: string | null })[]> {
+    const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const rows = await db
       .select()
       .from(posts)
       .where(
         and(
           eq(posts.userId, userId),
-          inArray(posts.generationStatus, ['processing', 'pending'])
+          or(
+            inArray(posts.generationStatus, ['processing', 'pending']),
+            and(eq(posts.generationStatus, 'failed'), gte(posts.updatedAt, since), isNotNull(posts.generationError)),
+          ),
         )
       )
       .orderBy(desc(posts.createdAt));
+    if (rows.length === 0) return [];
+
+    const jobs = await db
+      .select({ postId: reelJobs.postId, step: reelJobs.step })
+      .from(reelJobs)
+      .where(inArray(reelJobs.postId, rows.map((p) => p.id)));
+    const stepByPost = new Map(jobs.map((j) => [j.postId, j.step]));
+    return rows.map((post) => ({ ...post, generationStep: stepByPost.get(post.id) ?? null }));
   }
 
   // AI Generations

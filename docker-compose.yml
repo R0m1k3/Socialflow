@@ -52,6 +52,11 @@ services:
       # Configuration FFmpeg Service
       FFMPEG_API_URL: http://ffmpeg-api:8000
       FFMPEG_API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
+      # Rendu des Reels vidéo : remotion (sous-titres animés, identique à
+      # l'aperçu) ou ffmpeg (plus rapide, sous-titres classiques)
+      REEL_RENDERER: ${REEL_RENDERER:-remotion}
+      # Onglets Chromium en parallèle pour Remotion (défaut : moitié des cœurs)
+      RENDER_CONCURRENCY: ${RENDER_CONCURRENCY:-}
     networks:
       - internal
       - nginx_default

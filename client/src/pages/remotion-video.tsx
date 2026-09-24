@@ -1,8 +1,11 @@
-import { useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import Sidebar from "@/components/sidebar";
 import TopBar from "@/components/topbar";
 import { useToast } from "@/hooks/use-toast";
-import { VoicePicker, type VoiceSettings } from "@/components/reels/voice-picker";
+import { VoicePicker, isVoicePreviewCurrent, type VoicePreviewResult, type VoiceSettings } from "@/components/reels/voice-picker";
+import { CaptionStylePicker } from "@/components/reels/caption-style-picker";
+import { ReelPreview } from "@/components/reels/reel-preview";
+import { DEFAULT_CAPTION_STYLE, type CaptionStyle } from "@shared/captions";
 import { DEFAULT_TTS_STYLE, DEFAULT_VOICE } from "@shared/voices";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -51,12 +54,24 @@ export default function RemotionVideoPage() {
   const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
   const [publishDescription, setPublishDescription] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
+  const [captionStyle, setCaptionStyle] = useState<CaptionStyle>(DEFAULT_CAPTION_STYLE);
+  const [voicePreview, setVoicePreview] = useState<VoicePreviewResult | null>(null);
+  const [renderProgress, setRenderProgress] = useState(0);
+  const currentVoice = isVoicePreviewCurrent(voicePreview, overlayText, voiceSettings) ? voicePreview : null;
+  const { data: reelConfig } = useQuery<{ logoUrl: string | null }>({ queryKey: ['/api/reels/config'] });
   const audioRef = useRef<HTMLAudioElement>(null);
   const { toast } = useToast();
 
   const { data: allMedia = [] } = useQuery<Media[]>({ queryKey: ['/api/media'] });
   const { data: audioTracks = [], isLoading: tracksLoading } = useQuery<AudioTrack[]>({ queryKey: ['/api/audio-tracks'] });
   const { data: socialPages = [] } = useQuery<SocialPage[]>({ queryKey: ['/api/pages'] });
+
+  // Aperçu : URL locales des fichiers choisis, libérées quand ils changent
+  const uploadedImageUrls = useMemo(() => images.map((file) => URL.createObjectURL(file)), [images]);
+  useEffect(() => () => uploadedImageUrls.forEach((url) => URL.revokeObjectURL(url)), [uploadedImageUrls]);
+  const musicFileUrl = useMemo(() => (musicFile ? URL.createObjectURL(musicFile) : undefined), [musicFile]);
+  useEffect(() => () => { if (musicFileUrl) URL.revokeObjectURL(musicFileUrl); }, [musicFileUrl]);
+  const previewImages = [...selectedLibraryImages.map((m) => m.originalUrl), ...uploadedImageUrls];
 
   const facebookPages = socialPages.filter(p => p.platform === 'facebook');
   const tiktokAccounts = socialPages.filter(p => p.platform === 'tiktok');
@@ -108,6 +123,7 @@ export default function RemotionVideoPage() {
   const handleGenerate = async () => {
     if (totalSelected < 3) { toast({ title: "Minimum 3 images requises.", variant: "destructive" }); return; }
     setIsRendering(true);
+    setRenderProgress(0);
     setVideoUrl(null);
     try {
       const formData = new FormData();
@@ -118,6 +134,7 @@ export default function RemotionVideoPage() {
       formData.append("ttsEngine", voiceSettings.engine);
       formData.append("ttsVoice", voiceSettings.voice);
       formData.append("ttsStyle", voiceSettings.style);
+      formData.append("captionStyle", captionStyle);
       if (selectedPageIds[0]) formData.append("selectedPageId", selectedPageIds[0]);
       if (musicFile) { formData.append("music", musicFile); formData.append("musicVolume", String(musicVolume)); }
       else if (selectedTrack) { formData.append("musicTrackUrl", selectedTrack.url); formData.append("musicVolume", String(musicVolume)); }
@@ -146,6 +163,7 @@ export default function RemotionVideoPage() {
               toast({ title: "Erreur de rendu", description: job.error || "Échec du rendu", variant: "destructive" });
               setIsRendering(false);
             } else {
+              setRenderProgress(job.progress ?? 0);
               setTimeout(checkStatus, 3000);
             }
           } catch (e: any) {
@@ -268,6 +286,10 @@ export default function RemotionVideoPage() {
           )}
           <Textarea placeholder="Votre texte overlay..." value={overlayText}
             onChange={e => setOverlayText(e.target.value)} rows={3} />
+          <div className="space-y-1.5">
+            <Label className="text-sm font-medium">Style des sous-titres</Label>
+            <CaptionStylePicker value={captionStyle} onChange={setCaptionStyle} />
+          </div>
           <div className="flex items-center gap-3">
             <Switch id="tts" checked={ttsEnabled} onCheckedChange={setTtsEnabled} />
             <Label htmlFor="tts">Activer la voix TTS</Label>
@@ -276,7 +298,7 @@ export default function RemotionVideoPage() {
             <div className="space-y-3 p-3 bg-muted/30 rounded-lg border">
               <p className="text-sm text-muted-foreground">TTS — voix activée</p>
 
-              <VoicePicker value={voiceSettings} onChange={setVoiceSettings} sampleText={overlayText} />
+              <VoicePicker value={voiceSettings} onChange={setVoiceSettings} sampleText={overlayText} onPreview={setVoicePreview} />
             </div>
           )}
         </CardContent>
@@ -379,10 +401,37 @@ export default function RemotionVideoPage() {
         </CardContent>
       </Card>
 
+      {/* Aperçu en direct */}
+      {previewImages.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Aperçu</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="max-w-[300px] mx-auto">
+              <ReelPreview
+                kind="images"
+                images={previewImages}
+                text={overlayText}
+                showCaptions
+                captionStyle={captionStyle}
+                ttsEnabled={ttsEnabled}
+                voice={currentVoice}
+                musicUrl={musicFileUrl ?? selectedTrack?.url}
+                musicVolume={musicVolume}
+                logoUrl={reelConfig?.logoUrl}
+                storeName={socialPages.find((p) => p.id === selectedPageIds[0])?.pageName ?? socialPages[0]?.pageName}
+                endingEffect
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Générer */}
       <Button onClick={handleGenerate} disabled={isRendering || totalSelected < 3} className="w-full" size="lg">
         {isRendering
-          ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Génération en cours (1-2 min)...</>
+          ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> {renderProgress > 0 ? `Rendu en cours… ${renderProgress} %` : "Préparation (voix, images)…"}</>
           : <><Video className="mr-2 h-4 w-4" /> Générer la vidéo</>}
       </Button>
 
