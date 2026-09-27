@@ -47,7 +47,8 @@ export async function runVideoReelJob({ job, progress }: JobContext) {
   ]);
 
   const options: ReelRenderOptions = {
-    text: params.overlayText,
+    text: params.srtCues ? undefined : params.overlayText,
+    srtCues: params.srtCues,
     musicUrl,
     ttsEnabled: params.ttsEnabled,
     ttsVoice: params.ttsVoice,

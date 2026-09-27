@@ -14,6 +14,7 @@ import {
   type CaptionStyle,
   type TimedWord,
 } from "@shared/captions";
+import { srtEnd, srtWords, type SrtCue } from "@shared/srt";
 import { ReelVideo, type ReelVideoProps } from "@/remotion/ReelVideo";
 import { ImageComposition, type ImageCompositionProps } from "@/remotion/ImageComposition";
 import type { VoicePreviewResult } from "./voice-picker";
@@ -33,6 +34,8 @@ interface CommonProps {
   logoUrl?: string | null;
   storeName?: string;
   endingEffect: boolean;
+  /** Sous-titres SRT : remplacent `text`, minutés par le fichier. */
+  srtCues?: SrtCue[] | null;
 }
 
 type ReelPreviewProps =
@@ -74,9 +77,12 @@ export function ReelPreview(props: ReelPreviewProps) {
   const { text, showCaptions, captionStyle, ttsEnabled, voice, musicUrl, musicVolume, endingEffect } = props;
   const logoUrl = props.logoUrl ?? undefined;
   const storeName = endingEffect ? props.storeName || undefined : undefined;
+  const srtCues = props.kind === "video" && props.srtCues?.length ? props.srtCues : null;
   const cleanText = cleanCaptionText(text);
-  const voiceDuration = ttsEnabled && cleanText ? voice?.duration ?? estimatedVoiceDuration(text) : 0;
-  const estimated = ttsEnabled && Boolean(cleanText) && !voice;
+  const voiceDuration = srtCues
+    ? ttsEnabled ? srtEnd(srtCues) : 0
+    : ttsEnabled && cleanText ? voice?.duration ?? estimatedVoiceDuration(text) : 0;
+  const estimated = !srtCues && ttsEnabled && Boolean(cleanText) && !voice;
 
   const composition = useMemo(() => {
     if (props.kind === "images") {
@@ -112,9 +118,13 @@ export function ReelPreview(props: ReelPreviewProps) {
       voiceDuration: voiceDuration || undefined,
       hasOutro: Boolean(logoUrl),
       endingEffect,
+      voiceDelay: srtCues ? 0 : VOICE_DELAY,
     });
     let words: TimedWord[] = [];
-    if (showCaptions && cleanText) {
+    if (srtCues) {
+      // La voix de l'aperçu n'est pas générée sous-titre par sous-titre : minutage du fichier
+      if (showCaptions) words = srtWords(srtCues);
+    } else if (showCaptions && cleanText) {
       if (voice) words = offsetWords(voice.words, VOICE_DELAY);
       else if (ttsEnabled) words = spreadWords(text, VOICE_DELAY, VOICE_DELAY + voiceDuration);
       else words = spreadWords(text, 0.5, (timing.logoStart ?? timing.total) - 0.5);
@@ -129,7 +139,7 @@ export function ReelPreview(props: ReelPreviewProps) {
       storeName,
       logoStart: timing.logoStart,
       fadeStart: timing.fadeStart,
-      voiceUrl: voice?.audioUrl,
+      voiceUrl: srtCues ? undefined : voice?.audioUrl,
       voiceDelay: VOICE_DELAY,
       musicUrl,
       musicVolume,
@@ -139,7 +149,7 @@ export function ReelPreview(props: ReelPreviewProps) {
   }, [
     props.kind,
     props.kind === "video" ? props.videoUrl : props.images.join("|"),
-    videoDuration, text, cleanText, showCaptions, captionStyle, ttsEnabled, voice, voiceDuration,
+    videoDuration, text, cleanText, srtCues, showCaptions, captionStyle, ttsEnabled, voice, voiceDuration,
     musicUrl, musicVolume, logoUrl, storeName, endingEffect,
   ]);
 
@@ -171,7 +181,9 @@ export function ReelPreview(props: ReelPreviewProps) {
       </div>
       <p className="text-xs text-muted-foreground flex items-start gap-1.5">
         <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-        {estimated
+        {srtCues
+          ? `Minutage du fichier SRT (la voix sera posée sur chaque sous-titre au rendu) · ${composition.total.toFixed(1)} s`
+          : estimated
           ? "Minutage estimé : cliquez sur « Tester la voix » pour caler les sous-titres sur la vraie voix."
           : `Aperçu fidèle au rendu final · ${composition.total.toFixed(1)} s`}
       </p>

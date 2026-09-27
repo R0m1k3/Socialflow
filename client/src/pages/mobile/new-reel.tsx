@@ -19,6 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 import { VoicePicker, isVoicePreviewCurrent, type VoicePreviewResult, type VoiceSettings } from "@/components/reels/voice-picker";
 import { CaptionStylePicker } from "@/components/reels/caption-style-picker";
 import { ReelPreview } from "@/components/reels/reel-preview";
+import { SrtUpload, type SrtFile } from "@/components/reels/srt-upload";
+import { srtText } from "@shared/srt";
 import { DEFAULT_CAPTION_STYLE, type CaptionStyle } from "@shared/captions";
 import { DEFAULT_TTS_STYLE, DEFAULT_VOICE } from "@shared/voices";
 import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
@@ -56,6 +58,8 @@ export default function MobileNewReel() {
     const [selectedVideo, setSelectedVideo] = useState<Media | null>(null);
     const [selectedTrack, setSelectedTrack] = useState<MusicTrack | null>(null);
     const [overlayText, setOverlayText] = useState('');
+    // Fichier SRT : remplace le texte libre, la voix suit son minutage
+    const [srtFile, setSrtFile] = useState<SrtFile | null>(null);
     const [productInfo, setProductInfo] = useState('');
     const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
     const [selectedPages, setSelectedPages] = useState<string[]>([]);
@@ -92,7 +96,7 @@ export default function MobileNewReel() {
 
     // Auto-calculate TTS sync
     useEffect(() => {
-        if (!ttsEnabled || !overlayText.trim()) {
+        if (!ttsEnabled || !overlayText.trim() || srtFile) {
             setSyncInfo(null);
             return;
         }
@@ -107,7 +111,7 @@ export default function MobileNewReel() {
                 .catch(() => setSyncInfo(null));
         }, 800);
         return () => clearTimeout(timer);
-    }, [overlayText, ttsEnabled, ttsEngine, ttsVoice]);
+    }, [overlayText, ttsEnabled, ttsEngine, ttsVoice, srtFile]);
 
 
     const { data: pages = [] } = useQuery<SocialPage[]>({
@@ -262,8 +266,9 @@ export default function MobileNewReel() {
         createReelMutation.mutate({
             videoMediaId: selectedVideoId,
             musicTrackId: selectedTrack?.id,
-            overlayText: overlayText,
-            description: overlayText,
+            overlayText: srtFile ? undefined : overlayText,
+            srtCues: srtFile?.cues,
+            description: srtFile ? srtText(srtFile.cues) : overlayText,
             pageIds: selectedPages,
             scheduledFor: scheduledDate?.toISOString(),
             musicVolume: musicVolume[0] / 100,
@@ -429,6 +434,7 @@ export default function MobileNewReel() {
                 {/* TEXT STEP */}
                 {currentStep === 'text' && (
                     <div className="space-y-6">
+                        {!srtFile && (
                         <Card>
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base flex items-center"><Sparkles className="w-4 h-4 mr-2 text-primary" /> Assistant IA</CardTitle>
@@ -446,8 +452,9 @@ export default function MobileNewReel() {
                                 </Button>
                             </CardContent>
                         </Card>
+                        )}
 
-                        {generatedVariants.length > 0 && (
+                        {!srtFile && generatedVariants.length > 0 && (
                             <div className="space-y-3">
                                 {generatedVariants.map((v, i) => (
                                     <div key={i} className="bg-card p-3 rounded-lg border text-sm" onClick={() => { setOverlayText(v.text); toast({ title: "Texte appliqué" }); }}>
@@ -459,13 +466,20 @@ export default function MobileNewReel() {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Texte Overlay</label>
-                            <Textarea
-                                value={overlayText}
-                                onChange={(e) => setOverlayText(e.target.value)}
-                                placeholder="Texte sur la vidéo..."
-                                className="text-lg"
-                                rows={3}
-                            />
+                            <SrtUpload value={srtFile} onChange={setSrtFile} />
+                            {srtFile ? (
+                                <p className="text-xs text-muted-foreground">
+                                    Texte libre désactivé : le fichier SRT est utilisé. Retirez-le pour écrire un texte.
+                                </p>
+                            ) : (
+                                <Textarea
+                                    value={overlayText}
+                                    onChange={(e) => setOverlayText(e.target.value)}
+                                    placeholder="Texte sur la vidéo..."
+                                    className="text-lg"
+                                    rows={3}
+                                />
+                            )}
                             <div className="space-y-1.5 mt-3">
                                 <Label className="text-xs font-medium">Style des sous-titres</Label>
                                 <CaptionStylePicker value={captionStyle} onChange={setCaptionStyle} compact />
@@ -503,13 +517,13 @@ export default function MobileNewReel() {
                                         <VoicePicker
                                             value={voiceSettings}
                                             onChange={setVoiceSettings}
-                                            sampleText={overlayText}
+                                            sampleText={srtFile ? srtFile.cues[0]?.text : overlayText}
                                             onPreview={setVoicePreview}
                                             compact
                                         />
                                     </div>
 
-                                    {syncInfo && (
+                                    {syncInfo && !srtFile && (
                                         <div className={`p-2 rounded-lg border mt-2 ${syncInfo.isHealthy ? 'bg-green-500/10 border-green-500/30' : 'bg-yellow-500/10 border-yellow-500/30'}`}>
                                             <div className="flex items-center justify-between text-xs">
                                                 <span className="font-medium">Sync</span>
@@ -549,7 +563,8 @@ export default function MobileNewReel() {
                                         <ReelPreview
                                             kind="video"
                                             videoUrl={selectedVideo.originalUrl}
-                                            text={overlayText}
+                                            text={srtFile ? srtText(srtFile.cues) : overlayText}
+                                            srtCues={srtFile?.cues}
                                             showCaptions
                                             captionStyle={captionStyle}
                                             ttsEnabled={ttsEnabled}

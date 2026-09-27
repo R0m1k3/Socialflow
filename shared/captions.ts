@@ -46,9 +46,11 @@ export function computeReelTiming(input: {
   voiceDuration?: number;
   hasOutro: boolean;
   endingEffect: boolean;
+  /** 0 pour une voix déjà posée aux instants d'un fichier SRT. */
+  voiceDelay?: number;
 }): ReelTiming {
   const hasOutro = input.hasOutro && input.endingEffect;
-  const speechEnd = input.voiceDuration ? VOICE_DELAY + input.voiceDuration : 0;
+  const speechEnd = input.voiceDuration ? (input.voiceDelay ?? VOICE_DELAY) + input.voiceDuration : 0;
   let total = input.videoDuration;
   if (input.voiceDuration) {
     total = Math.max(total, speechEnd + VOICE_TAIL);

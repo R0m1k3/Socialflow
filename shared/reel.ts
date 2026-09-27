@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import { CAPTION_STYLES, DEFAULT_CAPTION_STYLE } from "./captions";
+import { srtCuesSchema } from "./srt";
 import { TTS_ENGINES, TTS_STYLES } from "./voices";
 
 const optionalText = z
@@ -23,6 +24,8 @@ export const videoReelParamsSchema = z.object({
   musicTrackId: optionalText,
   musicUrl: optionalText,
   overlayText: optionalText,
+  // Sous-titres SRT : remplacent le texte libre, la voix lit chacun à son instant
+  srtCues: srtCuesSchema.optional(),
   description: optionalText,
   ttsEnabled: z.boolean().default(false),
   ttsVoice: optionalText,

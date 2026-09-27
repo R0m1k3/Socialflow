@@ -4,6 +4,7 @@ import asyncio
 import base64
 import contextlib
 import logging
+import shutil
 import time
 from pathlib import Path
 
@@ -12,7 +13,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from . import align, config, jobs, proc, render, subtitles, tts, voices
+from . import align, config, jobs, proc, render, srt_voice, subtitles, tts, voices
 from .audio import encode_preview
 from .text import clean_text
 
@@ -57,10 +58,18 @@ class TtsRequest(BaseModel):
     gemini_api_key: str | None = None
 
 
+class SrtCue(BaseModel):
+    start: float
+    end: float
+    text: str
+
+
 class ReelRequest(BaseModel):
     video_base64: str | None = None
     video_url: str | None = None
     text: str | None = None
+    # Sous-titres SRT : remplacent `text`, la voix lit chacun à son instant
+    srt_cues: list[SrtCue] | None = None
     music_url: str | None = None
     watermark_url: str | None = None
     store_name: str | None = None
@@ -182,6 +191,31 @@ async def _synthesize(text: str, display_source: str | None, request, workdir: P
         raise HTTPException(status_code=502, detail=f"La voix n'a pas pu être générée : {error}") from error
 
 
+def _srt_cues(request: ReelRequest) -> list[srt_voice.Cue]:
+    """Sous-titres lisibles du SRT, dans l'ordre (vide sans SRT)."""
+    cues = [
+        srt_voice.Cue(c.start, c.end, c.text)
+        for c in request.srt_cues or []
+        if c.end > c.start and clean_text(c.text)
+    ]
+    return sorted(cues, key=lambda c: c.start)
+
+
+async def _synthesize_srt(cues: list[srt_voice.Cue], request, workdir: Path) -> tts.VoiceTrack:
+    try:
+        return await srt_voice.synthesize_cues(
+            cues=cues,
+            engine=request.tts_engine,
+            voice=request.tts_voice,
+            style=request.tts_style,
+            gemini_api_key=request.gemini_api_key,
+            workdir=workdir,
+        )
+    except Exception as error:
+        log.exception("Voix SRT impossible à générer")
+        raise HTTPException(status_code=502, detail=f"La voix n'a pas pu être générée : {error}") from error
+
+
 async def _download(url: str, target: Path, what: str, required: bool) -> bool:
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(120, connect=15), follow_redirects=True) as client:
@@ -240,8 +274,11 @@ async def _gather(request: ReelRequest, workdir: Path, clock: Stopwatch, *, fetc
     clock.lap("download")
 
     track = None
+    cues = _srt_cues(request)
     spoken_text = clean_text(request.text)
-    if request.tts_enabled and spoken_text:
+    if request.tts_enabled and cues:
+        track = await _synthesize_srt(cues, request, workdir)
+    elif request.tts_enabled and spoken_text:
         track = await _synthesize(spoken_text, request.text, request, workdir)
     clock.lap("tts")
 
@@ -254,6 +291,8 @@ async def _gather(request: ReelRequest, workdir: Path, clock: Stopwatch, *, fetc
         music_volume=request.music_volume,
         voice=track.path if track else None,
         voice_duration=track.duration if track else 0.0,
+        # Avec un SRT, la voix est déjà posée aux instants du fichier
+        voice_delay=0.0 if cues else config.VOICE_DELAY,
         watermark=watermark if has_watermark else None,
         outro_expected=not fetch_logo and request.has_logo,
         ending_effect=request.enable_ending_effect,
@@ -273,6 +312,14 @@ async def _gather(request: ReelRequest, workdir: Path, clock: Stopwatch, *, fetc
 
 async def _caption_words(request: ReelRequest, plan: render.RenderPlan, track, info) -> list[align.Word]:
     """Mots à afficher, en secondes depuis le début de la vidéo."""
+    cues = _srt_cues(request)
+    if cues:
+        if not request.draw_text:
+            return []
+        if track:
+            return track.words
+        # Sans voix : chaque sous-titre s'affiche sur son propre intervalle
+        return [w for c in cues for w in align.spread_words(clean_text(c.text), c.start, c.end)]
     display = clean_text(request.text)
     if not request.draw_text or not display:
         return []
@@ -284,7 +331,11 @@ async def _caption_words(request: ReelRequest, plan: render.RenderPlan, track, i
 def _keep_only(workdir: Path, keep: set[Path]) -> None:
     """Seuls les fichiers à télécharger restent jusqu'à la récupération."""
     for entry in workdir.iterdir():
-        if entry not in keep:
+        if entry in keep:
+            continue
+        if entry.is_dir():
+            shutil.rmtree(entry, ignore_errors=True)  # voix SRT : un dossier par sous-titre
+        else:
             entry.unlink(missing_ok=True)
 
 

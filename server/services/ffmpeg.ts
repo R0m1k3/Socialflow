@@ -10,6 +10,7 @@ import fs from 'fs';
 import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import type { ReadableStream as WebReadableStream } from 'stream/web';
+import type { SrtCue } from '@shared/srt';
 import type { TtsEngine, TtsStyle } from '@shared/voices';
 
 /** Un rendu long (stabilisation + encodage) peut dépasser plusieurs minutes. */
@@ -20,6 +21,8 @@ const HEALTH_TIMEOUT_MS = 5_000;
 
 export interface ReelRenderOptions {
     text?: string;
+    /** Sous-titres SRT : remplacent `text`, la voix lit chacun à son instant. */
+    srtCues?: SrtCue[];
     musicUrl?: string;
     ttsEnabled?: boolean;
     ttsVoice?: string;
@@ -126,6 +129,7 @@ export class FFmpegService {
         const body = {
             video_url: videoUrl,
             text: options.text,
+            srt_cues: options.srtCues,
             music_url: options.musicUrl,
             tts_enabled: options.ttsEnabled ?? false,
             tts_voice: options.ttsVoice,
@@ -196,6 +200,7 @@ export class FFmpegService {
             body: JSON.stringify({
                 video_url: videoUrl,
                 text: options.text,
+                srt_cues: options.srtCues,
                 music_url: options.musicUrl,
                 tts_enabled: options.ttsEnabled ?? false,
                 tts_voice: options.ttsVoice,

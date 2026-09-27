@@ -90,6 +90,12 @@ def align_words(display_text: str, spoken: list[Word], total_duration: float | N
     return words
 
 
+def spread_words(text: str, start: float, end: float) -> list[Word]:
+    """Mots d'un texte répartis sur un intervalle (sous-titre SRT sans voix)."""
+    tokens = display_tokens(text)
+    return _spread(tokens, start, end) if tokens and end > start else []
+
+
 def _spread(tokens: list[str], start: float, end: float) -> list[Word]:
     """Répartit des mots sur un intervalle au prorata de leur longueur."""
     weights = [max(1, len(normalize(t))) for t in tokens]

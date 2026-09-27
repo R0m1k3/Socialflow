@@ -28,6 +28,8 @@ import { useToast } from "@/hooks/use-toast";
 import { VoicePicker, isVoicePreviewCurrent, type VoicePreviewResult, type VoiceSettings } from "@/components/reels/voice-picker";
 import { CaptionStylePicker } from "@/components/reels/caption-style-picker";
 import { ReelPreview } from "@/components/reels/reel-preview";
+import { SrtUpload, type SrtFile } from "@/components/reels/srt-upload";
+import { srtText } from "@shared/srt";
 import { DEFAULT_CAPTION_STYLE, type CaptionStyle } from "@shared/captions";
 import { DEFAULT_TTS_STYLE, DEFAULT_VOICE } from "@shared/voices";
 import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
@@ -65,6 +67,8 @@ export default function NewReel() {
     const [selectedVideo, setSelectedVideo] = useState<Media | null>(null);
     const [selectedTrack, setSelectedTrack] = useState<MusicTrack | null>(null);
     const [overlayText, setOverlayText] = useState('');
+    // Fichier SRT : remplace le texte libre, la voix suit son minutage
+    const [srtFile, setSrtFile] = useState<SrtFile | null>(null);
     const [productInfo, setProductInfo] = useState('');
     const [generatedVariants, setGeneratedVariants] = useState<any[]>([]);
     const [selectedPages, setSelectedPages] = useState<string[]>([]);
@@ -108,7 +112,7 @@ export default function NewReel() {
 
     // Auto-calculate TTS sync when text changes
     useEffect(() => {
-        if (!ttsEnabled || !overlayText.trim()) {
+        if (!ttsEnabled || !overlayText.trim() || srtFile) {
             setSyncInfo(null);
             return;
         }
@@ -123,7 +127,7 @@ export default function NewReel() {
                 .catch(() => setSyncInfo(null));
         }, 800);
         return () => clearTimeout(timer);
-    }, [overlayText, ttsEnabled, ttsEngine, ttsVoice]);
+    }, [overlayText, ttsEnabled, ttsEngine, ttsVoice, srtFile]);
 
 
     // État audio preview
@@ -405,8 +409,9 @@ export default function NewReel() {
         createReelMutation.mutate({
             videoMediaId: selectedVideoId,
             musicTrackId: selectedTrack?.id,
-            overlayText: overlayText,
-            description: overlayText,
+            overlayText: srtFile ? undefined : overlayText,
+            srtCues: srtFile?.cues,
+            description: srtFile ? srtText(srtFile.cues) : overlayText,
             pageIds: selectedPages,
             scheduledFor: scheduledDate?.toISOString(),
             musicVolume: musicVolume[0] / 100,
@@ -702,6 +707,7 @@ export default function NewReel() {
                             {/* ÉTAPE 3: Texte */}
                             {currentStep === 'text' && (
                                 <>
+                                    {!srtFile && (
                                     <Card className="rounded-2xl border-border/50 shadow-lg">
                                         <CardHeader>
                                             <CardTitle className="flex items-center gap-2">
@@ -729,8 +735,9 @@ export default function NewReel() {
                                             </Button>
                                         </CardContent>
                                     </Card>
+                                    )}
 
-                                    {generatedVariants.length > 0 && (
+                                    {!srtFile && generatedVariants.length > 0 && (
                                         <Card className="rounded-2xl border-border/50 shadow-lg">
                                             <CardHeader>
                                                 <CardTitle>Variations générées</CardTitle>
@@ -770,16 +777,26 @@ export default function NewReel() {
                                                 Texte Overlay
                                             </CardTitle>
                                             <CardDescription>
-                                                Ce texte s'affichera au centre de votre Reel (style TikTok)
+                                                Ce texte s'affichera au centre de votre Reel (style TikTok).
+                                                Vous pouvez aussi importer un fichier SRT : il remplace le texte.
                                             </CardDescription>
                                         </CardHeader>
                                         <CardContent>
-                                            <Textarea
-                                                value={overlayText}
-                                                onChange={(e) => setOverlayText(e.target.value)}
-                                                placeholder="Écrivez le texte qui apparaîtra sur votre Reel..."
-                                                rows={4}
-                                            />
+                                            <div className="mb-4">
+                                                <SrtUpload value={srtFile} onChange={setSrtFile} />
+                                            </div>
+                                            {srtFile ? (
+                                                <p className="text-xs text-muted-foreground">
+                                                    Texte libre désactivé : le fichier SRT est utilisé. Retirez-le pour écrire un texte.
+                                                </p>
+                                            ) : (
+                                                <Textarea
+                                                    value={overlayText}
+                                                    onChange={(e) => setOverlayText(e.target.value)}
+                                                    placeholder="Écrivez le texte qui apparaîtra sur votre Reel..."
+                                                    rows={4}
+                                                />
+                                            )}
 
                                             <div className="flex items-center space-x-2 mt-4">
                                                 <Switch
@@ -834,12 +851,12 @@ export default function NewReel() {
                                                         <VoicePicker
                                                             value={voiceSettings}
                                                             onChange={setVoiceSettings}
-                                                            sampleText={overlayText}
+                                                            sampleText={srtFile ? srtFile.cues[0]?.text : overlayText}
                                                             onPreview={setVoicePreview}
                                                         />
                                                     </div>
 
-                                                    {syncInfo && (
+                                                    {syncInfo && !srtFile && (
                                                         <div className={`p-3 rounded-lg border mt-3 ${syncInfo.isHealthy ? 'bg-green-500/10 border-green-500/30' : 'bg-yellow-500/10 border-yellow-500/30'}`}>
                                                             <div className="flex items-center justify-between text-sm">
                                                                 <span className="font-medium">Sync texte/voix</span>
@@ -857,8 +874,10 @@ export default function NewReel() {
                                                     )}
 
                                                     <p className="text-xs text-muted-foreground mt-2">
-                                                        Le texte sera automatiquement synchronisé avec la voix.
-                                                        Les #hashtags et émojis ne seront pas lus.
+                                                        {srtFile
+                                                            ? "Chaque sous-titre sera lu à son instant et accéléré si besoin pour respecter la durée du fichier SRT."
+                                                            : "Le texte sera automatiquement synchronisé avec la voix."}
+                                                        {' '}Les #hashtags et émojis ne seront pas lus.
                                                     </p>
                                                 </div>
                                             )}
@@ -984,7 +1003,8 @@ export default function NewReel() {
                                         <ReelPreview
                                             kind="video"
                                             videoUrl={selectedVideo.originalUrl}
-                                            text={overlayText}
+                                            text={srtFile ? srtText(srtFile.cues) : overlayText}
+                                            srtCues={srtFile?.cues}
                                             showCaptions={drawText}
                                             captionStyle={captionStyle}
                                             ttsEnabled={ttsEnabled}
@@ -1022,7 +1042,7 @@ export default function NewReel() {
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground">Texte</span>
-                                        <span>{overlayText ? '✓' : '—'}</span>
+                                        <span>{srtFile ? `SRT (${srtFile.cues.length})` : overlayText ? '✓' : '—'}</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground">Pages</span>

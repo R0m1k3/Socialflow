@@ -7,6 +7,7 @@ import type { User } from '@shared/schema';
 import { storage } from '../storage';
 import { ffmpegService, FFmpegServiceError } from '../services/ffmpeg';
 import { ttsPreviewSchema, videoReelParamsSchema, type VideoReelParams } from '@shared/reel';
+import { srtText } from '@shared/srt';
 import { enqueueReelJob, countActiveReelJobs } from '../services/reels/queue';
 import { resolveGeminiApiKey, resolveLogoPath, resolveStoreName } from '../services/reels/assets';
 import { configuredRenderer } from '../services/reels/videoPipeline';
@@ -334,8 +335,12 @@ reelsRouter.post('/reels', async (req: Request, res: Response) => {
             return res.status(400).json({ error: parsed.error.issues[0]?.message ?? 'Paramètres invalides' });
         }
 
+        const { srtCues } = parsed.data;
         const params: VideoReelParams = {
             ...parsed.data,
+            // Avec un SRT, le texte libre n'est plus utilisé : la voix lit les sous-titres
+            overlayText: srtCues ? undefined : parsed.data.overlayText,
+            description: parsed.data.description || (srtCues ? srtText(srtCues) : undefined),
             storeName: await resolveStoreName(user.id, parsed.data.pageIds[0]),
         };
 
