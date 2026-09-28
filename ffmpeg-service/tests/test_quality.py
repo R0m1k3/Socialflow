@@ -60,3 +60,14 @@ def test_small_recognition_errors_are_not_missing_words():
     heard = _heard("Découvrez nos plans de saison à petit prix. On vous attend ce week -end.")
     check = check_reading(expected, heard)
     assert check.acceptable, check
+
+
+def test_skipped_words_are_detected_and_named():
+    expected = (
+        "Pour Halloween découvrez nos costumes nos bonbons et toute notre décoration effrayante en magasin."
+    )
+    heard = _heard("Pour Halloween découvrez nos costumes et toute notre décoration en magasin.")
+    check = check_reading(expected, heard)
+    assert not check.acceptable
+    assert "bonbons" in check.missing and "effrayante" in check.missing
+    assert "non entendus" in check.describe()

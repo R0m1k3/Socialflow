@@ -9,7 +9,7 @@ pas rogner une syllabe.
 
 import asyncio
 import difflib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -17,16 +17,21 @@ import numpy as np
 from . import proc
 from .align import Word, normalize
 
+MIN_COVERAGE = 0.92
+
 
 @dataclass
 class ReadingCheck:
     coverage: float  # part des mots attendus effectivement entendus
     extra: float  # mots entendus en trop (consigne lue, ajouts), rapportés au texte
     ending_ok: bool  # la fin du texte est bien lue
+    missing: list[str] = field(default_factory=list)  # mots attendus non entendus (diagnostic)
 
     @property
     def acceptable(self) -> bool:
-        return self.coverage >= 0.85 and self.extra <= 0.25 and self.ending_ok
+        # Comparaison lettre à lettre : une lecture complète atteint ~97 %
+        # (petites erreurs de Whisper) ; sous 92 %, des mots ont été sautés.
+        return self.coverage >= MIN_COVERAGE and self.extra <= 0.25 and self.ending_ok
 
     def describe(self) -> str:
         parts = [f"{self.coverage:.0%} des mots lus"]
@@ -34,6 +39,8 @@ class ReadingCheck:
             parts.append("fin tronquée")
         if self.extra > 0.25:
             parts.append("mots ajoutés")
+        if self.missing and self.coverage < MIN_COVERAGE:
+            parts.append("non entendus : " + " ".join(self.missing[:12]))
         return ", ".join(parts)
 
 
@@ -59,7 +66,19 @@ def check_reading(expected_text: str, spoken: list[Word]) -> ReadingCheck:
         coverage=matched / len(expected),
         extra=max(0, len(heard) - matched) / len(expected),
         ending_ok=tail_matched >= min(4, len(expected) - tail_start),
+        missing=_missing_words(expected_text, spoken),
     )
+
+
+def _missing_words(expected_text: str, spoken: list[Word]) -> list[str]:
+    """Mots attendus sans équivalent proche dans ce qui a été entendu."""
+    heard = {normalize(w.text) for w in spoken}
+    missing = []
+    for word in expected_text.split():
+        token = normalize(word)
+        if token and not any(difflib.SequenceMatcher(a=token, b=h).ratio() >= 0.7 for h in heard):
+            missing.append(word.strip(".,!?;:…"))
+    return missing
 
 
 # Enveloppe sonore : niveau de la voix toutes les 10 ms

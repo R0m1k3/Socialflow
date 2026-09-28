@@ -30,6 +30,8 @@ ENV WHISPER_MODEL=${WHISPER_MODEL} \
     HOME=/tmp \
     XDG_CACHE_HOME=/tmp/.cache
 RUN python -c "from faster_whisper import WhisperModel; WhisperModel('${WHISPER_MODEL}', device='cpu', compute_type='int8')"
+# Modèle déjà présent : plus aucune requête vers Hugging Face au démarrage
+ENV HF_HUB_OFFLINE=1
 
 COPY main.py .
 COPY app ./app
