@@ -694,7 +694,7 @@ export default function NewReel() {
                                                     setSelectedTrack(null);
                                                     setCurrentStep('text');
                                                 }}>
-                                                    Passer
+                                                    Passer (garder le son de la vidéo)
                                                 </Button>
                                                 <Button onClick={() => setCurrentStep('text')}>
                                                     Continuer
@@ -1052,7 +1052,7 @@ export default function NewReel() {
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground">Musique</span>
-                                        <span>{selectedTrack ? selectedTrack.title : 'Aucune'}</span>
+                                        <span>{selectedTrack ? selectedTrack.title : 'Son de la vidéo'}</span>
                                     </div>
                                     <div className="flex justify-between">
                                         <span className="text-muted-foreground">Texte</span>

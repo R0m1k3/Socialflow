@@ -51,7 +51,50 @@ def test_original_audio_kept_when_nothing_added():
         video=Path("in.mp4"), video_duration=5.0, output=Path("out.mp4"), keep_original_audio=True
     )
     cmd = build_command(plan)
-    assert cmd[cmd.index("-map", cmd.index("[vout]")) + 1] == "0:a:0"
+    assert "[0:a:0]aresample=48000,apad[bed]" in _graph(cmd)
+    assert cmd[cmd.index("-map", cmd.index("[vout]")) + 1] == "[aout]"
+
+
+def test_original_audio_stays_under_the_voice_when_no_music_is_chosen():
+    plan = RenderPlan(
+        video=Path("in.mp4"),
+        video_duration=10.0,
+        output=Path("out.mp4"),
+        voice=Path("v.wav"),
+        voice_duration=4.0,
+        keep_original_audio=True,
+    )
+    graph = _graph(build_command(plan))
+    assert "[0:a:0]aresample=48000,apad[bed]" in graph
+    assert "[bed][vkey]sidechaincompress" in graph
+
+
+def test_chosen_music_replaces_the_original_audio():
+    plan = RenderPlan(
+        video=Path("in.mp4"),
+        video_duration=10.0,
+        output=Path("out.mp4"),
+        music=Path("m.mp3"),
+        keep_original_audio=True,
+    )
+    assert "0:a:0" not in _graph(build_command(plan))
+
+
+def test_prepared_audio_mix_keeps_original_audio_under_voice():
+    from app.render import build_audio_mix_command
+
+    plan = RenderPlan(
+        video=Path("in.mp4"),
+        video_duration=10.0,
+        output=Path("out.mp4"),
+        voice=Path("v.wav"),
+        voice_duration=4.0,
+        keep_original_audio=True,
+    )
+    cmd = build_audio_mix_command(plan, Path("a.wav"))
+    # Entrées : voix (0) puis vidéo d'origine (1)
+    assert cmd[cmd.index("in.mp4") - 1] == "-i"
+    assert "[1:a:0]aresample=48000,apad[bed]" in " ".join(cmd)
 
 
 def test_encoding_targets_social_networks():

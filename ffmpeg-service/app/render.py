@@ -102,28 +102,41 @@ def video_filters(plan: RenderPlan) -> list[str]:
     return chain
 
 
+def uses_original_audio(plan: RenderPlan) -> bool:
+    """Sans musique choisie, la bande son d'origine de la vidéo sert de fond sonore."""
+    return plan.music is None and plan.keep_original_audio
+
+
 def audio_graph(
-    plan: RenderPlan, music_idx: int | None, voice_idx: int | None
+    plan: RenderPlan, music_idx: int | None, voice_idx: int | None, original_idx: int | None = None
 ) -> tuple[list[str], str | None]:
-    """Graphe audio : voix décalée, musique bouclée et baissée sous la voix,
-    niveau final ~ -14 LUFS. Renvoie les filtres et l'étiquette de sortie."""
+    """Graphe audio : voix décalée sur un fond sonore (musique bouclée, ou à
+    défaut bande son d'origine) baissé sous la voix, niveau final ~ -14 LUFS.
+    Renvoie les filtres et l'étiquette de sortie."""
     graph: list[str] = []
     if voice_idx is not None:
         delay_ms = int(plan.voice_delay * 1000)
         graph.append(f"[{voice_idx}:a]aresample=48000,adelay={delay_ms}:all=1,apad[voice]")
-    if music_idx is not None:
-        graph.append(f"[{music_idx}:a]aresample=48000,volume={plan.music_volume:.3f}[music]")
 
-    if voice_idx is not None and music_idx is not None:
-        # La musique baisse automatiquement quand la voix parle (ducking)
+    bed = None
+    if music_idx is not None:
+        graph.append(f"[{music_idx}:a]aresample=48000,volume={plan.music_volume:.3f}[bed]")
+        bed = "bed"
+    elif original_idx is not None:
+        # Son d'origine conservé à son niveau ; il se tait après la fin de la vidéo
+        graph.append(f"[{original_idx}:a:0]aresample=48000,apad[bed]")
+        bed = "bed"
+
+    if voice_idx is not None and bed:
+        # Le fond sonore baisse automatiquement quand la voix parle (ducking)
         graph.append("[voice]asplit=2[vmix][vkey]")
-        graph.append("[music][vkey]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=400[ducked]")
+        graph.append(f"[{bed}][vkey]sidechaincompress=threshold=0.02:ratio=8:attack=20:release=400[ducked]")
         graph.append("[ducked][vmix]amix=inputs=2:duration=longest:normalize=0[mix]")
         mix = "mix"
     elif voice_idx is not None:
         mix = "voice"
-    elif music_idx is not None:
-        mix = "music"
+    elif bed:
+        mix = bed
     else:
         return graph, None
 
@@ -206,14 +219,11 @@ def build_command(plan: RenderPlan) -> list[str]:
     tail.append("format=yuv420p")
     graph.append(f"[{current}]{','.join(tail)}[vout]")
 
-    audio_filters, audio_out = audio_graph(plan, music_idx, voice_idx)
+    # La vidéo (entrée 0) fournit la bande son d'origine si aucune musique n'est choisie
+    original_idx = 0 if uses_original_audio(plan) else None
+    audio_filters, audio_out = audio_graph(plan, music_idx, voice_idx, original_idx)
     graph += audio_filters
-    if audio_out:
-        audio_map = ["-map", f"[{audio_out}]"]
-    elif plan.keep_original_audio:
-        audio_map = ["-map", "0:a:0"]
-    else:
-        audio_map = []
+    audio_map = ["-map", f"[{audio_out}]"] if audio_out else []
 
     cmd += ["-filter_complex", ";".join(graph), "-map", "[vout]", *audio_map]
     cmd += ["-t", f"{total:.3f}", *_video_encoding(19, "medium")]
@@ -236,21 +246,14 @@ def build_prepared_video_command(plan: RenderPlan, output: Path) -> list[str]:
 def build_audio_mix_command(plan: RenderPlan, output: Path) -> list[str] | None:
     """Piste son finale (WAV 48 kHz stéréo), ou None s'il n'y a aucun son à produire."""
     total = f"{plan.total_duration:.3f}"
-    if not plan.music and not plan.voice:
-        if not plan.keep_original_audio:
-            return None
-        # Son d'origine seul : même niveau final que les autres Reels
-        chain = ["aresample=48000", "loudnorm=I=-14:TP=-1.5:LRA=11", "apad"]
-        if plan.ending_effect:
-            chain.append(f"afade=t=out:st={plan.fade_start:.3f}:d={FADE_SECONDS}")
-        return [
-            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(plan.video),
-            "-map", "0:a:0", "-af", ",".join(chain), "-t", total,
-            "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", str(output),
-        ]  # fmt: skip
-
-    audio_args, music_idx, voice_idx, _ = _audio_inputs(plan, 0)
-    graph, audio_out = audio_graph(plan, music_idx, voice_idx)
+    audio_args, music_idx, voice_idx, index = _audio_inputs(plan, 0)
+    original_idx = None
+    if uses_original_audio(plan):
+        audio_args += ["-i", str(plan.video)]
+        original_idx = index
+    graph, audio_out = audio_graph(plan, music_idx, voice_idx, original_idx)
+    if not audio_out:
+        return None
     return [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", *audio_args,
         "-filter_complex", ";".join(graph), "-map", f"[{audio_out}]", "-t", total,

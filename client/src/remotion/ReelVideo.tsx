@@ -36,9 +36,16 @@ export const ReelVideo: React.FC<ReelVideoProps> = (props) => {
 
   const videoFrames = Math.max(1, Math.floor(videoDuration * fps));
   const totalFrames = Math.max(1, Math.round(totalDuration * fps));
-  const hasAddedAudio = Boolean(mixedAudioUrl || voiceUrl || musicUrl);
+  // Le son d'origine est remplacé par la musique choisie ; sans musique, il reste
+  // en fond (baissé sous la voix). Au rendu final, il est déjà dans la piste mixée.
+  const keepVideoSound = !mixedAudioUrl && !musicUrl;
   const video = (
-    <OffthreadVideo src={videoUrl} muted={hasAddedAudio} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+    <OffthreadVideo
+      src={videoUrl}
+      muted={!keepVideoSound}
+      volume={keepVideoSound && voiceUrl ? (frame) => previewMusicVolume(frame / fps, words, 1, fadeStart) : 1}
+      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+    />
   );
 
   return (
@@ -78,7 +85,7 @@ export const ReelVideo: React.FC<ReelVideoProps> = (props) => {
   );
 };
 
-/** Aperçu : la musique baisse pendant la parole et s'éteint avec le fondu final. */
+/** Aperçu : le fond sonore (musique ou son d'origine) baisse pendant la parole et s'éteint avec le fondu final. */
 function previewMusicVolume(time: number, words: TimedWord[], base: number, fadeStart: number | null): number {
   const speaking = words.some((w) => time >= w.start - 0.2 && time <= w.end + 0.3);
   const fade =
