@@ -2,7 +2,16 @@ from pathlib import Path
 
 from app.align import Word, spread_words
 from app.render import RenderPlan
-from app.srt_voice import Cue, atempo_chain, cue_windows, mix_command, speed_factor, spoken_span
+from app.srt_voice import (
+    Cue,
+    as_sentence,
+    atempo_chain,
+    cue_windows,
+    mix_command,
+    segments_from_reading,
+    speed_factor,
+    split_by_cue,
+)
 
 
 def test_window_stops_at_next_cue_and_tolerates_a_short_overflow():
@@ -20,10 +29,27 @@ def test_atempo_is_split_into_supported_steps():
     assert atempo_chain(3.0) == "atempo=2.0000,atempo=1.5000"
 
 
-def test_spoken_span_trims_silences_around_words():
-    words = [Word("Bonjour", 0.4, 0.9), Word("!", 0.9, 1.2)]
-    assert [round(t, 3) for t in spoken_span(words, 2.0)] == [0.35, 1.32]
-    assert spoken_span([], 2.0) == (0.0, 2.0)
+def test_each_cue_becomes_a_sentence_for_the_reading():
+    assert as_sentence("Venez vite") == "Venez vite."
+    assert as_sentence("Promo !") == "Promo !"
+
+
+def test_words_of_the_single_reading_are_split_between_cues():
+    words = [Word(t, i, i + 0.5) for i, t in enumerate(["Bonjour.", "Venez", "vite."])]
+    groups = split_by_cue(words, ["Bonjour.", "Venez vite."])
+    assert [[w.text for w in g] for g in groups] == [["Bonjour."], ["Venez", "vite."]]
+    assert split_by_cue(words, ["Bonjour."]) is None
+
+
+def test_reading_is_cut_inside_silences_not_on_word_bounds():
+    # Whisper situe mal la fin de « Bonjour » (0,9 s) : la vraie parole finit à 1,05 s,
+    # puis silence jusqu'à 1,6 s. La coupe tombe dans ce silence, sans rogner le mot.
+    groups = [[Word("Bonjour.", 0.2, 0.9)], [Word("Venez", 1.7, 2.1), Word("vite.", 2.1, 2.6)]]
+    silences = [(0.0, 0.15), (1.05, 1.6), (2.7, 3.0)]
+    first, second = segments_from_reading(groups, silences, 3.0)
+    assert first.source_start < 0.15 and 1.05 < first.source_end <= 1.2
+    assert 1.45 <= second.source_start < 1.6 and second.source_end > 2.7
+    assert first.source_end < second.source_start
 
 
 def test_each_segment_is_placed_at_its_cue_start():

@@ -1,28 +1,40 @@
 """Voix calée sur un fichier SRT.
 
-Chaque sous-titre est lu séparément puis posé à son instant de début. Si la
-lecture est plus longue que le sous-titre, elle est accélérée (sans changer
-la hauteur de la voix) pour finir à temps : la voix respecte le minutage du
-fichier, au lieu d'un texte lu d'une traite.
+Tout le texte est lu d'une seule traite, puis la voix est découpée phrase par
+phrase dans ses vrais silences et chaque morceau est posé à l'instant de son
+sous-titre. Une lecture unique garde la même intonation, le même rythme et le
+même niveau d'un bout à l'autre ; lire chaque sous-titre séparément donnait
+une voix différente à chaque phrase, et le découpage aux bornes estimées par
+Whisper rognait des syllabes.
+
+Si la lecture unique ne peut pas être répartie entre les sous-titres, on lit
+chaque sous-titre séparément (même voix, même graine), en découpant là aussi
+dans les silences mesurés.
+
+Quand un morceau est plus long que son sous-titre, il est accéléré (sans
+changer la hauteur de la voix) pour finir à temps.
 """
 
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import proc, tts
-from .align import Word
+from . import proc, quality, tts
+from .align import Word, display_tokens
 from .text import clean_text
 
 log = logging.getLogger(__name__)
 
 # Débordement toléré sur le silence qui suit un sous-titre avant d'accélérer
 OVERFLOW_TOLERANCE = 0.25
-# Marges gardées autour des mots lors du retrait des silences de la voix
-TRIM_LEAD = 0.05
-TRIM_TAIL = 0.12
+# Marges gardées autour de la parole quand on retire les silences
+LEAD_PAD = 0.08
+TAIL_PAD = 0.15
 # Au-delà, l'accélération s'entend nettement : l'utilisateur est prévenu
 AUDIBLE_SPEEDUP = 1.35
+
+_SENTENCE_END = re.compile(r"[.!?…]$")
 
 
 @dataclass
@@ -30,6 +42,15 @@ class Cue:
     start: float
     end: float
     text: str
+
+
+@dataclass
+class Segment:
+    """Morceau de la voix lue, à poser à l'instant d'un sous-titre."""
+
+    source_start: float
+    source_end: float
+    words: list[Word]
 
 
 def cue_windows(cues: list[Cue]) -> list[float]:
@@ -59,13 +80,51 @@ def atempo_chain(factor: float) -> str:
     return ",".join(f"atempo={s:.4f}" for s in steps)
 
 
-def spoken_span(words: list[Word], duration: float) -> tuple[float, float]:
-    """Partie parlée de la voix : les silences de début et de fin sont retirés."""
-    if not words:
-        return 0.0, duration
-    start = max(0.0, words[0].start - TRIM_LEAD)
-    end = min(duration, words[-1].end + TRIM_TAIL)
-    return (start, end) if end > start else (0.0, duration)
+def as_sentence(text: str) -> str:
+    """Chaque sous-titre finit par une ponctuation : la voix y marque une pause,
+    ce qui laisse un silence où couper."""
+    text = clean_text(text)
+    return text if _SENTENCE_END.search(text) else f"{text}."
+
+
+def split_by_cue(words: list[Word], cue_texts: list[str]) -> list[list[Word]] | None:
+    """Répartit les mots de la lecture complète entre les sous-titres
+    (les mots affichés suivent l'ordre du texte). None si les comptes divergent."""
+    counts = [len(display_tokens(t)) for t in cue_texts]
+    if sum(counts) != len(words) or 0 in counts:
+        return None
+    groups, index = [], 0
+    for count in counts:
+        groups.append(words[index : index + count])
+        index += count
+    return groups
+
+
+def segments_from_reading(
+    groups: list[list[Word]], silences: list[tuple[float, float]], duration: float
+) -> list[Segment] | None:
+    """Découpe la lecture complète entre les phrases, au milieu des silences."""
+    start, end = quality.speech_bounds(silences, duration, pad=LEAD_PAD)
+    cuts = [start]
+    for previous, following in zip(groups, groups[1:]):
+        cuts.append(quality.cut_point(silences, previous[-1].end, following[0].start))
+    cuts.append(end)
+    if any(b <= a for a, b in zip(cuts, cuts[1:])):
+        return None
+
+    segments = []
+    for i, group in enumerate(groups):
+        seg_start, seg_end = cuts[i], cuts[i + 1]
+        # Retire le silence de part et d'autre de la coupe, en gardant une marge
+        for s, e in silences:
+            if s <= seg_start < e:
+                seg_start = max(seg_start, e - LEAD_PAD)
+            if s < seg_end <= e:
+                seg_end = min(seg_end, s + TAIL_PAD)
+        if seg_end <= seg_start:
+            seg_start, seg_end = cuts[i], cuts[i + 1]
+        segments.append(Segment(seg_start, seg_end, group))
+    return segments
 
 
 async def synthesize_cues(
@@ -82,73 +141,87 @@ async def synthesize_cues(
     if not cues:
         raise ValueError("Aucun sous-titre lisible dans le fichier SRT")
 
-    warnings: list[str] = []
-    windows = cue_windows(cues)
-    segments: list[tuple[Path, float]] = []
+    options = dict(engine=engine, voice=voice, style=style, gemini_api_key=gemini_api_key)
+    texts = [as_sentence(c.text) for c in cues]
+
+    # 1. Lecture d'une seule traite, découpée dans les silences
+    script = " ".join(texts)
+    reading = await tts.synthesize(text=script, display_text=script, workdir=workdir, **options)
+    silences = await quality.detect_silences(reading.path, reading.duration)
+    groups = split_by_cue(reading.words, texts)
+    segments = segments_from_reading(groups, silences, reading.duration) if groups else None
+
+    if segments:
+        sources = [(reading.path, seg) for seg in segments]
+        warnings = list(reading.warnings)
+        used_engine, used_voice = reading.engine, reading.voice
+    else:
+        # 2. Repli : chaque sous-titre lu séparément, avec la voix de la lecture complète
+        log.warning("Lecture SRT non répartie entre les sous-titres : lecture phrase par phrase")
+        sources, warnings = [], list(reading.warnings)
+        used_engine, used_voice = reading.engine, reading.voice
+        for index, text in enumerate(texts):
+            cue_dir = workdir / f"cue_{index:03d}"
+            cue_dir.mkdir(exist_ok=True)
+            track = await tts.synthesize(
+                text=text,
+                display_text=text,
+                workdir=cue_dir,
+                **{**options, "engine": used_engine, "voice": used_voice or voice},
+            )
+            warnings += [w for w in track.warnings if w not in warnings]
+            cue_silences = await quality.detect_silences(track.path, track.duration)
+            span = quality.speech_bounds(cue_silences, track.duration, pad=LEAD_PAD)
+            sources.append((track.path, Segment(span[0], span[1], track.words)))
+
+    placed: list[tuple[Path, float]] = []
     words: list[Word] = []
-    used_engine, used_voice = engine or "gemini", voice or ""
-
-    for index, (cue, window) in enumerate(zip(cues, windows)):
-        cue_dir = workdir / f"cue_{index:03d}"
-        cue_dir.mkdir(exist_ok=True)
-        text = clean_text(cue.text)
-        track = await tts.synthesize(
-            text=text,
-            display_text=text,
-            engine=used_engine,
-            voice=voice,
-            style=style,
-            gemini_api_key=gemini_api_key,
-            workdir=cue_dir,
-        )
-        for warning in track.warnings:
-            if warning not in warnings:
-                warnings.append(warning)
-        # Après un repli sur Edge, on reste sur Edge : une seule voix du début à la fin
-        used_engine, used_voice = track.engine, track.voice
-
-        span_start, span_end = spoken_span(track.words, track.duration)
-        factor = speed_factor(span_end - span_start, window)
+    for index, (cue, window, (source, segment)) in enumerate(zip(cues, cue_windows(cues), sources)):
+        factor = speed_factor(segment.source_end - segment.source_start, window)
         if factor > AUDIBLE_SPEEDUP:
             warnings.append(
                 f"Sous-titre {index + 1} (« {cue.text[:40]} ») lu {factor:.1f}× plus vite "
                 "pour tenir dans son minutage : raccourcissez-le ou allongez sa durée."
             )
+        fitted = workdir / f"segment_{index:03d}.wav"
+        await proc.run(extract_command(source, segment, factor, fitted), timeout=120)
+        placed.append((fitted, cue.start))
+        added_period = not _SENTENCE_END.search(clean_text(cue.text))
+        for position, w in enumerate(segment.words):
+            text = w.text
+            if added_period and position == len(segment.words) - 1:
+                text = text.rstrip(".")  # point ajouté pour la lecture, pas à afficher
+            start = cue.start + max(0.0, w.start - segment.source_start) / factor
+            end = cue.start + max(0.0, w.end - segment.source_start) / factor
+            words.append(Word(text or w.text, start, min(max(end, start + 0.05), cue.start + window)))
 
-        fitted = cue_dir / "fitted.wav"
-        trim = f"atrim=start={span_start:.3f}:end={span_end:.3f}"
-        await proc.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-i",
-                str(track.path),
-                "-af",
-                f"{trim},asetpts=PTS-STARTPTS,{atempo_chain(factor)}",
-                "-ac",
-                "1",
-                "-ar",
-                "48000",
-                "-c:a",
-                "pcm_s16le",
-                str(fitted),
-            ],
-            timeout=120,
-        )
-        segments.append((fitted, cue.start))
-        for w in track.words:
-            start = cue.start + max(0.0, w.start - span_start) / factor
-            end = cue.start + max(0.0, w.end - span_start) / factor
-            words.append(Word(w.text, start, min(max(end, start + 0.05), cue.start + window)))
-
-    output = workdir / "voice.wav"
-    await proc.run(mix_command(segments, output), timeout=300)
+    output = workdir / "voice_srt.wav"
+    await proc.run(mix_command(placed, output), timeout=300)
     duration = (await proc.probe(output)).duration
-    log.info("Voix SRT prête : %s/%s, %d sous-titres, %.1f s", used_engine, used_voice, len(cues), duration)
+    log.info(
+        "Voix SRT prête : %s/%s, %d sous-titres, %.1f s (%s)",
+        used_engine,
+        used_voice,
+        len(cues),
+        duration,
+        "lecture unique" if segments else "phrase par phrase",
+    )
     return tts.VoiceTrack(output, duration, _monotonic(words), used_engine, used_voice, warnings)
+
+
+def extract_command(source: Path, segment: Segment, factor: float, output: Path) -> list[str]:
+    """Extrait un morceau de voix, avec un fondu de 10 ms aux bords (pas de clic)
+    et l'accélération éventuelle."""
+    length = segment.source_end - segment.source_start
+    fade_out = max(0.0, length - 0.01)
+    filters = (
+        f"atrim=start={segment.source_start:.3f}:end={segment.source_end:.3f},asetpts=PTS-STARTPTS,"
+        f"afade=t=in:d=0.01,afade=t=out:st={fade_out:.3f}:d=0.01,{atempo_chain(factor)}"
+    )
+    return [
+        "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(source),
+        "-af", filters, "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", str(output),
+    ]  # fmt: skip
 
 
 def mix_command(segments: list[tuple[Path, float]], output: Path) -> list[str]:
@@ -162,18 +235,9 @@ def mix_command(segments: list[tuple[Path, float]], output: Path) -> list[str]:
         f"{labels}amix=inputs={len(segments)}:duration=longest:dropout_transition=0:normalize=0[voice]"
     )
     return command + [
-        "-filter_complex",
-        ";".join(graph),
-        "-map",
-        "[voice]",
-        "-ac",
-        "1",
-        "-ar",
-        "48000",
-        "-c:a",
-        "pcm_s16le",
-        str(output),
-    ]
+        "-filter_complex", ";".join(graph), "-map", "[voice]",
+        "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", str(output),
+    ]  # fmt: skip
 
 
 def _monotonic(words: list[Word]) -> list[Word]:

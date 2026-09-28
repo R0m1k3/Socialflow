@@ -116,12 +116,15 @@ def _model():
     return WhisperModel(config.WHISPER_MODEL, device="cpu", compute_type=config.WHISPER_COMPUTE_TYPE)
 
 
-def _transcribe_sync(audio: Path, hint: str | None) -> list[Word]:
+def _transcribe_sync(audio: Path) -> list[Word]:
+    # Pas de texte attendu en amorce (initial_prompt) ni d'enchaînement sur le
+    # segment précédent : les deux font halluciner Whisper, qui répète la phrase
+    # et masque une fin tronquée. On veut entendre ce qui est réellement dit.
     segments, _ = _model().transcribe(
         str(audio),
         language="fr",
         word_timestamps=True,
-        initial_prompt=hint or None,
+        condition_on_previous_text=False,
         vad_filter=False,
         beam_size=5,
     )
@@ -133,6 +136,6 @@ def _transcribe_sync(audio: Path, hint: str | None) -> list[Word]:
     ]
 
 
-async def transcribe(audio: Path, hint: str | None = None) -> list[Word]:
+async def transcribe(audio: Path) -> list[Word]:
     """Mots prononcés et leurs instants (Whisper, exécuté hors de la boucle async)."""
-    return await asyncio.to_thread(_transcribe_sync, audio, hint)
+    return await asyncio.to_thread(_transcribe_sync, audio)

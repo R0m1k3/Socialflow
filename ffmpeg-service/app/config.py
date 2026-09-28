@@ -14,6 +14,12 @@ TEMP_DIR = Path(os.environ.get("TEMP_DIR", "/tmp/ffmpeg_processing"))
 FILE_TTL_SECONDS = int(os.environ.get("FILE_TTL_SECONDS", "3600"))
 
 GEMINI_TTS_MODEL = os.environ.get("GEMINI_TTS_MODEL", "gemini-2.5-flash-preview-tts")
+# Gemini tire sa lecture au hasard : une température basse et une graine fixe
+# donnent une intonation stable d'une génération à l'autre.
+GEMINI_TTS_TEMPERATURE = float(os.environ.get("GEMINI_TTS_TEMPERATURE", "0.3"))
+GEMINI_TTS_SEED = int(os.environ.get("GEMINI_TTS_SEED", "20260928"))
+# Générations tentées quand la lecture ne correspond pas au texte
+GEMINI_TTS_ATTEMPTS = int(os.environ.get("GEMINI_TTS_ATTEMPTS", "3"))
 
 # Modèle Whisper utilisé pour caler les sous-titres sur la voix.
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "base")

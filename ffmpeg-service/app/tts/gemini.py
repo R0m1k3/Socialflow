@@ -21,19 +21,29 @@ class GeminiError(RuntimeError):
 
 
 def build_prompt(text: str, style: str | None) -> str:
-    """Texte envoyé au modèle : la consigne de style précède le texte à lire."""
+    """Texte envoyé au modèle : la consigne de style précède le texte à lire.
+    La consigne demande une lecture intégrale, sans ajout : le modèle sautait
+    parfois des mots ou tronquait la fin."""
     instruction = style_instruction(style)
-    return f"{instruction} :\n{text}" if instruction else text
+    if not instruction:
+        return text
+    return f"{instruction}. Lis tout le texte, mot pour mot, sans rien ajouter :\n{text}"
 
 
-async def _request(model: str, prompt: str, voice: str, api_key: str) -> dict:
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "responseModalities": ["AUDIO"],
-            "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},
-        },
+# Paramètres de tirage refusés par un modèle : on ne les renvoie plus
+_unsupported_sampling: set[str] = set()
+
+
+async def _request(model: str, prompt: str, voice: str, api_key: str, seed: int) -> dict:
+    generation: dict = {
+        "responseModalities": ["AUDIO"],
+        "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": voice}}},
     }
+    if model not in _unsupported_sampling:
+        # Intonation stable d'une génération à l'autre
+        generation["temperature"] = config.GEMINI_TTS_TEMPERATURE
+        generation["seed"] = seed
+    payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": generation}
     async with httpx.AsyncClient(timeout=120) as client:
         # Clé en en-tête : dans l'URL, elle finissait dans les journaux
         response = await client.post(
@@ -41,27 +51,37 @@ async def _request(model: str, prompt: str, voice: str, api_key: str) -> dict:
             json=payload,
             headers={"x-goog-api-key": api_key},
         )
+    rejected_sampling = response.status_code == 400 and any(
+        word in response.text.lower() for word in ("seed", "temperature", "unknown name", "invalid json")
+    )
+    if rejected_sampling and "temperature" in generation:
+        # Modèle qui refuse température ou graine : même requête sans eux
+        log.warning("Gemini %s refuse les paramètres de tirage : %s", model, response.text[:200])
+        _unsupported_sampling.add(model)
+        return await _request(model, prompt, voice, api_key, seed)
     if response.status_code != 200:
         raise GeminiError(f"Gemini {model} : HTTP {response.status_code} {response.text[:300]}")
     return response.json()
 
 
 async def synthesize(
-    text: str, voice: str | None, style: str | None, api_key: str, workdir: Path
+    text: str, voice: str | None, style: str | None, api_key: str, workdir: Path, attempt: int = 0
 ) -> tuple[Path, str]:
-    """Génère la voix ; renvoie un WAV brut et le nom de la voix utilisée."""
+    """Génère la voix ; renvoie un WAV brut et le nom de la voix utilisée.
+    Chaque nouvelle tentative change de graine pour obtenir une autre lecture."""
+    seed = config.GEMINI_TTS_SEED + attempt
     gemini_voice = resolve_gemini_voice(voice).id
     prompt = build_prompt(text, style)
     model = config.GEMINI_TTS_MODEL
     log.info("Gemini TTS : modèle=%s voix=%s style=%s (%d car.)", model, gemini_voice, style, len(text))
 
     try:
-        data = await _request(model, prompt, gemini_voice, api_key)
+        data = await _request(model, prompt, gemini_voice, api_key, seed)
     except GeminiError as error:
         if model == FALLBACK_MODEL or "HTTP 404" not in str(error):
             raise
         log.warning("Modèle %s indisponible, repli sur %s", model, FALLBACK_MODEL)
-        data = await _request(FALLBACK_MODEL, prompt, gemini_voice, api_key)
+        data = await _request(FALLBACK_MODEL, prompt, gemini_voice, api_key, seed)
 
     try:
         part = next(p for p in data["candidates"][0]["content"]["parts"] if "inlineData" in p)["inlineData"]
@@ -70,14 +90,14 @@ async def synthesize(
 
     audio = base64.b64decode(part["data"])
     mime = part.get("mimeType", "")
-    raw = workdir / "gemini_raw.wav"
+    raw = workdir / f"gemini_raw_{attempt}.wav"
 
     if "wav" in mime:
         raw.write_bytes(audio)
     else:
         # PCM brut 16 bits (« audio/L16;codec=pcm;rate=24000 »)
         rate_match = re.search(r"rate=(\d+)", mime)
-        pcm = workdir / "gemini.pcm"
+        pcm = workdir / f"gemini_{attempt}.pcm"
         pcm.write_bytes(audio)
         await proc.run(
             [

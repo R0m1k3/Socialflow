@@ -20,8 +20,9 @@ class CommandError(RuntimeError):
         self.stderr = stderr
 
 
-async def run(cmd: list[str], timeout: float = 900) -> str:
-    """Lance une commande et renvoie sa sortie standard."""
+async def run(cmd: list[str], timeout: float = 900, *, stderr_output: bool = False) -> str:
+    """Lance une commande et renvoie sa sortie standard (ou d'erreur, où FFmpeg
+    écrit les mesures de ses filtres d'analyse)."""
     log.debug("exec: %s", " ".join(cmd))
     process = await asyncio.create_subprocess_exec(
         *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -34,7 +35,7 @@ async def run(cmd: list[str], timeout: float = 900) -> str:
         raise CommandError(cmd, -1, f"délai de {timeout:.0f} s dépassé") from error
     if process.returncode != 0:
         raise CommandError(cmd, process.returncode, stderr.decode(errors="replace"))
-    return stdout.decode(errors="replace")
+    return (stderr if stderr_output else stdout).decode(errors="replace")
 
 
 @dataclass

@@ -418,7 +418,7 @@ async def _caption_words_without_voice(display: str, video: Path, info, plan: re
     sinon texte réparti sur la durée (hors effet de fin)."""
     if info.has_audio:
         try:
-            spoken = await align.transcribe(video, hint=display)
+            spoken = await align.transcribe(video)
             if len(spoken) >= max(2, len(display.split()) // 3):
                 return align.align_words(display, spoken, info.duration)
         except Exception as error:  # noqa: BLE001 — on retombe sur la répartition
