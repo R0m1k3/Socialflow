@@ -103,7 +103,7 @@ def segments_from_reading(groups: list[list[Word]], envelope: quality.Envelope) 
     marge (300 ms après le dernier son : les fins de phrases ne sont pas rognées)."""
     cuts = [0.0]
     for previous, following in zip(groups, groups[1:]):
-        cuts.append(quality.sentence_cut(envelope, previous[-1].end, following[0].start))
+        cuts.append(quality.sentence_cut(envelope, previous[-1].end, following[0].start, after=cuts[-1]))
     cuts.append(envelope.duration)
     if any(b <= a for a, b in zip(cuts, cuts[1:])):
         return None

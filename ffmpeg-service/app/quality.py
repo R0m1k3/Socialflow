@@ -49,8 +49,8 @@ def check_reading(expected_text: str, spoken: list[Word]) -> ReadingCheck:
     lettre : les petites erreurs de reconnaissance (« petit » pour « petits »,
     « week -end » découpé) ne comptent pas comme des mots manquants, alors
     qu'un mot sauté, une fin tronquée ou une phrase ajoutée se voient."""
-    expected = "".join(normalize(w) for w in expected_text.split())
-    heard = "".join(normalize(w.text) for w in spoken)
+    expected = "".join(comparable_tokens(expected_text.split()))
+    heard = "".join(comparable_tokens([w.text for w in spoken]))
     if not expected:
         return ReadingCheck(1.0, 0.0, True)
     if not heard:
@@ -70,13 +70,44 @@ def check_reading(expected_text: str, spoken: list[Word]) -> ReadingCheck:
     )
 
 
+# Unités écrites de plusieurs façons par Whisper (« 40 cm » pour « 40 centimètres »)
+UNITS = {
+    "e", "eur", "euro", "euros", "centime", "centimes", "cm", "centimetre", "centimetres",
+    "mm", "millimetre", "millimetres", "m", "metre", "metres", "km", "kilometre", "kilometres",
+    "g", "gramme", "grammes", "kg", "kilo", "kilos", "kilogramme", "kilogrammes",
+    "l", "litre", "litres", "cl", "centilitre", "centilitres", "ml", "millilitre", "millilitres",
+    "pourcent", "pourcents", "x", "fois",
+}  # fmt: skip
+
+
+def comparable_tokens(words: list[str]) -> list[str]:
+    """Mots normalisés, sans les nombres ni l'unité qui les suit : Whisper écrit
+    un prix ou une mesure à sa façon (« 11 € 99 », « 11,99 euros », « 40 cm »),
+    ce qui passait pour des mots sautés et relançait la génération."""
+    tokens: list[str] = []
+    after_number = False
+    for word in words:
+        token = normalize(word)
+        if not token:
+            continue
+        if any(c.isdigit() for c in token):
+            after_number = True
+            continue
+        if after_number and token in UNITS:
+            continue
+        after_number = False
+        tokens.append(token)
+    return tokens
+
+
 def _missing_words(expected_text: str, spoken: list[Word]) -> list[str]:
     """Mots attendus sans équivalent proche dans ce qui a été entendu."""
-    heard = {normalize(w.text) for w in spoken}
+    heard = set(comparable_tokens([w.text for w in spoken]))
+    kept = set(comparable_tokens(expected_text.split()))
     missing = []
     for word in expected_text.split():
         token = normalize(word)
-        if token and not any(difflib.SequenceMatcher(a=token, b=h).ratio() >= 0.7 for h in heard):
+        if token in kept and not any(difflib.SequenceMatcher(a=token, b=h).ratio() >= 0.7 for h in heard):
             missing.append(word.strip(".,!?;:…"))
     return missing
 
@@ -90,6 +121,10 @@ ACTIVE_RANGE_DB = 38.0
 # Marges gardées autour de la parole
 LEAD_PAD = 0.08
 TAIL_PAD = 0.30
+# Pause entre deux phrases : au moins 80 ms de silence, cherchée jusqu'à 1,2 s
+# de la borne estimée par Whisper
+MIN_PAUSE = 0.08
+PAUSE_SEARCH = 1.2
 
 
 @dataclass
@@ -139,6 +174,19 @@ class Envelope:
         active = np.nonzero(self.db[first:last] > self.threshold)[0]
         return (first + int(active[-1]) + 1) * FRAME if len(active) else None
 
+    def pauses(self, min_length: float = MIN_PAUSE) -> list[tuple[float, float]]:
+        """Silences (sous le seuil d'audibilité) d'au moins min_length secondes."""
+        quiet = self.db <= self.threshold
+        runs, run_start = [], None
+        for i, is_quiet in enumerate([*quiet, False]):
+            if is_quiet and run_start is None:
+                run_start = i
+            elif not is_quiet and run_start is not None:
+                if (i - run_start) * FRAME >= min_length:
+                    runs.append((run_start * FRAME, i * FRAME))
+                run_start = None
+        return runs
+
     def speech_span(self, start: float, end: float) -> tuple[float, float]:
         """Parole contenue dans [start, end], avec ses marges, sans en sortir."""
         onset, offset = self.first_sound(start, end), self.last_sound(start, end)
@@ -170,9 +218,26 @@ async def load_envelope(path: Path) -> Envelope:
     return envelope_from_samples(np.frombuffer(raw, dtype=np.float32), 16000)
 
 
-def sentence_cut(envelope: Envelope, previous_end: float, next_start: float) -> float:
-    """Coupe entre deux phrases, au point le plus calme de la pause. Les bornes
-    Whisper sont imprécises : on cherche un peu autour."""
-    low = max(0.0, min(previous_end, next_start) - 0.1)
-    high = max(previous_end, next_start) + 0.2
+def sentence_cut(envelope: Envelope, previous_end: float, next_start: float, after: float = 0.0) -> float:
+    """Coupe entre deux phrases, au cœur d'une vraie pause.
+
+    Les bornes Whisper sont imprécises, et fausses quand un mot n'a pas été
+    reconnu (un prix en fin de phrase : sa place est alors estimée) ; couper
+    à la borne estimée tombait parfois au milieu d'une phrase. On choisit donc
+    la pause mesurée la plus proche de la borne estimée, les longues pauses
+    (fin de phrase) étant préférées aux courtes (virgule)."""
+    low = max(after, min(previous_end, next_start) - 0.1)
+    high = max(low + 0.05, max(previous_end, next_start) + 0.2)
+    best: tuple[float, float, float] | None = None
+    for start, end in envelope.pauses():
+        if end <= after + 0.05 or start <= 0.0 or end >= envelope.duration:
+            continue  # silences avant la première et après la dernière phrase exclus
+        distance = max(0.0, low - end, start - high)
+        if distance > PAUSE_SEARCH:
+            continue
+        score = distance - (end - start)
+        if best is None or score < best[0]:
+            best = (score, max(start, after), end)
+    if best:
+        return envelope.quietest(best[1], best[2])
     return envelope.quietest(low, high)

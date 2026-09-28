@@ -71,3 +71,35 @@ def test_skipped_words_are_detected_and_named():
     assert not check.acceptable
     assert "bonbons" in check.missing and "effrayante" in check.missing
     assert "non entendus" in check.describe()
+
+
+def test_prices_and_units_written_differently_are_not_missing_words():
+    expected = "Alerte léopard ! Le coussin de 40 centimètres à 11,99 €. Le cabas à 13,99 €."
+    heard = _heard("Alerte léopard ! Le coussin de 40 cm à 11 € 99. Le cabas à 13,99 euros.")
+    check = check_reading(expected, heard)
+    assert check.acceptable, check
+    assert check.missing == []
+
+
+def test_skipped_word_next_to_a_price_is_still_detected():
+    expected = "Le coussin léopard à 11,99 €. Le cabas doux et chaud à 13,99 €."
+    heard = _heard("Le coussin à 11,99 €. Le cabas à 13,99 €.")
+    check = check_reading(expected, heard)
+    assert not check.acceptable
+    assert "léopard" in check.missing
+
+
+def test_cut_uses_the_real_pause_when_word_timing_is_estimated():
+    # Phrase 1 jusqu'à 2,0 s (dont un prix non reconnu), virgule à 1,0 s,
+    # pause de fin de phrase 2,0–2,4 s. Whisper place la fin de la phrase
+    # et le début de la suivante vers 2,9 s (mots interpolés).
+    env = _envelope([(0.3, -90), (0.7, -20), (0.1, -90), (0.9, -20), (0.4, -90), (1.5, -20), (0.3, -90)])
+    cut = sentence_cut(env, previous_end=2.9, next_start=2.95)
+    assert 2.0 <= cut <= 2.4
+
+
+def test_cut_prefers_the_sentence_pause_over_a_comma():
+    env = _envelope([(0.3, -90), (1.0, -20), (0.12, -90), (0.8, -20), (0.45, -90), (1.0, -20), (0.3, -90)])
+    # Borne estimée entre la virgule (1,3 s) et la fin de phrase (2,22 s)
+    cut = sentence_cut(env, previous_end=1.7, next_start=1.75)
+    assert 2.22 <= cut <= 2.67

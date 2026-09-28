@@ -116,12 +116,22 @@ def _model():
     return WhisperModel(config.WHISPER_MODEL, device="cpu", compute_type=config.WHISPER_COMPUTE_TYPE)
 
 
+# Silence ajouté avant la voix pour Whisper : sur une voix qui démarre
+# aussitôt, il laissait souvent passer le premier mot (« Alerte »).
+LEAD_SILENCE = 0.5
+
+
 def _transcribe_sync(audio: Path) -> list[Word]:
+    import numpy as np
+    from faster_whisper.audio import decode_audio
+
+    samples = decode_audio(str(audio), sampling_rate=16000)
+    padded = np.concatenate([np.zeros(int(16000 * LEAD_SILENCE), dtype=samples.dtype), samples])
     # Pas de texte attendu en amorce (initial_prompt) ni d'enchaînement sur le
     # segment précédent : les deux font halluciner Whisper, qui répète la phrase
     # et masque une fin tronquée. On veut entendre ce qui est réellement dit.
     segments, _ = _model().transcribe(
-        str(audio),
+        padded,
         language="fr",
         word_timestamps=True,
         condition_on_previous_text=False,
@@ -129,7 +139,7 @@ def _transcribe_sync(audio: Path) -> list[Word]:
         beam_size=5,
     )
     return [
-        Word(w.word.strip(), float(w.start), float(w.end))
+        Word(w.word.strip(), max(0.0, w.start - LEAD_SILENCE), max(0.0, w.end - LEAD_SILENCE))
         for segment in segments
         for w in (segment.words or [])
         if w.word.strip()
