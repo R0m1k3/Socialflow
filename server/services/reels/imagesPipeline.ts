@@ -75,6 +75,7 @@ export async function runImagesReelJob({ job, progress }: JobContext): Promise<I
         musicUrl,
         musicVolume: params.musicVolume,
         logoUrl,
+        showWatermark: params.showLogo,
         storeName,
         endingSeconds,
       },

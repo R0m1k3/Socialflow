@@ -14,6 +14,8 @@ export type ImageCompositionProps = {
   musicUrl?: string;
   musicVolume?: number;
   logoUrl?: string;
+  /** Petit logo affiché pendant la vidéo (le grand logo de fin reste sur la diapositive de fin). */
+  showWatermark?: boolean;
   storeName?: string;
   /** Durée de la diapositive de fin (logo + nom du magasin), en secondes. */
   endingSeconds?: number;
@@ -78,7 +80,7 @@ const ImageSlide: React.FC<{ src: string; effectIndex: number }> = ({ src, effec
 
 /** Reel à partir d'images : diaporama animé, voix, sous-titres et diapositive de fin. */
 export const ImageComposition: React.FC<ImageCompositionProps> = ({
-  images, words, captionStyle, audioUrl, musicUrl, musicVolume = 0.3, logoUrl, storeName, endingSeconds = 3,
+  images, words, captionStyle, audioUrl, musicUrl, musicVolume = 0.3, logoUrl, showWatermark = true, storeName, endingSeconds = 3,
 }) => {
   const { fps, durationInFrames } = useVideoConfig();
   const hasEnding = Boolean(logoUrl || storeName) && endingSeconds > 0;
@@ -113,7 +115,7 @@ export const ImageComposition: React.FC<ImageCompositionProps> = ({
       )}
 
       <Captions words={words} style={captionStyle} hideAfter={hasEnding ? endingStart : null} />
-      {logoUrl && <Watermark logoUrl={logoUrl} until={hasEnding ? endingStart : null} />}
+      {logoUrl && showWatermark && <Watermark logoUrl={logoUrl} until={hasEnding ? endingStart : null} />}
       {hasEnding && <Outro start={endingStart} logoUrl={logoUrl} storeName={storeName} opaque />}
     </AbsoluteFill>
   );

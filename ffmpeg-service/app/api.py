@@ -86,6 +86,8 @@ class ReelRequest(BaseModel):
     # Préparation Remotion : le logo est composé par Remotion, mais sa présence
     # allonge la vidéo pour laisser place à l'effet de fin.
     has_logo: bool = False
+    # Petit logo en coin pendant la vidéo (le grand logo de fin dépend de enable_ending_effect)
+    show_watermark: bool = True
     # Champs d'anciennes versions, acceptés et ignorés
     music_id: str | None = None
     word_duration: float | None = None
@@ -296,6 +298,7 @@ async def _gather(request: ReelRequest, workdir: Path, clock: Stopwatch, *, fetc
         watermark=watermark if has_watermark else None,
         outro_expected=not fetch_logo and request.has_logo,
         ending_effect=request.enable_ending_effect,
+        show_watermark=request.show_watermark,
         keep_original_audio=info.has_audio,
     )
 

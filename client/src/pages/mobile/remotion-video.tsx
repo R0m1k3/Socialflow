@@ -54,6 +54,7 @@ export default function MobileRemotionVideoPage() {
   const [publishDescription, setPublishDescription] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
   const [captionStyle, setCaptionStyle] = useState<CaptionStyle>(DEFAULT_CAPTION_STYLE);
+  const [showLogo, setShowLogo] = useState(true);
   const [voicePreview, setVoicePreview] = useState<VoicePreviewResult | null>(null);
   const [renderProgress, setRenderProgress] = useState(0);
   const currentVoice = isVoicePreviewCurrent(voicePreview, overlayText, voiceSettings) ? voicePreview : null;
@@ -169,6 +170,7 @@ export default function MobileRemotionVideoPage() {
       formData.append("ttsVoice", voiceSettings.voice);
       formData.append("ttsStyle", voiceSettings.style);
       formData.append("captionStyle", captionStyle);
+      formData.append("showLogo", String(showLogo));
       if (selectedPageIds[0]) formData.append("selectedPageId", selectedPageIds[0]);
       if (musicFile) { formData.append("music", musicFile); formData.append("musicVolume", String(musicVolume)); }
       else if (selectedTrack) { formData.append("musicTrackUrl", selectedTrack.url); formData.append("musicVolume", String(musicVolume)); }
@@ -351,6 +353,10 @@ export default function MobileRemotionVideoPage() {
               <CaptionStylePicker value={captionStyle} onChange={setCaptionStyle} compact />
             </div>
             <div className="flex items-center gap-3">
+              <Switch id="show-logo-m" checked={showLogo} onCheckedChange={setShowLogo} />
+              <Label htmlFor="show-logo-m" className="text-sm">Afficher le logo sur la vidéo</Label>
+            </div>
+            <div className="flex items-center gap-3">
               <Switch id="tts-m" checked={ttsEnabled} onCheckedChange={setTtsEnabled} />
               <Label htmlFor="tts-m" className="text-sm">Voix TTS</Label>
             </div>
@@ -474,6 +480,7 @@ export default function MobileRemotionVideoPage() {
                   musicUrl={musicFileUrl ?? selectedTrack?.url}
                   musicVolume={musicVolume}
                   logoUrl={reelConfig?.logoUrl}
+                  showWatermark={showLogo}
                   storeName={socialPages.find((p) => p.id === selectedPageIds[0])?.pageName ?? socialPages[0]?.pageName}
                   endingEffect
                 />

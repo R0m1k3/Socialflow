@@ -61,6 +61,7 @@ export async function runVideoReelJob({ job, progress }: JobContext) {
     stabilize: params.stabilize,
     storeName: params.storeName,
     enableEndingEffect: params.enableEndingEffect,
+    showLogo: params.showLogo,
   };
 
   const renderer = configuredRenderer();
@@ -98,9 +99,11 @@ async function renderWithFfmpeg(
   progress: JobContext["progress"],
 ): Promise<Buffer> {
   await progress(15, "render");
+  // Le logo sert au coin de la vidéo et/ou à l'effet de fin : inutile de l'envoyer si aucun des deux
+  const logoUsed = Boolean(logoPath) && (options.showLogo !== false || options.enableEndingEffect !== false);
   const rendered = await ffmpegService.renderReel(videoUrl, {
     ...options,
-    watermarkUrl: logoPath ? resolveInternalUrl(logoPath) : undefined,
+    watermarkUrl: logoUsed && logoPath ? resolveInternalUrl(logoPath) : undefined,
   });
   return rendered.video;
 }
@@ -133,6 +136,7 @@ async function renderWithRemotion(
         words: prepared.words,
         captionStyle: params.captionStyle,
         logoUrl: logoPath ? await toDataUrl(logoPath) : undefined,
+        showWatermark: params.showLogo,
         storeName: params.enableEndingEffect ? params.storeName : undefined,
         logoStart: prepared.logoStart,
         fadeStart: params.enableEndingEffect ? Math.max(0, prepared.totalDuration - FADE_SECONDS) : null,

@@ -10,7 +10,7 @@ describe("videoReelParamsSchema", () => {
 
   it("applique les valeurs par défaut", () => {
     const params = videoReelParamsSchema.parse({ videoMediaId: "v", pageIds: ["p"] });
-    expect(params).toMatchObject({ captionStyle: "bold", stabilize: false, drawText: true, musicVolume: 0.25 });
+    expect(params).toMatchObject({ captionStyle: "bold", stabilize: false, drawText: true, musicVolume: 0.25, showLogo: true });
   });
 
   it("accepte les anciens paramètres encore stockés dans des jobs", () => {

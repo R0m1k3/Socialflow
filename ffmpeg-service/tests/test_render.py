@@ -77,6 +77,16 @@ def test_big_logo_waits_for_the_end_of_the_voice():
     assert "gte(t,6.800)" in _graph(build_command(plan))
 
 
+def test_corner_logo_can_be_hidden_while_keeping_the_ending_logo():
+    base = dict(video=Path("in.mp4"), video_duration=6.0, output=Path("out.mp4"), watermark=Path("logo.png"))
+    hidden = _graph(build_command(RenderPlan(**base, outro=Path("o.ass"), show_watermark=False)))
+    assert "W-w-30:H-h-30" not in hidden
+    assert "overlay=(W-w)/2" in hidden
+
+    nothing = _graph(build_command(RenderPlan(**base, show_watermark=False)))
+    assert "overlay" not in nothing
+
+
 def test_prepared_video_has_no_audio_and_final_duration():
     from app.render import build_prepared_video_command
 

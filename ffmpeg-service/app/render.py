@@ -47,6 +47,8 @@ class RenderPlan:
     # Effet de fin prévu sans que le logo passe par FFmpeg (rendu Remotion)
     outro_expected: bool = False
     ending_effect: bool = True
+    # Petit logo en coin pendant la vidéo (le grand logo de fin dépend de ending_effect)
+    show_watermark: bool = True
     keep_original_audio: bool = False
 
     @property
@@ -175,17 +177,25 @@ def build_command(plan: RenderPlan) -> list[str]:
     current = "vbase"
     if wm_idx is not None:
         corner = "W-w-30:H-h-30"
-        if plan.outro and plan.ending_effect:
-            logo_start = plan.logo_start
-            graph.append(f"[{wm_idx}:v]scale=200:-1,split=2[wm_small][wm_big0]")
-            graph.append("[wm_big0]scale=-1:300[wm_big]")
-            graph.append(f"[{current}][wm_small]overlay={corner}:enable='lt(t,{logo_start:.3f})'[vwm1]")
-            graph.append(f"[vwm1][wm_big]overlay=(W-w)/2:(H-h)/2-100:enable='gte(t,{logo_start:.3f})'[vwm2]")
-            current = "vwm2"
-        else:
+        big_logo = bool(plan.outro and plan.ending_effect)
+        logo_start = plan.logo_start
+        if big_logo and plan.show_watermark:
+            graph.append(f"[{wm_idx}:v]split=2[wm_small0][wm_big0]")
+            graph.append("[wm_small0]scale=200:-1[wm_small]")
+        elif plan.show_watermark:
             graph.append(f"[{wm_idx}:v]scale=200:-1[wm_small]")
-            graph.append(f"[{current}][wm_small]overlay={corner}[vwm1]")
+        elif big_logo:
+            graph.append(f"[{wm_idx}:v]null[wm_big0]")
+        if plan.show_watermark:
+            until = f":enable='lt(t,{logo_start:.3f})'" if big_logo else ""
+            graph.append(f"[{current}][wm_small]overlay={corner}{until}[vwm1]")
             current = "vwm1"
+        if big_logo:
+            graph.append("[wm_big0]scale=-1:300[wm_big]")
+            graph.append(
+                f"[{current}][wm_big]overlay=(W-w)/2:(H-h)/2-100:enable='gte(t,{logo_start:.3f})'[vwm2]"
+            )
+            current = "vwm2"
     if plan.outro and plan.ending_effect:
         graph.append(f"[{current}]subtitles='{filter_path(plan.outro)}'[vout0]")
         current = "vout0"

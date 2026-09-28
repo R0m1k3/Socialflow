@@ -55,6 +55,7 @@ export default function RemotionVideoPage() {
   const [publishDescription, setPublishDescription] = useState("");
   const [isPublishing, setIsPublishing] = useState(false);
   const [captionStyle, setCaptionStyle] = useState<CaptionStyle>(DEFAULT_CAPTION_STYLE);
+  const [showLogo, setShowLogo] = useState(true);
   const [voicePreview, setVoicePreview] = useState<VoicePreviewResult | null>(null);
   const [renderProgress, setRenderProgress] = useState(0);
   const currentVoice = isVoicePreviewCurrent(voicePreview, overlayText, voiceSettings) ? voicePreview : null;
@@ -135,6 +136,7 @@ export default function RemotionVideoPage() {
       formData.append("ttsVoice", voiceSettings.voice);
       formData.append("ttsStyle", voiceSettings.style);
       formData.append("captionStyle", captionStyle);
+      formData.append("showLogo", String(showLogo));
       if (selectedPageIds[0]) formData.append("selectedPageId", selectedPageIds[0]);
       if (musicFile) { formData.append("music", musicFile); formData.append("musicVolume", String(musicVolume)); }
       else if (selectedTrack) { formData.append("musicTrackUrl", selectedTrack.url); formData.append("musicVolume", String(musicVolume)); }
@@ -291,6 +293,10 @@ export default function RemotionVideoPage() {
             <CaptionStylePicker value={captionStyle} onChange={setCaptionStyle} />
           </div>
           <div className="flex items-center gap-3">
+            <Switch id="show-logo" checked={showLogo} onCheckedChange={setShowLogo} />
+            <Label htmlFor="show-logo">Afficher le logo sur la vidéo</Label>
+          </div>
+          <div className="flex items-center gap-3">
             <Switch id="tts" checked={ttsEnabled} onCheckedChange={setTtsEnabled} />
             <Label htmlFor="tts">Activer la voix TTS</Label>
           </div>
@@ -420,6 +426,7 @@ export default function RemotionVideoPage() {
                 musicUrl={musicFileUrl ?? selectedTrack?.url}
                 musicVolume={musicVolume}
                 logoUrl={reelConfig?.logoUrl}
+                showWatermark={showLogo}
                 storeName={socialPages.find((p) => p.id === selectedPageIds[0])?.pageName ?? socialPages[0]?.pageName}
                 endingEffect
               />

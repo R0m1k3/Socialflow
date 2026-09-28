@@ -36,6 +36,8 @@ export interface ReelRenderOptions {
     watermarkUrl?: string;
     storeName?: string;
     enableEndingEffect?: boolean;
+    /** Petit logo pendant la vidéo (le grand logo de fin dépend de enableEndingEffect). */
+    showLogo?: boolean;
 }
 
 export interface ReelRenderResult {
@@ -143,6 +145,7 @@ export class FFmpegService {
             watermark_url: options.watermarkUrl,
             store_name: options.storeName,
             enable_ending_effect: options.enableEndingEffect ?? true,
+            show_watermark: options.showLogo ?? true,
         };
 
         console.log('🎬 Rendu du Reel :', {

@@ -32,6 +32,8 @@ interface CommonProps {
   musicUrl?: string;
   musicVolume: number;
   logoUrl?: string | null;
+  /** Petit logo pendant la vidéo (le grand logo de fin dépend de l'effet de fin). */
+  showWatermark: boolean;
   storeName?: string;
   endingEffect: boolean;
   /** Sous-titres SRT : remplacent `text`, minutés par le fichier. */
@@ -74,7 +76,8 @@ function estimatedVoiceDuration(text: string): number {
  */
 export function ReelPreview(props: ReelPreviewProps) {
   const videoDuration = useVideoDuration(props.kind === "video" ? props.videoUrl : undefined);
-  const { text, showCaptions, captionStyle, ttsEnabled, voice, musicUrl, musicVolume, endingEffect } = props;
+  const { text, showCaptions, captionStyle, ttsEnabled, voice, musicUrl, musicVolume, endingEffect, showWatermark } =
+    props;
   const logoUrl = props.logoUrl ?? undefined;
   const storeName = endingEffect ? props.storeName || undefined : undefined;
   const srtCues = props.kind === "video" && props.srtCues?.length ? props.srtCues : null;
@@ -106,6 +109,7 @@ export function ReelPreview(props: ReelPreviewProps) {
         musicUrl,
         musicVolume,
         logoUrl,
+        showWatermark,
         storeName,
         endingSeconds,
       };
@@ -136,6 +140,7 @@ export function ReelPreview(props: ReelPreviewProps) {
       words,
       captionStyle,
       logoUrl,
+      showWatermark,
       storeName,
       logoStart: timing.logoStart,
       fadeStart: timing.fadeStart,
@@ -150,7 +155,7 @@ export function ReelPreview(props: ReelPreviewProps) {
     props.kind,
     props.kind === "video" ? props.videoUrl : props.images.join("|"),
     videoDuration, text, cleanText, srtCues, showCaptions, captionStyle, ttsEnabled, voice, voiceDuration,
-    musicUrl, musicVolume, logoUrl, storeName, endingEffect,
+    musicUrl, musicVolume, logoUrl, showWatermark, storeName, endingEffect,
   ]);
 
   if (!composition) {

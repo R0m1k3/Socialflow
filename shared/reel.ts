@@ -39,6 +39,8 @@ export const videoReelParamsSchema = z.object({
   drawText: z.boolean().default(true),
   captionStyle: z.enum(CAPTION_STYLES).default(DEFAULT_CAPTION_STYLE),
   stabilize: z.boolean().default(false),
+  // Petit logo pendant la vidéo ; le grand logo de fin dépend de enableEndingEffect
+  showLogo: z.boolean().default(true),
   enableEndingEffect: z.boolean().default(true),
   // Déterminé par le serveur à partir de la première page, jamais par le client
   storeName: z.string().optional(),
@@ -58,6 +60,7 @@ export const imagesReelParamsSchema = z.object({
   ttsVoice: optionalText,
   ttsStyle: z.enum(TTS_STYLES).optional(),
   captionStyle: z.enum(CAPTION_STYLES).default(DEFAULT_CAPTION_STYLE),
+  showLogo: z.boolean().default(true),
   storeName: z.string().optional(),
   // Fichiers temporaires à supprimer une fois le rendu terminé
   tempFiles: z.array(z.string()).default([]),

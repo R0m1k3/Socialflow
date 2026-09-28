@@ -75,6 +75,7 @@ remotionRouter.post("/render", upload.fields([{ name: "images", maxCount: 4 }, {
       ttsVoice: req.body.ttsVoice,
       ttsStyle: req.body.ttsStyle || undefined,
       captionStyle: req.body.captionStyle || undefined,
+      showLogo: req.body.showLogo !== "false",
       storeName: await resolveStoreName(user.id, req.body.selectedPageId),
       tempFiles: uploaded.map((f) => f.path),
     });

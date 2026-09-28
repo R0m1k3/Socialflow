@@ -79,6 +79,7 @@ export default function NewReel() {
     // Désactivée par défaut : double le temps de rendu, utile seulement pour une vidéo tremblée
     const [stabilize, setStabilize] = useState(false);
     const [enableEndingEffect, setEnableEndingEffect] = useState(true);
+    const [showLogo, setShowLogo] = useState(true);
 
     // TTS Sync state
     const [syncInfo, setSyncInfo] = useState<{
@@ -423,6 +424,7 @@ export default function NewReel() {
             drawText,
             stabilize: stabilize,
             enableEndingEffect,
+            showLogo,
         });
     };
 
@@ -820,6 +822,17 @@ export default function NewReel() {
 
                                             <div className="flex items-center space-x-2 mt-4">
                                                 <Switch
+                                                    id="show-logo"
+                                                    checked={showLogo}
+                                                    onCheckedChange={setShowLogo}
+                                                />
+                                                <Label htmlFor="show-logo" className="font-medium cursor-pointer">
+                                                    Afficher le logo sur la vidéo
+                                                </Label>
+                                            </div>
+
+                                            <div className="flex items-center space-x-2 mt-4">
+                                                <Switch
                                                     id="enable-ending-effect"
                                                     checked={enableEndingEffect}
                                                     onCheckedChange={setEnableEndingEffect}
@@ -1012,6 +1025,7 @@ export default function NewReel() {
                                             musicUrl={selectedTrack?.previewUrl}
                                             musicVolume={musicVolume[0] / 100}
                                             logoUrl={reelConfig?.logoUrl}
+                                            showWatermark={showLogo}
                                             storeName={pages.find((p) => p.id === selectedPages[0])?.pageName}
                                             endingEffect={enableEndingEffect}
                                         />

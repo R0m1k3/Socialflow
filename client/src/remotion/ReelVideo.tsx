@@ -12,6 +12,8 @@ export type ReelVideoProps = {
   words: TimedWord[];
   captionStyle: CaptionStyle;
   logoUrl?: string;
+  /** Petit logo affiché pendant la vidéo (le grand logo de fin dépend de l'effet de fin). */
+  showWatermark?: boolean;
   storeName?: string;
   logoStart?: number | null;
   fadeStart?: number | null;
@@ -28,7 +30,7 @@ export type ReelVideoProps = {
 export const ReelVideo: React.FC<ReelVideoProps> = (props) => {
   const { fps } = useVideoConfig();
   const {
-    videoUrl, videoDuration, totalDuration, words, captionStyle, logoUrl, storeName,
+    videoUrl, videoDuration, totalDuration, words, captionStyle, logoUrl, showWatermark = true, storeName,
     logoStart = null, fadeStart = null, mixedAudioUrl, voiceUrl, voiceDelay = 2, musicUrl, musicVolume = 0.25,
   } = props;
 
@@ -67,7 +69,7 @@ export const ReelVideo: React.FC<ReelVideoProps> = (props) => {
       )}
 
       <Captions words={words} style={captionStyle} hideAfter={logoStart} />
-      {logoUrl && <Watermark logoUrl={logoUrl} until={logoStart} />}
+      {logoUrl && showWatermark && <Watermark logoUrl={logoUrl} until={logoStart} />}
       {logoStart != null && (logoUrl || storeName) && (
         <Outro start={logoStart} logoUrl={logoUrl} storeName={storeName} />
       )}
