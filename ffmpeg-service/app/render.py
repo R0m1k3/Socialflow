@@ -14,6 +14,8 @@ from . import config
 from .subtitles import filter_path
 
 FADE_SECONDS = 2.0
+# Fondu raccourci quand la voix finit tard, mais jamais sec
+MIN_FADE = 0.3
 LOGO_SECONDS = 5.0
 # Silence laissé après la dernière phrase avant la fin de la vidéo
 VOICE_TAIL = 0.8
@@ -76,7 +78,16 @@ class RenderPlan:
 
     @property
     def fade_start(self) -> float:
-        return max(0.0, self.total_duration - FADE_SECONDS)
+        """Le fondu final ne commence jamais avant la fin de la voix : il
+        rognait la dernière phrase quand la vidéo finissait peu après."""
+        start = max(0.0, self.total_duration - FADE_SECONDS)
+        if self.voice:
+            start = max(start, min(self.speech_end + 0.15, self.total_duration - MIN_FADE))
+        return round(start, 3)
+
+    @property
+    def fade_duration(self) -> float:
+        return round(max(MIN_FADE, self.total_duration - self.fade_start), 3)
 
     @property
     def freeze_duration(self) -> float:
@@ -140,9 +151,9 @@ def audio_graph(
     else:
         return graph, None
 
-    tail = ["loudnorm=I=-14:TP=-1.5:LRA=11", "aresample=48000"]
+    tail = ["loudnorm=I=-14:TP=-1.5:LRA=20", "aresample=48000"]
     if plan.ending_effect:
-        tail.append(f"afade=t=out:st={plan.fade_start:.3f}:d={FADE_SECONDS}")
+        tail.append(f"afade=t=out:st={plan.fade_start:.3f}:d={plan.fade_duration}")
     graph.append(f"[{mix}]{','.join(tail)}[aout]")
     return graph, "aout"
 
@@ -215,7 +226,7 @@ def build_command(plan: RenderPlan) -> list[str]:
 
     tail = []
     if plan.ending_effect:
-        tail.append(f"fade=t=out:st={plan.fade_start:.3f}:d={FADE_SECONDS}")
+        tail.append(f"fade=t=out:st={plan.fade_start:.3f}:d={plan.fade_duration}")
     tail.append("format=yuv420p")
     graph.append(f"[{current}]{','.join(tail)}[vout]")
 

@@ -154,3 +154,18 @@ def test_audio_mix_absent_without_any_sound():
     assert build_audio_mix_command(plan, Path("a.wav")) is None
     plan.keep_original_audio = True
     assert "loudnorm=I=-14" in " ".join(build_audio_mix_command(plan, Path("a.wav")))
+
+
+def test_final_fade_never_starts_before_the_voice_ends():
+    # Vidéo courte sans logo : 2 s + 5 s de voix, la vidéo finit 0,8 s après.
+    plan = RenderPlan(
+        video=Path("in.mp4"),
+        video_duration=4.0,
+        output=Path("out.mp4"),
+        voice=Path("v.wav"),
+        voice_duration=5.0,
+    )
+    assert plan.total_duration == 7.8
+    assert plan.fade_start >= plan.speech_end
+    assert plan.fade_duration >= 0.3
+    assert f"afade=t=out:st={plan.fade_start:.3f}" in _graph(build_command(plan))

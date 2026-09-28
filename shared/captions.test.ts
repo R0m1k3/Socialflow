@@ -24,7 +24,16 @@ describe("computeReelTiming", () => {
 
   it("n'a ni logo ni fondu sans effet de fin", () => {
     const timing = computeReelTiming({ videoDuration: 12, hasOutro: true, endingEffect: false });
-    expect(timing).toEqual({ total: 12, logoStart: null, fadeStart: null });
+    expect(timing).toEqual({ total: 12, logoStart: null, fadeStart: null, fadeDuration: null });
+  });
+});
+
+describe("fondu final", () => {
+  it("ne commence jamais avant la fin de la voix (mêmes valeurs que Python)", () => {
+    const timing = computeReelTiming({ videoDuration: 4, voiceDuration: 5, hasOutro: false, endingEffect: true });
+    expect(timing.total).toBe(7.8);
+    expect(timing.fadeStart).toBeGreaterThanOrEqual(7);
+    expect(timing.fadeDuration).toBeGreaterThanOrEqual(0.3);
   });
 });
 

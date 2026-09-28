@@ -1,6 +1,9 @@
 from pathlib import Path
 
+import numpy as np
+
 from app.align import Word, spread_words
+from app.quality import Envelope
 from app.render import RenderPlan
 from app.srt_voice import (
     Cue,
@@ -41,15 +44,16 @@ def test_words_of_the_single_reading_are_split_between_cues():
     assert split_by_cue(words, ["Bonjour."]) is None
 
 
-def test_reading_is_cut_inside_silences_not_on_word_bounds():
-    # Whisper situe mal la fin de « Bonjour » (0,9 s) : la vraie parole finit à 1,05 s,
-    # puis silence jusqu'à 1,6 s. La coupe tombe dans ce silence, sans rogner le mot.
+def test_reading_is_cut_in_the_pause_without_clipping_sentence_endings():
+    # Whisper situe mal la fin de « Bonjour » (0,9 s) : la voix retombe
+    # doucement jusqu'à 1,05 s, puis vraie pause jusqu'à 1,6 s.
+    db = [-90.0] * 15 + [-20.0] * 75 + [-50.0] * 15 + [-90.0] * 55 + [-20.0] * 100 + [-90.0] * 40
+    env = Envelope(np.array(db))
     groups = [[Word("Bonjour.", 0.2, 0.9)], [Word("Venez", 1.7, 2.1), Word("vite.", 2.1, 2.6)]]
-    silences = [(0.0, 0.15), (1.05, 1.6), (2.7, 3.0)]
-    first, second = segments_from_reading(groups, silences, 3.0)
-    assert first.source_start < 0.15 and 1.05 < first.source_end <= 1.2
-    assert 1.45 <= second.source_start < 1.6 and second.source_end > 2.7
-    assert first.source_end < second.source_start
+    first, second = segments_from_reading(groups, env)
+    assert first.source_end >= 1.05 + 0.25  # fin douce gardée, avec sa marge
+    assert first.source_end <= second.source_start
+    assert 1.5 <= second.source_start < 1.6
 
 
 def test_each_segment_is_placed_at_its_cue_start():

@@ -407,6 +407,8 @@ async def _prepare(request: ReelRequest, job_id: str, workdir: Path, started: fl
         "total_duration": plan.total_duration,
         "video_duration": info.duration,
         "logo_start": plan.logo_start if plan.has_outro else None,
+        "fade_start": plan.fade_start if plan.ending_effect else None,
+        "fade_duration": plan.fade_duration if plan.ending_effect else None,
         "words": [w.to_dict() for w in words],
         **_voice_info(track),
         "processing_stats": clock.summary(),

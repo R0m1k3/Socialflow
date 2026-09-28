@@ -1,7 +1,7 @@
 """Voix calée sur un fichier SRT.
 
 Tout le texte est lu d'une seule traite, puis la voix est découpée phrase par
-phrase dans ses vrais silences et chaque morceau est posé à l'instant de son
+phrase au point le plus calme de chaque pause, et chaque morceau est posé à l'instant de son
 sous-titre. Une lecture unique garde la même intonation, le même rythme et le
 même niveau d'un bout à l'autre ; lire chaque sous-titre séparément donnait
 une voix différente à chaque phrase, et le découpage aux bornes estimées par
@@ -9,7 +9,7 @@ Whisper rognait des syllabes.
 
 Si la lecture unique ne peut pas être répartie entre les sous-titres, on lit
 chaque sous-titre séparément (même voix, même graine), en découpant là aussi
-dans les silences mesurés.
+au niveau sonore mesuré.
 
 Quand un morceau est plus long que son sous-titre, il est accéléré (sans
 changer la hauteur de la voix) pour finir à temps.
@@ -28,9 +28,6 @@ log = logging.getLogger(__name__)
 
 # Débordement toléré sur le silence qui suit un sous-titre avant d'accélérer
 OVERFLOW_TOLERANCE = 0.25
-# Marges gardées autour de la parole quand on retire les silences
-LEAD_PAD = 0.08
-TAIL_PAD = 0.15
 # Au-delà, l'accélération s'entend nettement : l'utilisateur est prévenu
 AUDIBLE_SPEEDUP = 1.35
 
@@ -100,29 +97,20 @@ def split_by_cue(words: list[Word], cue_texts: list[str]) -> list[list[Word]] | 
     return groups
 
 
-def segments_from_reading(
-    groups: list[list[Word]], silences: list[tuple[float, float]], duration: float
-) -> list[Segment] | None:
-    """Découpe la lecture complète entre les phrases, au milieu des silences."""
-    start, end = quality.speech_bounds(silences, duration, pad=LEAD_PAD)
-    cuts = [start]
+def segments_from_reading(groups: list[list[Word]], envelope: quality.Envelope) -> list[Segment] | None:
+    """Découpe la lecture complète entre les phrases, au point le plus calme de
+    chaque pause, puis retire le silence autour de chaque phrase en gardant une
+    marge (300 ms après le dernier son : les fins de phrases ne sont pas rognées)."""
+    cuts = [0.0]
     for previous, following in zip(groups, groups[1:]):
-        cuts.append(quality.cut_point(silences, previous[-1].end, following[0].start))
-    cuts.append(end)
+        cuts.append(quality.sentence_cut(envelope, previous[-1].end, following[0].start))
+    cuts.append(envelope.duration)
     if any(b <= a for a, b in zip(cuts, cuts[1:])):
         return None
 
     segments = []
     for i, group in enumerate(groups):
-        seg_start, seg_end = cuts[i], cuts[i + 1]
-        # Retire le silence de part et d'autre de la coupe, en gardant une marge
-        for s, e in silences:
-            if s <= seg_start < e:
-                seg_start = max(seg_start, e - LEAD_PAD)
-            if s < seg_end <= e:
-                seg_end = min(seg_end, s + TAIL_PAD)
-        if seg_end <= seg_start:
-            seg_start, seg_end = cuts[i], cuts[i + 1]
+        seg_start, seg_end = envelope.speech_span(cuts[i], cuts[i + 1])
         segments.append(Segment(seg_start, seg_end, group))
     return segments
 
@@ -147,9 +135,9 @@ async def synthesize_cues(
     # 1. Lecture d'une seule traite, découpée dans les silences
     script = " ".join(texts)
     reading = await tts.synthesize(text=script, display_text=script, workdir=workdir, **options)
-    silences = await quality.detect_silences(reading.path, reading.duration)
+    envelope = await quality.load_envelope(reading.path)
     groups = split_by_cue(reading.words, texts)
-    segments = segments_from_reading(groups, silences, reading.duration) if groups else None
+    segments = segments_from_reading(groups, envelope) if groups else None
 
     if segments:
         sources = [(reading.path, seg) for seg in segments]
@@ -170,8 +158,8 @@ async def synthesize_cues(
                 **{**options, "engine": used_engine, "voice": used_voice or voice},
             )
             warnings += [w for w in track.warnings if w not in warnings]
-            cue_silences = await quality.detect_silences(track.path, track.duration)
-            span = quality.speech_bounds(cue_silences, track.duration, pad=LEAD_PAD)
+            cue_envelope = await quality.load_envelope(track.path)
+            span = cue_envelope.speech_span(0.0, cue_envelope.duration)
             sources.append((track.path, Segment(span[0], span[1], track.words)))
 
     placed: list[tuple[Path, float]] = []

@@ -17,6 +17,7 @@ export type ReelVideoProps = {
   storeName?: string;
   logoStart?: number | null;
   fadeStart?: number | null;
+  fadeDuration?: number | null;
   /** Rendu final : piste son déjà mixée (voix, musique baissée sous la voix, niveau normalisé). */
   mixedAudioUrl?: string;
   /** Aperçu : pistes séparées, mixées dans le navigateur. */
@@ -31,7 +32,7 @@ export const ReelVideo: React.FC<ReelVideoProps> = (props) => {
   const { fps } = useVideoConfig();
   const {
     videoUrl, videoDuration, totalDuration, words, captionStyle, logoUrl, showWatermark = true, storeName,
-    logoStart = null, fadeStart = null, mixedAudioUrl, voiceUrl, voiceDelay = 2, musicUrl, musicVolume = 0.25,
+    logoStart = null, fadeStart = null, fadeDuration = FADE_SECONDS, mixedAudioUrl, voiceUrl, voiceDelay = 2, musicUrl, musicVolume = 0.25,
   } = props;
 
   const videoFrames = Math.max(1, Math.floor(videoDuration * fps));
@@ -43,7 +44,7 @@ export const ReelVideo: React.FC<ReelVideoProps> = (props) => {
     <OffthreadVideo
       src={videoUrl}
       muted={!keepVideoSound}
-      volume={keepVideoSound && voiceUrl ? (frame) => previewMusicVolume(frame / fps, words, 1, fadeStart) : 1}
+      volume={keepVideoSound && voiceUrl ? (frame) => previewMusicVolume(frame / fps, words, 1, fadeStart, fadeDuration ?? FADE_SECONDS) : 1}
       style={{ width: "100%", height: "100%", objectFit: "cover" }}
     />
   );
@@ -71,7 +72,7 @@ export const ReelVideo: React.FC<ReelVideoProps> = (props) => {
         <Html5Audio
           src={musicUrl}
           loop
-          volume={(frame) => previewMusicVolume(frame / fps, words, musicVolume, fadeStart)}
+          volume={(frame) => previewMusicVolume(frame / fps, words, musicVolume, fadeStart, fadeDuration ?? FADE_SECONDS)}
         />
       )}
 
@@ -80,18 +81,24 @@ export const ReelVideo: React.FC<ReelVideoProps> = (props) => {
       {logoStart != null && (logoUrl || storeName) && (
         <Outro start={logoStart} logoUrl={logoUrl} storeName={storeName} />
       )}
-      {fadeStart != null && <FadeOut start={fadeStart} duration={FADE_SECONDS} />}
+      {fadeStart != null && <FadeOut start={fadeStart} duration={fadeDuration ?? FADE_SECONDS} />}
     </AbsoluteFill>
   );
 };
 
 /** Aperçu : le fond sonore (musique ou son d'origine) baisse pendant la parole et s'éteint avec le fondu final. */
-function previewMusicVolume(time: number, words: TimedWord[], base: number, fadeStart: number | null): number {
+function previewMusicVolume(
+  time: number,
+  words: TimedWord[],
+  base: number,
+  fadeStart: number | null,
+  fadeDuration: number,
+): number {
   const speaking = words.some((w) => time >= w.start - 0.2 && time <= w.end + 0.3);
   const fade =
     fadeStart == null
       ? 1
-      : interpolate(time, [fadeStart, fadeStart + FADE_SECONDS], [1, 0], {
+      : interpolate(time, [fadeStart, fadeStart + fadeDuration], [1, 0], {
           extrapolateLeft: "clamp",
           extrapolateRight: "clamp",
         });

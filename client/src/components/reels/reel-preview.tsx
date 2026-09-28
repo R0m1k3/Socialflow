@@ -144,6 +144,7 @@ export function ReelPreview(props: ReelPreviewProps) {
       storeName,
       logoStart: timing.logoStart,
       fadeStart: timing.fadeStart,
+      fadeDuration: timing.fadeDuration,
       voiceUrl: srtCues ? undefined : voice?.audioUrl,
       voiceDelay: VOICE_DELAY,
       musicUrl,

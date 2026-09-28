@@ -32,12 +32,15 @@ const VOICE_TAIL = 0.8;
 const OUTRO_MIN = 2.5;
 const LOGO_SECONDS = 5;
 export const FADE_SECONDS = 2;
+/** Fondu raccourci quand la voix finit tard, mais jamais sec. */
+const MIN_FADE = 0.3;
 
 export interface ReelTiming {
   total: number;
   /** Début de l'effet de fin (grand logo), ou null sans effet de fin. */
   logoStart: number | null;
   fadeStart: number | null;
+  fadeDuration: number | null;
 }
 
 /** Durée finale : la vidéo s'allonge (dernière image figée) si la voix dépasse. */
@@ -57,10 +60,15 @@ export function computeReelTiming(input: {
     if (hasOutro) total = Math.max(total, speechEnd + OUTRO_MIN);
   }
   total = Math.round(total * 1000) / 1000;
+  // Le fondu final ne commence jamais avant la fin de la voix
+  let fadeStart = Math.max(0, total - FADE_SECONDS);
+  if (input.voiceDuration) fadeStart = Math.max(fadeStart, Math.min(speechEnd + 0.15, total - MIN_FADE));
+  fadeStart = Math.round(fadeStart * 1000) / 1000;
   return {
     total,
     logoStart: hasOutro ? Math.max(0, total - LOGO_SECONDS, speechEnd) : null,
-    fadeStart: input.endingEffect ? Math.max(0, total - FADE_SECONDS) : null,
+    fadeStart: input.endingEffect ? fadeStart : null,
+    fadeDuration: input.endingEffect ? Math.max(MIN_FADE, total - fadeStart) : null,
   };
 }
 

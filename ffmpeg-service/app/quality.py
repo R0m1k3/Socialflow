@@ -2,22 +2,20 @@
 
 Gemini lit parfois mal : mots sautés, fin tronquée, consigne de style lue à
 voix haute. On compare donc ce que Whisper entend au texte attendu, et on
-découpe la voix dans ses vrais silences (mesurés dans l'audio) plutôt qu'aux
-bornes des mots estimées par Whisper, trop imprécises pour ne pas rogner une
-syllabe.
+découpe la voix d'après son niveau sonore réel (mesuré toutes les 10 ms)
+plutôt qu'aux bornes des mots estimées par Whisper, trop imprécises pour ne
+pas rogner une syllabe.
 """
 
+import asyncio
 import difflib
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
+
 from . import proc
 from .align import Word, normalize
-
-# Seuils de silence : en dessous de -40 dB pendant au moins 120 ms
-SILENCE_NOISE_DB = -40
-SILENCE_MIN_SECONDS = 0.12
 
 
 @dataclass
@@ -40,9 +38,12 @@ class ReadingCheck:
 
 
 def check_reading(expected_text: str, spoken: list[Word]) -> ReadingCheck:
-    """Compare le texte attendu à ce qui a été entendu (Whisper)."""
-    expected = [t for t in (normalize(w) for w in expected_text.split()) if t]
-    heard = [t for t in (normalize(w.text) for w in spoken) if t]
+    """Compare le texte attendu à ce qui a été entendu (Whisper), lettre à
+    lettre : les petites erreurs de reconnaissance (« petit » pour « petits »,
+    « week -end » découpé) ne comptent pas comme des mots manquants, alors
+    qu'un mot sauté, une fin tronquée ou une phrase ajoutée se voient."""
+    expected = "".join(normalize(w) for w in expected_text.split())
+    heard = "".join(normalize(w.text) for w in spoken)
     if not expected:
         return ReadingCheck(1.0, 0.0, True)
     if not heard:
@@ -51,68 +52,108 @@ def check_reading(expected_text: str, spoken: list[Word]) -> ReadingCheck:
     matcher = difflib.SequenceMatcher(a=expected, b=heard, autojunk=False)
     blocks = [b for b in matcher.get_matching_blocks() if b.size]
     matched = sum(b.size for b in blocks)
-    # Fin lue : un des deux derniers mots attendus est reconnu
-    tail = {len(expected) - 1, len(expected) - 2}
-    ending_ok = any(b.a <= i < b.a + b.size for b in blocks for i in tail if i >= 0)
+    # Fin lue : une bonne partie des dernières lettres du texte est reconnue
+    tail_start = max(0, len(expected) - 8)
+    tail_matched = sum(max(0, min(b.a + b.size, len(expected)) - max(b.a, tail_start)) for b in blocks)
     return ReadingCheck(
         coverage=matched / len(expected),
         extra=max(0, len(heard) - matched) / len(expected),
-        ending_ok=ending_ok,
+        ending_ok=tail_matched >= min(4, len(expected) - tail_start),
     )
 
 
-_SILENCE_START = re.compile(r"silence_start: (-?[\d.]+)")
-_SILENCE_END = re.compile(r"silence_end: (-?[\d.]+)")
+# Enveloppe sonore : niveau de la voix toutes les 10 ms
+FRAME = 0.01
+# Est « audible » ce qui dépasse le niveau de crête moins 38 dB : un seuil
+# relatif respecte les fins de phrases douces (« s » final, voix qui retombe),
+# qu'un seuil absolu prenait pour du silence.
+ACTIVE_RANGE_DB = 38.0
+# Marges gardées autour de la parole
+LEAD_PAD = 0.08
+TAIL_PAD = 0.30
 
 
-def parse_silences(ffmpeg_log: str, duration: float) -> list[tuple[float, float]]:
-    """Intervalles de silence tirés de la sortie du filtre silencedetect."""
-    silences: list[tuple[float, float]] = []
-    start: float | None = None
-    for line in ffmpeg_log.splitlines():
-        if m := _SILENCE_START.search(line):
-            start = max(0.0, float(m.group(1)))
-        elif (m := _SILENCE_END.search(line)) and start is not None:
-            silences.append((start, float(m.group(1))))
-            start = None
-    if start is not None:
-        silences.append((start, duration))
-    return silences
+@dataclass
+class Envelope:
+    db: np.ndarray  # niveau (dBFS) de chaque tranche de 10 ms
+
+    @property
+    def duration(self) -> float:
+        return len(self.db) * FRAME
+
+    @property
+    def threshold(self) -> float:
+        if not len(self.db):
+            return 0.0
+        return float(np.percentile(self.db, 95)) - ACTIVE_RANGE_DB
+
+    def _frames(self, start: float, end: float) -> tuple[int, int]:
+        first = max(0, int(start / FRAME))
+        last = min(len(self.db), int(np.ceil(end / FRAME)))
+        return first, max(first, last)
+
+    def quietest(self, start: float, end: float) -> float:
+        """Milieu de la zone la plus calme d'un intervalle : la coupe tombe au
+        cœur de la pause, loin des deux phrases qu'elle sépare."""
+        first, last = self._frames(start, end)
+        if last - first < 1:
+            return (start + end) / 2
+        smooth = np.convolve(self.db, np.ones(5) / 5, mode="same")[first:last]
+        quiet = smooth <= smooth.min() + 3.0  # à 3 dB du minimum
+        best_start, best_length, run_start = 0, 0, None
+        for i, is_quiet in enumerate([*quiet, False]):
+            if is_quiet and run_start is None:
+                run_start = i
+            elif not is_quiet and run_start is not None:
+                if i - run_start > best_length:
+                    best_start, best_length = run_start, i - run_start
+                run_start = None
+        return (first + best_start + best_length / 2) * FRAME
+
+    def first_sound(self, start: float, end: float) -> float | None:
+        first, last = self._frames(start, end)
+        active = np.nonzero(self.db[first:last] > self.threshold)[0]
+        return (first + int(active[0])) * FRAME if len(active) else None
+
+    def last_sound(self, start: float, end: float) -> float | None:
+        first, last = self._frames(start, end)
+        active = np.nonzero(self.db[first:last] > self.threshold)[0]
+        return (first + int(active[-1]) + 1) * FRAME if len(active) else None
+
+    def speech_span(self, start: float, end: float) -> tuple[float, float]:
+        """Parole contenue dans [start, end], avec ses marges, sans en sortir."""
+        onset, offset = self.first_sound(start, end), self.last_sound(start, end)
+        if onset is None or offset is None:
+            return start, end
+        return max(start, onset - LEAD_PAD), min(end, offset + TAIL_PAD)
 
 
-async def detect_silences(path: Path, duration: float) -> list[tuple[float, float]]:
-    log = await proc.run(
-        [
-            "ffmpeg", "-hide_banner", "-nostats", "-i", str(path),
-            "-af", f"silencedetect=noise={SILENCE_NOISE_DB}dB:d={SILENCE_MIN_SECONDS}",
-            "-f", "null", "-",
-        ],
-        timeout=120,
-        stderr_output=True,
+def envelope_from_samples(samples: np.ndarray, rate: int) -> Envelope:
+    per_frame = int(rate * FRAME)
+    count = len(samples) // per_frame
+    if count == 0:
+        return Envelope(np.array([-120.0]))
+    frames = samples[: count * per_frame].reshape(count, per_frame).astype(np.float64)
+    rms = np.sqrt(np.mean(frames**2, axis=1))
+    return Envelope(20 * np.log10(np.maximum(rms, 1e-6)))
+
+
+async def load_envelope(path: Path) -> Envelope:
+    """Décode l'audio (mono 16 kHz) et mesure son niveau toutes les 10 ms."""
+    process = await asyncio.create_subprocess_exec(
+        "ffmpeg", "-hide_banner", "-loglevel", "error", "-i", str(path),
+        "-ac", "1", "-ar", "16000", "-f", "f32le", "-",
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )  # fmt: skip
-    return parse_silences(log, duration)
+    raw, err = await process.communicate()
+    if process.returncode != 0:
+        raise proc.CommandError(["ffmpeg"], process.returncode, err.decode(errors="replace"))
+    return envelope_from_samples(np.frombuffer(raw, dtype=np.float32), 16000)
 
 
-def speech_bounds(
-    silences: list[tuple[float, float]], duration: float, pad: float = 0.08
-) -> tuple[float, float]:
-    """Début et fin de la parole (silences d'ouverture et de fin retirés, avec une marge)."""
-    start, end = 0.0, duration
-    for s, e in silences:
-        if s <= 0.01:
-            start = max(start, e)
-        if e >= duration - 0.01:
-            end = min(end, s)
-    start, end = max(0.0, start - pad), min(duration, end + pad)
-    return (start, end) if end > start else (0.0, duration)
-
-
-def cut_point(silences: list[tuple[float, float]], after: float, before: float) -> float:
-    """Instant de coupe entre deux phrases : au milieu du plus long silence
-    situé entre la fin de l'une et le début de l'autre (bornes Whisper élargies,
-    car imprécises). Sans silence mesuré, le milieu de l'écart."""
-    low, high = after - 0.3, before + 0.3
-    candidates = [(e - s, (s + e) / 2) for s, e in silences if e > low and s < high]
-    if candidates:
-        return max(candidates)[1]
-    return (after + before) / 2
+def sentence_cut(envelope: Envelope, previous_end: float, next_start: float) -> float:
+    """Coupe entre deux phrases, au point le plus calme de la pause. Les bornes
+    Whisper sont imprécises : on cherche un peu autour."""
+    low = max(0.0, min(previous_end, next_start) - 0.1)
+    high = max(previous_end, next_start) + 0.2
+    return envelope.quietest(low, high)

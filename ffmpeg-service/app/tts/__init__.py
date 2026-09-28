@@ -42,8 +42,10 @@ async def synthesize(
         else:
             result = await _gemini_checked(text, voice, style, gemini_api_key, workdir, warnings)
             if result:
-                processed, spoken, used_voice = result
+                processed, spoken, used_voice, reading_ok = result
                 used_engine = "gemini"
+                if reading_ok:
+                    processed, spoken = await _trim_stray_sounds(processed, spoken, workdir)
 
     if processed is None:
         raw, spoken, used_voice = await edge.synthesize(text, voice, style, workdir)
@@ -61,7 +63,7 @@ async def synthesize(
 
 async def _gemini_checked(
     text: str, voice: str | None, style: str | None, api_key: str, workdir: Path, warnings: list[str]
-) -> tuple[Path, list[Word], str] | None:
+) -> tuple[Path, list[Word], str, bool] | None:
     """Voix Gemini dont la lecture a été vérifiée : Whisper réécoute chaque
     génération ; mots sautés, fin tronquée ou consigne lue à voix haute
     déclenchent une nouvelle génération. Renvoie None pour se replier sur Edge."""
@@ -97,7 +99,42 @@ async def _gemini_checked(
             warnings.append(f"Gemini a mal lu le texte ({check.describe()}) : voix Edge utilisée à la place.")
             return None
         warnings.append(f"Lecture Gemini imparfaite ({check.describe()}) : écoutez le résultat.")
-    return processed, spoken, gemini_voice
+    return processed, spoken, gemini_voice, check.acceptable
+
+
+# Au-delà de la fin du dernier mot, ce n'est plus de la parole
+STRAY_AFTER_LAST_WORD = 0.6
+STRAY_BEFORE_FIRST_WORD = 0.4
+
+
+async def _trim_stray_sounds(path: Path, spoken: list[Word], workdir: Path) -> tuple[Path, list[Word]]:
+    """Retire les bruits que Gemini ajoute parfois avant le premier ou après le
+    dernier mot. Appelé seulement quand la lecture a été vérifiée : le dernier
+    mot est bien reconnu, on ne coupe donc jamais de parole."""
+    if not spoken:
+        return path, spoken
+    envelope = await quality.load_envelope(path)
+    duration = envelope.duration
+    window_start = max(0.0, spoken[0].start - STRAY_BEFORE_FIRST_WORD)
+    window_end = min(duration, spoken[-1].end + STRAY_AFTER_LAST_WORD)
+    start, end = envelope.speech_span(window_start, window_end)
+    if start < 0.02 and end > duration - 0.02:
+        return path, spoken
+
+    trimmed = workdir / "voice_trimmed.wav"
+    fade_out = max(0.0, end - start - 0.01)
+    await proc.run(
+        [
+            "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(path),
+            "-af", f"atrim=start={start:.3f}:end={end:.3f},asetpts=PTS-STARTPTS,"
+            f"afade=t=in:d=0.01,afade=t=out:st={fade_out:.3f}:d=0.01",
+            "-ac", "1", "-ar", "48000", "-c:a", "pcm_s16le", str(trimmed),
+        ],
+        timeout=60,
+    )  # fmt: skip
+    log.info("Voix recadrée sur la parole : %.2f–%.2f s (sur %.2f s)", start, end, duration)
+    shifted = [Word(w.text, w.start - start, w.end - start) for w in spoken if w.start < end]
+    return trimmed, shifted
 
 
 def _score(check: quality.ReadingCheck) -> float:

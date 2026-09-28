@@ -55,6 +55,9 @@ export interface PreparedReel {
     totalDuration: number;
     videoDuration: number;
     logoStart: number | null;
+    /** Fondu final, calculé par le service pour ne jamais rogner la voix. */
+    fadeStart: number | null;
+    fadeDuration: number | null;
     words: TimedWord[];
     ttsEngine?: string | null;
     ttsVoice?: string | null;
@@ -226,6 +229,8 @@ export class FFmpegService {
             total_duration: number;
             video_duration: number;
             logo_start: number | null;
+            fade_start?: number | null;
+            fade_duration?: number | null;
             words: TimedWord[];
             tts_engine?: string | null;
             tts_voice?: string | null;
@@ -248,6 +253,8 @@ export class FFmpegService {
                 totalDuration: data.total_duration,
                 videoDuration: data.video_duration,
                 logoStart: data.logo_start,
+                fadeStart: data.fade_start ?? null,
+                fadeDuration: data.fade_duration ?? null,
                 words: data.words ?? [],
                 ttsEngine: data.tts_engine,
                 ttsVoice: data.tts_voice,

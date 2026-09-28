@@ -12,7 +12,6 @@
 
 import fs from "fs";
 import path from "path";
-import { FADE_SECONDS } from "@shared/captions";
 import { videoReelParamsSchema, type VideoReelParams } from "@shared/reel";
 import { storage } from "../../storage";
 import { ffmpegService, type ReelRenderOptions } from "../ffmpeg";
@@ -139,7 +138,8 @@ async function renderWithRemotion(
         showWatermark: params.showLogo,
         storeName: params.enableEndingEffect ? params.storeName : undefined,
         logoStart: prepared.logoStart,
-        fadeStart: params.enableEndingEffect ? Math.max(0, prepared.totalDuration - FADE_SECONDS) : null,
+        fadeStart: prepared.fadeStart,
+        fadeDuration: prepared.fadeDuration,
         mixedAudioUrl: prepared.audioPath ? tempFileUrl(prepared.audioPath) : undefined,
       },
       onProgress: (ratio) => {
