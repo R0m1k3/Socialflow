@@ -1,4 +1,4 @@
-import { Home, PlusCircle, Calendar, Images, Users, Bot, Clock, Settings, Database, UserCog, LogOut, ChevronLeft, ChevronRight, ChevronDown, Wand2, BarChart3, Video, Music, Shield } from "lucide-react";
+import { Home, PlusCircle, CalendarClock, Calendar, Images, Users, Bot, Clock, Settings, Database, UserCog, LogOut, ChevronLeft, ChevronRight, ChevronDown, Wand2, BarChart3, Video, Music, Shield } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, AUTH_MUTATION, queryClient } from "@/lib/queryClient";
@@ -71,6 +71,7 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
     { icon: Home, label: "Tableau de bord", href: "/", badge: null },
     { icon: PlusCircle, label: "Nouvelle publication", href: "/new", badge: null },
     { icon: Video, label: "Nouveau Reel", href: "/reel", badge: "New" },
+    { icon: CalendarClock, label: "Programmer un Reel", href: "/reel/schedule", badge: "New" },
     { icon: Video, label: "Générateur Vidéo", href: "/remotion", badge: "New" },
     { icon: Calendar, label: "Calendrier", href: "/calendar", badge: null },
     { icon: Images, label: "Médiathèque", href: "/media", badge: null },

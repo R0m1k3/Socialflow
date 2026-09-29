@@ -81,6 +81,12 @@ const NewReel = createResponsiveRoute(
   () => import("@/pages/mobile/new-reel") // Uses same component for now
 );
 
+// Reel déjà monté : même page responsive sur mobile et desktop
+const ScheduleReel = createResponsiveRoute(
+  () => import("@/pages/schedule-reel"),
+  () => import("@/pages/schedule-reel")
+);
+
 const RemotionVideo = createResponsiveRoute(
   () => import("@/pages/remotion-video"),
   () => import("@/pages/mobile/remotion-video")
@@ -136,6 +142,7 @@ function Router() {
       <Route path="/">{() => <ProtectedRoute component={Dashboard} />}</Route>
       <Route path="/new">{() => <ProtectedRoute component={NewPost} />}</Route>
       <Route path="/reel">{() => <ProtectedRoute component={NewReel} />}</Route>
+      <Route path="/reel/schedule">{() => <ProtectedRoute component={ScheduleReel} />}</Route>
       <Route path="/remotion">{() => <ProtectedRoute component={RemotionVideo} />}</Route>
       <Route path="/calendar">{() => <ProtectedRoute component={Calendar} />}</Route>
       <Route path="/media">{() => <ProtectedRoute component={Media} />}</Route>
