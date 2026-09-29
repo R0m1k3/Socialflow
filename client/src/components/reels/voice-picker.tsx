@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2, Play, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -19,6 +20,7 @@ import {
   voicesFor,
   type TtsEngine,
   type TtsStyle,
+  type VoiceOption,
 } from "@shared/voices";
 import type { TimedWord } from "@shared/captions";
 
@@ -76,7 +78,13 @@ export function VoicePicker({ value, onChange, sampleText, compact = false, onPr
 
   useEffect(() => () => audioRef.current?.pause(), []);
 
-  const voices = voicesFor(value.engine);
+  // Voix Qwen réellement installées (voix clonées comprises) ; moteur grisé si le service local ne répond pas
+  const { data: qwenCatalog } = useQuery<{ qwenAvailable: boolean; qwen: VoiceOption[] }>({
+    queryKey: ["/api/reels/voices"],
+    staleTime: 5 * 60_000,
+  });
+  const qwenAvailable = qwenCatalog?.qwenAvailable ?? false;
+  const voices = value.engine === "qwen" && qwenCatalog?.qwen.length ? qwenCatalog.qwen : voicesFor(value.engine);
   const groups = [
     { label: "Voix féminines", items: voices.filter((v) => v.gender === "female") },
     { label: "Voix masculines", items: voices.filter((v) => v.gender === "male") },
@@ -133,7 +141,18 @@ export function VoicePicker({ value, onChange, sampleText, compact = false, onPr
     <div className="space-y-3">
       <div className="flex items-center gap-3">
         <Label className={`${labelClass} w-14 shrink-0`}>Moteur</Label>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            size="sm"
+            className={compact ? "h-7 text-xs" : undefined}
+            variant={value.engine === "qwen" ? "default" : "outline"}
+            disabled={!qwenAvailable && value.engine !== "qwen"}
+            title={qwenAvailable ? "Voix locale, gratuite, plus lente à générer" : "Service Qwen TTS non démarré"}
+            onClick={() => setEngine("qwen")}
+          >
+            Qwen (locale)
+          </Button>
           <Button
             type="button"
             size="sm"

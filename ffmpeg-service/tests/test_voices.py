@@ -21,3 +21,18 @@ def test_edge_fallbacks_are_french_and_same_gender():
 def test_style_prompt_precedes_text():
     assert build_prompt("Salut", "neutral") == "Salut"
     assert build_prompt("Salut", "dynamic").endswith(":\nSalut")
+
+
+def test_qwen_voice_keeps_clones_and_matches_gender():
+    from app.voices import qwen_instruction, resolve_qwen_voice
+
+    assert resolve_qwen_voice("clone:camille") == "clone:camille"
+    assert resolve_qwen_voice("Ryan") == "ryan"
+    assert resolve_qwen_voice("Charon") == "aiden"  # voix Gemini masculine
+    assert resolve_qwen_voice(None) == "serena"
+    assert "French" in qwen_instruction("dynamic")
+
+
+def test_qwen_voice_falls_back_to_same_gender_elsewhere():
+    assert resolve_edge_voice("uncle_fu").gender == "male"
+    assert resolve_gemini_voice("uncle_fu").id == "Charon"

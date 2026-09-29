@@ -11,12 +11,13 @@ import { Readable } from 'stream';
 import { pipeline } from 'stream/promises';
 import type { ReadableStream as WebReadableStream } from 'stream/web';
 import type { SrtCue } from '@shared/srt';
-import type { TtsEngine, TtsStyle } from '@shared/voices';
+import type { TtsEngine, TtsStyle, VoiceOption } from '@shared/voices';
 
 /** Un rendu long (stabilisation + encodage) peut dépasser plusieurs minutes. */
 const PROCESS_TIMEOUT_MS = 20 * 60_000;
 const DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
-const TTS_TIMEOUT_MS = 3 * 60_000;
+// Qwen (local, CPU) met plusieurs fois la durée de la voix à la générer
+const TTS_TIMEOUT_MS = 15 * 60_000;
 const HEALTH_TIMEOUT_MS = 5_000;
 
 export interface ReelRenderOptions {
@@ -68,6 +69,13 @@ export interface TimedWord {
     text: string;
     start: number;
     end: number;
+}
+
+export interface VoiceCatalog {
+    qwen: VoiceOption[];
+    qwen_available: boolean;
+    gemini: VoiceOption[];
+    edge: VoiceOption[];
 }
 
 export interface VoicePreview {
@@ -283,6 +291,12 @@ export class FFmpegService {
         } catch {
             return false;
         }
+    }
+
+    /** Voix proposées par moteur ; `qwen_available` indique si le service local répond. */
+    async listVoices(): Promise<VoiceCatalog> {
+        const response = await this.call('/voices', { method: 'GET', timeoutMs: 15_000 });
+        return await response.json() as VoiceCatalog;
     }
 
     /** Génère la voix seule (aperçu), avec le minutage de chaque mot. */

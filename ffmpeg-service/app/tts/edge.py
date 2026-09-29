@@ -13,8 +13,9 @@ log = logging.getLogger(__name__)
 
 # Réglages de lecture par style (Edge n'interprète pas de consigne en texte)
 STYLE_PROSODY = {
-    "dynamic": ("+8%", "+2Hz"),
-    "promo": ("+10%", "+3Hz"),
+    # Débit à peine relevé : au-delà, la voix devient difficile à suivre
+    "dynamic": ("+0%", "+2Hz"),
+    "promo": ("+3%", "+3Hz"),
     "calm": ("-8%", "-2Hz"),
     "warm": ("-2%", "+0Hz"),
 }

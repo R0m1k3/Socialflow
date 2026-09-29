@@ -7,29 +7,32 @@ from app.quality import Envelope
 from app.render import RenderPlan
 from app.srt_voice import (
     Cue,
+    Segment,
     as_sentence,
-    atempo_chain,
-    cue_windows,
+    extract_command,
     mix_command,
+    place_segments,
     segments_from_reading,
-    speed_factor,
     split_by_cue,
 )
 
 
-def test_window_stops_at_next_cue_and_tolerates_a_short_overflow():
-    cues = [Cue(0.0, 2.0, "a"), Cue(2.1, 4.0, "b"), Cue(6.0, 7.0, "c")]
-    assert cue_windows(cues) == [2.1, 2.15, 1.25]
+def test_segments_start_at_their_cue_when_they_fit():
+    cues = [Cue(0.0, 2.0, "a"), Cue(2.5, 4.0, "b"), Cue(6.0, 7.0, "c")]
+    assert place_segments(cues, [2.0, 1.0, 1.0]) == [0.0, 2.5, 6.0]
 
 
-def test_voice_is_sped_up_only_when_too_long():
-    assert speed_factor(1.5, 2.0) == 1.0
-    assert speed_factor(3.0, 2.0) == 1.5
+def test_overflowing_segment_pushes_the_next_ones_instead_of_speeding_up():
+    cues = [Cue(0.0, 1.0, "a"), Cue(1.0, 2.0, "b"), Cue(5.0, 6.0, "c")]
+    starts = place_segments(cues, [2.0, 2.0, 1.0])
+    assert starts[0] == 0.0
+    assert abs(starts[1] - 2.05) < 1e-9  # après la fin du premier, à vitesse normale
+    assert starts[2] == 5.0  # rattrape le minutage dès que possible
 
 
-def test_atempo_is_split_into_supported_steps():
-    assert atempo_chain(1.25) == "atempo=1.2500"
-    assert atempo_chain(3.0) == "atempo=2.0000,atempo=1.5000"
+def test_segments_are_never_sped_up():
+    cmd = extract_command(Path("in.wav"), Segment(1.0, 4.0, []), Path("out.wav"))
+    assert "atempo" not in cmd[cmd.index("-af") + 1]
 
 
 def test_each_cue_becomes_a_sentence_for_the_reading():

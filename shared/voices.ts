@@ -3,7 +3,7 @@
  * Même catalogue que le service Python (ffmpeg-service/app/voices.py).
  */
 
-export const TTS_ENGINES = ["gemini", "edge"] as const;
+export const TTS_ENGINES = ["qwen", "gemini", "edge"] as const;
 export type TtsEngine = (typeof TTS_ENGINES)[number];
 
 export const TTS_STYLES = ["neutral", "dynamic", "warm", "calm", "promo"] as const;
@@ -16,7 +16,7 @@ export interface VoiceOption {
 }
 
 export const TTS_STYLE_OPTIONS: { id: TtsStyle; label: string; description: string }[] = [
-  { id: "dynamic", label: "Dynamique", description: "Enthousiaste, rythme entraînant" },
+  { id: "dynamic", label: "Dynamique", description: "Enthousiaste, débit naturel" },
   { id: "warm", label: "Chaleureux", description: "Souriant et proche" },
   { id: "promo", label: "Promo", description: "Annonce énergique des offres" },
   { id: "calm", label: "Calme", description: "Posé et rassurant" },
@@ -64,13 +64,28 @@ export const EDGE_VOICES: VoiceOption[] = [
   { id: "fr-FR-HenriNeural", label: "Henri", gender: "male" },
 ];
 
+/** Voix prédéfinies de Qwen3-TTS (local). Les voix clonées sont listées par le service. */
+export const QWEN_VOICES: VoiceOption[] = [
+  { id: "serena", label: "Serena — douce et chaleureuse", gender: "female" },
+  { id: "vivian", label: "Vivian — vive et lumineuse", gender: "female" },
+  { id: "sohee", label: "Sohee — expressive", gender: "female" },
+  { id: "ono_anna", label: "Anna — espiègle", gender: "female" },
+  { id: "aiden", label: "Aiden — solaire", gender: "male" },
+  { id: "ryan", label: "Ryan — dynamique", gender: "male" },
+  { id: "uncle_fu", label: "Fu — grave et posée", gender: "male" },
+  { id: "dylan", label: "Dylan — jeune et naturelle", gender: "male" },
+  { id: "eric", label: "Eric — légèrement voilée", gender: "male" },
+];
+
 export const DEFAULT_VOICE: Record<TtsEngine, string> = {
+  qwen: "serena",
   gemini: "Kore",
   edge: "fr-FR-VivienneMultilingualNeural",
 };
 
-export const DEFAULT_TTS_STYLE: TtsStyle = "dynamic";
+export const DEFAULT_TTS_STYLE: TtsStyle = "neutral";
 
 export function voicesFor(engine: TtsEngine): VoiceOption[] {
+  if (engine === "qwen") return QWEN_VOICES;
   return engine === "gemini" ? GEMINI_VOICES : EDGE_VOICES;
 }

@@ -11,8 +11,10 @@ Si la lecture unique ne peut pas être répartie entre les sous-titres, on lit
 chaque sous-titre séparément (même voix, même graine), en découpant là aussi
 au niveau sonore mesuré.
 
-Quand un morceau est plus long que son sous-titre, il est accéléré (sans
-changer la hauteur de la voix) pour finir à temps.
+La voix n'est jamais accélérée : quand un morceau est plus long que son
+sous-titre, il déborde et les morceaux suivants sont décalés d'autant (le
+minutage SRT n'est qu'un instant de départ au plus tôt). Les sous-titres
+affichés suivent la voix et la vidéo s'allonge si besoin.
 """
 
 import logging
@@ -26,10 +28,10 @@ from .text import clean_text
 
 log = logging.getLogger(__name__)
 
-# Débordement toléré sur le silence qui suit un sous-titre avant d'accélérer
-OVERFLOW_TOLERANCE = 0.25
-# Au-delà, l'accélération s'entend nettement : l'utilisateur est prévenu
-AUDIBLE_SPEEDUP = 1.35
+# Silence ajouté entre deux morceaux décalés (en plus des marges de chaque morceau)
+MIN_GAP = 0.05
+# Au-delà de ce retard cumulé sur le minutage SRT, l'utilisateur est prévenu
+DRIFT_WARNING = 1.0
 
 _SENTENCE_END = re.compile(r"[.!?…]$")
 
@@ -50,31 +52,16 @@ class Segment:
     words: list[Word]
 
 
-def cue_windows(cues: list[Cue]) -> list[float]:
-    """Durée disponible pour lire chaque sous-titre sans empiéter sur le suivant."""
-    windows = []
-    for i, cue in enumerate(cues):
-        limit = cue.end + OVERFLOW_TOLERANCE
-        if i + 1 < len(cues):
-            limit = min(limit, max(cue.end, cues[i + 1].start))
-        windows.append(max(0.1, limit - cue.start))
-    return windows
-
-
-def speed_factor(duration: float, window: float) -> float:
-    """Accélération nécessaire pour tenir dans la fenêtre (1 = vitesse normale)."""
-    return max(1.0, duration / window) if window > 0 else 1.0
-
-
-def atempo_chain(factor: float) -> str:
-    """Filtre atempo ; découpé en étapes ≤ 2 pour les anciennes versions de FFmpeg."""
-    steps = []
-    remaining = factor
-    while remaining > 2.0:
-        steps.append(2.0)
-        remaining /= 2.0
-    steps.append(remaining)
-    return ",".join(f"atempo={s:.4f}" for s in steps)
+def place_segments(cues: list[Cue], durations: list[float]) -> list[float]:
+    """Instant de départ de chaque morceau : celui de son sous-titre, ou juste
+    après le morceau précédent s'il déborde (vitesse naturelle conservée)."""
+    starts: list[float] = []
+    previous_end = 0.0
+    for cue, duration in zip(cues, durations):
+        start = cue.start if not starts else max(cue.start, previous_end + MIN_GAP)
+        starts.append(start)
+        previous_end = start + duration
+    return starts
 
 
 def as_sentence(text: str) -> str:
@@ -162,26 +149,30 @@ async def synthesize_cues(
             span = cue_envelope.speech_span(0.0, cue_envelope.duration)
             sources.append((track.path, Segment(span[0], span[1], track.words)))
 
+    durations = [segment.source_end - segment.source_start for _, segment in sources]
+    starts = place_segments(cues, durations)
     placed: list[tuple[Path, float]] = []
     words: list[Word] = []
-    for index, (cue, window, (source, segment)) in enumerate(zip(cues, cue_windows(cues), sources)):
-        factor = speed_factor(segment.source_end - segment.source_start, window)
-        if factor > AUDIBLE_SPEEDUP:
-            warnings.append(
-                f"Sous-titre {index + 1} (« {cue.text[:40]} ») lu {factor:.1f}× plus vite "
-                "pour tenir dans son minutage : raccourcissez-le ou allongez sa durée."
-            )
+    for index, (cue, start, (source, segment)) in enumerate(zip(cues, starts, sources)):
         fitted = workdir / f"segment_{index:03d}.wav"
-        await proc.run(extract_command(source, segment, factor, fitted), timeout=120)
-        placed.append((fitted, cue.start))
+        await proc.run(extract_command(source, segment, fitted), timeout=120)
+        placed.append((fitted, start))
         added_period = not _SENTENCE_END.search(clean_text(cue.text))
         for position, w in enumerate(segment.words):
             text = w.text
             if added_period and position == len(segment.words) - 1:
                 text = text.rstrip(".")  # point ajouté pour la lecture, pas à afficher
-            start = cue.start + max(0.0, w.start - segment.source_start) / factor
-            end = cue.start + max(0.0, w.end - segment.source_start) / factor
-            words.append(Word(text or w.text, start, min(max(end, start + 0.05), cue.start + window)))
+            word_start = start + max(0.0, w.start - segment.source_start)
+            word_end = start + max(0.0, w.end - segment.source_start)
+            words.append(Word(text or w.text, word_start, max(word_end, word_start + 0.05)))
+
+    drift = max((s - c.start for s, c in zip(starts, cues)), default=0.0)
+    if drift > DRIFT_WARNING:
+        warnings.append(
+            f"Le texte lu dépasse le minutage du SRT : les derniers sous-titres sont décalés "
+            f"de {drift:.1f} s (voix gardée à vitesse normale). Raccourcissez le texte "
+            "ou allongez les durées pour rester calé."
+        )
 
     output = workdir / "voice_srt.wav"
     await proc.run(mix_command(placed, output), timeout=300)
@@ -197,14 +188,14 @@ async def synthesize_cues(
     return tts.VoiceTrack(output, duration, _monotonic(words), used_engine, used_voice, warnings)
 
 
-def extract_command(source: Path, segment: Segment, factor: float, output: Path) -> list[str]:
-    """Extrait un morceau de voix, avec un fondu de 10 ms aux bords (pas de clic)
-    et l'accélération éventuelle."""
+def extract_command(source: Path, segment: Segment, output: Path) -> list[str]:
+    """Extrait un morceau de voix, à vitesse normale, avec un fondu de 10 ms
+    aux bords (pas de clic)."""
     length = segment.source_end - segment.source_start
     fade_out = max(0.0, length - 0.01)
     filters = (
         f"atrim=start={segment.source_start:.3f}:end={segment.source_end:.3f},asetpts=PTS-STARTPTS,"
-        f"afade=t=in:d=0.01,afade=t=out:st={fade_out:.3f}:d=0.01,{atempo_chain(factor)}"
+        f"afade=t=in:d=0.01,afade=t=out:st={fade_out:.3f}:d=0.01"
     )
     return [
         "ffmpeg", "-y", "-hide_banner", "-loglevel", "error", "-i", str(source),

@@ -52,13 +52,27 @@ EDGE_VOICES: tuple[Voice, ...] = (
     Voice("fr-FR-HenriNeural", "Henri", "male"),
 )
 
+# Voix prédéfinies de Qwen3-TTS (service local). Les voix clonées
+# (« clone:nom ») sont listées par le service lui-même.
+QWEN_VOICES: tuple[Voice, ...] = (
+    Voice("serena", "Serena — douce et chaleureuse", "female"),
+    Voice("vivian", "Vivian — vive et lumineuse", "female"),
+    Voice("sohee", "Sohee — expressive", "female"),
+    Voice("ono_anna", "Anna — espiègle", "female"),
+    Voice("aiden", "Aiden — solaire", "male"),
+    Voice("ryan", "Ryan — dynamique", "male"),
+    Voice("uncle_fu", "Fu — grave et posée", "male"),
+    Voice("dylan", "Dylan — jeune et naturelle", "male"),
+    Voice("eric", "Eric — légèrement voilée", "male"),
+)
+
 # Consignes de lecture ajoutées au texte envoyé à Gemini.
 STYLES: dict[str, tuple[str, str]] = {
     "neutral": ("Neutre", ""),
     "dynamic": (
         "Dynamique",
-        "Lis ce texte en français sur un ton dynamique et enthousiaste, avec un rythme "
-        "entraînant, comme une vidéo courte sur les réseaux sociaux",
+        "Lis ce texte en français sur un ton dynamique et enthousiaste, comme une vidéo "
+        "courte sur les réseaux sociaux, à un débit naturel, sans accélérer, en articulant bien",
     ),
     "warm": (
         "Chaleureux",
@@ -71,12 +85,25 @@ STYLES: dict[str, tuple[str, str]] = {
     "promo": (
         "Promo",
         "Lis ce texte en français comme une annonce promotionnelle énergique, en "
-        "insistant sur les offres et les prix",
+        "insistant sur les offres et les prix, sans accélérer, en articulant bien",
     ),
 }
 
 _GEMINI_BY_ID = {v.id.lower(): v for v in GEMINI_VOICES}
 _EDGE_BY_ID = {v.id: v for v in EDGE_VOICES}
+_QWEN_BY_ID = {v.id: v for v in QWEN_VOICES}
+
+# Consignes de ton pour Qwen (le modèle comprend l'anglais mieux que le français)
+QWEN_STYLES: dict[str, str] = {
+    "neutral": "Speak natural, native French with clear articulation and a relaxed, natural pace.",
+    "dynamic": "Speak native French in an upbeat, enthusiastic and smiling tone, like a social media video, "
+    "at a natural pace without rushing, clearly articulated.",
+    "warm": "Speak native French in a warm, friendly and caring tone, as if advising a friend, "
+    "at a relaxed pace.",
+    "calm": "Speak native French in a calm, soothing and reassuring tone, slowly and clearly.",
+    "promo": "Speak native French like an energetic promotional announcement, emphasizing offers and prices, "
+    "at a natural pace without rushing, clearly articulated.",
+}
 
 
 def resolve_gemini_voice(voice: str | None) -> Voice:
@@ -87,7 +114,7 @@ def resolve_gemini_voice(voice: str | None) -> Voice:
     """
     if voice and voice.lower() in _GEMINI_BY_ID:
         return _GEMINI_BY_ID[voice.lower()]
-    if voice and voice.endswith(("-B", "-D")) or voice == "male":
+    if voice and voice.endswith(("-B", "-D")) or voice_gender(voice) == "male":
         return _GEMINI_BY_ID["charon"]
     return _GEMINI_BY_ID["kore"]
 
@@ -100,6 +127,8 @@ def voice_gender(voice: str | None) -> str:
         return _GEMINI_BY_ID[voice.lower()].gender
     if voice in _EDGE_BY_ID:
         return _EDGE_BY_ID[voice].gender
+    if voice.lower() in _QWEN_BY_ID:
+        return _QWEN_BY_ID[voice.lower()].gender
     if voice == "male" or voice.endswith(("-B", "-D")):
         return "male"
     return "male" if any(name in voice for name in ("Remy", "Henri", "Paul")) else "female"
@@ -113,6 +142,20 @@ def resolve_edge_voice(voice: str | None) -> Voice:
     return next(v for v in EDGE_VOICES if v.gender == gender)
 
 
+def resolve_qwen_voice(voice: str | None) -> str:
+    """Voix Qwen à utiliser : voix clonée ou prédéfinie ; une voix d'un autre
+    moteur est remplacée par une voix Qwen du même genre."""
+    if voice and voice.startswith("clone:"):
+        return voice
+    if voice and voice.lower() in _QWEN_BY_ID:
+        return voice.lower()
+    return "aiden" if voice_gender(voice) == "male" else "serena"
+
+
+def qwen_instruction(style: str | None) -> str:
+    return QWEN_STYLES.get(style or "neutral", QWEN_STYLES["neutral"])
+
+
 def edge_fallbacks(primary: Voice) -> list[Voice]:
     """Voix françaises de secours du même genre (jamais d'anglais)."""
     same = [v for v in EDGE_VOICES if v.gender == primary.gender and v != primary]
@@ -123,8 +166,11 @@ def style_instruction(style: str | None) -> str:
     return STYLES.get(style or "neutral", STYLES["neutral"])[1]
 
 
-def catalog() -> dict:
+def catalog(qwen_voices: list[dict] | None = None) -> dict:
+    """Voix par moteur ; `qwen_voices` vient du service Qwen (None s'il ne répond pas)."""
     return {
+        "qwen": qwen_voices or [v.__dict__ for v in QWEN_VOICES],
+        "qwen_available": qwen_voices is not None,
         "gemini": [v.__dict__ for v in GEMINI_VOICES],
         "edge": [v.__dict__ for v in EDGE_VOICES],
         "styles": [{"id": k, "label": v[0]} for k, v in STYLES.items()],

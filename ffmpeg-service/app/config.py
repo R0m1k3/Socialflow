@@ -36,3 +36,10 @@ FPS = 30
 VOICE_DELAY = 2.0
 
 SUBTITLE_FONT = os.environ.get("SUBTITLE_FONT", "Montserrat")
+
+# Moteur local Qwen3-TTS (service qwen-tts). Vide : moteur indisponible.
+QWEN_TTS_URL = os.environ.get("QWEN_TTS_URL", "").rstrip("/")
+# Sur CPU, la génération prend plusieurs fois la durée de la voix
+QWEN_TTS_TIMEOUT = float(os.environ.get("QWEN_TTS_TIMEOUT", "900"))
+QWEN_TTS_ATTEMPTS = int(os.environ.get("QWEN_TTS_ATTEMPTS", "2"))
+QWEN_TTS_API_KEY = os.environ.get("QWEN_TTS_API_KEY", "")

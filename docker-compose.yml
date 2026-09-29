@@ -86,10 +86,44 @@ services:
     environment:
       API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
       GEMINI_TTS_MODEL: ${GEMINI_TTS_MODEL:-gemini-2.5-flash-preview-tts}
+      # Moteur de voix local (service qwen-tts ci-dessous)
+      QWEN_TTS_URL: http://qwen-tts:8001
+      QWEN_TTS_API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
     networks:
       - internal
     expose:
       - "8000"
+
+  # Voix locale Qwen3-TTS (gratuite, française, sur CPU). Plus lente que
+  # Gemini : compter 5 à 7 fois la durée de la voix sur 4 cœurs.
+  qwen-tts:
+    build:
+      context: ./qwen-tts
+      dockerfile: Dockerfile
+      args:
+        # 1.7B : ton et émotion pilotés par consigne ; 0.6B : ~30 % plus rapide
+        QWEN_TTS_MODEL: ${QWEN_TTS_MODEL:-Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice}
+        # Clonage des voix déposées dans qwen-tts/voices (vide : désactivé)
+        QWEN_TTS_CLONE_MODEL: ${QWEN_TTS_CLONE_MODEL-Qwen/Qwen3-TTS-12Hz-0.6B-Base}
+    image: socialflow-qwen-tts:latest
+    pull_policy: build
+    container_name: socialflow-qwen-tts
+    restart: unless-stopped
+    environment:
+      API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
+      # Threads de calcul (0 : tous les cœurs)
+      QWEN_TTS_THREADS: ${QWEN_TTS_THREADS:-0}
+    volumes:
+      # Voix clonées ajoutables sans reconstruire l'image
+      - ./qwen-tts/voices:/app/voices:ro
+    networks:
+      - internal
+    expose:
+      - "8001"
+    deploy:
+      resources:
+        limits:
+          memory: ${QWEN_TTS_MEMORY:-10g}
 
 volumes:
   postgres_data:
