@@ -100,7 +100,7 @@ async def health():
 
 @app.get("/voices", dependencies=[Depends(require_key)])
 async def list_voices():
-    return voices.catalog()
+    return voices.catalog(await tts.qwen.list_voices())
 
 
 @app.post("/preview-tts", dependencies=[Depends(require_key)])

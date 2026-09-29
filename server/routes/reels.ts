@@ -272,6 +272,20 @@ reelsRouter.post('/reels/generate-text', async (req: Request, res: Response) => 
 });
 
 /**
+ * Voix disponibles (dont les voix clonées Qwen) et disponibilité du moteur local
+ * GET /api/reels/voices
+ */
+reelsRouter.get('/reels/voices', async (_req: Request, res: Response) => {
+    try {
+        const catalog = await ffmpegService.listVoices();
+        res.json({ qwenAvailable: catalog.qwen_available, qwen: catalog.qwen });
+    } catch (error) {
+        console.error('❌ Error listing voices:', error);
+        res.json({ qwenAvailable: false, qwen: [] });
+    }
+});
+
+/**
  * Prévisualiser la voix TTS
  * POST /api/reels/tts-preview
  */

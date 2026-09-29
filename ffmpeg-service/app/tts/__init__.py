@@ -1,12 +1,14 @@
-"""Synthèse vocale : moteur au choix, repli sur Edge, voix traitée et mots minutés."""
+"""Synthèse vocale : moteur au choix (Qwen local, Gemini, Edge), replis
+successifs, voix traitée et mots minutés."""
 
 import logging
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from .. import align, audio, config, proc, quality
 from ..align import Word
-from . import edge, gemini
+from . import edge, gemini, qwen
 
 log = logging.getLogger(__name__)
 
@@ -35,12 +37,37 @@ async def synthesize(
     processed: Path | None = None
     spoken: list[Word] = []
     used_engine, used_voice = "edge", ""
+    engine = engine or "gemini"
 
-    if (engine or "gemini") == "gemini":
+    if engine == "qwen":
+        result = await _checked(
+            "Qwen",
+            lambda attempt: qwen.synthesize(text, voice, style, workdir, attempt),
+            config.QWEN_TTS_ATTEMPTS,
+            text,
+            workdir,
+            warnings,
+        )
+        if result:
+            processed, spoken, used_voice, reading_ok = result
+            used_engine = "qwen"
+            if reading_ok:
+                processed, spoken = await _trim_stray_sounds(processed, spoken, workdir)
+        elif gemini_api_key:
+            engine = "gemini"  # repli sur Gemini quand une clé est disponible
+
+    if engine == "gemini" and processed is None:
         if not gemini_api_key:
             warnings.append("Clé Gemini absente : voix Edge utilisée à la place.")
         else:
-            result = await _gemini_checked(text, voice, style, gemini_api_key, workdir, warnings)
+            result = await _checked(
+                "Gemini",
+                lambda attempt: gemini.synthesize(text, voice, style, gemini_api_key, workdir, attempt),
+                config.GEMINI_TTS_ATTEMPTS,
+                text,
+                workdir,
+                warnings,
+            )
             if result:
                 processed, spoken, used_voice, reading_ok = result
                 used_engine = "gemini"
@@ -61,45 +88,55 @@ async def synthesize(
     return VoiceTrack(processed, duration, words, used_engine, used_voice, warnings)
 
 
-async def _gemini_checked(
-    text: str, voice: str | None, style: str | None, api_key: str, workdir: Path, warnings: list[str]
+# En dessous, une lecture imparfaite est écartée au profit du moteur suivant :
+# mieux vaut une autre voix qu'une phrase aux mots sautés ou inventés.
+KEEP_IMPERFECT_COVERAGE = 0.85
+
+
+async def _checked(
+    name: str,
+    generate: Callable[[int], Awaitable[tuple[Path, str]]],
+    attempts: int,
+    text: str,
+    workdir: Path,
+    warnings: list[str],
 ) -> tuple[Path, list[Word], str, bool] | None:
-    """Voix Gemini dont la lecture a été vérifiée : Whisper réécoute chaque
+    """Voix dont la lecture a été vérifiée : Whisper réécoute chaque
     génération ; mots sautés, fin tronquée ou consigne lue à voix haute
-    déclenchent une nouvelle génération. Renvoie None pour se replier sur Edge."""
+    déclenchent une nouvelle génération. Renvoie None pour passer au moteur suivant."""
     best: tuple[quality.ReadingCheck, Path, list[Word], str] | None = None
     last_error: Exception | None = None
 
-    for attempt in range(max(1, config.GEMINI_TTS_ATTEMPTS)):
+    for attempt in range(max(1, attempts)):
         try:
-            raw, gemini_voice = await gemini.synthesize(text, voice, style, api_key, workdir, attempt)
-        except Exception as error:  # noqa: BLE001 — nouvelle tentative, puis repli sur Edge
-            log.warning("Gemini TTS en échec (tentative %d) : %s", attempt + 1, error)
+            raw, engine_voice = await generate(attempt)
+        except Exception as error:  # noqa: BLE001 — nouvelle tentative, puis moteur suivant
+            log.warning("%s TTS en échec (tentative %d) : %s", name, attempt + 1, error)
             last_error = error
             continue
 
-        processed = workdir / f"voice_gemini_{attempt}.wav"
+        processed = workdir / f"voice_{name.lower()}_{attempt}.wav"
         await audio.process_voice(raw, processed)
         spoken = await align.transcribe(processed)
         check = quality.check_reading(text, spoken)
-        log.info("Lecture Gemini (tentative %d) : %s", attempt + 1, check.describe())
+        log.info("Lecture %s (tentative %d) : %s", name, attempt + 1, check.describe())
 
         if best is None or _score(check) > _score(best[0]):
-            best = (check, processed, spoken, gemini_voice)
+            best = (check, processed, spoken, engine_voice)
         if check.acceptable:
             break
 
     if best is None:
-        warnings.append(f"Gemini indisponible ({last_error}) : voix Edge utilisée à la place.")
+        warnings.append(f"{name} indisponible ({last_error}) : voix de secours utilisée.")
         return None
 
-    check, processed, spoken, gemini_voice = best
+    check, processed, spoken, engine_voice = best
     if not check.acceptable:
-        if check.coverage < 0.7:
-            warnings.append(f"Gemini a mal lu le texte ({check.describe()}) : voix Edge utilisée à la place.")
+        if check.coverage < KEEP_IMPERFECT_COVERAGE:
+            warnings.append(f"{name} a mal lu le texte ({check.describe()}) : voix de secours utilisée.")
             return None
-        warnings.append(f"Lecture Gemini imparfaite ({check.describe()}) : écoutez le résultat.")
-    return processed, spoken, gemini_voice, check.acceptable
+        warnings.append(f"Lecture {name} imparfaite ({check.describe()}) : écoutez le résultat.")
+    return processed, spoken, engine_voice, check.acceptable
 
 
 # Au-delà de la fin du dernier mot, ce n'est plus de la parole
@@ -108,7 +145,7 @@ STRAY_BEFORE_FIRST_WORD = 0.4
 
 
 async def _trim_stray_sounds(path: Path, spoken: list[Word], workdir: Path) -> tuple[Path, list[Word]]:
-    """Retire les bruits que Gemini ajoute parfois avant le premier ou après le
+    """Retire les bruits que le modèle ajoute parfois avant le premier ou après le
     dernier mot. Appelé seulement quand la lecture a été vérifiée : le dernier
     mot est bien reconnu, on ne coupe donc jamais de parole."""
     if not spoken:

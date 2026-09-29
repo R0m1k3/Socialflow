@@ -39,9 +39,12 @@ export async function resolveLogoPath(): Promise<string | undefined> {
   return undefined;
 }
 
-/** Clé Gemini : configuration de l'application, sinon variable d'environnement. */
+/**
+ * Clé Gemini : configuration de l'application, sinon variable d'environnement.
+ * Aussi transmise avec Qwen, qui se replie sur Gemini si le service local échoue.
+ */
 export async function resolveGeminiApiKey(ttsEngine?: string): Promise<string | undefined> {
-  if (ttsEngine !== "gemini") return undefined;
+  if (ttsEngine !== "gemini" && ttsEngine !== "qwen") return undefined;
   const appConfig = await storage.getAppConfig();
   return appConfig?.geminiApiKey ?? process.env.GEMINI_API_KEY ?? undefined;
 }
