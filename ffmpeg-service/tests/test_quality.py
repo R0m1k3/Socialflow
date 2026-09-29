@@ -103,3 +103,18 @@ def test_cut_prefers_the_sentence_pause_over_a_comma():
     # Borne estimée entre la virgule (1,3 s) et la fin de phrase (2,22 s)
     cut = sentence_cut(env, previous_end=1.7, next_start=1.75)
     assert 2.22 <= cut <= 2.67
+
+
+def test_numbers_written_in_letters_are_not_missing_words():
+    expected = "Plus trente secondes chrono, le compteur s'affole : moins vingt-cinq pour cent !"
+    heard = _heard("+30 secondes chrono, le compteur s'affole : -25% !")
+    check = check_reading(expected, heard)
+    assert check.acceptable, check
+    assert check.missing == []
+
+
+def test_skipped_word_next_to_a_number_in_letters_is_still_detected():
+    expected = "Trente secondes chrono, le compteur s'affole vraiment !"
+    heard = _heard("30 secondes, le compteur s'affole vraiment !")
+    check = check_reading(expected, heard)
+    assert "chrono" in check.missing

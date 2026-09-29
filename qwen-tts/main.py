@@ -108,6 +108,13 @@ def clones() -> dict[str, dict]:
     return found
 
 
+def max_tokens(text: str) -> int:
+    """Plafond de codes audio (12 par seconde de son) : une phrase ne peut plus
+    durer plus de « caractères / 6 + 3 » secondes. Sans lui, le modèle continuait
+    parfois bien après la fin du texte (14 s pour 34 caractères)."""
+    return int(12 * (len(text) / 6 + 3))
+
+
 def _generate(text: str, voice: str, instruct: str, language: str) -> tuple[bytes, str]:
     if voice.startswith("clone:") and CLONE_MODEL:
         name = voice.removeprefix("clone:")
@@ -120,12 +127,15 @@ def _generate(text: str, voice: str, instruct: str, language: str) -> tuple[byte
                 ref_audio=str(clone["wav"]), ref_text=clone["text"], x_vector_only_mode=False
             )
         wavs, rate = model.generate_voice_clone(
-            text=text, language=language, voice_clone_prompt=_clone_prompts[name]
+            text=text,
+            language=language,
+            voice_clone_prompt=_clone_prompts[name],
+            max_new_tokens=max_tokens(text),
         )
         used = clone["id"]
     else:
         speaker = voice.lower() if voice.lower() in PRESETS else DEFAULT_PRESET
-        kwargs = {"text": text, "language": language, "speaker": speaker}
+        kwargs = {"text": text, "language": language, "speaker": speaker, "max_new_tokens": max_tokens(text)}
         if instruct:
             kwargs["instruct"] = instruct
         wavs, rate = _load(MODEL).generate_custom_voice(**kwargs)

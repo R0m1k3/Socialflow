@@ -89,9 +89,16 @@ async def synthesize(
     return VoiceTrack(processed, duration, words, used_engine, used_voice, warnings)
 
 
-# En dessous, une lecture imparfaite est écartée au profit du moteur suivant :
-# mieux vaut une autre voix qu'une phrase aux mots sautés ou inventés.
-KEEP_IMPERFECT_COVERAGE = 0.85
+# En dessous, une lecture imparfaite est écartée au profit du moteur suivant.
+# Au-dessus, on garde la voix choisie (avec un avertissement) : changer de moteur
+# pour un mot douteux donnait une voix différente d'une phrase à l'autre.
+KEEP_IMPERFECT_COVERAGE = 0.7
+
+
+def is_runaway(duration: float, text: str) -> bool:
+    """Prise emballée : le modèle a continué à produire du son bien après la fin
+    du texte (vu avec Qwen : 14 s pour une phrase de 34 caractères)."""
+    return duration > max(3.0, len(text) / 6) + 1.5
 
 
 async def _checked(
@@ -112,12 +119,17 @@ async def _checked(
         try:
             raw, engine_voice = await generate(attempt)
         except Exception as error:  # noqa: BLE001 — nouvelle tentative, puis moteur suivant
-            log.warning("%s TTS en échec (tentative %d) : %s", name, attempt + 1, error)
+            log.warning("%s TTS en échec (tentative %d) : %r", name, attempt + 1, error)
             last_error = error
             continue
 
         processed = workdir / f"voice_{name.lower()}_{attempt}.wav"
         await audio.process_voice(raw, processed)
+        duration = (await proc.probe(processed)).duration
+        if is_runaway(duration, text):
+            log.warning("%s : prise emballée (%.1f s pour %d car.), écartée", name, duration, len(text))
+            last_error = RuntimeError(f"voix de {duration:.0f} s pour {len(text)} caractères")
+            continue
         spoken = await align.transcribe(processed)
         check = quality.check_reading(text, spoken)
         log.info("Lecture %s (tentative %d) : %s", name, attempt + 1, check.describe())
@@ -128,7 +140,7 @@ async def _checked(
             break
 
     if best is None:
-        warnings.append(f"{name} indisponible ({last_error}) : voix de secours utilisée.")
+        warnings.append(f"{name} : aucune voix utilisable ({last_error!r}) : voix de secours utilisée.")
         return None
 
     check, processed, spoken, engine_voice = best

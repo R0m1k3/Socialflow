@@ -48,3 +48,12 @@ def test_qwen_target_prefers_app_settings(monkeypatch):
     assert Target.resolve(None, None) == Target("http://qwen-tts:8001", "env-key")
     monkeypatch.setattr(config, "QWEN_TTS_URL", "")
     assert Target.resolve("", None) is None
+
+
+def test_runaway_take_is_detected():
+    from app.tts import is_runaway
+
+    text = "Christelle fonce dans les rayons !"  # 34 caractères
+    assert not is_runaway(3.0, text)
+    assert not is_runaway(6.5, text)  # lecture lente, mais plausible
+    assert is_runaway(14.2, text)  # vu en production : le modèle continue sans fin
