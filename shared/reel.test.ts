@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { imagesReelParamsSchema, ttsPreviewSchema, videoReelParamsSchema } from "./reel";
+import { ttsPreviewSchema, videoReelParamsSchema } from "./reel";
 
 describe("videoReelParamsSchema", () => {
   it("exige une vidéo et une page, avec des messages lisibles", () => {
@@ -19,12 +19,6 @@ describe("videoReelParamsSchema", () => {
 
   it("refuse un moteur de voix inconnu", () => {
     expect(videoReelParamsSchema.safeParse({ videoMediaId: "v", pageIds: ["p"], ttsEngine: "autre" }).success).toBe(false);
-  });
-});
-
-describe("imagesReelParamsSchema", () => {
-  it("limite à 4 images", () => {
-    expect(imagesReelParamsSchema.safeParse({ imageUrls: ["a", "b", "c", "d", "e"] }).success).toBe(false);
   });
 });
 

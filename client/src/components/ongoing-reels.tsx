@@ -1,7 +1,10 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Clapperboard, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Clapperboard, Loader2, CheckCircle2, XCircle, X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest, queryClient, getErrorMessage } from "@/lib/queryClient";
 import type { Post } from "@shared/schema";
 
 type OngoingReel = Post & { generationStep?: string | null };
@@ -33,6 +36,27 @@ export default function OngoingReels({ compact = false }: OngoingReelsProps) {
         // lente, qui suffit à détecter une génération lancée depuis un autre écran.
         refetchInterval: (query) =>
             (query.state.data ?? []).some((p) => p.generationStatus !== "failed") ? 3000 : 30000,
+    });
+
+    const { toast } = useToast();
+
+    // Un Reel en échec n'a rien à publier : le supprimer retire aussi la notification
+    const dismissMutation = useMutation({
+        mutationFn: async (postId: string) => (await apiRequest("DELETE", `/api/reels/${postId}`)).json(),
+        onSuccess: (_data, postId) => {
+            queryClient.setQueryData<OngoingReel[]>(["/api/reels/ongoing"], (posts) =>
+                posts?.filter((p) => p.id !== postId),
+            );
+            queryClient.invalidateQueries({ queryKey: ["/api/reels/ongoing"] });
+            queryClient.invalidateQueries({ queryKey: ["/api/scheduled-posts"] });
+        },
+        onError: (error: unknown) => {
+            toast({
+                title: "Erreur",
+                description: getErrorMessage(error, "Impossible de supprimer la notification"),
+                variant: "destructive",
+            });
+        },
     });
 
     // Nothing to show — render nothing (not even a card)
@@ -112,6 +136,21 @@ export default function OngoingReels({ compact = false }: OngoingReelsProps) {
                                         </div>
                                     )}
                                 </div>
+
+                                {isFailed && (
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-7 w-7 flex-shrink-0 text-muted-foreground hover:text-destructive"
+                                        onClick={() => dismissMutation.mutate(post.id)}
+                                        disabled={dismissMutation.isPending && dismissMutation.variables === post.id}
+                                        title="Supprimer"
+                                        aria-label="Supprimer ce Reel en échec"
+                                        data-testid={`button-dismiss-reel-${post.id}`}
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </Button>
+                                )}
                             </div>
                         );
                     })}

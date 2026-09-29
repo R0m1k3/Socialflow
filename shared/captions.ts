@@ -129,19 +129,3 @@ export function spreadWords(text: string, start: number, end: number): TimedWord
 export function offsetWords(words: TimedWord[], offset: number): TimedWord[] {
   return words.map((w) => ({ ...w, start: w.start + offset, end: w.end + offset }));
 }
-
-const IMAGES_ENDING_SECONDS = 3;
-const IMAGES_MIN_CONTENT = 22;
-const IMAGES_MAX_CONTENT = 27;
-const SECONDS_PER_IMAGE = 3;
-
-/** Reel d'images : 25 à 30 s, diapositive de fin comprise. */
-export function computeImagesTiming(input: { imageCount: number; voiceDuration?: number; hasEnding: boolean }): {
-  total: number;
-  endingSeconds: number;
-} {
-  const natural = Math.max((input.voiceDuration ?? 0) + 1, input.imageCount * SECONDS_PER_IMAGE);
-  const content = Math.min(Math.max(natural, IMAGES_MIN_CONTENT), IMAGES_MAX_CONTENT);
-  const endingSeconds = input.hasEnding ? IMAGES_ENDING_SECONDS : 0;
-  return { total: content + endingSeconds, endingSeconds };
-}

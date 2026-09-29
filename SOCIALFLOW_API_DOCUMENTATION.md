@@ -42,13 +42,12 @@ La clé externe peut être configurée par un administrateur depuis l'interface 
 5. [Gestion de l'Audio (Musique de fond)](#5-gestion-de-laudio-musique-de-fond)
 6. [Publications & Planification](#6-publications--planification)
 7. [Reels & Génération Vidéo (FFmpeg)](#7-reels--génération-vidéo-ffmpeg)
-8. [Génération Vidéo Avancée (Remotion)](#8-génération-vidéo-avancée-remotion)
-9. [IA & Modèles (OpenRouter)](#9-ia--modèles-openrouter)
-10. [Statistiques & Paramètres Système](#10-statistiques--paramètres-système)
-11. [Console SQL (Admin uniquement)](#11-console-sql-admin-uniquement)
-12. [API d'Analyse (Analytics)](#12-api-danalyse-analytics)
-13. [API Développeur Externe (v1)](#13-api-développeur-externe-v1)
-14. [Microservice Interne FFmpeg (Python)](#14-microservice-interne-ffmpeg-python)
+8. [IA & Modèles (OpenRouter)](#8-ia--modèles-openrouter)
+9. [Statistiques & Paramètres Système](#9-statistiques--paramètres-système)
+10. [Console SQL (Admin uniquement)](#10-console-sql-admin-uniquement)
+11. [API d'Analyse (Analytics)](#11-api-danalyse-analytics)
+12. [API Développeur Externe (v1)](#12-api-développeur-externe-v1)
+13. [Microservice Interne FFmpeg (Python)](#13-microservice-interne-ffmpeg-python)
 
 ---
 
@@ -727,72 +726,7 @@ GET /api/reels/status/:postId
 
 ---
 
-## 8. Génération Vidéo Avancée (Remotion)
-
-Remotion permet d'assembler des diaporamas complexes et des vidéos à partir d'images à l'aide d'un navigateur Chromium sans tête (headless).
-
-### Lancer un rendu de vidéo diaporama Remotion
-```http
-POST /api/remotion/render
-```
-**Body (Multipart Form) :**
-- `existingImageUrls` : (Facultatif) Tableau d'URL d'images déjà enregistrées en base (converties directement en base64 pour contourner les limitations de requêtes réseau Chromium sous Docker).
-- `images` : Fichiers images téléversés en direct.
-- `music` : Fichier de musique téléversé.
-- `musicTrackUrl` : (Facultatif) URL de musique existante.
-- `overlayText` : Texte de sous-titre pour la synthèse vocale intégrée.
-- `musicVolume` : Volume sonore (ex: `0.3`).
-
-**Réponse (200 OK) :**
-```json
-{
-  "jobId": "remotion_job_171691",
-  "message": "Rendu démarré en arrière-plan"
-}
-```
-
-### Vérifier le statut du rendu Remotion
-```http
-GET /api/remotion/render/status/:jobId
-```
-**Réponse (200 OK) :**
-```json
-{
-  "status": "done",
-  "url": "/uploads/temp/remotion-171691.mp4",
-  "thumbnailUrl": "/uploads/temp/remotion-171691-thumb.jpg",
-  "error": null
-}
-```
-
-### Publier le diaporama généré comme Reel
-Téléverse le fichier MP4 finalisé vers le stockage puis publie la vidéo sur les pages cibles.
-```http
-POST /api/remotion/publish
-```
-**Body (JSON) :**
-```json
-{
-  "videoUrl": "/uploads/temp/remotion-171691.mp4",
-  "pageIds": ["page_999"],
-  "description": "Mon diaporama animé créé avec Remotion !",
-  "scheduledFor": "2026-06-01T12:00:00Z"
-}
-```
-**Réponse (200 OK) :**
-```json
-{
-  "success": true,
-  "postId": "pst_remotion_999",
-  "results": [
-    { "pageId": "page_999", "success": true, "reelId": "scheduled" }
-  ]
-}
-```
-
----
-
-## 9. IA & Modèles (OpenRouter)
+## 8. IA & Modèles (OpenRouter)
 
 ### Liste des modèles d'écriture IA disponibles
 ```http
@@ -839,7 +773,7 @@ GET /api/ai/generations
 
 ---
 
-## 10. Statistiques & Paramètres Système
+## 9. Statistiques & Paramètres Système
 
 ### Récupérer les statistiques du tableau de bord
 Calcule les publications planifiées, le nombre de pages connectées, le total de textes générés, l'espace de stockage des médias et les tendances d'évolution.
@@ -888,7 +822,7 @@ GET /api/stats
 
 ---
 
-## 11. Console SQL (Admin uniquement)
+## 10. Console SQL (Admin uniquement)
 
 Ces outils exclusifs aux administrateurs permettent de déboguer ou de faire des opérations de maintenance directement sur la base de données PostgreSQL.
 
@@ -931,7 +865,7 @@ GET /api/sql/tables
 
 ---
 
-## 12. API d'Analyse (Analytics)
+## 11. API d'Analyse (Analytics)
 
 Récupération et mise à jour des statistiques de performance des publications et des pages (portée, clics, croissance d'abonnés).
 
@@ -1006,7 +940,7 @@ POST /api/analytics/tokens/check
 
 ---
 
-## 13. API Développeur Externe (v1)
+## 12. API Développeur Externe (v1)
 
 Ces routes sont optimisées pour les appels de scripts d'intégration tierce.
 Toutes les requêtes doivent contenir le header `X-API-Key`.
@@ -1103,7 +1037,7 @@ DELETE /api/v1/posts/:id
 
 ---
 
-## 14. Microservice Interne FFmpeg (Python)
+## 13. Microservice Interne FFmpeg (Python)
 
 Ce service s'exécute sur le port `8000` et gère le pipeline de rendu lourd FFmpeg.
 

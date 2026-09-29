@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   cleanCaptionText,
-  computeImagesTiming,
   computeReelTiming,
   groupLines,
   offsetWords,
@@ -34,14 +33,6 @@ describe("fondu final", () => {
     expect(timing.total).toBe(7.8);
     expect(timing.fadeStart).toBeGreaterThanOrEqual(7);
     expect(timing.fadeDuration).toBeGreaterThanOrEqual(0.3);
-  });
-});
-
-describe("computeImagesTiming", () => {
-  it("garde un Reel d'images entre 25 et 30 s", () => {
-    expect(computeImagesTiming({ imageCount: 3, hasEnding: true })).toEqual({ total: 25, endingSeconds: 3 });
-    expect(computeImagesTiming({ imageCount: 4, voiceDuration: 40, hasEnding: true }).total).toBe(30);
-    expect(computeImagesTiming({ imageCount: 4, voiceDuration: 24, hasEnding: false }).total).toBe(25);
   });
 });
 
