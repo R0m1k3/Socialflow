@@ -11,7 +11,7 @@ import { imagesReelParamsSchema, type ImagesReelResult } from "@shared/reel";
 import { ffmpegService } from "../ffmpeg";
 import { generateVideoThumbnail } from "../thumbnail";
 import type { JobContext } from "./queue";
-import { resolveGeminiApiKey, resolveLogoPath } from "./assets";
+import { resolveGeminiApiKey, resolveLogoPath, resolveQwenTarget } from "./assets";
 import { REMOTION_TEMP_DIR, localHttpUrl, tempFileUrl, toDataUrl } from "./remotionAssets";
 import { renderReelComposition } from "./remotionRenderer";
 
@@ -42,6 +42,7 @@ export async function runImagesReelJob({ job, progress }: JobContext): Promise<I
         engine: params.ttsEngine,
         style: params.ttsStyle,
         geminiApiKey: await resolveGeminiApiKey(params.ttsEngine),
+        qwen: await resolveQwenTarget(params.ttsEngine),
       });
       for (const warning of voice.warnings) console.warn(`⚠️ [Reels] ${warning}`);
 

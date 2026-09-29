@@ -1,0 +1,32 @@
+# Qwen3-TTS sur un serveur avec carte graphique NVIDIA (ex. Unraid).
+#
+# Prérequis : pilote NVIDIA + NVIDIA Container Toolkit (sur Unraid : plugin
+# « Nvidia Driver »). Puis, dans ce dossier :
+#   QWEN_TTS_API_KEY=une-cle-secrete docker compose -f docker-compose.gpu.yml up -d --build
+# et dans SocialFlow : Paramètres → Qwen TTS → http://IP-DU-SERVEUR:8001 + la clé.
+services:
+  qwen-tts:
+    build:
+      context: .
+      args:
+        TORCH_VARIANT: cu128
+        # Sur GPU, le gros modèle : ton et émotion pilotés par consigne
+        QWEN_TTS_MODEL: ${QWEN_TTS_MODEL:-Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice}
+        # Clonage des voix déposées dans ./voices (vide : désactivé)
+        QWEN_TTS_CLONE_MODEL: ${QWEN_TTS_CLONE_MODEL-Qwen/Qwen3-TTS-12Hz-1.7B-Base}
+    image: socialflow-qwen-tts:gpu
+    container_name: socialflow-qwen-tts
+    restart: unless-stopped
+    environment:
+      # Obligatoire : le service est joignable depuis le réseau
+      API_KEY: ${QWEN_TTS_API_KEY:?Définissez QWEN_TTS_API_KEY}
+      # GPU utilisé dans le conteneur (voir NVIDIA_VISIBLE_DEVICES ci-dessous)
+      QWEN_TTS_DEVICE: cuda:0
+      # Choix de la carte : numéro (0, 1) ou UUID donné par nvidia-smi -L
+      NVIDIA_VISIBLE_DEVICES: ${QWEN_TTS_GPU:-0}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    runtime: nvidia
+    ports:
+      - "${QWEN_TTS_PORT:-8001}:8001"
+    volumes:
+      - ./voices:/app/voices:ro

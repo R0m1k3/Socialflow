@@ -56,6 +56,9 @@ class TtsRequest(BaseModel):
     tts_engine: str | None = "gemini"
     tts_style: str | None = None
     gemini_api_key: str | None = None
+    # Service Qwen TTS réglé dans les paramètres (sinon : variables d'environnement)
+    qwen_tts_url: str | None = None
+    qwen_tts_api_key: str | None = None
 
 
 class SrtCue(BaseModel):
@@ -80,6 +83,8 @@ class ReelRequest(BaseModel):
     tts_engine: str | None = "gemini"
     tts_style: str | None = None
     gemini_api_key: str | None = None
+    qwen_tts_url: str | None = None
+    qwen_tts_api_key: str | None = None
     draw_text: bool = True
     stabilize: bool = False
     enable_ending_effect: bool = True
@@ -99,8 +104,14 @@ async def health():
 
 
 @app.get("/voices", dependencies=[Depends(require_key)])
-async def list_voices():
-    return voices.catalog(await tts.qwen.list_voices())
+async def list_voices(x_qwen_url: str | None = Header(None), x_qwen_key: str | None = Header(None)):
+    """Voix par moteur ; l'adresse du service Qwen réglée dans l'application
+    arrive en en-têtes (une clé n'a rien à faire dans une URL)."""
+    qwen_status = await tts.qwen.status(tts.qwen.Target.resolve(x_qwen_url, x_qwen_key))
+    return {
+        **voices.catalog(qwen_status["voices"] if qwen_status else None),
+        "qwen_status": {k: v for k, v in (qwen_status or {}).items() if k != "voices"} or None,
+    }
 
 
 @app.post("/preview-tts", dependencies=[Depends(require_key)])
@@ -187,6 +198,7 @@ async def _synthesize(text: str, display_source: str | None, request, workdir: P
             style=request.tts_style,
             gemini_api_key=request.gemini_api_key,
             workdir=workdir,
+            qwen_target=tts.qwen.Target.resolve(request.qwen_tts_url, request.qwen_tts_api_key),
         )
     except Exception as error:
         log.exception("Voix impossible à générer")
@@ -212,6 +224,7 @@ async def _synthesize_srt(cues: list[srt_voice.Cue], request, workdir: Path) -> 
             style=request.tts_style,
             gemini_api_key=request.gemini_api_key,
             workdir=workdir,
+            qwen_target=tts.qwen.Target.resolve(request.qwen_tts_url, request.qwen_tts_api_key),
         )
     except Exception as error:
         log.exception("Voix SRT impossible à générer")

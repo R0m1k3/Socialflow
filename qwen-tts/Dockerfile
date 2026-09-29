@@ -6,10 +6,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# PyTorch CPU (pas de CUDA : image bien plus légère). torch et torchaudio
-# doivent avoir la même version, sinon torchaudio ne se charge pas.
+# PyTorch : « cpu » (image légère) ou « cu128 » pour les GPU NVIDIA, cartes
+# RTX 50xx (Blackwell) comprises. torch et torchaudio doivent avoir la même
+# version, sinon torchaudio ne se charge pas.
+ARG TORCH_VARIANT=cpu
 RUN pip install --no-cache-dir torch==2.8.0 torchaudio==2.8.0 \
-        --index-url https://download.pytorch.org/whl/cpu
+        --index-url https://download.pytorch.org/whl/${TORCH_VARIANT}
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 

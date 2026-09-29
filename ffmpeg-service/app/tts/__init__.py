@@ -32,6 +32,7 @@ async def synthesize(
     style: str | None,
     gemini_api_key: str | None,
     workdir: Path,
+    qwen_target: qwen.Target | None = None,
 ) -> VoiceTrack:
     warnings: list[str] = []
     processed: Path | None = None
@@ -42,7 +43,7 @@ async def synthesize(
     if engine == "qwen":
         result = await _checked(
             "Qwen",
-            lambda attempt: qwen.synthesize(text, voice, style, workdir, attempt),
+            lambda attempt: qwen.synthesize(text, voice, style, qwen_target, workdir, attempt),
             config.QWEN_TTS_ATTEMPTS,
             text,
             workdir,

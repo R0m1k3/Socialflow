@@ -148,7 +148,7 @@ export function VoicePicker({ value, onChange, sampleText, compact = false, onPr
             className={compact ? "h-7 text-xs" : undefined}
             variant={value.engine === "qwen" ? "default" : "outline"}
             disabled={!qwenAvailable && value.engine !== "qwen"}
-            title={qwenAvailable ? "Voix locale, gratuite, plus lente à générer" : "Service Qwen TTS non démarré"}
+            title={qwenAvailable ? "Voix locale, gratuite, plus lente à générer" : "Service Qwen TTS non configuré ou injoignable (Paramètres → Qwen TTS)"}
             onClick={() => setEngine("qwen")}
           >
             Qwen (locale)
