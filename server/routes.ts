@@ -21,6 +21,7 @@ import { externalRouter } from "./routes/external";
 import { tiktokRouter } from "./routes/tiktok";
 import { facebookRouter } from "./routes/facebook";
 import { legalRouter } from "./routes/legal";
+import { createVideoThumbnail } from "./services/thumbnail";
 import { insertAudioTrackSchema } from "@shared/schema";
 import * as musicMetadata from "music-metadata";
 
@@ -721,13 +722,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
         req.file.mimetype
       );
 
+      // Détection basique basée sur le mimetype ou l'extension
+      const isVideo = req.file.mimetype.startsWith("video/") || /\.(mp4|mov|avi|mkv|webm)$/i.test(req.file.originalname);
+
+      // Vignette extraite tant que la vidéo est sur le disque : elle survit à la
+      // suppression du fichier après publication (historique illustré)
+      const thumbnailUrl = isVideo ? await createVideoThumbnail(req.file.path) : null;
+
       // Clean up temp file immediately after upload to free disk space
       await fs.promises.unlink(req.file.path).catch(err => console.error("Failed to cleanup temp file:", err));
 
       const mediaItem = await storage.createMedia({
         userId,
-        // Détection basique basée sur le mimetype ou le résultat Cloudinary
-        type: req.file.mimetype.startsWith("video/") || req.file.originalname.match(/\.(mp4|mov|avi|mkv)$/i) ? "video" : "image",
+        type: isVideo ? "video" : "image",
+        thumbnailUrl,
         cloudinaryPublicId: uploadResult.publicId,
         originalUrl: uploadResult.originalUrl,
         facebookFeedUrl: uploadResult.facebookFeedUrl,
@@ -1295,6 +1303,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Validate that stories require media
       if ((postType === 'story' || postType === 'both') && finalMediaItems.length === 0) {
         return res.status(400).json({ error: "Les stories nécessitent au moins un média (image ou vidéo)" });
+      }
+
+      // Reel déjà monté : une seule vidéo, publiée telle quelle sur Facebook ou TikTok
+      if (postType === 'reel') {
+        if (finalMediaItems.length !== 1) {
+          return res.status(400).json({ error: "Un Reel nécessite exactement une vidéo" });
+        }
+        const reelMedia = await storage.getMediaById(finalMediaItems[0].mediaId);
+        if (!reelMedia || reelMedia.type !== 'video' || (user.role !== 'admin' && reelMedia.userId !== userId)) {
+          return res.status(400).json({ error: "Le média d'un Reel doit être une de vos vidéos" });
+        }
+        for (const pageId of Array.isArray(pageIds) ? pageIds : []) {
+          const page = await storage.getSocialPage(pageId);
+          if (!page || (page.platform !== 'facebook' && page.platform !== 'tiktok')) {
+            return res.status(400).json({ error: "Les Reels ne peuvent être publiés que sur Facebook ou TikTok" });
+          }
+        }
       }
 
       // Security: Verify user has access to all specified pages (unless admin)
