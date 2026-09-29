@@ -9,6 +9,7 @@ pas rogner une syllabe.
 
 import asyncio
 import difflib
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -80,19 +81,47 @@ UNITS = {
 }  # fmt: skip
 
 
+# Nombres écrits en lettres : Whisper les écrit en chiffres (« trente » → « 30 »).
+# « un »/« une » n'y sont pas : ce sont le plus souvent des articles.
+NUMBER_WORDS = {
+    "zero", "deux", "trois", "quatre", "cinq", "six", "sept", "huit", "neuf", "dix",
+    "onze", "douze", "treize", "quatorze", "quinze", "seize", "vingt", "vingts",
+    "trente", "quarante", "cinquante", "soixante", "septante", "octante", "nonante",
+    "cent", "cents", "mille", "million", "millions", "milliard", "milliards",
+}  # fmt: skip
+# Signe avant un nombre : « +30 » est lu « plus trente »
+SIGNS = {"plus", "moins"}
+
+
+# Nombres composés, écrits avec traits d'union puis normalisés (« trentecinq »)
+_COMPOUND_NUMBER = re.compile(
+    "^(?:" + "|".join(sorted(NUMBER_WORDS | {"et", "un", "une"}, key=len, reverse=True)) + ")+$"
+)
+
+
+def _is_number(token: str) -> bool:
+    if any(c.isdigit() for c in token) or token in NUMBER_WORDS:
+        return True
+    return token not in {"un", "une", "et"} and bool(_COMPOUND_NUMBER.match(token))
+
+
 def comparable_tokens(words: list[str]) -> list[str]:
-    """Mots normalisés, sans les nombres ni l'unité qui les suit : Whisper écrit
-    un prix ou une mesure à sa façon (« 11 € 99 », « 11,99 euros », « 40 cm »),
-    ce qui passait pour des mots sautés et relançait la génération."""
+    """Mots normalisés, sans les nombres (en chiffres ou en lettres), leur signe
+    ni l'unité qui les suit : Whisper écrit un prix ou une mesure à sa façon
+    (« 11 € 99 », « 11,99 euros », « 40 cm », « 30 » pour « trente »), ce qui
+    passait pour des mots sautés et relançait la génération."""
+    normalized = [t for t in (normalize(w) for w in words) if t]
     tokens: list[str] = []
     after_number = False
-    for word in words:
-        token = normalize(word)
-        if not token:
-            continue
-        if any(c.isdigit() for c in token):
+    for index, token in enumerate(normalized):
+        if _is_number(token):
             after_number = True
             continue
+        following = normalized[index + 1] if index + 1 < len(normalized) else ""
+        if token in SIGNS and _is_number(following):
+            continue
+        if after_number and token == "pour" and following in {"cent", "cents"}:
+            continue  # « trente pour cent » ↔ « 30 % »
         if after_number and token in UNITS:
             continue
         after_number = False

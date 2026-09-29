@@ -44,7 +44,8 @@ async def _request(model: str, prompt: str, voice: str, api_key: str, seed: int)
         generation["temperature"] = config.GEMINI_TTS_TEMPERATURE
         generation["seed"] = seed
     payload = {"contents": [{"parts": [{"text": prompt}]}], "generationConfig": generation}
-    async with httpx.AsyncClient(timeout=120) as client:
+    # 45 s : une génération normale prend 2 à 5 s ; au-delà, Gemini ne répondra plus
+    async with httpx.AsyncClient(timeout=45) as client:
         # Clé en en-tête : dans l'URL, elle finissait dans les journaux
         response = await client.post(
             f"{API_ROOT}/{model}:generateContent",
