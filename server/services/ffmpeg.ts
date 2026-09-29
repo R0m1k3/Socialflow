@@ -30,6 +30,7 @@ export interface ReelRenderOptions {
     ttsEngine?: TtsEngine;
     ttsStyle?: TtsStyle;
     geminiApiKey?: string;
+    qwen?: QwenTarget;
     fontSize?: number;
     musicVolume?: number;
     drawText?: boolean;
@@ -71,9 +72,17 @@ export interface TimedWord {
     end: number;
 }
 
+/** Service Qwen TTS (local ou serveur GPU) réglé dans les paramètres. */
+export interface QwenTarget {
+    url: string;
+    apiKey?: string;
+}
+
 export interface VoiceCatalog {
     qwen: VoiceOption[];
     qwen_available: boolean;
+    /** Modèle et carte graphique du service Qwen, null s'il ne répond pas. */
+    qwen_status: { model?: string; device?: string; busy?: boolean } | null;
     gemini: VoiceOption[];
     edge: VoiceOption[];
 }
@@ -149,6 +158,8 @@ export class FFmpegService {
             tts_engine: options.ttsEngine,
             tts_style: options.ttsStyle,
             gemini_api_key: options.geminiApiKey,
+            qwen_tts_url: options.qwen?.url,
+            qwen_tts_api_key: options.qwen?.apiKey,
             font_size: options.fontSize ?? 64,
             music_volume: options.musicVolume ?? 0.25,
             draw_text: options.drawText ?? true,
@@ -221,6 +232,8 @@ export class FFmpegService {
                 tts_engine: options.ttsEngine,
                 tts_style: options.ttsStyle,
                 gemini_api_key: options.geminiApiKey,
+                qwen_tts_url: options.qwen?.url,
+                qwen_tts_api_key: options.qwen?.apiKey,
                 music_volume: options.musicVolume ?? 0.25,
                 draw_text: options.drawText ?? true,
                 stabilize: options.stabilize ?? false,
@@ -294,15 +307,18 @@ export class FFmpegService {
     }
 
     /** Voix proposées par moteur ; `qwen_available` indique si le service local répond. */
-    async listVoices(): Promise<VoiceCatalog> {
-        const response = await this.call('/voices', { method: 'GET', timeoutMs: 15_000 });
+    async listVoices(qwen?: QwenTarget): Promise<VoiceCatalog> {
+        const headers: Record<string, string> = {};
+        if (qwen?.url) headers['X-Qwen-Url'] = qwen.url;
+        if (qwen?.apiKey) headers['X-Qwen-Key'] = qwen.apiKey;
+        const response = await this.call('/voices', { method: 'GET', headers, timeoutMs: 30_000 });
         return await response.json() as VoiceCatalog;
     }
 
     /** Génère la voix seule (aperçu), avec le minutage de chaque mot. */
     async previewVoice(
         text: string,
-        options: { voice?: string; engine?: TtsEngine; style?: TtsStyle; geminiApiKey?: string } = {},
+        options: { voice?: string; engine?: TtsEngine; style?: TtsStyle; geminiApiKey?: string; qwen?: QwenTarget } = {},
     ): Promise<VoicePreview> {
         const response = await this.call('/preview-tts', {
             method: 'POST',
@@ -313,6 +329,8 @@ export class FFmpegService {
                 tts_engine: options.engine,
                 tts_style: options.style,
                 gemini_api_key: options.geminiApiKey,
+                qwen_tts_url: options.qwen?.url,
+                qwen_tts_api_key: options.qwen?.apiKey,
             }),
             timeoutMs: TTS_TIMEOUT_MS,
         });

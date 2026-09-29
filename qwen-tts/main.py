@@ -1,10 +1,14 @@
-"""Synthèse vocale locale Qwen3-TTS (CPU), appelée par le service ffmpeg-api.
+"""Synthèse vocale Qwen3-TTS, appelée par le service ffmpeg-api.
+
+Tourne sur carte graphique NVIDIA si elle est disponible (bien plus rapide,
+gros modèle 1.7B), sinon sur CPU. Peut être installé sur un autre serveur
+(ex. Unraid avec GPU) : l'adresse se règle dans les paramètres de SocialFlow.
 
 - Voix prédéfinies (modèle CustomVoice) : le ton est donné par une consigne.
 - Voix clonées : un extrait de référence dans voices/ (modèle Base, chargé
   seulement si au moins une voix y est déposée).
 
-Une seule génération à la fois : chacune occupe tous les cœurs.
+Une seule génération à la fois : chacune occupe tous les cœurs (ou le GPU).
 """
 
 import asyncio
@@ -28,7 +32,11 @@ log = logging.getLogger("qwen-tts")
 MODEL = os.environ.get("QWEN_TTS_MODEL", "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice")
 CLONE_MODEL = os.environ.get("QWEN_TTS_CLONE_MODEL", "Qwen/Qwen3-TTS-12Hz-0.6B-Base")
 VOICES_DIR = Path(os.environ.get("QWEN_TTS_VOICES_DIR", Path(__file__).parent / "voices"))
-DTYPE = getattr(torch, os.environ.get("QWEN_TTS_DTYPE", "float32"))
+# « auto » : premier GPU NVIDIA s'il y en a un, sinon CPU (ou « cuda:1 », « cpu »…)
+_DEVICE_SETTING = os.environ.get("QWEN_TTS_DEVICE", "auto")
+DEVICE = ("cuda:0" if torch.cuda.is_available() else "cpu") if _DEVICE_SETTING == "auto" else _DEVICE_SETTING
+# bfloat16 sur GPU (moitié moins de mémoire, plus rapide) ; float32 sur CPU
+DTYPE = getattr(torch, os.environ.get("QWEN_TTS_DTYPE") or ("bfloat16" if DEVICE.startswith("cuda") else "float32"))
 THREADS = int(os.environ.get("QWEN_TTS_THREADS", "0")) or os.cpu_count() or 1
 API_KEY = os.environ.get("API_KEY", "")
 
@@ -57,9 +65,15 @@ def _load(name: str):
         from qwen_tts import Qwen3TTSModel
 
         started = time.monotonic()
-        _models[name] = Qwen3TTSModel.from_pretrained(name, device_map="cpu", dtype=DTYPE)
-        log.info("Modèle %s chargé en %.1f s (%d threads)", name, time.monotonic() - started, THREADS)
+        _models[name] = Qwen3TTSModel.from_pretrained(name, device_map=DEVICE, dtype=DTYPE)
+        log.info("Modèle %s chargé sur %s en %.1f s", name, _device_label(), time.monotonic() - started)
     return _models[name]
+
+
+def _device_label() -> str:
+    if DEVICE.startswith("cuda"):
+        return f"{torch.cuda.get_device_name(torch.device(DEVICE))} ({DEVICE}, {DTYPE})"
+    return f"CPU ({THREADS} threads, {DTYPE})"
 
 
 def clones() -> dict[str, dict]:
@@ -135,7 +149,7 @@ class SynthesisRequest(BaseModel):
 
 @app.get("/health", dependencies=[Depends(require_key)])
 async def health():
-    return {"status": "ok", "model": MODEL, "busy": _lock.locked()}
+    return {"status": "ok", "model": MODEL, "device": _device_label(), "busy": _lock.locked()}
 
 
 @app.get("/voices", dependencies=[Depends(require_key)])

@@ -161,6 +161,13 @@ export async function migrate() {
       ADD COLUMN IF NOT EXISTS "gemini_api_key" text;
     `);
 
+    // app_config.qwen_tts_url / qwen_tts_api_key (service Qwen3-TTS)
+    await client.query(`
+      ALTER TABLE "app_config"
+      ADD COLUMN IF NOT EXISTS "qwen_tts_url" text,
+      ADD COLUMN IF NOT EXISTS "qwen_tts_api_key" text;
+    `);
+
     // media.thumbnail_url (vignette conservée après suppression de la vidéo)
     await client.query(`
       ALTER TABLE "media"

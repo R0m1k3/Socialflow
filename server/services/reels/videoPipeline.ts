@@ -17,7 +17,7 @@ import { storage } from "../../storage";
 import { ffmpegService, type ReelRenderOptions } from "../ffmpeg";
 import { resolveInternalUrl } from "../minio";
 import type { JobContext } from "./queue";
-import { resolveGeminiApiKey, resolveLogoPath, resolveMusicUrl } from "./assets";
+import { resolveGeminiApiKey, resolveLogoPath, resolveMusicUrl, resolveQwenTarget } from "./assets";
 import { describePublishFailure, publishReelToPages, storeRenderedVideo } from "./publish";
 import { REMOTION_TEMP_DIR, tempFileUrl, toDataUrl } from "./remotionAssets";
 import { renderReelComposition } from "./remotionRenderer";
@@ -39,10 +39,11 @@ export async function runVideoReelJob({ job, progress }: JobContext) {
     throw new Error("Vidéo source introuvable ou invalide");
   }
 
-  const [musicUrl, logoPath, geminiApiKey] = await Promise.all([
+  const [musicUrl, logoPath, geminiApiKey, qwen] = await Promise.all([
     resolveMusicUrl(params.musicTrackId, params.musicUrl),
     resolveLogoPath(),
     resolveGeminiApiKey(params.ttsEngine),
+    resolveQwenTarget(params.ttsEngine),
   ]);
 
   const options: ReelRenderOptions = {
@@ -54,6 +55,7 @@ export async function runVideoReelJob({ job, progress }: JobContext) {
     ttsEngine: params.ttsEngine,
     ttsStyle: params.ttsStyle,
     geminiApiKey,
+    qwen,
     fontSize: params.fontSize,
     musicVolume: params.musicVolume,
     drawText: params.drawText,

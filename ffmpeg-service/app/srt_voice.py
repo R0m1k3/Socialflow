@@ -110,13 +110,16 @@ async def synthesize_cues(
     style: str | None,
     gemini_api_key: str | None,
     workdir: Path,
+    qwen_target: tts.qwen.Target | None = None,
 ) -> tts.VoiceTrack:
     """Voix complète : mots minutés en secondes depuis le début de la vidéo."""
     cues = sorted((c for c in cues if clean_text(c.text)), key=lambda c: c.start)
     if not cues:
         raise ValueError("Aucun sous-titre lisible dans le fichier SRT")
 
-    options = dict(engine=engine, voice=voice, style=style, gemini_api_key=gemini_api_key)
+    options = dict(
+        engine=engine, voice=voice, style=style, gemini_api_key=gemini_api_key, qwen_target=qwen_target
+    )
     texts = [as_sentence(c.text) for c in cues]
 
     # 1. Lecture d'une seule traite, découpée dans les silences

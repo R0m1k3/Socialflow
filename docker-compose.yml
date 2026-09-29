@@ -86,17 +86,21 @@ services:
     environment:
       API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
       GEMINI_TTS_MODEL: ${GEMINI_TTS_MODEL:-gemini-2.5-flash-preview-tts}
-      # Moteur de voix local (service qwen-tts ci-dessous)
-      QWEN_TTS_URL: http://qwen-tts:8001
+      # Service Qwen TTS par défaut. Normalement réglé dans l'application
+      # (Paramètres → Qwen TTS, ex. serveur GPU Unraid) ; pour le service local
+      # ci-dessous : QWEN_TTS_URL=http://qwen-tts:8001
+      QWEN_TTS_URL: ${QWEN_TTS_URL:-}
       QWEN_TTS_API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
     networks:
       - internal
     expose:
       - "8000"
 
-  # Voix locale Qwen3-TTS (gratuite, française, sur CPU). Plus lente que
-  # Gemini : compter 5 à 7 fois la durée de la voix sur 4 cœurs.
+  # Voix Qwen3-TTS sur ce serveur, en CPU (optionnel, lent : 5 à 7 fois la
+  # durée de la voix sur 4 cœurs). Sur un serveur GPU, préférez
+  # qwen-tts/docker-compose.gpu.yml. Démarrage : docker compose --profile qwen-local up -d
   qwen-tts:
+    profiles: ["qwen-local"]
     build:
       context: ./qwen-tts
       dockerfile: Dockerfile

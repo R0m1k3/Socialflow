@@ -210,7 +210,7 @@ export interface IStorage {
 
   // App Config
   getAppConfig(): Promise<AppConfig | undefined>;
-  upsertAppConfig(data: Partial<Pick<AppConfig, 'externalApiKey' | 'geminiApiKey'>>): Promise<AppConfig>;
+  upsertAppConfig(data: Partial<Pick<AppConfig, 'externalApiKey' | 'geminiApiKey' | 'qwenTtsUrl' | 'qwenTtsApiKey'>>): Promise<AppConfig>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -795,7 +795,7 @@ export class DatabaseStorage implements IStorage {
     return { ...created, clientSecret: decrypt(created.clientSecret) };
   }
 
-  async upsertAppConfig(data: Partial<Pick<AppConfig, 'externalApiKey' | 'geminiApiKey'>>): Promise<AppConfig> {
+  async upsertAppConfig(data: Partial<Pick<AppConfig, 'externalApiKey' | 'geminiApiKey' | 'qwenTtsUrl' | 'qwenTtsApiKey'>>): Promise<AppConfig> {
     const existing = await this.getAppConfig();
     if (existing) {
       const [updated] = await db.update(appConfig)

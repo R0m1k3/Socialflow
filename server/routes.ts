@@ -14,6 +14,7 @@ import { minioService as cloudinaryService, buildMinioUrl } from "./services/min
 import { insertPostSchema, insertScheduledPostSchema, insertSocialPageSchema, insertAiGenerationSchema, insertCloudinaryConfigSchema, updateCloudinaryConfigSchema, insertOpenrouterConfigSchema, updateOpenrouterConfigSchema, insertUserSchema, postMedia, type SocialPage } from "@shared/schema";
 import type { User, InsertUser, ScheduledPost } from "@shared/schema";
 import { analyticsRouter } from "./routes/analytics";
+import { normalizeQwenUrl } from "./services/reels/assets";
 import { reelsRouter } from "./routes/reels";
 import { remotionRouter } from "./routes/remotion";
 import { externalRouter } from "./routes/external";
@@ -470,6 +471,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting Gemini config:", error);
       res.status(500).json({ error: "Erreur lors de la suppression de la clé" });
+    }
+  });
+
+  // Qwen3-TTS : service local ou serveur GPU distant (ex. Unraid)
+  app.get("/api/settings/qwen", requireAdmin, async (req, res) => {
+    try {
+      const config = await storage.getAppConfig();
+      res.json({ url: config?.qwenTtsUrl ?? "", hasApiKey: !!config?.qwenTtsApiKey });
+    } catch (error) {
+      console.error("Error fetching Qwen config:", error);
+      res.status(500).json({ error: "Erreur lors de la récupération de la configuration" });
+    }
+  });
+
+  app.post("/api/settings/qwen", requireAdmin, async (req, res) => {
+    try {
+      const url = normalizeQwenUrl(req.body?.url);
+      if (!url) {
+        return res.status(400).json({ error: "Adresse invalide (ex. http://192.168.1.20:8001)" });
+      }
+      const { apiKey } = req.body;
+      await storage.upsertAppConfig({
+        qwenTtsUrl: url,
+        // Clé laissée vide : on garde celle déjà enregistrée
+        ...(typeof apiKey === "string" && apiKey.trim() ? { qwenTtsApiKey: apiKey.trim() } : {}),
+      });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error saving Qwen config:", error);
+      res.status(500).json({ error: "Erreur lors de la sauvegarde de la configuration" });
+    }
+  });
+
+  app.delete("/api/settings/qwen", requireAdmin, async (req, res) => {
+    try {
+      await storage.upsertAppConfig({ qwenTtsUrl: null, qwenTtsApiKey: null });
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting Qwen config:", error);
+      res.status(500).json({ error: "Erreur lors de la suppression de la configuration" });
+    }
+  });
+
+  // Teste la connexion depuis le service FFmpeg (c'est lui qui appelle Qwen)
+  app.post("/api/settings/qwen/test", requireAdmin, async (req, res) => {
+    try {
+      const config = await storage.getAppConfig();
+      const url = normalizeQwenUrl(req.body?.url) ?? config?.qwenTtsUrl ?? undefined;
+      const apiKey = (typeof req.body?.apiKey === "string" && req.body.apiKey.trim()) || config?.qwenTtsApiKey || undefined;
+      const { ffmpegService } = await import("./services/ffmpeg");
+      const catalog = await ffmpegService.listVoices(url ? { url, apiKey } : undefined);
+      if (!catalog.qwen_available || !catalog.qwen_status) {
+        return res.json({ ok: false, error: "Service Qwen injoignable (adresse, port, clé ou pare-feu)" });
+      }
+      res.json({ ok: true, ...catalog.qwen_status, voices: catalog.qwen.length });
+    } catch (error) {
+      console.error("Error testing Qwen config:", error);
+      res.json({ ok: false, error: error instanceof Error ? error.message : "Test impossible" });
     }
   });
 

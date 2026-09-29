@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ModelCombobox } from "@/components/model-combobox";
+import { QwenSettingsCard } from "@/components/reels/qwen-settings-card";
 import { SiTiktok } from "react-icons/si";
 
 export default function Settings() {
@@ -694,6 +695,9 @@ export default function Settings() {
                 </CardContent>
               </Card>
             )}
+
+            {/* Qwen3-TTS (serveur local ou GPU distant) */}
+            {isAdmin && <QwenSettingsCard />}
 
 
             {isAdmin && (

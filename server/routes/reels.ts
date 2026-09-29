@@ -9,7 +9,13 @@ import { ffmpegService, FFmpegServiceError } from '../services/ffmpeg';
 import { ttsPreviewSchema, videoReelParamsSchema, type VideoReelParams } from '@shared/reel';
 import { srtText } from '@shared/srt';
 import { enqueueReelJob, countActiveReelJobs } from '../services/reels/queue';
-import { resolveGeminiApiKey, resolveLogoPath, resolveStoreName } from '../services/reels/assets';
+import {
+    qwenTargetFromConfig,
+    resolveGeminiApiKey,
+    resolveLogoPath,
+    resolveQwenTarget,
+    resolveStoreName,
+} from '../services/reels/assets';
 import { configuredRenderer } from '../services/reels/videoPipeline';
 import { openRouterService, describeGenerationError } from '../services/openrouter';
 
@@ -277,11 +283,11 @@ reelsRouter.post('/reels/generate-text', async (req: Request, res: Response) => 
  */
 reelsRouter.get('/reels/voices', async (_req: Request, res: Response) => {
     try {
-        const catalog = await ffmpegService.listVoices();
-        res.json({ qwenAvailable: catalog.qwen_available, qwen: catalog.qwen });
+        const catalog = await ffmpegService.listVoices(qwenTargetFromConfig(await storage.getAppConfig()));
+        res.json({ qwenAvailable: catalog.qwen_available, qwen: catalog.qwen, qwenStatus: catalog.qwen_status });
     } catch (error) {
         console.error('❌ Error listing voices:', error);
-        res.json({ qwenAvailable: false, qwen: [] });
+        res.json({ qwenAvailable: false, qwen: [], qwenStatus: null });
     }
 });
 
@@ -302,6 +308,7 @@ reelsRouter.post('/reels/tts-preview', async (req: Request, res: Response) => {
             engine: ttsEngine,
             style: ttsStyle,
             geminiApiKey: await resolveGeminiApiKey(ttsEngine),
+            qwen: await resolveQwenTarget(ttsEngine),
         });
         res.json({
             success: true,

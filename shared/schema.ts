@@ -260,6 +260,9 @@ export const appConfig = pgTable("app_config", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   externalApiKey: text("external_api_key"),
   geminiApiKey: text("gemini_api_key"),
+  // Service Qwen3-TTS (local ou serveur GPU distant) : adresse et clé d'accès
+  qwenTtsUrl: text("qwen_tts_url"),
+  qwenTtsApiKey: text("qwen_tts_api_key"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
