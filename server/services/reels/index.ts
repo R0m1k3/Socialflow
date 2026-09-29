@@ -5,10 +5,8 @@
 
 import { registerReelJobHandler, startReelWorker } from "./queue";
 import { runVideoReelJob } from "./videoPipeline";
-import { runImagesReelJob } from "./imagesPipeline";
 
 export function startReelProcessing(): Promise<void> {
   registerReelJobHandler("video", runVideoReelJob);
-  registerReelJobHandler("images", runImagesReelJob);
   return startReelWorker();
 }

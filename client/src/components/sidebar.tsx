@@ -70,13 +70,12 @@ export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
   const navItems = [
     { icon: Home, label: "Tableau de bord", href: "/", badge: null },
     { icon: PlusCircle, label: "Nouvelle publication", href: "/new", badge: null },
-    { icon: Video, label: "Nouveau Reel", href: "/reel", badge: "New" },
-    { icon: CalendarClock, label: "Programmer un Reel", href: "/reel/schedule", badge: "New" },
-    { icon: Video, label: "Générateur Vidéo", href: "/remotion", badge: "New" },
+    { icon: Video, label: "Nouveau Reel", href: "/reel", badge: null },
+    { icon: CalendarClock, label: "Programmer un Reel", href: "/reel/schedule", badge: null },
     { icon: Calendar, label: "Calendrier", href: "/calendar", badge: null },
     { icon: Images, label: "Médiathèque", href: "/media", badge: null },
     { icon: Wand2, label: "Éditeur d'images", href: "/image-editor", badge: null },
-    { icon: BarChart3, label: "Analytics", href: "/analytics", badge: "New" },
+    { icon: BarChart3, label: "Analytics", href: "/analytics", badge: null },
   ];
 
   const statsItems = [

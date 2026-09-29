@@ -7,7 +7,6 @@ import {
   REEL_WIDTH,
   VOICE_DELAY,
   cleanCaptionText,
-  computeImagesTiming,
   computeReelTiming,
   offsetWords,
   spreadWords,
@@ -16,7 +15,6 @@ import {
 } from "@shared/captions";
 import { srtEnd, srtWords, type SrtCue } from "@shared/srt";
 import { ReelVideo, type ReelVideoProps } from "@/remotion/ReelVideo";
-import { ImageComposition, type ImageCompositionProps } from "@/remotion/ImageComposition";
 import type { VoicePreviewResult } from "./voice-picker";
 
 /** Débit moyen d'une voix de synthèse française (estimation avant génération). */
@@ -40,9 +38,7 @@ interface CommonProps {
   srtCues?: SrtCue[] | null;
 }
 
-type ReelPreviewProps =
-  | (CommonProps & { kind: "video"; videoUrl: string })
-  | (CommonProps & { kind: "images"; images: string[] });
+type ReelPreviewProps = CommonProps & { kind: "video"; videoUrl: string };
 
 /** Durée d'un média lue dans ses métadonnées (vidéo de la médiathèque). */
 function useVideoDuration(url: string | undefined): number | null {
@@ -75,12 +71,12 @@ function estimatedVoiceDuration(text: string): number {
  * Sans voix générée, le minutage des mots est estimé.
  */
 export function ReelPreview(props: ReelPreviewProps) {
-  const videoDuration = useVideoDuration(props.kind === "video" ? props.videoUrl : undefined);
+  const videoDuration = useVideoDuration(props.videoUrl);
   const { text, showCaptions, captionStyle, ttsEnabled, voice, musicUrl, musicVolume, endingEffect, showWatermark } =
     props;
   const logoUrl = props.logoUrl ?? undefined;
   const storeName = endingEffect ? props.storeName || undefined : undefined;
-  const srtCues = props.kind === "video" && props.srtCues?.length ? props.srtCues : null;
+  const srtCues = props.srtCues?.length ? props.srtCues : null;
   const cleanText = cleanCaptionText(text);
   const voiceDuration = srtCues
     ? ttsEnabled ? srtEnd(srtCues) : 0
@@ -88,34 +84,6 @@ export function ReelPreview(props: ReelPreviewProps) {
   const estimated = !srtCues && ttsEnabled && Boolean(cleanText) && !voice;
 
   const composition = useMemo(() => {
-    if (props.kind === "images") {
-      if (props.images.length === 0) return null;
-      const { total, endingSeconds } = computeImagesTiming({
-        imageCount: props.images.length,
-        voiceDuration,
-        hasEnding: Boolean(logoUrl || storeName),
-      });
-      const contentEnd = total - endingSeconds;
-      let words: TimedWord[] = [];
-      if (showCaptions && cleanText) {
-        words = voice ? voice.words : spreadWords(text, 0, voiceDuration || Math.min(contentEnd - 0.5, 8));
-      }
-      const inputProps: ImageCompositionProps = {
-        images: props.images,
-        totalDuration: total,
-        words,
-        captionStyle,
-        audioUrl: voice?.audioUrl,
-        musicUrl,
-        musicVolume,
-        logoUrl,
-        showWatermark,
-        storeName,
-        endingSeconds,
-      };
-      return { component: ImageComposition, inputProps, total };
-    }
-
     if (videoDuration == null) return null;
     const timing = computeReelTiming({
       videoDuration,
@@ -153,8 +121,7 @@ export function ReelPreview(props: ReelPreviewProps) {
     return { component: ReelVideo, inputProps, total: timing.total };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    props.kind,
-    props.kind === "video" ? props.videoUrl : props.images.join("|"),
+    props.videoUrl,
     videoDuration, text, cleanText, srtCues, showCaptions, captionStyle, ttsEnabled, voice, voiceDuration,
     musicUrl, musicVolume, logoUrl, showWatermark, storeName, endingEffect,
   ]);
@@ -172,7 +139,7 @@ export function ReelPreview(props: ReelPreviewProps) {
       <div className="overflow-hidden rounded-lg bg-black">
         <Player
           // Nouvelle instance quand la durée change : le lecteur repart du début
-          key={`${props.kind}-${composition.total}`}
+          key={composition.total}
           component={composition.component as React.ComponentType<Record<string, unknown>>}
           inputProps={composition.inputProps as unknown as Record<string, unknown>}
           durationInFrames={Math.max(1, Math.round(composition.total * REEL_FPS))}

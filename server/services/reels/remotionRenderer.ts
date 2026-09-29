@@ -45,7 +45,7 @@ function renderConcurrency(): number {
 }
 
 export async function renderReelComposition(options: {
-  compositionId: "ReelVideo" | "ImageVideo";
+  compositionId: "ReelVideo";
   inputProps: Record<string, unknown>;
   outputLocation: string;
   onProgress?: (ratio: number) => void;

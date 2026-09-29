@@ -16,7 +16,6 @@ import type { User, InsertUser, ScheduledPost } from "@shared/schema";
 import { analyticsRouter } from "./routes/analytics";
 import { normalizeQwenUrl } from "./services/reels/assets";
 import { reelsRouter } from "./routes/reels";
-import { remotionRouter } from "./routes/remotion";
 import { externalRouter } from "./routes/external";
 import { tiktokRouter } from "./routes/tiktok";
 import { facebookRouter } from "./routes/facebook";
@@ -554,7 +553,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Reels & Music Routes
   app.use("/api", requireAuth, reelsRouter);
-  app.use("/api/remotion", requireAuth, remotionRouter);
 
 
   // Route SQL (réservée aux admins) - DÉSACTIVÉE EN PRODUCTION sauf si explicitement autorisée

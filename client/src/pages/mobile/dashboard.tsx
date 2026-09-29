@@ -13,7 +13,6 @@ import {
   Users,
   ChevronRight,
   Sparkles,
-  Film,
   CalendarClock
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -31,7 +30,6 @@ export default function DashboardMobile() {
 
   const secondaryMenu = [
     { icon: CalendarClock, label: "Programmer un Reel", href: "/reel/schedule" },
-    { icon: Film, label: "Générateur Vidéo", href: "/remotion" },
     { icon: Images, label: "Médiathèque", href: "/media" },
     { icon: Wand2, label: "Éditeur d'images", href: "/image-editor" },
     { icon: Clock, label: "Historique", href: "/history" },
