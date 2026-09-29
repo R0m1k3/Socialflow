@@ -65,9 +65,21 @@ def _load(name: str):
         from qwen_tts import Qwen3TTSModel
 
         started = time.monotonic()
-        _models[name] = Qwen3TTSModel.from_pretrained(name, device_map=DEVICE, dtype=DTYPE)
+        _models[name] = Qwen3TTSModel.from_pretrained(_local_path(name), device_map=DEVICE, dtype=DTYPE)
         log.info("Modèle %s chargé sur %s en %.1f s", name, _device_label(), time.monotonic() - started)
     return _models[name]
+
+
+def _local_path(name: str) -> str:
+    """Dossier du modèle téléchargé au build. Avec un nom de dépôt, transformers
+    interroge l'API Hugging Face au chargement (détection des tokenizers Mistral),
+    ce qui échoue en mode hors ligne ; avec un chemin local, non."""
+    from huggingface_hub import snapshot_download
+
+    try:
+        return snapshot_download(name, local_files_only=True)
+    except Exception:  # noqa: BLE001 — absent du cache : téléchargement normal
+        return name
 
 
 def _device_label() -> str:
