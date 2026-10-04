@@ -945,8 +945,42 @@ POST /api/analytics/tokens/check
 Ces routes sont optimisées pour les appels de scripts d'intégration tierce.
 Toutes les requêtes doivent contenir le header `X-API-Key`.
 
-### Publier un message avec téléchargement d'image
-Crée une publication en téléchargeant automatiquement l'image depuis une URL publique fournie (ex: depuis votre ERP ou flux e-commerce), et programme sa publication.
+Les requêtes JSON sous `/api/v1` peuvent peser jusqu'à 15 Mo (contre 100 Ko ailleurs), pour transporter une image en base64.
+
+### Envoyer une image dans la médiathèque
+Envoie une image directement, sans hébergeur public intermédiaire. L'`id` renvoyé se passe en `mediaId` à `/publish` ou à `PATCH /posts/:id`.
+Formats acceptés : JPEG, PNG, WebP, GIF (reconnus par leur contenu, pas par l'extension) — 10 Mo maximum.
+```http
+POST /api/v1/media
+```
+**Body (multipart/form-data) :** champ `file` contenant l'image.
+```bash
+curl -X POST https://socialflow.example/api/v1/media \
+  -H "X-API-Key: $SOCIALFLOW_API_KEY" \
+  -F "file=@galette-chaise.jpg"
+```
+**Ou body (JSON) :** l'image en base64, brute ou en data URL.
+```json
+{ "imageData": "data:image/jpeg;base64,/9j/4AAQSkZJRg..." }
+```
+**Réponse (201 Created) :**
+```json
+{
+  "id": "med_ext_123",
+  "url": "/uploads/media/external-1791141548234.jpg",
+  "type": "image",
+  "fileName": "external-1791141548234.jpg",
+  "fileSize": 2483120
+}
+```
+**Erreurs :** `400` (aucune image, format non reconnu), `401` (clé absente ou invalide), `413` (image de plus de 10 Mo).
+
+### Publier un message avec image
+Crée une publication et programme sa publication. L'image peut être fournie de quatre façons (une seule par requête) :
+- `mediaId` : image déjà envoyée via `POST /api/v1/media` ;
+- `imageData` : image en base64 (ou data URL) ;
+- `imageUrl` : URL publique que Socialflow télécharge lui-même ;
+- en multipart/form-data, un fichier dans le champ `image` (les autres champs en texte, `pageIds` en tableau JSON ou séparés par des virgules).
 ```http
 POST /api/v1/publish
 ```
@@ -954,7 +988,7 @@ POST /api/v1/publish
 ```json
 {
   "content": "Découvrez cet article exceptionnel !",
-  "imageUrl": "https://mon-site.com/images/produit.jpg",
+  "mediaId": "med_ext_123",
   "pageIds": ["page_999"],
   "scheduledAt": "2026-06-02T08:00:00.000Z",
   "postType": "feed"
@@ -974,8 +1008,8 @@ POST /api/v1/publish
       { "pageId": "page_999", "pageName": "Ma Page", "scheduledPostId": "sch_ext_001" }
     ],
     "media": {
-      "id": "med_ext_999",
-      "url": "/uploads/media/external-17169.jpg"
+      "id": "med_ext_123",
+      "url": "/uploads/media/external-1791141548234.jpg"
     }
   }
 }
@@ -1018,7 +1052,7 @@ PATCH /api/v1/posts/:id
   "imageUrl": "https://mon-site.com/images/produit-rectifie.jpg"
 }
 ```
-*Note : Tous les champs sont facultatifs. L'envoi d'une nouvelle URL d'image écrase et remplace le média précédent.*
+*Note : Tous les champs sont facultatifs. Une nouvelle image (`imageUrl`, `imageData`, `mediaId` ou fichier multipart `image`) remplace le média précédent.*
 
 **Réponse (200 OK) :**
 *(Retourne la publication modifiée avec sa liste de planification actualisée).*
