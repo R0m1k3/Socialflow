@@ -515,6 +515,61 @@ export class FacebookService {
   }
 
   /**
+   * Publie une vidéo en story Facebook en envoyant directement les données
+   * binaires (start → upload → finish sur /video_stories). Sert à doubler un
+   * Reel d'une story : la vidéo rendue est déjà en mémoire.
+   */
+  async publishVideoStoryFromBuffer(page: SocialPage, videoBuffer: Buffer): Promise<string> {
+    if (!page.accessToken) throw new Error('No access token found for this page');
+    const accessToken = page.accessToken;
+    const fileSize = videoBuffer.length;
+
+    const startParams = new URLSearchParams({
+      access_token: accessToken,
+      upload_phase: 'start',
+    });
+    const startRes = await fetch(`${this.baseUrl}/${page.pageId}/video_stories?${startParams.toString()}`, {
+      method: 'POST',
+    });
+    if (!startRes.ok) {
+      const error = await startRes.json() as FacebookError;
+      throw new Error(`Facebook Story API error (START phase): ${error.error.message} (code: ${error.error.code})`);
+    }
+    const { video_id: videoId, upload_url: uploadUrl } = await startRes.json() as { video_id: string; upload_url: string };
+
+    const uploadRes = await fetch(uploadUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `OAuth ${accessToken}`,
+        'Content-Type': 'application/octet-stream',
+        'offset': '0',
+        'file_size': fileSize.toString(),
+      },
+      body: new Blob([videoBuffer], { type: 'video/mp4' }),
+    });
+    if (!uploadRes.ok) {
+      throw new Error(`Facebook Story API error (UPLOAD phase): ${await uploadRes.text()}`);
+    }
+
+    const finishParams = new URLSearchParams({
+      access_token: accessToken,
+      upload_phase: 'finish',
+      video_id: videoId,
+    });
+    const finishRes = await fetch(`${this.baseUrl}/${page.pageId}/video_stories?${finishParams.toString()}`, {
+      method: 'POST',
+    });
+    if (!finishRes.ok) {
+      const error = await finishRes.json() as FacebookError;
+      throw new Error(`Facebook Story API error (FINISH phase): ${error.error.message} (code: ${error.error.code})`);
+    }
+
+    const finishData = await finishRes.json() as { success: boolean; post_id?: string };
+    console.log(`✅ Story vidéo publiée sur ${page.pageName}`);
+    return finishData.post_id || videoId;
+  }
+
+  /**
    * Publie une vidéo comme Reel Facebook
    * 
    * Utilise l'endpoint /{page-id}/video_reels avec un processus en 3 phases :

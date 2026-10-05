@@ -16,6 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
+import { StoryToggle } from "@/components/reels/story-toggle";
 import { Slider } from "@/components/ui/slider";
 import {
     Select,
@@ -78,6 +79,7 @@ export default function NewReel() {
     const [drawText, setDrawText] = useState(true);
     // Désactivée par défaut : double le temps de rendu, utile seulement pour une vidéo tremblée
     const [stabilize, setStabilize] = useState(false);
+    const [alsoStory, setAlsoStory] = useState(false);
     const [enableEndingEffect, setEnableEndingEffect] = useState(true);
     const [showLogo, setShowLogo] = useState(true);
 
@@ -415,6 +417,7 @@ export default function NewReel() {
             description: srtFile ? srtText(srtFile.cues) : overlayText,
             pageIds: selectedPages,
             scheduledFor: scheduledDate?.toISOString(),
+            alsoStory,
             musicVolume: musicVolume[0] / 100,
             ttsEnabled,
             ttsEngine,
@@ -938,6 +941,7 @@ export default function NewReel() {
                                                                 Pages Facebook
                                                             </div>
                                                             {facebookPages.map(renderTargetCheckbox)}
+                                                            <StoryToggle checked={alsoStory} onCheckedChange={setAlsoStory} />
                                                         </div>
                                                     )}
 

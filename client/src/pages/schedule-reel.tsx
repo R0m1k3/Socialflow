@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { StoryToggle } from "@/components/reels/story-toggle";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
@@ -30,6 +31,7 @@ export default function ScheduleReel() {
     const [description, setDescription] = useState("");
     const [selectedPages, setSelectedPages] = useState<string[]>([]);
     const [scheduledDate, setScheduledDate] = useState<Date | undefined>(undefined);
+    const [alsoStory, setAlsoStory] = useState(false);
 
     const { data: pages = [] } = useQuery<SocialPage[]>({ queryKey: ["/api/pages"] });
     const { data: allMedia = [] } = useQuery<Media[]>({ queryKey: ["/api/media"] });
@@ -83,6 +85,7 @@ export default function ScheduleReel() {
                 mediaIds: [selectedVideo!.id],
                 pageIds: selectedPages,
                 scheduledFor: scheduledDate!.toISOString(),
+                alsoStory,
             });
             return response.json();
         },
@@ -250,6 +253,7 @@ export default function ScheduleReel() {
                                         <SiFacebook className="w-4 h-4 text-[#1877F2]" /> Pages Facebook
                                     </Label>
                                     {facebookPages.map(renderTargetCheckbox)}
+                                    <StoryToggle checked={alsoStory} onCheckedChange={setAlsoStory} />
                                 </div>
                             )}
                             {tiktokAccounts.length > 0 && (

@@ -32,6 +32,8 @@ export const videoReelParamsSchema = z.object({
   ttsEngine: z.enum(TTS_ENGINES).optional(),
   ttsStyle: z.enum(TTS_STYLES).optional(),
   scheduledFor: optionalText,
+  // Publie aussi la vidéo en story sur les pages Facebook (sans effet sur TikTok)
+  alsoStory: z.boolean().default(false),
   // Ancien réglage, ignoré : le minutage vient désormais de la voix elle-même
   wordDuration: z.number().optional(),
   fontSize: z.number().int().min(16).max(200).default(64),
