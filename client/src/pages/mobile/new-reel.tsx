@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { StoryToggle } from "@/components/reels/story-toggle";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { useToast } from "@/hooks/use-toast";
@@ -83,6 +84,7 @@ export default function MobileNewReel() {
     const [isPlaying, setIsPlaying] = useState<string | null>(null);
     // Désactivée par défaut : double le temps de rendu, utile seulement pour une vidéo tremblée
     const [stabilize, setStabilize] = useState(false);
+    const [alsoStory, setAlsoStory] = useState(false);
     const [enableEndingEffect, setEnableEndingEffect] = useState(true);
     const [showLogo, setShowLogo] = useState(true);
 
@@ -272,6 +274,7 @@ export default function MobileNewReel() {
             description: srtFile ? srtText(srtFile.cues) : overlayText,
             pageIds: selectedPages,
             scheduledFor: scheduledDate?.toISOString(),
+            alsoStory,
             musicVolume: musicVolume[0] / 100,
             stabilize: stabilize,
             drawText: true,
@@ -610,6 +613,7 @@ export default function MobileNewReel() {
                                             Pages Facebook
                                         </div>
                                         {facebookPages.map(renderTargetCheckbox)}
+                                        <StoryToggle checked={alsoStory} onCheckedChange={setAlsoStory} />
                                     </div>
                                 )}
 

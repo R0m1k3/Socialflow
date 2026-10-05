@@ -84,6 +84,7 @@ export async function runVideoReelJob({ job, progress }: JobContext) {
     videoBuffer,
     description: params.description || params.overlayText || "",
     scheduledFor: params.scheduledFor,
+    alsoStory: params.alsoStory,
   });
 
   if (!results.some((r) => r.success)) {

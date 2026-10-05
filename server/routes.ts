@@ -1268,7 +1268,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const user = req.user as User;
       const userId = user.id;
-      const { pageIds, postType, mediaId, mediaIds, ...postFields } = req.body;
+      const { pageIds, postType, mediaId, mediaIds, alsoStory, ...postFields } = req.body;
 
       // Convert mediaIds to standardized format: array of { mediaId, displayOrder }
       let finalMediaItems: Array<{ mediaId: string; displayOrder: number }> = [];
@@ -1395,6 +1395,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               postType: finalPostType,
               scheduledAt,
             });
+            // Reel doublé d'une story : seulement sur Facebook, TikTok n'en a pas
+            if (finalPostType === 'reel' && alsoStory === true) {
+              const page = await storage.getSocialPage(pageId);
+              if (page?.platform === 'facebook') {
+                await storage.createScheduledPost({
+                  postId: post.id,
+                  pageId,
+                  postType: 'story',
+                  scheduledAt,
+                });
+              }
+            }
           }
         }
       }

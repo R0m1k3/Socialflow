@@ -7,7 +7,7 @@
  * cas de l'ancien `publishReel(originalUrl)`).
  */
 
-import type { Media } from "@shared/schema";
+import type { Media, SocialPage } from "@shared/schema";
 import { storage } from "../../storage";
 import { minioService } from "../minio";
 import { createVideoThumbnail } from "../thumbnail";
@@ -19,6 +19,8 @@ export interface PagePublishResult {
   success: boolean;
   reelId?: string;
   error?: string;
+  /** Échec de la story associée : n'empêche pas le Reel d'être publié. */
+  storyError?: string;
 }
 
 /** Range la vidéo rendue dans la médiathèque, avec sa vignette. */
@@ -49,6 +51,9 @@ export async function storeRenderedVideo(
 /**
  * Publie (ou planifie) la vidéo sur chaque page, crée les entrées
  * `scheduled_posts` et met à jour le statut du post.
+ *
+ * Avec `alsoStory`, chaque page Facebook reçoit aussi la vidéo en story (TikTok
+ * n'a pas de stories).
  */
 export async function publishReelToPages(options: {
   postId: string;
@@ -56,8 +61,9 @@ export async function publishReelToPages(options: {
   videoBuffer: Buffer;
   description: string;
   scheduledFor?: string;
+  alsoStory?: boolean;
 }): Promise<PagePublishResult[]> {
-  const { postId, pageIds, videoBuffer, description, scheduledFor } = options;
+  const { postId, pageIds, videoBuffer, description, scheduledFor, alsoStory } = options;
   const results: PagePublishResult[] = [];
 
   for (const pageId of pageIds) {
@@ -82,9 +88,18 @@ export async function publishReelToPages(options: {
         postType: "reel",
         scheduledAt: scheduledFor ? new Date(scheduledFor) : new Date(),
       });
+      const withStory = alsoStory && page.platform === "facebook";
 
       if (scheduledFor) {
         // Le planificateur publiera à l'heure dite
+        if (withStory) {
+          await storage.createScheduledPost({
+            postId,
+            pageId: page.id,
+            postType: "story",
+            scheduledAt: new Date(scheduledFor),
+          });
+        }
         results.push({ pageId, success: true, reelId: "scheduled" });
         continue;
       }
@@ -96,7 +111,8 @@ export async function publishReelToPages(options: {
           publishedAt: new Date(),
           externalPostId: reelId,
         });
-        results.push({ pageId, success: true, reelId });
+        const storyError = withStory ? await publishStory(postId, page, videoBuffer) : undefined;
+        results.push({ pageId, success: true, reelId, storyError });
       } else {
         // TikTok finalise la publication de son côté : l'envoi est marqué comme
         // effectué pour ne pas republier, et le poller de statut renseignera
@@ -124,6 +140,46 @@ export async function publishReelToPages(options: {
   await storage.updatePost(postId, { status });
 
   return results;
+}
+
+/**
+ * Publie la story d'une page juste après son Reel : un échec est consigné sur
+ * son entrée planifiée (visible dans l'historique) et renvoyé, sans faire
+ * échouer le Reel.
+ */
+async function publishStory(
+  postId: string,
+  page: SocialPage,
+  videoBuffer: Buffer,
+): Promise<string | undefined> {
+  // Créée seulement maintenant : en attente pendant l'envoi du Reel, le
+  // planificateur aurait pu la publier une seconde fois.
+  let scheduledStoryId: string | undefined;
+  try {
+    ({ id: scheduledStoryId } = await storage.createScheduledPost({
+      postId,
+      pageId: page.id,
+      postType: "story",
+      scheduledAt: new Date(),
+    }));
+    const storyId = await facebookService.publishVideoStoryFromBuffer(page, videoBuffer);
+    await storage.updateScheduledPost(scheduledStoryId, {
+      publishedAt: new Date(),
+      externalPostId: storyId,
+    });
+    return undefined;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Erreur inconnue";
+    console.error(`❌ [Reels] Story sur ${page.pageName} impossible :`, error);
+    if (scheduledStoryId) {
+      // Marquée comme traitée pour que le planificateur ne la republie pas en boucle
+      await storage.updateScheduledPost(scheduledStoryId, {
+        publishedAt: new Date(),
+        error: message,
+      }).catch((e) => console.error(`⚠️ [Reels] Échec de la story non enregistré :`, e));
+    }
+    return message;
+  }
 }
 
 /** Message d'erreur lisible lorsque toutes les publications ont échoué. */
