@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { Page } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
-import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain, Image, Upload, X, Video, Plug, Mic, Facebook } from "lucide-react";
+import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain, Image, Upload, X, Video, Plug, Mic, Facebook, Share2, SlidersHorizontal } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -15,7 +16,27 @@ import { ModelCombobox } from "@/components/model-combobox";
 import { QwenSettingsCard } from "@/components/reels/qwen-settings-card";
 import { SiTiktok } from "react-icons/si";
 
+const SETTINGS_TABS = [
+  { value: "general", label: "Général", icon: SlidersHorizontal },
+  { value: "ai", label: "Intelligence artificielle", icon: Brain },
+  { value: "media", label: "Stockage & vidéo", icon: Cloud },
+  { value: "social", label: "Réseaux sociaux", icon: Share2 },
+  { value: "api", label: "API externe", icon: Plug },
+] as const;
+
+type SettingsTab = (typeof SETTINGS_TABS)[number]["value"];
+
+function initialTab(): SettingsTab {
+  const hash = window.location.hash.replace("#", "");
+  return (SETTINGS_TABS.find((t) => t.value === hash)?.value ?? "general") as SettingsTab;
+}
+
 export default function Settings() {
+  const [tab, setTab] = useState<SettingsTab>(initialTab);
+  const changeTab = (value: string) => {
+    setTab(value as SettingsTab);
+    window.history.replaceState(null, "", `#${value}`);
+  };
   const [notifications, setNotifications] = useState(true);
   const [autoPublish, setAutoPublish] = useState(true);
   const [cloudName, setCloudName] = useState("");
@@ -418,16 +439,31 @@ export default function Settings() {
 
   return (
     <Page width="default">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground">Paramètres</h1>
-            <p className="text-muted-foreground mt-2">
-              Configurez votre application
-            </p>
-          </div>
+      <PageHeader
+        icon={SettingsIcon}
+        title="Paramètres"
+        description="Configurez les services utilisés par Social Flow."
+      />
 
-          <div className="space-y-8">
-            <Card className="rounded-2xl border-border/50 shadow-lg">
-              <CardHeader className="p-6">
+      <Tabs value={tab} onValueChange={changeTab} orientation="vertical" className="lg:grid lg:grid-cols-[220px_1fr] lg:gap-8">
+        <TabsList className="mb-6 flex h-auto w-full justify-start gap-1 overflow-x-auto bg-muted p-1 scrollbar-none lg:sticky lg:top-6 lg:mb-0 lg:h-fit lg:flex-col lg:items-stretch lg:bg-transparent lg:p-0">
+          {SETTINGS_TABS.map(({ value, label, icon: Icon }) => (
+            <TabsTrigger
+              key={value}
+              value={value}
+              className="shrink-0 gap-2 lg:justify-start lg:px-3 lg:py-2 lg:data-[state=active]:bg-primary/10 lg:data-[state=active]:text-primary lg:data-[state=active]:shadow-none"
+              data-testid={`tab-settings-${value}`}
+            >
+              <Icon className="h-4 w-4" />
+              {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        <div className="min-w-0">
+          <TabsContent value="general" className="mt-0 space-y-6">
+            <Card>
+              <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Bell className="w-5 h-5" />
                   Notifications
@@ -468,8 +504,109 @@ export default function Settings() {
               </CardContent>
             </Card>
 
-            <Card className="rounded-2xl border-border/50 shadow-lg">
-              <CardHeader className="p-6">
+            {isAdmin && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Image className="w-5 h-5" />
+                    Logo de l'entreprise
+                  </CardTitle>
+                  <CardDescription>
+                    Uploadez votre logo pour l'ajouter aux images éditées
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {logoPreview ? (
+                    <div className="space-y-4">
+                      <div className="relative w-full max-w-xs mx-auto">
+                        <img
+                          src={logoPreview}
+                          alt="Logo"
+                          className="w-full h-auto max-h-48 object-contain rounded-lg border-2 border-border"
+                        />
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          className="absolute top-2 right-2 h-8 w-8"
+                          onClick={() => deleteLogoMutation.mutate()}
+                          disabled={deleteLogoMutation.isPending}
+                          data-testid="button-delete-logo"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                      <div className="text-center">
+                        <Label htmlFor="logo-upload-replace" className="cursor-pointer">
+                          <Button
+                            variant="outline"
+                            className="w-full"
+                            disabled={uploadLogoMutation.isPending}
+                            data-testid="button-replace-logo"
+                            onClick={() => document.getElementById('logo-upload-replace')?.click()}
+                          >
+                            <Upload className="w-4 h-4" />
+                            {uploadLogoMutation.isPending ? "Upload en cours..." : "Remplacer le logo"}
+                          </Button>
+                        </Label>
+                        <input
+                          id="logo-upload-replace"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            handleLogoChange(e);
+                            if (e.target.files?.[0]) {
+                              uploadLogoMutation.mutate(e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                        <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+                        <p className="text-sm text-muted-foreground mb-4">
+                          Aucun logo uploadé. Choisissez une image PNG ou JPG.
+                        </p>
+                        <Label htmlFor="logo-upload" className="cursor-pointer">
+                          <Button
+                            variant="outline"
+                            disabled={uploadLogoMutation.isPending || !cloudinaryConfig}
+                            data-testid="button-upload-logo"
+                            onClick={() => document.getElementById('logo-upload')?.click()}
+                          >
+                            <Upload className="w-4 h-4" />
+                            {uploadLogoMutation.isPending ? "Upload en cours..." : "Uploader un logo"}
+                          </Button>
+                        </Label>
+                        <input
+                          id="logo-upload"
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            handleLogoChange(e);
+                            if (e.target.files?.[0]) {
+                              uploadLogoMutation.mutate(e.target.files[0]);
+                            }
+                          }}
+                        />
+                      </div>
+                      {!cloudinaryConfig && (
+                        <p className="text-xs text-warning-foreground dark:text-warning text-center">
+                          Veuillez d'abord configurer MinIO ci-dessus
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+          <TabsContent value="ai" className="mt-0 space-y-6">
+            <Card>
+              <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Brain className="w-5 h-5" />
                   Configuration OpenRouter (IA)
@@ -492,7 +629,7 @@ export default function Settings() {
                   <p className="text-xs text-muted-foreground">
                     {hasExistingConfig ? (
                       <>
-                        <span className="text-green-600 dark:text-green-400">✓ Clé API configurée</span> - Laissez vide pour garder la clé actuelle
+                        <span className="text-success">✓ Clé API configurée</span> - Laissez vide pour garder la clé actuelle
                       </>
                     ) : (
                       <>
@@ -549,9 +686,59 @@ export default function Settings() {
               </CardContent>
             </Card>
 
+            {/* Google Gemini TTS */}
             {isAdmin && (
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Mic className="w-5 h-5" />
+                    Google Gemini TTS
+                  </CardTitle>
+                  <CardDescription>
+                    Configurez votre clé API Google pour utiliser Gemini TTS dans les Reels
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="geminiApiKey">Clé API Google Gemini</Label>
+                    <Input
+                      id="geminiApiKey"
+                      type="password"
+                      value={geminiApiKey}
+                      onChange={(e) => setGeminiApiKey(e.target.value)}
+                      placeholder={hasExistingGeminiConfig ? "••••••••••••••••" : "AIza..."}
+                      data-testid="input-gemini-api-key"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {hasExistingGeminiConfig ? (
+                        <span className="text-success">✓ Clé API configurée</span>
+                      ) : (
+                        "Obtenez une clé API sur console.cloud.google.com → APIs & Services → Credentials"
+                      )}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => saveGeminiMutation.mutate()}
+                    disabled={
+                      saveGeminiMutation.isPending ||
+                      (!hasExistingGeminiConfig && !geminiApiKey)
+                    }
+                    data-testid="button-save-gemini"
+                    className="w-full"
+                  >
+                    {saveGeminiMutation.isPending ? "Enregistrement..." : "Enregistrer Gemini TTS"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Qwen3-TTS (serveur local ou GPU distant) */}
+            {isAdmin && <QwenSettingsCard />}
+          </TabsContent>
+          <TabsContent value="media" className="mt-0 space-y-6">
+            {isAdmin && (
+              <Card>
+                <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Cloud className="w-5 h-5" />
                     Stockage des médias
@@ -571,8 +758,8 @@ export default function Settings() {
               </Card>
             )}
 
-            <Card className="rounded-2xl border-border/50 shadow-lg">
-              <CardHeader className="p-6">
+            <Card>
+              <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Video className="w-5 h-5" />
                   Configuration FFmpeg API (Reels)
@@ -609,7 +796,7 @@ export default function Settings() {
                   <p className="text-xs text-muted-foreground">
                     {hasExistingFfmpegConfig ? (
                       <>
-                        <span className="text-green-600 dark:text-green-400">✓ Clé API configurée</span> - Laissez vide pour garder la clé actuelle
+                        <span className="text-success">✓ Clé API configurée</span> - Laissez vide pour garder la clé actuelle
                       </>
                     ) : (
                       "Clé de sécurité X-API-Key pour accéder à l'API FFmpeg"
@@ -630,214 +817,11 @@ export default function Settings() {
                 </Button>
               </CardContent>
             </Card>
-
-            {/* Google Gemini TTS */}
+          </TabsContent>
+          <TabsContent value="social" className="mt-0 space-y-6">
             {isAdmin && (
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
-                  <CardTitle className="flex items-center gap-2">
-                    <Mic className="w-5 h-5" />
-                    Google Gemini TTS
-                  </CardTitle>
-                  <CardDescription>
-                    Configurez votre clé API Google pour utiliser Gemini TTS dans les Reels
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="geminiApiKey">Clé API Google Gemini</Label>
-                    <Input
-                      id="geminiApiKey"
-                      type="password"
-                      value={geminiApiKey}
-                      onChange={(e) => setGeminiApiKey(e.target.value)}
-                      placeholder={hasExistingGeminiConfig ? "••••••••••••••••" : "AIza..."}
-                      data-testid="input-gemini-api-key"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      {hasExistingGeminiConfig ? (
-                        <span className="text-green-600 dark:text-green-400">✓ Clé API configurée</span>
-                      ) : (
-                        "Obtenez une clé API sur console.cloud.google.com → APIs & Services → Credentials"
-                      )}
-                    </p>
-                  </div>
-                  <Button
-                    onClick={() => saveGeminiMutation.mutate()}
-                    disabled={
-                      saveGeminiMutation.isPending ||
-                      (!hasExistingGeminiConfig && !geminiApiKey)
-                    }
-                    data-testid="button-save-gemini"
-                    className="w-full"
-                  >
-                    {saveGeminiMutation.isPending ? "Enregistrement..." : "Enregistrer Gemini TTS"}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Qwen3-TTS (serveur local ou GPU distant) */}
-            {isAdmin && <QwenSettingsCard />}
-
-
-            {isAdmin && (
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
-                  <CardTitle className="flex items-center gap-2">
-                    <Image className="w-5 h-5" />
-                    Logo de l'entreprise
-                  </CardTitle>
-                  <CardDescription>
-                    Uploadez votre logo pour l'ajouter aux images éditées
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {logoPreview ? (
-                    <div className="space-y-4">
-                      <div className="relative w-full max-w-xs mx-auto">
-                        <img
-                          src={logoPreview}
-                          alt="Logo"
-                          className="w-full h-auto max-h-48 object-contain rounded-lg border-2 border-border"
-                        />
-                        <Button
-                          size="icon"
-                          variant="destructive"
-                          className="absolute top-2 right-2 h-8 w-8"
-                          onClick={() => deleteLogoMutation.mutate()}
-                          disabled={deleteLogoMutation.isPending}
-                          data-testid="button-delete-logo"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="text-center">
-                        <Label htmlFor="logo-upload-replace" className="cursor-pointer">
-                          <Button
-                            variant="outline"
-                            className="w-full"
-                            disabled={uploadLogoMutation.isPending}
-                            data-testid="button-replace-logo"
-                            onClick={() => document.getElementById('logo-upload-replace')?.click()}
-                          >
-                            <Upload className="w-4 h-4 mr-2" />
-                            {uploadLogoMutation.isPending ? "Upload en cours..." : "Remplacer le logo"}
-                          </Button>
-                        </Label>
-                        <input
-                          id="logo-upload-replace"
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            handleLogoChange(e);
-                            if (e.target.files?.[0]) {
-                              uploadLogoMutation.mutate(e.target.files[0]);
-                            }
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
-                        <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-                        <p className="text-sm text-muted-foreground mb-4">
-                          Aucun logo uploadé. Choisissez une image PNG ou JPG.
-                        </p>
-                        <Label htmlFor="logo-upload" className="cursor-pointer">
-                          <Button
-                            variant="outline"
-                            disabled={uploadLogoMutation.isPending || !cloudinaryConfig}
-                            data-testid="button-upload-logo"
-                            onClick={() => document.getElementById('logo-upload')?.click()}
-                          >
-                            <Upload className="w-4 h-4 mr-2" />
-                            {uploadLogoMutation.isPending ? "Upload en cours..." : "Uploader un logo"}
-                          </Button>
-                        </Label>
-                        <input
-                          id="logo-upload"
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            handleLogoChange(e);
-                            if (e.target.files?.[0]) {
-                              uploadLogoMutation.mutate(e.target.files[0]);
-                            }
-                          }}
-                        />
-                      </div>
-                      {!cloudinaryConfig && (
-                        <p className="text-xs text-orange-600 dark:text-orange-400 text-center">
-                          Veuillez d'abord configurer MinIO ci-dessus
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-
-            {isAdmin && (
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
-                  <CardTitle className="flex items-center gap-2">
-                    <Plug className="w-5 h-5" />
-                    API externe
-                  </CardTitle>
-                  <CardDescription>
-                    Clé d'accès pour créer et programmer des publications via l'API externe (<code className="text-xs bg-muted px-1 rounded">POST /api/v1/publish</code>)
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {hasExistingExternalApiConfig && (
-                    <div className="rounded-lg bg-muted p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
-                        <Key className="w-4 h-4" />
-                        <span>Clé API configurée et active</span>
-                      </div>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => deleteExternalApiMutation.mutate()}
-                        disabled={deleteExternalApiMutation.isPending}
-                      >
-                        {deleteExternalApiMutation.isPending ? "Suppression..." : "Révoquer"}
-                      </Button>
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    <Label htmlFor="externalApiKey">
-                      {hasExistingExternalApiConfig ? "Nouvelle clé API (remplace l'actuelle)" : "Clé API"}
-                    </Label>
-                    <Input
-                      id="externalApiKey"
-                      type="password"
-                      value={externalApiKey}
-                      onChange={(e) => setExternalApiKey(e.target.value)}
-                      placeholder={hasExistingExternalApiConfig ? "Nouvelle clé pour remplacer l'actuelle" : "Générez une clé sécurisée"}
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Utilisez cette clé dans le header <code className="bg-muted px-1 rounded">X-API-Key</code> de vos requêtes
-                    </p>
-                  </div>
-                  <Button
-                    onClick={() => saveExternalApiMutation.mutate()}
-                    disabled={saveExternalApiMutation.isPending || !externalApiKey.trim()}
-                    className="w-full"
-                  >
-                    {saveExternalApiMutation.isPending ? "Enregistrement..." : hasExistingExternalApiConfig ? "Remplacer la clé" : "Enregistrer la clé"}
-                  </Button>
-                </CardContent>
-              </Card>
-            )}
-
-            {isAdmin && (
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
+              <Card>
+                <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <Facebook className="w-5 h-5" />
                     Facebook
@@ -850,7 +834,7 @@ export default function Settings() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {facebookConfig?.configured && (
-                    <div className="rounded-lg bg-muted p-3 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                    <div className="rounded-lg bg-muted p-3 flex items-center gap-2 text-sm text-success">
                       <Key className="w-4 h-4" />
                       <span>Application Facebook configurée</span>
                     </div>
@@ -910,20 +894,20 @@ export default function Settings() {
             )}
 
             {isAdmin && (
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
+              <Card>
+                <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <SiTiktok className="w-5 h-5" />
                     TikTok
                   </CardTitle>
                   <CardDescription>
                     Identifiants de votre application TikTok (developers.tiktok.com). Ils servent à
-                    connecter les comptes TikTok de chaque magasin depuis la page « Pages gérées ».
+                    connecter les comptes TikTok de chaque magasin depuis la page « Comptes connectés ».
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {tiktokConfig?.configured && (
-                    <div className="rounded-lg bg-muted p-3 flex items-center gap-2 text-sm text-green-600 dark:text-green-400">
+                    <div className="rounded-lg bg-muted p-3 flex items-center gap-2 text-sm text-success">
                       <Key className="w-4 h-4" />
                       <span>Application TikTok configurée</span>
                     </div>
@@ -973,24 +957,64 @@ export default function Settings() {
                 </CardContent>
               </Card>
             )}
-
-            <Card className="rounded-2xl border-border/50 shadow-lg">
-              <CardHeader className="p-6">
-                <CardTitle className="flex items-center gap-2">
-                  <Shield className="w-5 h-5" />
-                  Sécurité
-                </CardTitle>
-                <CardDescription>
-                  Paramètres de sécurité et confidentialité
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">
-                  Les paramètres de sécurité avancés seront disponibles prochainement.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-        </Page>
+          </TabsContent>
+          <TabsContent value="api" className="mt-0 space-y-6">
+            {isAdmin && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Plug className="w-5 h-5" />
+                    API externe
+                  </CardTitle>
+                  <CardDescription>
+                    Clé d'accès pour créer et programmer des publications via l'API externe (<code className="text-xs bg-muted px-1 rounded">POST /api/v1/publish</code>)
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {hasExistingExternalApiConfig && (
+                    <div className="rounded-lg bg-muted p-3 flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm text-success">
+                        <Key className="w-4 h-4" />
+                        <span>Clé API configurée et active</span>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => deleteExternalApiMutation.mutate()}
+                        disabled={deleteExternalApiMutation.isPending}
+                      >
+                        {deleteExternalApiMutation.isPending ? "Suppression..." : "Révoquer"}
+                      </Button>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label htmlFor="externalApiKey">
+                      {hasExistingExternalApiConfig ? "Nouvelle clé API (remplace l'actuelle)" : "Clé API"}
+                    </Label>
+                    <Input
+                      id="externalApiKey"
+                      type="password"
+                      value={externalApiKey}
+                      onChange={(e) => setExternalApiKey(e.target.value)}
+                      placeholder={hasExistingExternalApiConfig ? "Nouvelle clé pour remplacer l'actuelle" : "Générez une clé sécurisée"}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Utilisez cette clé dans le header <code className="bg-muted px-1 rounded">X-API-Key</code> de vos requêtes
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => saveExternalApiMutation.mutate()}
+                    disabled={saveExternalApiMutation.isPending || !externalApiKey.trim()}
+                    className="w-full"
+                  >
+                    {saveExternalApiMutation.isPending ? "Enregistrement..." : hasExistingExternalApiConfig ? "Remplacer la clé" : "Enregistrer la clé"}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+        </div>
+      </Tabs>
+    </Page>
   );
 }

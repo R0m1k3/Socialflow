@@ -241,7 +241,7 @@ export default function MediaUpload() {
               className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 rounded-xl"
               data-testid="button-browse"
             >
-              <CloudUpload className="w-4 h-4 mr-2" />
+              <CloudUpload className="w-4 h-4" />
               Parcourir
             </Button>
           </div>

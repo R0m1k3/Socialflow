@@ -223,11 +223,11 @@ export function VoicePicker({ value, onChange, sampleText, compact = false, onPr
         }}
       >
         {loading ? (
-          <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+          <Loader2 className="w-3 h-3 animate-spin" />
         ) : playing ? (
-          <Square className="w-3 h-3 mr-2" />
+          <Square className="w-3 h-3" />
         ) : (
-          <Play className="w-3 h-3 mr-2" />
+          <Play className="w-3 h-3" />
         )}
         {loading ? "Génération de la voix…" : playing ? "Arrêter" : "Tester la voix"}
       </Button>

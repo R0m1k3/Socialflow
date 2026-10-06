@@ -80,7 +80,7 @@ export function SrtUpload({ value, onChange }: SrtUploadProps) {
         </div>
       ) : (
         <Button type="button" variant="outline" className="w-full" onClick={() => inputRef.current?.click()}>
-          <Upload className="w-4 h-4 mr-2" />
+          <Upload className="w-4 h-4" />
           Importer un fichier SRT
         </Button>
       )}

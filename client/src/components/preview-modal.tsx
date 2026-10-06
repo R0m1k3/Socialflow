@@ -569,7 +569,7 @@ export function PreviewModal({
                   className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
                   data-testid="button-publish-from-preview"
                 >
-                  <Send className="w-4 h-4 mr-2" />
+                  <Send className="w-4 h-4" />
                   {isPublishing ? 'Publication...' : 'Publier'}
                 </Button>
               </>

@@ -510,7 +510,7 @@ export default function ImageEditor() {
                         onClick={() => saveImageMutation.mutate()}
                         disabled={saveImageMutation.isPending}
                       >
-                        <Save className="w-4 h-4 mr-2" />
+                        <Save className="w-4 h-4" />
                         {saveImageMutation.isPending ? "Enregistrement..." : "Enregistrer"}
                       </Button>
                     </div>

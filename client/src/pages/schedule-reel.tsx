@@ -269,9 +269,9 @@ export default function ScheduleReel() {
                                 data-testid="button-schedule-reel"
                             >
                                 {scheduleMutation.isPending ? (
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    <Loader2 className="w-4 h-4 animate-spin" />
                                 ) : (
-                                    <CalendarClock className="w-4 h-4 mr-2" />
+                                    <CalendarClock className="w-4 h-4" />
                                 )}
                                 Programmer le Reel
                             </Button>

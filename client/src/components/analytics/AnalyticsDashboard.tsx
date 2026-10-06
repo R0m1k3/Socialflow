@@ -130,7 +130,7 @@ export function AnalyticsDashboard() {
                     onClick={() => refreshMutation.mutate()}
                     disabled={refreshMutation.isPending || !selectedPageId}
                 >
-                    <RefreshCw className={`mr-2 h-4 w-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`h-4 w-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
                     Actualiser les données
                 </Button>
             </div>

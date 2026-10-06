@@ -80,8 +80,8 @@ export function QwenSettingsCard() {
   });
 
   return (
-    <Card className="rounded-2xl border-border/50 shadow-lg">
-      <CardHeader className="p-6">
+    <Card>
+      <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Cpu className="w-5 h-5" />
           Qwen TTS (voix locale)
@@ -113,12 +113,12 @@ export function QwenSettingsCard() {
             data-testid="input-qwen-api-key"
           />
           {config?.hasApiKey && (
-            <p className="text-xs text-green-600 dark:text-green-400">✓ Clé enregistrée (laisser vide pour la garder)</p>
+            <p className="text-xs text-success">✓ Clé enregistrée (laisser vide pour la garder)</p>
           )}
         </div>
 
         {test && (
-          <p className={`text-sm ${test.ok ? "text-green-600 dark:text-green-400" : "text-destructive"}`}>
+          <p className={`text-sm ${test.ok ? "text-success" : "text-destructive"}`}>
             {test.ok
               ? `✓ Connecté : ${test.device ?? "?"} — ${test.model ?? ""} (${test.voices ?? 0} voix)`
               : `✗ ${test.error}`}
@@ -133,7 +133,7 @@ export function QwenSettingsCard() {
             disabled={runTest.isPending || (!url && !config?.url)}
             data-testid="button-test-qwen"
           >
-            {runTest.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+            {runTest.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
             Tester la connexion
           </Button>
           <Button

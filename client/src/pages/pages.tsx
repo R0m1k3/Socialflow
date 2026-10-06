@@ -183,15 +183,15 @@ export default function PagesManagement() {
                   <DropdownMenuContent align="end">
                     {page.platform === "tiktok" ? (
                       <DropdownMenuItem onClick={() => { window.location.href = "/api/tiktok/connect"; }} data-testid={`button-reconnect-page-${page.id}`}>
-                        <RefreshCw className="mr-2 h-4 w-4" /> Reconnecter
+                        <RefreshCw className="h-4 w-4" /> Reconnecter
                       </DropdownMenuItem>
                     ) : (
                       <>
                         <DropdownMenuItem onClick={() => setEditingPage(page)} data-testid={`button-edit-page-${page.id}`}>
-                          <KeyRound className="mr-2 h-4 w-4" /> Remplacer le jeton
+                          <KeyRound className="h-4 w-4" /> Remplacer le jeton
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => window.open(`https://developers.facebook.com/tools/debug/accesstoken/`, "_blank")} data-testid="button-debug-token">
-                          <Bug className="mr-2 h-4 w-4" /> Déboguer le jeton
+                          <Bug className="h-4 w-4" /> Déboguer le jeton
                         </DropdownMenuItem>
                       </>
                     )}
@@ -201,7 +201,7 @@ export default function PagesManagement() {
                       className="text-destructive focus:text-destructive"
                       data-testid={`button-delete-page-${page.id}`}
                     >
-                      <Trash2 className="mr-2 h-4 w-4" /> Déconnecter
+                      <Trash2 className="h-4 w-4" /> Déconnecter
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>

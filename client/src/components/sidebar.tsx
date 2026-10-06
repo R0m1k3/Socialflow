@@ -157,7 +157,7 @@ export default function Sidebar() {
                 className="text-destructive focus:text-destructive"
                 data-testid="button-logout"
               >
-                <LogOut className="mr-2 h-4 w-4" />
+                <LogOut className="h-4 w-4" />
                 {logout.isPending ? "Déconnexion…" : "Se déconnecter"}
               </DropdownMenuItem>
             </DropdownMenuContent>

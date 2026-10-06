@@ -3,7 +3,14 @@ import { Page } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Send, Sparkles, Image as ImageIcon, Calendar, Upload, Camera, GripVertical, Loader2 } from "lucide-react";
+import { Send, Sparkles, Image as ImageIcon, Calendar, CalendarClock, Upload, Camera, GripVertical, Loader2, PenSquare, Type, Users, ChevronDown, Check, Link2, LayoutGrid, Smartphone, Layers, AlertTriangle, Zap } from "lucide-react";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+import { Stepper, StepNavigation, type StepDef } from "@/components/stepper";
+import { EmptyState } from "@/components/empty-state";
+import { PlatformIcon, platformLabel } from "@/components/platform-icon";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useDropzone } from "react-dropzone";
 import {
   DndContext,
@@ -25,10 +32,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
@@ -68,7 +73,7 @@ function SortableMediaItem({
       ref={setNodeRef}
       style={style}
       className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${isSelected
-          ? 'border-primary ring-2 ring-primary'
+          ? 'border-primary'
           : 'border-transparent hover:border-muted-foreground'
         }`}
     >
@@ -86,15 +91,15 @@ function SortableMediaItem({
       </button>
       {isSelected && (
         <>
-          <div className="absolute top-1 right-1 w-6 h-6 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
+          <div className="absolute top-1 right-1 w-5 h-5 bg-primary text-primary-foreground rounded-full flex items-center justify-center text-xs font-bold">
             {index + 1}
           </div>
           <div
             {...attributes}
             {...listeners}
-            className="absolute top-1 left-1 w-8 h-8 bg-black/50 rounded-full flex items-center justify-center cursor-move hover:bg-black/70 transition-colors"
+            className="absolute top-1 left-1 w-7 h-7 bg-background/80 backdrop-blur rounded-full flex items-center justify-center cursor-move hover:bg-background transition-colors"
           >
-            <GripVertical className="w-4 h-4 text-white" />
+            <GripVertical className="w-4 h-4 text-foreground" />
           </div>
         </>
       )}
@@ -112,6 +117,28 @@ function startOfToday(): Date {
   return date;
 }
 
+const STEPS: StepDef[] = [
+  { id: "media", label: "Médias", icon: ImageIcon },
+  { id: "text", label: "Texte", icon: Type },
+  { id: "targets", label: "Diffusion", icon: Users },
+  { id: "schedule", label: "Planification", icon: Calendar },
+];
+
+const FORMATS = [
+  { value: 'feed', label: "Fil d'actualité", description: "Publication classique", icon: LayoutGrid },
+  { value: 'story', label: "Story", description: "Visible 24 h, média requis", icon: Smartphone },
+  { value: 'both', label: "Fil + Story", description: "Les deux à la fois", icon: Layers },
+] as const;
+
+function SummaryRow({ label, value, ok }: { label: string; value: string; ok: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={`text-right font-medium ${ok ? 'text-foreground' : 'text-muted-foreground'}`}>{value}</dd>
+    </div>
+  );
+}
+
 export default function NewPost() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
@@ -125,6 +152,9 @@ export default function NewPost() {
   const [postText, setPostText] = useState('');
   const [postType, setPostType] = useState<'feed' | 'story' | 'both'>('feed');
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [step, setStep] = useState(0);
+  const [aiOpen, setAiOpen] = useState(false);
+  const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
 
   // Ce composeur gère les publications feed/story : TikTok n'accepte que des
   // vidéos et se pilote depuis la création de reel.
@@ -321,10 +351,6 @@ export default function NewPost() {
 
   const handleUseVariant = (text: string) => {
     setPostText(text);
-    toast({
-      title: "Texte sélectionné",
-      description: "Le texte a été ajouté à votre publication",
-    });
   };
 
   const handleCameraCapture = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -383,95 +409,141 @@ export default function NewPost() {
     }
   };
 
+  const contentReady = postText.trim().length > 0 || selectedMedia.length > 0;
+  const needsMedia = postType === 'story' || postType === 'both';
+  const targetsReady = selectedPages.length > 0 && (!needsMedia || selectedMedia.length > 0);
+
+  const lockedReason = (index: number): string | null => {
+    if (index >= 2 && !contentReady) return "Ajoutez un média ou un texte";
+    if (index >= 3 && !targetsReady) return selectedPages.length === 0 ? "Choisissez au moins une page" : "Les stories nécessitent un média";
+    return null;
+  };
+
+  const goTo = (index: number) => {
+    const reason = lockedReason(index);
+    if (reason) {
+      toast({ title: "Étape incomplète", description: reason, variant: "destructive" });
+      return;
+    }
+    setStep(index);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const formatLabel = postType === 'feed' ? "Fil d'actualité" : postType === 'story' ? "Story" : "Fil + Story";
+  const selectedPageNames = pages.filter(p => selectedPages.includes(p.id)).map(p => p.pageName);
+
+  const toggleMedia = (mediaId: string) => {
+    if (selectedMedia.includes(mediaId)) {
+      setSelectedMedia(prev => prev.filter(id => id !== mediaId));
+    } else if (selectedMedia.length < 10) {
+      setSelectedMedia(prev => [...prev, mediaId]);
+    } else {
+      toast({
+        title: "Limite atteinte",
+        description: "Maximum 10 médias par publication",
+        variant: "destructive",
+      });
+    }
+  };
+
   return (
     <>
       <Page width="default">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground">Nouvelle publication</h1>
-            <p className="text-muted-foreground mt-2">
-              Créez et planifiez une nouvelle publication
-            </p>
-          </div>
+        <PageHeader
+          icon={PenSquare}
+          title="Nouvelle publication"
+          description="Préparez une publication photo ou vidéo pour Facebook et Instagram."
+        />
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
-            <div className="space-y-8">
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Média</CardTitle>
-                      <CardDescription>Sélectionnez ou uploadez une image/vidéo</CardDescription>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => cameraInputRef.current?.click()}
-                        disabled={uploadMutation.isPending}
-                        size="sm"
-                        variant="outline"
-                        className="lg:hidden"
-                        data-testid="button-camera-capture"
-                      >
-                        <Camera className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        onClick={open}
-                        disabled={uploadMutation.isPending}
-                        size="sm"
-                        variant="outline"
-                        data-testid="button-upload-new-media"
-                      >
-                        <Upload className="w-4 h-4 mr-2" />
-                        {uploadMutation.isPending ? 'Upload...' : 'Uploader'}
-                      </Button>
-                    </div>
+        <Stepper steps={STEPS} current={step} lockedReason={lockedReason} onStepClick={goTo} />
+
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+          <div className="min-w-0 lg:col-span-2">
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*,video/*"
+              capture="environment"
+              onChange={handleCameraCapture}
+              className="hidden"
+            />
+
+            {/* ÉTAPE 1 : Médias */}
+            {step === 0 && (
+              <Card className="fade-in">
+                <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+                  <div>
+                    <CardTitle>Choisissez vos médias</CardTitle>
+                    <CardDescription>Jusqu'à 10 photos ou vidéos. Facultatif pour une publication texte.</CardDescription>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button
+                      onClick={() => cameraInputRef.current?.click()}
+                      disabled={uploadMutation.isPending}
+                      size="icon"
+                      variant="outline"
+                      className="lg:hidden"
+                      aria-label="Prendre une photo"
+                      data-testid="button-camera-capture"
+                    >
+                      <Camera className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      onClick={open}
+                      disabled={uploadMutation.isPending}
+                      size="sm"
+                      variant="outline"
+                      data-testid="button-upload-new-media"
+                    >
+                      <Upload className="w-4 h-4" />
+                      Importer
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <input
-                    ref={cameraInputRef}
-                    type="file"
-                    accept="image/*,video/*"
-                    capture="environment"
-                    onChange={handleCameraCapture}
-                    className="hidden"
-                  />
-                  <div {...getRootProps()} className={`${isDragActive ? 'bg-primary/5 border-primary' : ''}`}>
+                  <div
+                    {...getRootProps()}
+                    className={`rounded-xl transition-colors ${isDragActive ? 'bg-primary/5 ring-2 ring-primary ring-offset-2 ring-offset-card' : ''}`}
+                  >
                     <input {...getInputProps()} />
                     {mediaList.length === 0 ? (
-                      <div className="text-center py-8 border-2 border-dashed rounded-lg">
-                        <ImageIcon className="w-12 h-12 mx-auto text-muted-foreground mb-2" />
-                        <p className="text-muted-foreground mb-2">
-                          {isDragActive ? "Déposez votre photo ici" : "Aucun média disponible"}
-                        </p>
-                        <div className="flex gap-2 justify-center">
-                          <Button
-                            onClick={() => cameraInputRef.current?.click()}
-                            disabled={uploadMutation.isPending}
-                            size="sm"
-                            variant="outline"
-                            className="lg:hidden"
-                            data-testid="button-camera-first"
-                          >
-                            <Camera className="w-4 h-4 mr-2" />
-                            Prendre une photo
-                          </Button>
-                          <Button
-                            onClick={open}
-                            disabled={uploadMutation.isPending}
-                            size="sm"
-                            data-testid="button-upload-first-media"
-                          >
-                            <Upload className="w-4 h-4 mr-2" />
-                            Uploader une photo
-                          </Button>
-                        </div>
-                      </div>
+                      <EmptyState
+                        compact
+                        icon={ImageIcon}
+                        title={isDragActive ? "Déposez votre fichier ici" : "Aucun média pour l'instant"}
+                        description="Glissez-déposez une image ou une vidéo, ou importez-la depuis votre appareil."
+                        action={
+                          <div className="flex flex-wrap justify-center gap-2">
+                            <Button
+                              onClick={() => cameraInputRef.current?.click()}
+                              disabled={uploadMutation.isPending}
+                              size="sm"
+                              variant="outline"
+                              className="lg:hidden"
+                              data-testid="button-camera-first"
+                            >
+                              <Camera className="w-4 h-4" />
+                              Prendre une photo
+                            </Button>
+                            <Button
+                              onClick={open}
+                              disabled={uploadMutation.isPending}
+                              size="sm"
+                              data-testid="button-upload-first-media"
+                            >
+                              <Upload className="w-4 h-4" />
+                              Importer un fichier
+                            </Button>
+                          </div>
+                        }
+                      />
                     ) : (
                       <>
                         {selectedMedia.length > 0 && (
-                          <div className="mb-4">
-                            <div className="text-sm font-medium text-muted-foreground mb-2">
-                              Photos sélectionnées ({selectedMedia.length}/10)
+                          <div className="mb-5">
+                            <div className="mb-2 flex items-center justify-between">
+                              <p className="text-sm font-medium">Sélection ({selectedMedia.length}/10)</p>
+                              <p className="text-xs text-muted-foreground">Glissez pour réordonner</p>
                             </div>
                             <DndContext
                               sensors={sensors}
@@ -482,7 +554,7 @@ export default function NewPost() {
                                 items={selectedMedia}
                                 strategy={rectSortingStrategy}
                               >
-                                <div className="grid grid-cols-3 gap-2 p-3 bg-accent/20 rounded-lg border border-accent">
+                                <div className="grid grid-cols-4 gap-2 rounded-lg border border-primary/20 bg-primary/5 p-2 sm:grid-cols-5">
                                   {selectedMedia.map((mediaId, index) => {
                                     const media = mediaList.find(m => m.id === mediaId);
                                     if (!media) return null;
@@ -504,252 +576,361 @@ export default function NewPost() {
                             </DndContext>
                           </div>
                         )}
-                        <div className="text-sm font-medium text-muted-foreground mb-2">
-                          Toutes les photos ({mediaList.length})
-                        </div>
-                        <div className="max-h-[500px] overflow-y-auto">
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                            {mediaList.map((media) => {
-                              const isSelected = selectedMedia.includes(media.id);
-                              const isVideo = media.type === 'video';
+                        <p className="mb-2 text-sm font-medium">Médias récents</p>
+                        <div className="grid max-h-[460px] grid-cols-3 gap-2 overflow-y-auto sm:grid-cols-4">
+                          {mediaList.map((media) => {
+                            const isSelected = selectedMedia.includes(media.id);
+                            const isVideo = media.type === 'video';
+                            const order = selectedMedia.indexOf(media.id);
 
-                              return (
-                                <button
-                                  key={media.id}
-                                  onClick={() => {
-                                    if (isSelected) {
-                                      // Remove from selection
-                                      setSelectedMedia(prev => prev.filter(id => id !== media.id));
-                                    } else if (selectedMedia.length < 10) {
-                                      // Add to selection (max 10)
-                                      setSelectedMedia(prev => [...prev, media.id]);
-                                    } else {
-                                      toast({
-                                        title: "Limite atteinte",
-                                        description: "Maximum 10 photos par publication",
-                                        variant: "destructive",
-                                      });
-                                    }
-                                  }}
-                                  className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${isSelected
-                                      ? 'border-primary ring-2 ring-primary opacity-50'
-                                      : 'border-transparent hover:border-muted-foreground'
-                                    }`}
-                                  data-testid={`button-select-media-${media.id}`}
-                                >
-                                  <MediaThumbnail
-                                    src={media.facebookFeedUrl || media.originalUrl}
-                                    alt={media.fileName}
-                                    thumbnailUrl={media.thumbnailUrl ?? undefined}
-                                    type={isVideo ? 'video' : 'image'}
-                                  />
-                                  {isSelected && (
-                                    <div className="absolute inset-0 bg-primary/10 flex items-center justify-center">
-                                      <div className="text-xs font-semibold text-primary">Sélectionnée</div>
-                                    </div>
-                                  )}
-                                </button>
-                              );
-                            })}
-                          </div>
+                            return (
+                              <button
+                                key={media.id}
+                                onClick={() => toggleMedia(media.id)}
+                                className={`relative aspect-square overflow-hidden rounded-lg border-2 transition-all ${isSelected
+                                  ? 'border-primary'
+                                  : 'border-transparent hover:border-primary/40'
+                                  }`}
+                                aria-pressed={isSelected}
+                                data-testid={`button-select-media-${media.id}`}
+                              >
+                                <MediaThumbnail
+                                  src={media.facebookFeedUrl || media.originalUrl}
+                                  alt={media.fileName}
+                                  thumbnailUrl={media.thumbnailUrl ?? undefined}
+                                  type={isVideo ? 'video' : 'image'}
+                                />
+                                {isSelected && (
+                                  <div className="absolute inset-0 bg-primary/20">
+                                    <span className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground shadow">
+                                      {order + 1}
+                                    </span>
+                                  </div>
+                                )}
+                              </button>
+                            );
+                          })}
                         </div>
                       </>
                     )}
                   </div>
                 </CardContent>
               </Card>
+            )}
 
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
-                  <CardTitle>Contenu</CardTitle>
-                  <CardDescription>Informations du produit ou message</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div>
-                    <Label htmlFor="productInfo">Informations du produit</Label>
-                    <Textarea
-                      id="productInfo"
-                      value={productInfo}
-                      onChange={(e) => setProductInfo(e.target.value)}
-                      placeholder="Décrivez votre produit : nom, caractéristiques, prix, etc."
-                      rows={6}
-                      data-testid="input-product-info"
-                    />
-                  </div>
-                  <Button
-                    onClick={handleGenerateText}
-                    disabled={generateTextMutation.isPending}
-                    className="w-full"
-                    data-testid="button-generate-text"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                    {generateTextMutation.isPending ? 'Génération...' : 'Générer le texte IA'}
-                  </Button>
-                </CardContent>
-              </Card>
-
-              {generatedVariants.length > 0 && (
-                <Card className="rounded-2xl border-border/50 shadow-lg">
-                  <CardHeader className="p-6">
-                    <CardTitle>Variations générées par l'IA</CardTitle>
-                    <CardDescription>Cliquez sur "Utiliser" pour remplir le texte ci-dessous</CardDescription>
+            {/* ÉTAPE 2 : Texte */}
+            {step === 1 && (
+              <div className="fade-in space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Rédigez votre texte</CardTitle>
+                    <CardDescription>Écrivez-le vous-même ou laissez l'IA vous proposer des versions.</CardDescription>
                   </CardHeader>
-                  <CardContent className="space-y-3">
-                    {generatedVariants.map((variant, index) => (
-                      <div
-                        key={index}
-                        className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1">
-                            <div className="text-xs font-semibold text-muted-foreground mb-2">
-                              {variant.variant || `Version ${index + 1}`}
-                            </div>
-                            <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                              {variant.text}
-                            </p>
+                  <CardContent className="space-y-4">
+                    <Collapsible open={aiOpen} onOpenChange={setAiOpen} className="rounded-xl border border-primary/20 bg-primary/5">
+                      <CollapsibleTrigger className="flex w-full items-center gap-3 p-3 text-left" data-testid="toggle-ai-assist">
+                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                          <Sparkles className="h-4 w-4" />
+                        </span>
+                        <span className="flex-1">
+                          <span className="block text-sm font-medium">Générer avec l'IA</span>
+                          <span className="block text-xs text-muted-foreground">Décrivez votre produit, l'IA rédige 3 propositions</span>
+                        </span>
+                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${aiOpen ? 'rotate-180' : ''}`} />
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="space-y-3 px-3 pb-3">
+                        <Textarea
+                          id="productInfo"
+                          value={productInfo}
+                          onChange={(e) => setProductInfo(e.target.value)}
+                          placeholder="Ex. : Produit : Chaise en rotin — Prix : 49 € — Caractéristiques : légère, résistante"
+                          rows={4}
+                          className="bg-card"
+                          data-testid="input-product-info"
+                        />
+                        <Button
+                          onClick={handleGenerateText}
+                          disabled={generateTextMutation.isPending}
+                          className="w-full sm:w-auto"
+                          data-testid="button-generate-text"
+                        >
+                          {generateTextMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                          {generateTextMutation.isPending ? 'Génération…' : 'Générer des propositions'}
+                        </Button>
+
+                        {generatedVariants.length > 0 && (
+                          <div className="space-y-2 pt-1">
+                            {generatedVariants.map((variant, index) => (
+                              <div key={index} className="rounded-lg border bg-card p-3">
+                                <div className="mb-1.5 flex items-center justify-between gap-2">
+                                  <span className="text-xs font-semibold text-muted-foreground">
+                                    {variant.variant || `Proposition ${index + 1}`}
+                                  </span>
+                                  <Button
+                                    size="sm"
+                                    variant={postText === variant.text ? "secondary" : "default"}
+                                    className="h-8"
+                                    onClick={() => handleUseVariant(variant.text)}
+                                    data-testid={`button-use-variant-${index}`}
+                                  >
+                                    {postText === variant.text ? <><Check className="h-3.5 w-3.5" /> Utilisée</> : "Utiliser"}
+                                  </Button>
+                                </div>
+                                <p className="whitespace-pre-wrap text-sm leading-relaxed">{variant.text}</p>
+                              </div>
+                            ))}
                           </div>
-                          <Button
-                            size="sm"
-                            onClick={() => handleUseVariant(variant.text)}
-                            data-testid={`button-use-variant-${index}`}
-                          >
-                            Utiliser
-                          </Button>
-                        </div>
+                        )}
+                      </CollapsibleContent>
+                    </Collapsible>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="post-text">Texte de la publication</Label>
+                        <span className="text-xs tabular-nums text-muted-foreground">{postText.length} caractères</span>
                       </div>
-                    ))}
+                      <Textarea
+                        id="post-text"
+                        value={postText}
+                        onChange={(e) => setPostText(e.target.value)}
+                        placeholder="Écrivez votre texte ici…"
+                        rows={9}
+                        data-testid="textarea-post-text"
+                      />
+                      {selectedMedia.length > 0 && !postText.trim() && (
+                        <p className="text-xs text-muted-foreground">Le texte est facultatif puisque vous avez ajouté un média.</p>
+                      )}
+                    </div>
                   </CardContent>
                 </Card>
-              )}
+              </div>
+            )}
 
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
-                  <CardTitle>Texte de la publication</CardTitle>
-                  <CardDescription>Écrivez ou générez le texte de votre publication</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Textarea
-                    value={postText}
-                    onChange={(e) => setPostText(e.target.value)}
-                    placeholder="Écrivez votre texte ici ou générez-le avec l'IA..."
-                    rows={8}
-                    data-testid="textarea-post-text"
-                  />
-                </CardContent>
-              </Card>
-            </div>
+            {/* ÉTAPE 3 : Diffusion */}
+            {step === 2 && (
+              <div className="fade-in space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Où publier ?</CardTitle>
+                    <CardDescription>Sélectionnez une ou plusieurs pages.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {pages.length === 0 ? (
+                      <EmptyState
+                        compact
+                        icon={Link2}
+                        title="Aucune page connectée"
+                        description="Connectez une page Facebook ou Instagram pour pouvoir publier."
+                        action={
+                          <Button size="sm" onClick={() => navigate('/pages')} data-testid="link-add-pages">
+                            Connecter un compte
+                          </Button>
+                        }
+                      />
+                    ) : (
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        {pages.map((page) => {
+                          const checked = selectedPages.includes(page.id);
+                          return (
+                            <label
+                              key={page.id}
+                              htmlFor={`page-${page.id}`}
+                              className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${checked ? 'border-primary bg-primary/5' : 'hover:bg-accent'}`}
+                            >
+                              <PlatformIcon platform={page.platform} size="sm" />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-sm font-medium">{page.pageName}</span>
+                                <span className="block text-xs text-muted-foreground">{platformLabel(page.platform)}</span>
+                              </span>
+                              <Checkbox
+                                id={`page-${page.id}`}
+                                checked={checked}
+                                onCheckedChange={(value) => {
+                                  if (value) {
+                                    setSelectedPages([...selectedPages, page.id]);
+                                  } else {
+                                    setSelectedPages(selectedPages.filter(id => id !== page.id));
+                                  }
+                                }}
+                                data-testid={`checkbox-page-${page.id}`}
+                              />
+                            </label>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
-            <div className="space-y-8">
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
-                  <CardTitle>Pages cibles</CardTitle>
-                  <CardDescription>Sélectionnez les pages où publier</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {pages.length === 0 ? (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground mb-2">Aucune page connectée</p>
-                      <Button
-                        variant="link"
-                        onClick={() => navigate('/pages')}
-                        data-testid="link-add-pages"
-                      >
-                        Ajouter des pages
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {pages.map((page) => (
-                        <div key={page.id} className="flex items-center space-x-2">
-                          <Checkbox
-                            id={`page-${page.id}`}
-                            checked={selectedPages.includes(page.id)}
-                            onCheckedChange={(checked) => {
-                              if (checked) {
-                                setSelectedPages([...selectedPages, page.id]);
-                              } else {
-                                setSelectedPages(selectedPages.filter(id => id !== page.id));
-                              }
-                            }}
-                            data-testid={`checkbox-page-${page.id}`}
-                          />
-                          <label
-                            htmlFor={`page-${page.id}`}
-                            className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex-1"
-                          >
-                            {page.pageName} ({page.platform})
-                          </label>
-                        </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Format</CardTitle>
+                    <CardDescription>Comment la publication apparaîtra.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <RadioGroup
+                      value={postType}
+                      onValueChange={(value) => setPostType(value as 'feed' | 'story' | 'both')}
+                      className="grid grid-cols-1 gap-2 sm:grid-cols-3"
+                      data-testid="select-post-type"
+                    >
+                      {FORMATS.map(({ value, label, description, icon: Icon }) => (
+                        <label
+                          key={value}
+                          htmlFor={`format-${value}`}
+                          className={`flex cursor-pointer gap-3 rounded-lg border p-3 transition-colors sm:flex-col ${postType === value ? 'border-primary bg-primary/5' : 'hover:bg-accent'}`}
+                          data-testid={`option-${value}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <Icon className={`h-5 w-5 ${postType === value ? 'text-primary' : 'text-muted-foreground'}`} />
+                            <RadioGroupItem value={value} id={`format-${value}`} className="sr-only sm:not-sr-only" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{label}</p>
+                            <p className="text-xs text-muted-foreground">{description}</p>
+                          </div>
+                        </label>
                       ))}
+                    </RadioGroup>
+                    {needsMedia && selectedMedia.length === 0 && (
+                      <p className="mt-3 flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning-foreground dark:text-warning">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        Une story nécessite au moins une image ou vidéo : revenez à l'étape Médias.
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* ÉTAPE 4 : Planification */}
+            {step === 3 && (
+              <Card className="fade-in">
+                <CardHeader>
+                  <CardTitle>Quand publier ?</CardTitle>
+                  <CardDescription>Publiez tout de suite ou choisissez une date.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <RadioGroup
+                    value={scheduleMode}
+                    onValueChange={(value) => {
+                      setScheduleMode(value as 'now' | 'later');
+                      if (value === 'now') setScheduledDate(undefined);
+                    }}
+                    className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+                  >
+                    {([
+                      { value: 'now', label: 'Publier maintenant', description: 'Envoi immédiat après validation', icon: Zap },
+                      { value: 'later', label: 'Programmer', description: 'Choisir une date et une heure', icon: CalendarClock },
+                    ] as const).map(({ value, label, description, icon: Icon }) => (
+                      <label
+                        key={value}
+                        htmlFor={`when-${value}`}
+                        className={`flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors ${scheduleMode === value ? 'border-primary bg-primary/5' : 'hover:bg-accent'}`}
+                        data-testid={`option-schedule-${value}`}
+                      >
+                        <Icon className={`h-5 w-5 ${scheduleMode === value ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <span className="flex-1">
+                          <span className="block text-sm font-medium">{label}</span>
+                          <span className="block text-xs text-muted-foreground">{description}</span>
+                        </span>
+                        <RadioGroupItem value={value} id={`when-${value}`} />
+                      </label>
+                    ))}
+                  </RadioGroup>
+
+                  {scheduleMode === 'later' && (
+                    <div className="space-y-2">
+                      <Label>Date et heure</Label>
+                      <DateTimePicker
+                        value={scheduledDate}
+                        onChange={setScheduledDate}
+                        occupiedDates={scheduledPosts
+                          .filter(post => post.scheduledAt)
+                          .map(post => new Date(post.scheduledAt!))}
+                        placeholder="Choisir une date"
+                      />
+                      <p className="text-xs text-muted-foreground">Les créneaux déjà occupés sont signalés dans le calendrier.</p>
                     </div>
                   )}
                 </CardContent>
               </Card>
+            )}
 
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
-                  <CardTitle>Type de publication</CardTitle>
-                  <CardDescription>Choisissez où publier</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    <Label htmlFor="postType">Format</Label>
-                    <Select value={postType} onValueChange={(value: 'feed' | 'story' | 'both') => setPostType(value)}>
-                      <SelectTrigger id="postType" data-testid="select-post-type">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="feed" data-testid="option-feed">Feed uniquement</SelectItem>
-                        <SelectItem value="story" data-testid="option-story">Story uniquement</SelectItem>
-                        <SelectItem value="both" data-testid="option-both">Feed + Story</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      {postType === 'feed' && 'Publication classique dans le fil d\'actualité'}
-                      {postType === 'story' && 'Story éphémère (24h) - Nécessite un média'}
-                      {postType === 'both' && 'Publie à la fois dans le feed et en story - Nécessite un média'}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
-                  <CardTitle>Planification</CardTitle>
-                  <CardDescription>Programmez la publication (optionnel)</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <Label>Date et heure</Label>
-                    <DateTimePicker
-                      value={scheduledDate}
-                      onChange={setScheduledDate}
-                      occupiedDates={scheduledPosts
-                        .filter(post => post.scheduledAt)
-                        .map(post => new Date(post.scheduledAt!))}
-                      placeholder="Publier immédiatement"
-                    />
-                    <p className="text-xs text-muted-foreground">
-                      Sélectionnez une date pour planifier, sinon publication immédiate
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Button
-                onClick={() => setPreviewModalOpen(true)}
-                disabled={createPostMutation.isPending}
-                className="w-full bg-gradient-to-r from-primary to-secondary hover:opacity-90 shadow-lg"
-                size="lg"
-                data-testid="button-preview-post"
-              >
-                <Send className="w-4 h-4 mr-2" />
-                Prévisualiser et publier
-              </Button>
-            </div>
+            <StepNavigation
+              onBack={() => goTo(step - 1)}
+              backDisabled={step === 0}
+              onNext={() => goTo(step + 1)}
+              nextLabel={step === 0 && selectedMedia.length === 0 ? "Continuer sans média" : "Continuer"}
+              next={
+                step === STEPS.length - 1 ? (
+                  <Button
+                    onClick={() => {
+                      if (scheduleMode === 'later' && !scheduledDate) {
+                        toast({ title: "Date manquante", description: "Choisissez une date ou publiez maintenant.", variant: "destructive" });
+                        return;
+                      }
+                      setPreviewModalOpen(true);
+                    }}
+                    disabled={createPostMutation.isPending}
+                    variant="brand"
+                    className="w-full sm:w-auto"
+                    data-testid="button-preview-post"
+                  >
+                    <Send className="w-4 h-4" />
+                    Prévisualiser et {scheduleMode === 'later' ? 'programmer' : 'publier'}
+                  </Button>
+                ) : undefined
+              }
+            />
           </div>
-        </Page>
+
+          {/* Récapitulatif */}
+          <aside className="hidden lg:block">
+            <Card className="sticky top-6">
+              <CardHeader className="pb-3">
+                <CardTitle>Récapitulatif</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                {selectedMedia.length > 0 ? (
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {selectedMedia.slice(0, 8).map((id) => {
+                      const media = mediaList.find(m => m.id === id);
+                      if (!media) return null;
+                      return (
+                        <div key={id} className="aspect-square overflow-hidden rounded-md">
+                          <MediaThumbnail
+                            src={media.facebookFeedUrl || media.originalUrl}
+                            alt={media.fileName}
+                            thumbnailUrl={media.thumbnailUrl ?? undefined}
+                            type={media.type === 'video' ? 'video' : 'image'}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex aspect-[4/3] items-center justify-center rounded-lg border border-dashed text-muted-foreground">
+                    <ImageIcon className="h-6 w-6" />
+                  </div>
+                )}
+                {postText.trim() && <p className="line-clamp-4 whitespace-pre-wrap text-muted-foreground">{postText}</p>}
+                <dl className="space-y-2 border-t pt-3">
+                  <SummaryRow label="Médias" value={selectedMedia.length ? `${selectedMedia.length} sélectionné(s)` : "Aucun"} ok={selectedMedia.length > 0} />
+                  <SummaryRow label="Texte" value={postText.trim() ? `${postText.length} caractères` : "Vide"} ok={!!postText.trim()} />
+                  <SummaryRow label="Pages" value={selectedPageNames.length ? selectedPageNames.join(", ") : "Aucune"} ok={selectedPageNames.length > 0} />
+                  <SummaryRow label="Format" value={formatLabel} ok />
+                  <SummaryRow
+                    label="Envoi"
+                    value={scheduleMode === 'later' && scheduledDate ? format(scheduledDate, "d MMM 'à' HH:mm", { locale: fr }) : "Immédiat"}
+                    ok
+                  />
+                </dl>
+              </CardContent>
+            </Card>
+          </aside>
+        </div>
+      </Page>
 
       <Dialog open={uploadMutation.isPending}>
         <DialogContent className="sm:max-w-md [&>button]:hidden">
@@ -757,13 +938,11 @@ export default function NewPost() {
             <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
               <Loader2 className="w-10 h-10 text-primary animate-spin" />
             </div>
-            <h3 className="text-xl font-semibold text-foreground mb-2">
-              Upload en cours...
+            <h3 className="text-lg font-semibold text-foreground mb-1">
+              Import en cours…
             </h3>
             <p className="text-sm text-muted-foreground text-center">
-              Votre image est en cours de téléchargement et de traitement.
-              <br />
-              Veuillez patienter.
+              Votre fichier est en cours d'envoi et de traitement.
             </p>
           </div>
         </DialogContent>

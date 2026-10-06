@@ -536,7 +536,7 @@ export default function NewReel() {
                                                     disabled={uploadMutation.isPending}
                                                     variant="outline"
                                                 >
-                                                    <Upload className="w-4 h-4 mr-2" />
+                                                    <Upload className="w-4 h-4" />
                                                     {uploadMutation.isPending ? 'Upload...' : 'Uploader'}
                                                 </Button>
                                             </div>
@@ -717,7 +717,7 @@ export default function NewReel() {
                                                 disabled={generateTextMutation.isPending}
                                                 className="w-full"
                                             >
-                                                <Sparkles className="w-4 h-4 mr-2" />
+                                                <Sparkles className="w-4 h-4" />
                                                 {generateTextMutation.isPending ? 'Génération...' : 'Générer 3 variations'}
                                             </Button>
                                         </CardContent>
@@ -976,12 +976,12 @@ export default function NewReel() {
                                         >
                                             {createReelMutation.isPending ? (
                                                 <>
-                                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
                                                     Création...
                                                 </>
                                             ) : (
                                                 <>
-                                                    <Send className="w-4 h-4 mr-2" />
+                                                    <Send className="w-4 h-4" />
                                                     Publier le Reel
                                                 </>
                                             )}

@@ -211,7 +211,7 @@ export default function CalendarView() {
               className="rounded-xl"
               data-testid="button-prev-month"
             >
-              <ChevronLeft className="w-4 h-4 mr-2" />
+              <ChevronLeft className="w-4 h-4" />
               Précédent
             </Button>
             <span className="text-sm font-semibold text-foreground min-w-[140px] text-center px-4 py-2 bg-muted/30 rounded-xl">

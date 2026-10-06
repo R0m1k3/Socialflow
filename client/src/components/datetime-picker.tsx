@@ -86,7 +86,7 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
               )}
               data-testid="button-date-picker"
             >
-              <CalendarIcon className="mr-2 h-4 w-4" />
+              <CalendarIcon className="h-4 w-4" />
               {value ? format(value, "PPP", { locale: fr }) : <span>{placeholder}</span>}
             </Button>
           </PopoverTrigger>
@@ -131,7 +131,7 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
               className="w-full justify-start text-left font-normal"
               data-testid="button-time-picker"
             >
-              <Clock className="mr-2 h-4 w-4" />
+              <Clock className="h-4 w-4" />
               {String(selectedHour).padStart(2, '0')}:{String(selectedMinute).padStart(2, '0')}
             </Button>
           </PopoverTrigger>
