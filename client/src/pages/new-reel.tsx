@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
+import { Page } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
@@ -7,8 +9,6 @@ import {
     ChevronRight, Loader2, Check, RefreshCw, Mic
 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
-import Sidebar from "@/components/sidebar";
-import TopBar from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -55,7 +55,6 @@ interface MusicTrack {
 type Step = 'video' | 'music' | 'text' | 'publish';
 
 export default function NewReel() {
-    const [sidebarOpen, setSidebarOpen] = useState(false);
     const [, navigate] = useLocation();
     const { toast } = useToast();
     const audioRef = useRef<HTMLAudioElement>(null);
@@ -443,25 +442,8 @@ export default function NewReel() {
     };
 
     return (
-        <div className="flex h-screen overflow-hidden bg-background">
-            {sidebarOpen && (
-                <div
-                    className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-                    onClick={() => setSidebarOpen(false)}
-                />
-            )}
-
-            <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-                <Sidebar onLinkClick={() => setSidebarOpen(false)} />
-            </div>
-
-            <main className="flex-1 overflow-y-auto">
-                <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-
-                <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
+        <>
+      <Page width="default">
                     <div className="mb-8">
                         <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
                             <Video className="w-8 h-8 text-primary" />
@@ -1069,9 +1051,8 @@ export default function NewReel() {
                                 </CardContent>
                             </Card>
                         </div>
-                    </div >
-                </div >
-            </main >
-        </div >
+                    </div>
+                </Page>
+        </>
     );
 }

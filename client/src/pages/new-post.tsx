@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef, useMemo } from "react";
+import { Page } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Send, Sparkles, Image as ImageIcon, Calendar, Upload, Camera, GripVertical, Loader2 } from "lucide-react";
@@ -20,8 +22,6 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import Sidebar from "@/components/sidebar";
-import TopBar from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -113,7 +113,6 @@ function startOfToday(): Date {
 }
 
 export default function NewPost() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -385,25 +384,8 @@ export default function NewPost() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        <Sidebar onLinkClick={() => setSidebarOpen(false)} />
-      </div>
-
-      <main className="flex-1 overflow-y-auto">
-        <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-
-        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
+    <>
+      <Page width="default">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Nouvelle publication</h1>
             <p className="text-muted-foreground mt-2">
@@ -767,8 +749,7 @@ export default function NewPost() {
               </Button>
             </div>
           </div>
-        </div>
-      </main>
+        </Page>
 
       <Dialog open={uploadMutation.isPending}>
         <DialogContent className="sm:max-w-md [&>button]:hidden">
@@ -797,6 +778,6 @@ export default function NewPost() {
         onPublish={handleCreatePost}
         isPublishing={createPostMutation.isPending}
       />
-    </div>
+    </>
   );
 }

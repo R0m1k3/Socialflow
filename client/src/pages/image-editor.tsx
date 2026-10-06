@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import { Page } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { toPng } from 'html-to-image';
-import Sidebar from "@/components/sidebar";
-import TopBar from "@/components/topbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,7 +39,6 @@ interface Logo {
 }
 
 export default function ImageEditor() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<any>(null);
   
   const [ribbon, setRibbon] = useState<Ribbon>({
@@ -119,117 +118,7 @@ export default function ImageEditor() {
   }, [selectedMedia, ribbon, priceBadge, logo]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <style>{`
-        /* Triangle ribbon - auto-centered text */
-        .ribbon-container {
-          position: absolute;
-          z-index: 10;
-          pointer-events: none;
-        }
-        
-        .ribbon-container.north_west {
-          top: 0;
-          left: 0;
-          width: 140px;
-          height: 140px;
-        }
-        
-        .ribbon-container.north_east {
-          top: 0;
-          right: 0;
-          width: 140px;
-          height: 140px;
-        }
-        
-        .ribbon-triangle {
-          position: absolute;
-          width: 0;
-          height: 0;
-          border-style: solid;
-        }
-        
-        .ribbon-container.north_west .ribbon-triangle {
-          top: 0;
-          left: 0;
-          border-width: 140px 140px 0 0;
-        }
-        
-        .ribbon-container.north_west .ribbon-triangle.red {
-          border-top-color: #FF0000;
-          border-right-color: transparent;
-          border-bottom-color: transparent;
-          border-left-color: transparent;
-        }
-        
-        .ribbon-container.north_west .ribbon-triangle.yellow {
-          border-top-color: #FFC107;
-          border-right-color: transparent;
-          border-bottom-color: transparent;
-          border-left-color: transparent;
-        }
-        
-        .ribbon-container.north_east .ribbon-triangle {
-          top: 0;
-          right: 0;
-          border-width: 0 140px 140px 0;
-        }
-        
-        .ribbon-container.north_east .ribbon-triangle.red {
-          border-top-color: transparent;
-          border-right-color: #FF0000;
-          border-bottom-color: transparent;
-          border-left-color: transparent;
-        }
-        
-        .ribbon-container.north_east .ribbon-triangle.yellow {
-          border-top-color: transparent;
-          border-right-color: #FFC107;
-          border-bottom-color: transparent;
-          border-left-color: transparent;
-        }
-        
-        .ribbon-text {
-          position: absolute;
-          color: white;
-          font-weight: bold;
-          z-index: 11;
-          text-transform: uppercase;
-          text-align: center;
-          white-space: nowrap;
-        }
-        
-        .ribbon-container.north_west .ribbon-text {
-          top: 50%;
-          left: 50%;
-          transform: translate(-50%, -50%) rotate(-45deg) translateY(-20px);
-        }
-        
-        .ribbon-container.north_east .ribbon-text {
-          top: 50%;
-          right: 50%;
-          transform: translate(50%, -50%) rotate(45deg) translateY(-20px);
-        }
-      `}</style>
-      
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-      
-      <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        <Sidebar onLinkClick={() => setSidebarOpen(false)} />
-      </div>
-
-      <main className="flex-1 overflow-y-auto">
-        <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-        
-        <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
+    <Page width="wide">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
               <Wand2 className="w-8 h-8" />
@@ -634,8 +523,6 @@ export default function ImageEditor() {
               </Card>
             </div>
           </div>
-        </div>
-      </main>
-    </div>
+        </Page>
   );
 }

@@ -1,12 +1,31 @@
 import { useEffect, useState } from "react";
+import { Page } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Facebook, Instagram, Trash2, RefreshCw, Edit, Bug, Code, AlertTriangle } from "lucide-react";
-import { SiTiktok } from "react-icons/si";
-import Sidebar from "@/components/sidebar";
-import TopBar from "@/components/topbar";
+import { Plus, Trash2, RefreshCw, Bug, Code, ChevronDown, HelpCircle, KeyRound, Link2, MoreVertical } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { EmptyState } from "@/components/empty-state";
+import { PlatformIcon, platformLabel } from "@/components/platform-icon";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -14,16 +33,16 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { ClientSocialPage } from "@shared/schema";
 import {
-  ConnectFacebookButton,
+  useConnectFacebook,
   RefreshTokenButton,
   TokenAlertBanner,
   TokenHealthPanel,
 } from "@/components/facebook-token-status";
 
 export default function PagesManagement() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPage, setEditingPage] = useState<ClientSocialPage | null>(null);
+  const [pageToDelete, setPageToDelete] = useState<ClientSocialPage | null>(null);
   const { toast } = useToast();
 
   // Retour des flux d'autorisation (/api/tiktok/callback et /api/facebook/callback
@@ -56,8 +75,8 @@ export default function PagesManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/pages'] });
       toast({
-        title: "Page supprimée",
-        description: "La page a été retirée avec succès",
+        title: "Compte déconnecté",
+        description: "Le compte a été retiré de Social Flow",
       });
     },
     onError: () => {
@@ -69,180 +88,189 @@ export default function PagesManagement() {
     },
   });
 
+  const connectFacebook = useConnectFacebook();
+  const connectTiktok = useConnectTiktok();
+
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-      
-      <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        <Sidebar onLinkClick={() => setSidebarOpen(false)} />
-      </div>
-
-      <main className="flex-1 overflow-y-auto">
-        <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-        
-        <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto">
-          <div className="flex justify-between items-center mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground">Pages gérées</h1>
-              <p className="text-muted-foreground mt-2">
-                Connectez et gérez vos pages Facebook, Instagram et vos comptes TikTok
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              <ConnectFacebookButton />
-              <ConnectTiktokButton />
-              <AddPageDialog open={dialogOpen} onOpenChange={setDialogOpen} />
-            </div>
-            <EditPageDialog page={editingPage} onOpenChange={(open) => !open && setEditingPage(null)} />
-          </div>
-
-          <TokenAlertBanner pages={pages} />
-
-          {/* Permissions required notice */}
-          <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <p className="font-semibold text-amber-600 dark:text-amber-400 mb-1">Connectez vos pages plutôt que de coller un jeton</p>
-              <p className="text-muted-foreground mb-2">
-                « Connecter des pages Facebook » récupère les jetons de page via l'autorisation Facebook :
-                ils n'expirent pas et SocialFlow les régénère seul en cas de révocation. Un jeton collé à la
-                main expire au bout de 60 jours et devra être remplacé manuellement.
-              </p>
-              <p className="text-muted-foreground text-xs">
-                Le jeton doit couvrir : <code className="bg-muted px-1 rounded text-xs">pages_manage_posts</code>{" "}
-                <code className="bg-muted px-1 rounded text-xs">pages_read_engagement</code>{" "}
-                <code className="bg-muted px-1 rounded text-xs">publish_video</code>
-              </p>
-            </div>
-          </div>
-
-          <div className="flex gap-3 mb-6">
-            <Button
-              variant="outline"
-              onClick={() => window.open('https://developers.facebook.com/tools/debug/accesstoken/', '_blank')}
-              data-testid="button-debug-token"
-            >
-              <Bug className="w-4 h-4 mr-2" />
-              Débogueur de jeton
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => window.open('https://developers.facebook.com/tools/explorer', '_blank')}
-              data-testid="button-graph-explorer"
-            >
-              <Code className="w-4 h-4 mr-2" />
-              Graph Explorer
-            </Button>
-          </div>
-
-          {isLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-48 bg-card rounded-2xl border border-border/50 animate-pulse" />
-              ))}
-            </div>
-          ) : pages.length === 0 ? (
-            <Card className="border-dashed rounded-2xl border-border/50 shadow-lg">
-              <CardContent className="flex flex-col items-center justify-center py-16">
-                <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                  <Plus className="w-8 h-8 text-muted-foreground" />
+    <Page width="default">
+      <PageHeader
+        icon={Link2}
+        title="Comptes connectés"
+        description="Les pages Facebook, Instagram et comptes TikTok sur lesquels Social Flow publie."
+        actions={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button data-testid="button-connect-account">
+                <Plus className="h-4 w-4" /> Connecter un compte <ChevronDown className="h-4 w-4 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72">
+              <DropdownMenuItem onClick={connectFacebook} className="items-start gap-3 py-2.5" data-testid="button-connect-facebook">
+                <PlatformIcon platform="facebook" size="sm" />
+                <div>
+                  <p className="font-medium">Facebook & Instagram</p>
+                  <p className="text-xs text-muted-foreground">Recommandé · connexion permanente</p>
                 </div>
-                <h3 className="text-lg font-semibold mb-2">Aucune page connectée</h3>
-                <p className="text-muted-foreground text-center mb-4">
-                  Commencez par connecter vos pages Facebook et Instagram
-                </p>
-                <Button onClick={() => setDialogOpen(true)} data-testid="button-add-first-page">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Ajouter une page
-                </Button>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={connectTiktok} className="items-start gap-3 py-2.5" data-testid="button-connect-tiktok">
+                <PlatformIcon platform="tiktok" size="sm" />
+                <div>
+                  <p className="font-medium">TikTok</p>
+                  <p className="text-xs text-muted-foreground">Autorisation via TikTok</p>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setDialogOpen(true)} className="items-start gap-3 py-2.5" data-testid="button-add-page">
+                <span className="flex h-7 w-7 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                  <KeyRound className="h-3.5 w-3.5" />
+                </span>
+                <div>
+                  <p className="font-medium">Ajout manuel</p>
+                  <p className="text-xs text-muted-foreground">Avec un jeton d'accès (expire après 60 jours)</p>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
+      <AddPageDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <EditPageDialog page={editingPage} onOpenChange={(open) => !open && setEditingPage(null)} />
+
+      <TokenAlertBanner pages={pages} />
+
+      {isLoading ? (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {[1, 2].map((i) => (
+            <div key={i} className="skeleton h-52 rounded-xl" />
+          ))}
+        </div>
+      ) : pages.length === 0 ? (
+        <EmptyState
+          icon={Link2}
+          title="Aucun compte connecté"
+          description="Connectez vos pages Facebook (et les comptes Instagram associés) ou un compte TikTok pour commencer à publier."
+          action={
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button onClick={connectFacebook} data-testid="button-add-first-page">
+                <PlatformIcon platform="facebook" size="sm" className="h-5 w-5 bg-transparent text-current" />
+                Connecter Facebook
+              </Button>
+              <Button variant="outline" onClick={connectTiktok}>
+                <PlatformIcon platform="tiktok" size="sm" className="h-5 w-5 bg-transparent" />
+                Connecter TikTok
+              </Button>
+            </div>
+          }
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {pages.map((page) => (
+            <Card key={page.id} className="flex flex-col" data-testid={`card-page-${page.id}`}>
+              <CardHeader className="flex flex-row items-center gap-3 space-y-0 pb-4">
+                <PlatformIcon platform={page.platform} size="lg" />
+                <div className="min-w-0 flex-1">
+                  <CardTitle className="truncate">{page.pageName}</CardTitle>
+                  <CardDescription className="truncate">
+                    {platformLabel(page.platform)} · <span className="font-mono text-xs">{page.pageId}</span>
+                  </CardDescription>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon" className="shrink-0 text-muted-foreground" aria-label="Plus d'actions" data-testid={`button-page-menu-${page.id}`}>
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    {page.platform === "tiktok" ? (
+                      <DropdownMenuItem onClick={() => { window.location.href = "/api/tiktok/connect"; }} data-testid={`button-reconnect-page-${page.id}`}>
+                        <RefreshCw className="mr-2 h-4 w-4" /> Reconnecter
+                      </DropdownMenuItem>
+                    ) : (
+                      <>
+                        <DropdownMenuItem onClick={() => setEditingPage(page)} data-testid={`button-edit-page-${page.id}`}>
+                          <KeyRound className="mr-2 h-4 w-4" /> Remplacer le jeton
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => window.open(`https://developers.facebook.com/tools/debug/accesstoken/`, "_blank")} data-testid="button-debug-token">
+                          <Bug className="mr-2 h-4 w-4" /> Déboguer le jeton
+                        </DropdownMenuItem>
+                      </>
+                    )}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => setPageToDelete(page)}
+                      className="text-destructive focus:text-destructive"
+                      data-testid={`button-delete-page-${page.id}`}
+                    >
+                      <Trash2 className="mr-2 h-4 w-4" /> Déconnecter
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </CardHeader>
+              <CardContent className="flex flex-1 flex-col gap-3">
+                {/* État du jeton, tel que constaté par le dernier contrôle serveur */}
+                <TokenHealthPanel page={page} />
+                {page.platform !== "tiktok" && (
+                  <div className="mt-auto flex justify-end">
+                    <RefreshTokenButton page={page} />
+                  </div>
+                )}
               </CardContent>
             </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {pages.map((page) => (
-                <Card key={page.id} className="rounded-2xl border-border/50 shadow-lg" data-testid={`card-page-${page.id}`}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-center gap-3">
-                        {page.platform === 'facebook' ? (
-                          <div className="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
-                            <Facebook className="w-6 h-6 text-white" />
-                          </div>
-                        ) : page.platform === 'tiktok' ? (
-                          <div className="w-12 h-12 bg-black rounded-lg flex items-center justify-center">
-                            <SiTiktok className="w-6 h-6 text-white" />
-                          </div>
-                        ) : (
-                          <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                            <Instagram className="w-6 h-6 text-white" />
-                          </div>
-                        )}
-                        <div>
-                          <CardTitle className="text-lg">{page.pageName}</CardTitle>
-                          <CardDescription className="capitalize">
-                            {page.platform}
-                          </CardDescription>
-                        </div>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <div className="text-sm text-muted-foreground">
-                      ID: {page.pageId}
-                    </div>
-                    
-                    {/* État du jeton, tel que constaté par le dernier contrôle serveur */}
-                    <TokenHealthPanel page={page} />
-
-                    <div className="flex items-center justify-end gap-2 pt-2">
-                      {page.platform !== 'tiktok' && <RefreshTokenButton page={page} />}
-                      {page.platform === 'tiktok' ? (
-                        // Un token TikTok ne se saisit pas : on repasse par l'autorisation
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => { window.location.href = '/api/tiktok/connect'; }}
-                          data-testid={`button-reconnect-page-${page.id}`}
-                        >
-                          <RefreshCw className="w-4 h-4 mr-2" />
-                          Reconnecter
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setEditingPage(page)}
-                          data-testid={`button-edit-page-${page.id}`}
-                        >
-                          <Edit className="w-4 h-4" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => deleteMutation.mutate(page.id)}
-                        disabled={deleteMutation.isPending}
-                        data-testid={`button-delete-page-${page.id}`}
-                      >
-                        <Trash2 className="w-4 h-4 text-destructive" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
+          ))}
         </div>
-      </main>
-    </div>
+      )}
+
+      <Collapsible className="mt-8 rounded-xl border bg-card">
+        <CollapsibleTrigger className="group flex w-full items-center gap-3 p-4 text-left text-sm font-medium">
+          <HelpCircle className="h-4 w-4 text-muted-foreground" />
+          <span className="flex-1">Besoin d'aide pour connecter un compte ?</span>
+          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-3 border-t px-4 pb-4 pt-3 text-sm text-muted-foreground">
+          <p>
+            <strong className="text-foreground">Préférez « Facebook & Instagram »</strong> plutôt que l'ajout manuel :
+            les jetons obtenus ainsi n'expirent pas et Social Flow les régénère seul en cas de révocation. Un jeton
+            collé à la main expire au bout de 60 jours et devra être remplacé.
+          </p>
+          <p className="text-xs">
+            Permissions nécessaires : <code className="rounded bg-muted px-1">pages_manage_posts</code>{" "}
+            <code className="rounded bg-muted px-1">pages_read_engagement</code>{" "}
+            <code className="rounded bg-muted px-1">publish_video</code>
+          </p>
+          <div className="flex flex-wrap gap-2 pt-1">
+            <Button variant="outline" size="sm" onClick={() => window.open("https://developers.facebook.com/tools/debug/accesstoken/", "_blank")}>
+              <Bug className="h-4 w-4" /> Débogueur de jeton
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.open("https://developers.facebook.com/tools/explorer", "_blank")} data-testid="button-graph-explorer">
+              <Code className="h-4 w-4" /> Graph Explorer
+            </Button>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+
+      <AlertDialog open={!!pageToDelete} onOpenChange={(open) => !open && setPageToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Déconnecter « {pageToDelete?.pageName} » ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Social Flow ne pourra plus publier sur ce compte. Vous pourrez le reconnecter à tout moment.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pageToDelete) deleteMutation.mutate(pageToDelete.id);
+                setPageToDelete(null);
+              }}
+            >
+              Déconnecter
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </Page>
   );
 }
 
@@ -250,7 +278,7 @@ export default function PagesManagement() {
  * Lance l'autorisation TikTok. La connexion se fait par navigation complète du
  * navigateur (et non en fetch) puisqu'elle passe par le site de TikTok.
  */
-function ConnectTiktokButton() {
+function useConnectTiktok() {
   const { toast } = useToast();
 
   const { data: config } = useQuery<{ configured: boolean }>({
@@ -269,12 +297,7 @@ function ConnectTiktokButton() {
     window.location.href = '/api/tiktok/connect';
   };
 
-  return (
-    <Button variant="outline" onClick={handleClick} data-testid="button-connect-tiktok">
-      <SiTiktok className="w-4 h-4 mr-2" />
-      Connecter un compte TikTok
-    </Button>
-  );
+  return handleClick;
 }
 
 function AddPageDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
@@ -320,17 +343,11 @@ function AddPageDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogTrigger asChild>
-        <Button data-testid="button-add-page">
-          <Plus className="w-4 h-4 mr-2" />
-          Ajouter une page
-        </Button>
-      </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
-          <DialogTitle>Ajouter une page</DialogTitle>
+          <DialogTitle>Ajouter un compte manuellement</DialogTitle>
           <DialogDescription>
-            Connectez une page Facebook ou Instagram pour commencer à publier
+            Renseignez l'identifiant de la page et un jeton d'accès. Ce jeton expirera au bout de 60 jours.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -411,7 +428,7 @@ function AddPageDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
             >
               {addMutation.isPending ? (
                 <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  <RefreshCw className="w-4 h-4 animate-spin" />
                   Ajout...
                 </>
               ) : (
@@ -510,7 +527,7 @@ function EditPageDialog({ page, onOpenChange }: { page: ClientSocialPage | null;
             >
               {editMutation.isPending ? (
                 <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  <RefreshCw className="w-4 h-4 animate-spin" />
                   Modification...
                 </>
               ) : (

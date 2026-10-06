@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
+import { Page } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { Settings as SettingsIcon, Bell, Key, Shield, Cloud, Brain, Image, Upload, X, Video, Plug, Mic, Facebook } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import Sidebar from "@/components/sidebar";
-import TopBar from "@/components/topbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -16,7 +16,6 @@ import { QwenSettingsCard } from "@/components/reels/qwen-settings-card";
 import { SiTiktok } from "react-icons/si";
 
 export default function Settings() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState(true);
   const [autoPublish, setAutoPublish] = useState(true);
   const [cloudName, setCloudName] = useState("");
@@ -418,25 +417,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
-      <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        <Sidebar onLinkClick={() => setSidebarOpen(false)} />
-      </div>
-
-      <main className="flex-1 overflow-y-auto">
-        <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-
-        <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+    <Page width="default">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-foreground">Paramètres</h1>
             <p className="text-muted-foreground mt-2">
@@ -1010,8 +991,6 @@ export default function Settings() {
               </CardContent>
             </Card>
           </div>
-        </div>
-      </main>
-    </div>
+        </Page>
   );
 }

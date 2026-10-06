@@ -19,10 +19,10 @@ import { fr } from "date-fns/locale";
 type TokenStatus = 'valid' | 'expiring' | 'expired' | 'error';
 
 const STATUS_STYLES: Record<TokenStatus, { label: string; color: string; bgColor: string }> = {
-  valid: { label: 'Jeton valide', color: 'text-green-600', bgColor: 'bg-green-100' },
-  expiring: { label: 'Jeton bientôt expiré', color: 'text-orange-600', bgColor: 'bg-orange-100' },
-  expired: { label: 'Jeton expiré', color: 'text-red-600', bgColor: 'bg-red-100' },
-  error: { label: 'Contrôle en échec', color: 'text-red-600', bgColor: 'bg-red-100' },
+  valid: { label: 'Connexion active', color: 'text-success', bgColor: 'bg-success/10' },
+  expiring: { label: 'Expire bientôt', color: 'text-warning-foreground dark:text-warning', bgColor: 'bg-warning/15' },
+  expired: { label: 'Connexion expirée', color: 'text-destructive', bgColor: 'bg-destructive/10' },
+  error: { label: 'Contrôle en échec', color: 'text-destructive', bgColor: 'bg-destructive/10' },
 };
 
 function statusOf(page: ClientSocialPage): TokenStatus {
@@ -33,14 +33,14 @@ function statusOf(page: ClientSocialPage): TokenStatus {
  * Lance l'autorisation Facebook. La connexion se fait par navigation complète
  * du navigateur (et non en fetch) puisqu'elle passe par le site de Facebook.
  */
-export function ConnectFacebookButton({ className }: { className?: string }) {
+export function useConnectFacebook() {
   const { toast } = useToast();
 
   const { data: config } = useQuery<{ configured: boolean }>({
     queryKey: ['/api/facebook/config'],
   });
 
-  const handleClick = () => {
+  return () => {
     if (config && !config.configured) {
       toast({
         title: "Facebook n'est pas configuré",
@@ -52,6 +52,10 @@ export function ConnectFacebookButton({ className }: { className?: string }) {
     }
     window.location.href = '/api/facebook/connect';
   };
+}
+
+export function ConnectFacebookButton({ className }: { className?: string }) {
+  const handleClick = useConnectFacebook();
 
   return (
     <Button
@@ -60,7 +64,7 @@ export function ConnectFacebookButton({ className }: { className?: string }) {
       onClick={handleClick}
       data-testid="button-connect-facebook"
     >
-      <Facebook className="w-4 h-4 mr-2" />
+      <Facebook className="w-4 h-4" />
       Connecter des pages Facebook
     </Button>
   );
@@ -108,8 +112,8 @@ export function RefreshTokenButton({ page }: { page: ClientSocialPage }) {
       disabled={refreshMutation.isPending}
       data-testid={`button-refresh-token-${page.id}`}
     >
-      <RefreshCw className={`w-4 h-4 mr-2 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
-      {refreshMutation.isPending ? 'Contrôle…' : 'Vérifier le jeton'}
+      <RefreshCw className={`w-4 h-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
+      {refreshMutation.isPending ? 'Vérification…' : 'Vérifier'}
     </Button>
   );
 }
@@ -130,9 +134,9 @@ export function TokenHealthPanel({ page }: { page: ClientSocialPage }) {
     <div className={`text-xs px-3 py-2 rounded-lg space-y-1 ${style.bgColor}`}>
       <div className="flex items-center gap-2">
         {status === 'valid' ? (
-          <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+          <CheckCircle2 className={`w-4 h-4 shrink-0 ${style.color}`} />
         ) : (
-          <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+          <AlertTriangle className={`w-4 h-4 shrink-0 ${style.color}`} />
         )}
         <span className={`font-semibold ${style.color}`}>{style.label}</span>
       </div>
@@ -183,10 +187,10 @@ export function TokenAlertBanner({ pages }: { pages: ClientSocialPage[] }) {
   if (failing.length === 0) return null;
 
   return (
-    <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-xl flex gap-3">
-      <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
+    <div className="mb-6 p-4 bg-destructive/10 border border-destructive/30 rounded-xl flex gap-3">
+      <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
       <div className="text-sm space-y-1">
-        <p className="font-semibold text-red-600 dark:text-red-400">
+        <p className="font-semibold text-destructive">
           {failing.length === 1
             ? 'Une page nécessite votre attention'
             : `${failing.length} pages nécessitent votre attention`}

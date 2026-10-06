@@ -1,10 +1,10 @@
 import { useState, useCallback } from "react";
+import { Page } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { CalendarClock, Upload, Loader2, Check, Video } from "lucide-react";
 import { useDropzone } from "react-dropzone";
-import Sidebar from "@/components/sidebar";
-import TopBar from "@/components/topbar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,7 +23,6 @@ import { DateTimePicker } from "@/components/datetime-picker";
  * publiée telle quelle par le planificateur à la date choisie.
  */
 export default function ScheduleReel() {
-    const [sidebarOpen, setSidebarOpen] = useState(false);
     const [, navigate] = useLocation();
     const { toast } = useToast();
 
@@ -125,22 +124,7 @@ export default function ScheduleReel() {
     );
 
     return (
-        <div className="flex h-screen overflow-hidden bg-background">
-            {sidebarOpen && (
-                <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
-            )}
-
-            <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}
-      `}>
-                <Sidebar onLinkClick={() => setSidebarOpen(false)} />
-            </div>
-
-            <main className="flex-1 overflow-y-auto">
-                <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-
-                <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
+        <Page width="narrow" className="space-y-6">
                     <div>
                         <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
                             <CalendarClock className="w-8 h-8 text-primary" />
@@ -293,8 +277,6 @@ export default function ScheduleReel() {
                             </Button>
                         </CardContent>
                     </Card>
-                </div>
-            </main>
-        </div>
+                </Page>
     );
 }

@@ -1,9 +1,14 @@
 import { useState } from "react";
+import { Page } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { useQuery } from "@tanstack/react-query";
-import { Clock, CheckCircle, XCircle, Calendar, History as HistoryIcon, Eye, Image as ImageIcon, Smartphone, Loader2, Clapperboard } from "lucide-react";
-import Sidebar from "@/components/sidebar";
-import TopBar from "@/components/topbar";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CheckCircle, XCircle, Calendar, History as HistoryIcon, Eye, Image as ImageIcon, Smartphone, Loader2, Clapperboard, Search, Sparkles } from "lucide-react";
+import { Link } from "wouter";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { EmptyState } from "@/components/empty-state";
+import { PlatformIcon } from "@/components/platform-icon";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import type { ScheduledPost, SocialPage, Post, Media } from "@shared/schema";
@@ -26,8 +31,21 @@ function isAwaitingPublication(scheduledPost: ScheduledPostWithRelations): boole
   );
 }
 
+type StatusFilter = "all" | "published" | "pending" | "failed";
+
+const STATUS_TABS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "Toutes" },
+  { value: "published", label: "Publiées" },
+  { value: "pending", label: "En cours" },
+  { value: "failed", label: "Échecs" },
+];
+
+const PAGE_SIZE = 20;
+
 export default function History() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [previewData, setPreviewData] = useState<{ postText: string; mediaIds: string[]; allMedia: Media[]; generationStatus?: string; generationProgress?: number }>({ postText: '', mediaIds: [], allMedia: [] });
   const { toast } = useToast();
@@ -81,11 +99,11 @@ export default function History() {
 
   const getPostTypeIcon = (postType: string) => {
     if (postType === 'feed') {
-      return <ImageIcon className="w-4 h-4" />;
+      return <ImageIcon className="h-3.5 w-3.5" />;
     } else if (postType === 'story') {
-      return <Smartphone className="w-4 h-4" />;
+      return <Smartphone className="h-3.5 w-3.5" />;
     } else if (postType === 'reel') {
-      return <Clapperboard className="w-4 h-4" />;
+      return <Clapperboard className="h-3.5 w-3.5" />;
     } else if (postType === 'both') {
       return (
         <div className="flex gap-0.5">
@@ -97,155 +115,150 @@ export default function History() {
     return null;
   };
 
+  const statusOf = (sp: ScheduledPostWithRelations): StatusFilter =>
+    sp.error ? "failed" : !sp.publishedAt ? "pending" : "published";
+
+  const counts = publishedPosts.reduce(
+    (acc, sp) => {
+      acc[statusOf(sp)] += 1;
+      return acc;
+    },
+    { all: publishedPosts.length, published: 0, pending: 0, failed: 0 } as Record<StatusFilter, number>,
+  );
+
+  const term = searchTerm.trim().toLowerCase();
+  const filteredPosts = publishedPosts.filter(
+    (sp) =>
+      (statusFilter === "all" || statusOf(sp) === statusFilter) &&
+      (!term ||
+        sp.post?.content?.toLowerCase().includes(term) ||
+        sp.page?.pageName?.toLowerCase().includes(term)),
+  );
+  const visiblePosts = filteredPosts.slice(0, visibleCount);
+
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+    <>
+      <Page width="default">
+        <PageHeader
+          icon={HistoryIcon}
+          title="Historique"
+          description="Toutes les publications envoyées et leur résultat."
         />
-      )}
 
-      <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        <Sidebar onLinkClick={() => setSidebarOpen(false)} />
-      </div>
-
-      <main className="flex-1 overflow-y-auto">
-        <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-
-        <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground">Historique</h1>
-            <p className="text-muted-foreground mt-2">
-              Consultez l'historique de vos publications
-            </p>
-          </div>
-
-          {isLoading ? (
-            <div className="space-y-6">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-40 bg-card rounded-2xl border border-border/50 animate-pulse" />
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <Tabs value={statusFilter} onValueChange={(v) => { setStatusFilter(v as StatusFilter); setVisibleCount(PAGE_SIZE); }}>
+            <TabsList className="w-full justify-start overflow-x-auto scrollbar-none sm:w-auto">
+              {STATUS_TABS.map((t) => (
+                <TabsTrigger key={t.value} value={t.value} className="gap-1.5" data-testid={`tab-history-${t.value}`}>
+                  {t.label}
+                  <span className="rounded-full bg-muted-foreground/10 px-1.5 text-[11px] tabular-nums">{counts[t.value]}</span>
+                </TabsTrigger>
               ))}
-            </div>
-          ) : publishedPosts.length === 0 ? (
-            <Card className="rounded-2xl border-border/50 border-dashed shadow-lg">
-              <CardContent className="flex flex-col items-center justify-center py-16">
-                <div className="w-20 h-20 rounded-2xl bg-muted/30 flex items-center justify-center mb-6">
-                  <HistoryIcon className="w-10 h-10 text-muted-foreground opacity-50" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">Aucune publication</h3>
-                <p className="text-muted-foreground text-center max-w-md">
-                  Vos publications apparaîtront ici une fois publiées
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-6">
-              {publishedPosts.map((scheduledPost) => {
-                const isPending = !scheduledPost.publishedAt;
-                const hasError = !!scheduledPost.error;
+            </TabsList>
+          </Tabs>
+          <div className="relative sm:w-72">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Rechercher un texte ou une page…"
+              value={searchTerm}
+              onChange={(e) => { setSearchTerm(e.target.value); setVisibleCount(PAGE_SIZE); }}
+              className="pl-9"
+              data-testid="input-history-search"
+            />
+          </div>
+        </div>
 
-                return (
-                  <Card key={scheduledPost.id} className="rounded-2xl border-border/50 shadow-lg overflow-hidden" data-testid={`card-post-${scheduledPost.id}`}>
-                    <CardHeader className="border-b border-border/50 bg-gradient-to-r from-muted/20 to-muted/10 p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-3">
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shadow-md ${hasError ? 'bg-gradient-to-br from-destructive to-destructive/80' :
-                              isPending ? 'bg-gradient-to-br from-blue-500 to-blue-600' :
-                                'bg-gradient-to-br from-green-500 to-green-600'
-                              }`}>
-                              {hasError ? (
-                                <XCircle className="w-5 h-5 text-white" />
-                              ) : isPending ? (
-                                <Loader2 className="w-5 h-5 text-white animate-spin" />
-                              ) : (
-                                <CheckCircle className="w-5 h-5 text-white fill-white" />
-                              )}
-                            </div>
-                            <CardTitle className="text-lg">
-                              {scheduledPost.page?.pageName || 'Page inconnue'}
-                            </CardTitle>
-                          </div>
-                          <p className="text-sm text-foreground leading-relaxed line-clamp-3">
-                            {scheduledPost.post?.content || 'Aucun texte'}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 ml-4">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handlePreviewPost(scheduledPost)}
-                            className="h-9 w-9 p-0"
-                            data-testid={`button-preview-post-${scheduledPost.id}`}
-                            title="Prévisualiser"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </Button>
-                          <Badge
-                            className={`${hasError
-                              ? 'bg-destructive/20 text-destructive hover:bg-destructive/30'
-                              : isPending
-                                ? 'bg-blue-500/20 text-blue-500 hover:bg-blue-500/30'
-                                : 'bg-success/20 text-success hover:bg-success/30'
-                              }`}
-                          >
-                            {hasError ? (
-                              <>
-                                <XCircle className="w-3 h-3 mr-1" />
-                                Échoué
-                              </>
-                            ) : isPending ? (
-                              <>
-                                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                                Traitement...
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle className="w-3 h-3 mr-1" />
-                                Publié
-                              </>
-                            )}
-                          </Badge>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-6">
-                      <div className="flex items-center gap-6 text-sm text-muted-foreground flex-wrap">
-                        <div className="flex items-center gap-2">
-                          {getPostTypeIcon(scheduledPost.postType)}
-                          <span className="font-medium capitalize">
-                            {scheduledPost.postType === 'feed' ? 'Feed' :
-                              scheduledPost.postType === 'story' ? 'Story' :
-                                scheduledPost.postType === 'reel' ? 'Reel' : 'Feed & Story'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-4 h-4" />
-                          <span className="font-medium">
-                            {scheduledPost.scheduledAt
-                              ? format(new Date(scheduledPost.scheduledAt), "d MMM yyyy 'à' HH:mm", { locale: fr })
-                              : 'Date inconnue'
-                            }
-                          </span>
-                        </div>
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="skeleton h-24 rounded-xl" />
+            ))}
+          </div>
+        ) : publishedPosts.length === 0 ? (
+          <EmptyState
+            icon={HistoryIcon}
+            title="Aucune publication"
+            description="Vos publications apparaîtront ici une fois envoyées."
+            action={
+              <Button asChild>
+                <Link href="/new">Créer une publication</Link>
+              </Button>
+            }
+          />
+        ) : filteredPosts.length === 0 ? (
+          <EmptyState icon={Search} title="Aucun résultat" description="Essayez un autre mot-clé ou un autre filtre." />
+        ) : (
+          <div className="space-y-3">
+            {visiblePosts.map((scheduledPost) => {
+              const status = statusOf(scheduledPost);
+              return (
+                <Card key={scheduledPost.id} className="p-4" data-testid={`card-post-${scheduledPost.id}`}>
+                  <div className="flex items-start gap-3">
+                    <PlatformIcon platform={scheduledPost.page?.platform ?? "facebook"} />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="truncate font-medium">{scheduledPost.page?.pageName || "Page inconnue"}</p>
+                        {status === "failed" ? (
+                          <Badge variant="danger" className="gap-1"><XCircle className="h-3 w-3" /> Échec</Badge>
+                        ) : status === "pending" ? (
+                          <Badge variant="info" className="gap-1"><Loader2 className="h-3 w-3 animate-spin" /> En cours</Badge>
+                        ) : (
+                          <Badge variant="success" className="gap-1"><CheckCircle className="h-3 w-3" /> Publié</Badge>
+                        )}
                         {scheduledPost.post?.aiGenerated && (
-                          <Badge variant="outline" className="text-xs bg-gradient-to-r from-primary/5 to-secondary/5 border-primary/20">
-                            <CheckCircle className="w-3 h-3 mr-1" />
-                            Généré par IA
-                          </Badge>
+                          <Badge variant="muted" className="gap-1"><Sparkles className="h-3 w-3" /> IA</Badge>
                         )}
                       </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">
+                        {scheduledPost.post?.content || <span className="italic">Aucun texte</span>}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1.5">
+                          {getPostTypeIcon(scheduledPost.postType)}
+                          {scheduledPost.postType === "feed"
+                            ? "Feed"
+                            : scheduledPost.postType === "story"
+                              ? "Story"
+                              : scheduledPost.postType === "reel"
+                                ? "Reel"
+                                : "Feed & Story"}
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5" />
+                          {scheduledPost.scheduledAt
+                            ? format(new Date(scheduledPost.scheduledAt), "d MMM yyyy 'à' HH:mm", { locale: fr })
+                            : "Date inconnue"}
+                        </span>
+                      </div>
+                      {scheduledPost.error && (
+                        <p className="mt-2 rounded-md bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">{scheduledPost.error}</p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handlePreviewPost(scheduledPost)}
+                      className="shrink-0 text-muted-foreground"
+                      data-testid={`button-preview-post-${scheduledPost.id}`}
+                      title="Prévisualiser"
+                      aria-label="Prévisualiser"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </Card>
+              );
+            })}
+            {filteredPosts.length > visibleCount && (
+              <div className="flex justify-center pt-2">
+                <Button variant="outline" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)} data-testid="button-history-more">
+                  Afficher plus ({filteredPosts.length - visibleCount} restantes)
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+      </Page>
 
         <PreviewModal
           open={previewModalOpen}
@@ -259,7 +272,6 @@ export default function History() {
           generationStatus={previewData.generationStatus}
           generationProgress={previewData.generationProgress}
         />
-      </main>
-    </div>
+    </>
   );
 }

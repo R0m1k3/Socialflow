@@ -1,20 +1,22 @@
 import { useState, useEffect } from "react";
+import { Page } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import Sidebar from "@/components/sidebar";
-import TopBar from "@/components/topbar";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { EmptyState } from "@/components/empty-state";
+import { PlatformIcon, platformLabel } from "@/components/platform-icon";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Users, UserPlus, Pencil, Trash2, Shield, User as UserIcon, Settings } from "lucide-react";
+import { Users, UserPlus, Pencil, Trash2, Shield, User as UserIcon, KeyRound } from "lucide-react";
 
 type UserData = {
   id: string;
@@ -36,13 +38,13 @@ type UserPagePermission = {
 };
 
 export default function UsersAdmin() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { toast } = useToast();
   
   // Form states
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"admin" | "user">("user");
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
   
   // Edit dialog states
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -88,6 +90,7 @@ export default function UsersAdmin() {
         description: `L'utilisateur ${data.username} a été créé avec succès`,
       });
       setUsername("");
+      setCreateDialogOpen(false);
       setPassword("");
       setRole("user");
       queryClient.invalidateQueries({ queryKey: ["/api/users"] });
@@ -278,190 +281,144 @@ export default function UsersAdmin() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+    <>
+      <Page width="default">
+        <PageHeader
+          icon={Users}
+          title="Utilisateurs"
+          description="Qui peut se connecter à Social Flow et sur quels comptes publier."
+          actions={
+            <Button onClick={() => setCreateDialogOpen(true)} data-testid="button-open-create-user">
+              <UserPlus className="h-4 w-4" /> Nouvel utilisateur
+            </Button>
+          }
         />
-      )}
-      
-      <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        <Sidebar onLinkClick={() => setSidebarOpen(false)} />
-      </div>
 
-      <main className="flex-1 overflow-y-auto">
-        <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-        
-        <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6 sm:space-y-8">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <Users className="w-8 h-8" />
-              Gestion des utilisateurs
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              Créez et gérez les utilisateurs de l'application
-            </p>
+        {isLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="skeleton h-16 rounded-xl" />
+            ))}
           </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 lg:gap-8">
-            {/* Liste des utilisateurs */}
-            <div className="lg:col-span-2">
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
-                  <CardTitle>Liste des utilisateurs</CardTitle>
-                  <CardDescription>
-                    {users?.length || 0} utilisateur(s) enregistré(s)
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {isLoading ? (
-                    <div className="text-center py-8">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-                      <p className="text-muted-foreground mt-4">Chargement...</p>
-                    </div>
-                  ) : users && users.length > 0 ? (
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Nom d'utilisateur</TableHead>
-                          <TableHead>Rôle</TableHead>
-                          <TableHead className="text-right">Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {users.map((user) => (
-                          <TableRow key={user.id}>
-                            <TableCell className="font-medium flex items-center gap-2">
-                              {user.role === "admin" ? (
-                                <Shield className="w-4 h-4 text-primary" />
-                              ) : (
-                                <UserIcon className="w-4 h-4 text-muted-foreground" />
-                              )}
-                              {user.username}
-                            </TableCell>
-                            <TableCell>
-                              <Badge variant={user.role === "admin" ? "default" : "secondary"}>
-                                {user.role === "admin" ? "Administrateur" : "Utilisateur"}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="text-right">
-                              <div className="flex justify-end gap-2">
-                                {user.role === "user" && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => handlePermissionsClick(user)}
-                                    data-testid={`button-permissions-user-${user.id}`}
-                                  >
-                                    <Settings className="w-4 h-4" />
-                                  </Button>
-                                )}
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => handleEditClick(user)}
-                                  data-testid={`button-edit-user-${user.id}`}
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  onClick={() => handleDeleteClick(user)}
-                                  data-testid={`button-delete-user-${user.id}`}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  ) : (
-                    <div className="text-center py-8">
-                      <p className="text-muted-foreground">Aucun utilisateur trouvé</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Formulaire de création */}
-            <div>
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
-                  <CardTitle className="flex items-center gap-2">
-                    <UserPlus className="w-5 h-5" />
-                    Créer un utilisateur
-                  </CardTitle>
-                  <CardDescription>
-                    Ajouter un nouvel utilisateur
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="username">Nom d'utilisateur</Label>
-                      <Input
-                        id="username"
-                        type="text"
-                        placeholder="utilisateur123"
-                        value={username}
-                        onChange={(e) => setUsername(e.target.value)}
-                        required
-                        data-testid="input-new-username"
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="password">Mot de passe</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        placeholder="••••••••"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        data-testid="input-new-password"
-                      />
-                      <p className="text-xs text-muted-foreground">
-                        Minimum 4 caractères
-                      </p>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="role">Rôle</Label>
-                      <Select value={role} onValueChange={(value: "admin" | "user") => setRole(value)}>
-                        <SelectTrigger id="role" data-testid="select-user-role">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="user">Utilisateur</SelectItem>
-                          <SelectItem value="admin">Administrateur</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
+        ) : users && users.length > 0 ? (
+          <Card className="overflow-hidden">
+            <ul className="divide-y">
+              {users.map((user) => (
+                <li key={user.id} className="flex items-center gap-3 p-4" data-testid={`row-user-${user.id}`}>
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback className={user.role === "admin" ? "bg-primary/10 font-semibold text-primary" : "bg-muted font-semibold text-muted-foreground"}>
+                      {user.username.substring(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{user.username}</p>
+                    <Badge variant={user.role === "admin" ? "default" : "muted"} className="mt-1 gap-1">
+                      {user.role === "admin" ? <Shield className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
+                      {user.role === "admin" ? "Administrateur" : "Utilisateur"}
+                    </Badge>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {user.role === "user" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handlePermissionsClick(user)}
+                        data-testid={`button-permissions-user-${user.id}`}
+                      >
+                        <KeyRound className="h-4 w-4" />
+                        <span className="hidden sm:inline">Accès aux pages</span>
+                      </Button>
+                    )}
                     <Button
-                      type="submit"
-                      className="w-full"
-                      disabled={createUserMutation.isPending}
-                      data-testid="button-create-user"
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground"
+                      onClick={() => handleEditClick(user)}
+                      aria-label="Modifier"
+                      data-testid={`button-edit-user-${user.id}`}
                     >
-                      {createUserMutation.isPending ? "Création..." : "Créer"}
+                      <Pencil className="h-4 w-4" />
                     </Button>
-                  </form>
-                </CardContent>
-              </Card>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => handleDeleteClick(user)}
+                      aria-label="Supprimer"
+                      data-testid={`button-delete-user-${user.id}`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ) : (
+          <EmptyState
+            icon={Users}
+            title="Aucun utilisateur"
+            action={<Button onClick={() => setCreateDialogOpen(true)}>Créer un utilisateur</Button>}
+          />
+        )}
+      </Page>
+
+      {/* Dialog de création */}
+      <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nouvel utilisateur</DialogTitle>
+            <DialogDescription>Il pourra se connecter immédiatement avec ces identifiants.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="username">Nom d'utilisateur</Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="utilisateur123"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                required
+                data-testid="input-new-username"
+              />
             </div>
-          </div>
-        </div>
-      </main>
+            <div className="space-y-2">
+              <Label htmlFor="password">Mot de passe</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                data-testid="input-new-password"
+              />
+              <p className="text-xs text-muted-foreground">4 caractères minimum</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="role">Rôle</Label>
+              <Select value={role} onValueChange={(value: "admin" | "user") => setRole(value)}>
+                <SelectTrigger id="role" data-testid="select-user-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="user">Utilisateur — publie sur les pages autorisées</SelectItem>
+                  <SelectItem value="admin">Administrateur — accès complet</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button type="submit" disabled={createUserMutation.isPending} data-testid="button-create-user">
+                {createUserMutation.isPending ? "Création…" : "Créer l'utilisateur"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog de modification */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
@@ -525,7 +482,7 @@ export default function UsersAdmin() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer cet utilisateur ?</AlertDialogTitle>
             <AlertDialogDescription>
               Êtes-vous sûr de vouloir supprimer l'utilisateur <strong>{userToDelete?.username}</strong> ?
               Cette action est irréversible.
@@ -548,7 +505,7 @@ export default function UsersAdmin() {
       <Dialog open={permissionsDialogOpen} onOpenChange={setPermissionsDialogOpen}>
         <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Gérer les permissions</DialogTitle>
+            <DialogTitle>Accès aux pages</DialogTitle>
             <DialogDescription>
               Sélectionnez les pages auxquelles l'utilisateur <strong>{permissionsUser?.username}</strong> peut accéder
             </DialogDescription>
@@ -557,7 +514,7 @@ export default function UsersAdmin() {
             {allPages && allPages.length > 0 ? (
               <div className="space-y-3">
                 {allPages.map((page) => (
-                  <div key={page.id} className="flex items-center space-x-2 p-3 border rounded-lg hover:bg-accent">
+                  <div key={page.id} className="flex items-center gap-3 rounded-lg border p-3 hover:bg-accent">
                     <Checkbox
                       id={`page-${page.id}`}
                       checked={selectedPageIds.includes(page.id)}
@@ -568,9 +525,12 @@ export default function UsersAdmin() {
                       htmlFor={`page-${page.id}`}
                       className="flex-1 cursor-pointer"
                     >
-                      <div className="font-medium">{page.pageName}</div>
-                      <div className="text-sm text-muted-foreground">
-                        {page.platform === "facebook" ? "Facebook" : "Instagram"}
+                      <div className="flex items-center gap-3">
+                        <PlatformIcon platform={page.platform} size="sm" />
+                        <div>
+                          <div className="font-medium">{page.pageName}</div>
+                          <div className="text-xs text-muted-foreground">{platformLabel(page.platform)}</div>
+                        </div>
                       </div>
                     </Label>
                   </div>
@@ -596,6 +556,6 @@ export default function UsersAdmin() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </>
   );
 }

@@ -1,17 +1,16 @@
 import { useState } from "react";
+import { Page } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/layout/page-header";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import Sidebar from "@/components/sidebar";
-import TopBar from "@/components/topbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Database, Download, Play } from "lucide-react";
+import { Database, Download, Play, Table2 } from "lucide-react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default function SqlAdmin() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const { toast } = useToast();
   const [sqlQuery, setSqlQuery] = useState("");
   const [queryResult, setQueryResult] = useState<any>(null);
@@ -75,77 +74,60 @@ export default function SqlAdmin() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {sidebarOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-      
-      <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        <Sidebar onLinkClick={() => setSidebarOpen(false)} />
-      </div>
+    <Page width="wide">
+          <PageHeader
+            icon={Database}
+            title="Base de données"
+            description="Exécutez des requêtes SQL directement sur la base. À utiliser avec précaution."
+          />
 
-      <main className="flex-1 overflow-y-auto">
-        <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-        
-        <div className="p-4 sm:p-6 lg:p-8 max-w-[1600px] mx-auto space-y-6 sm:space-y-8">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <Database className="w-8 h-8" />
-              Administration SQL
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              Exécutez des requêtes SQL et gérez votre base de données
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 lg:gap-8">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
             {/* Liste des tables */}
-            <Card className="rounded-2xl border-border/50 shadow-lg">
-              <CardHeader className="p-6">
-                <CardTitle>Tables disponibles</CardTitle>
-                <CardDescription>
-                  Cliquez pour insérer dans la requête
-                </CardDescription>
+            <Card className="h-fit lg:sticky lg:top-6">
+              <CardHeader className="pb-3">
+                <CardTitle>Tables</CardTitle>
+                <CardDescription>Cliquez pour pré-remplir la requête</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  {(tablesData as any)?.tables?.map((table: any) => (
-                    <Button
-                      key={table.tablename}
-                      variant="outline"
-                      className="w-full justify-start text-left"
-                      onClick={() => insertTable(table.tablename)}
-                      data-testid={`button-table-${table.tablename}`}
-                    >
-                      <Database className="w-4 h-4 mr-2" />
-                      {table.tablename}
-                    </Button>
-                  ))}
-                </div>
+                {(tablesData as any)?.tables?.length ? (
+                  <div className="flex max-h-[60vh] flex-wrap gap-1.5 overflow-y-auto lg:flex-col lg:flex-nowrap">
+                    {(tablesData as any).tables.map((table: any) => (
+                      <button
+                        key={table.tablename}
+                        className="flex items-center gap-2 rounded-md px-2.5 py-1.5 text-left font-mono text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground max-lg:border"
+                        onClick={() => insertTable(table.tablename)}
+                        data-testid={`button-table-${table.tablename}`}
+                      >
+                        <Table2 className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{table.tablename}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Aucune table trouvée.</p>
+                )}
               </CardContent>
             </Card>
 
             {/* Éditeur SQL et résultats */}
-            <div className="lg:col-span-3 space-y-8">
-              <Card className="rounded-2xl border-border/50 shadow-lg">
-                <CardHeader className="p-6">
-                  <CardTitle>Éditeur SQL</CardTitle>
-                  <CardDescription>
-                    Entrez votre requête SQL ci-dessous
-                  </CardDescription>
+            <div className="space-y-6 lg:col-span-3">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Requête</CardTitle>
+                  <CardDescription>Ctrl + Entrée pour exécuter</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <Textarea
                     placeholder="SELECT * FROM users LIMIT 10;"
                     value={sqlQuery}
                     onChange={(e) => setSqlQuery(e.target.value)}
-                    className="font-mono min-h-[200px]"
+                    className="min-h-[200px] font-mono text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                        e.preventDefault();
+                        handleExecuteQuery();
+                      }
+                    }}
                     data-testid="textarea-sql-query"
                   />
                   
@@ -155,7 +137,7 @@ export default function SqlAdmin() {
                       disabled={executeSqlMutation.isPending}
                       data-testid="button-execute-sql"
                     >
-                      <Play className="w-4 h-4 mr-2" />
+                      <Play className="h-4 w-4" />
                       {executeSqlMutation.isPending ? "Exécution..." : "Exécuter"}
                     </Button>
                     
@@ -172,13 +154,17 @@ export default function SqlAdmin() {
 
               {/* Résultats */}
               {queryResult && (
-                <Card className="rounded-2xl border-border/50 shadow-lg">
-                  <CardHeader className="p-6">
-                    <div className="flex justify-between items-center">
+                <Card>
+                  <CardHeader>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div>
                         <CardTitle>Résultats</CardTitle>
                         <CardDescription>
-                          {queryResult.success ? "Requête exécutée avec succès" : "Erreur lors de l'exécution"}
+                          {queryResult.success
+                            ? Array.isArray(queryResult.result)
+                              ? `${queryResult.result.length} ligne(s)`
+                              : "Requête exécutée avec succès"
+                            : "Erreur lors de l'exécution"}
                         </CardDescription>
                       </div>
                       {queryResult.success && queryResult.result && (
@@ -188,7 +174,7 @@ export default function SqlAdmin() {
                           onClick={handleDownloadResult}
                           data-testid="button-download-result"
                         >
-                          <Download className="w-4 h-4 mr-2" />
+                          <Download className="h-4 w-4" />
                           Télécharger JSON
                         </Button>
                       )}
@@ -196,7 +182,7 @@ export default function SqlAdmin() {
                   </CardHeader>
                   <CardContent>
                     {queryResult.success ? (
-                      <div className="overflow-x-auto">
+                      <div className="max-h-[60vh] overflow-auto rounded-lg border">
                         {Array.isArray(queryResult.result) && queryResult.result.length > 0 ? (
                           <Table>
                             <TableHeader>
@@ -225,7 +211,7 @@ export default function SqlAdmin() {
                             </TableBody>
                           </Table>
                         ) : (
-                          <pre className="bg-muted p-4 rounded-lg overflow-auto max-h-96">
+                          <pre className="max-h-96 overflow-auto bg-muted p-4 text-xs">
                             <code>{JSON.stringify(queryResult.result, null, 2)}</code>
                           </pre>
                         )}
@@ -241,8 +227,6 @@ export default function SqlAdmin() {
               )}
             </div>
           </div>
-        </div>
-      </main>
-    </div>
+        </Page>
   );
 }
