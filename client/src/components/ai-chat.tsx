@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Bot, User, Lightbulb, History, Zap, Sparkles, Loader2 } from "lucide-react";
+import { Bot, User, Sparkles, Loader2, Copy, RotateCcw } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { ModelCombobox } from "@/components/model-combobox";
 
@@ -90,33 +91,20 @@ export default function AiChat() {
     setInput("");
   };
 
+  const copyVariant = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast({ title: "Texte copié", description: "Collez-le dans votre publication." });
+    } catch {
+      toast({ title: "Copie impossible", description: "Sélectionnez le texte manuellement.", variant: "destructive" });
+    }
+  };
+
   return (
-    <div className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-lg h-full flex flex-col">
-      <div className="border-b border-border/50 p-6 bg-gradient-to-r from-primary/5 to-secondary/5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
-              <Sparkles className="text-white w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">Assistant IA</h3>
-              <p className="text-sm text-muted-foreground">Génération de contenu intelligent</p>
-            </div>
-          </div>
-          <Button 
-            variant="outline" 
-            size="sm"
-            onClick={() => setMessages([messages[0]])}
-            className="rounded-xl"
-            data-testid="button-new-chat"
-          >
-            <Sparkles className="w-4 h-4 mr-2" />
-            Nouveau chat
-          </Button>
-        </div>
-        
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-foreground">Modèle IA:</label>
+    <div className="flex h-[calc(100dvh-15rem)] min-h-[480px] flex-col overflow-hidden rounded-xl border bg-card shadow-soft lg:h-[calc(100vh-13rem)]">
+      <div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="shrink-0 text-sm text-muted-foreground">Modèle</span>
           <ModelCombobox
             models={availableModels}
             value={selectedModel}
@@ -124,78 +112,91 @@ export default function AiChat() {
             placeholder="Sélectionner un modèle"
             isLoading={modelsLoading}
             disabled={modelsLoading}
-            className="w-[300px] rounded-xl"
+            className="w-full sm:w-[300px]"
             testId="select-ai-model"
           />
         </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setMessages([messages[0]])}
+          data-testid="button-new-chat"
+        >
+          <RotateCcw className="h-4 w-4" />
+          Nouvelle conversation
+        </Button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-muted/20">
+      <div className="flex-1 space-y-5 overflow-y-auto bg-muted/30 p-4 sm:p-6">
         {messages.map((message, index) => (
-          <div 
-            key={index} 
-            className={`flex gap-4 chat-message ${message.role === "user" ? "justify-end" : ""}`}
-          >
+          <div key={index} className={`flex gap-3 ${message.role === "user" ? "justify-end" : ""}`}>
             {message.role === "assistant" && (
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-secondary flex-shrink-0 flex items-center justify-center shadow-md">
-                <Bot className="text-white w-5 h-5" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Bot className="h-4 w-4" />
               </div>
             )}
-            
-            <div className={`flex-1 ${message.role === "user" ? "max-w-md ml-auto" : "max-w-2xl"}`}>
-              <div className={`
-                rounded-2xl p-6 shadow-md
-                ${message.role === "user" 
-                  ? "bg-gradient-to-br from-primary to-secondary text-white ml-auto" 
-                  : "bg-card border border-border/50"
+
+            <div className={message.role === "user" ? "max-w-[85%] sm:max-w-md" : "max-w-full flex-1 sm:max-w-2xl"}>
+              <div
+                className={
+                  message.role === "user"
+                    ? "rounded-2xl rounded-tr-sm bg-primary px-4 py-3 text-primary-foreground"
+                    : "rounded-2xl rounded-tl-sm border bg-card px-4 py-3"
                 }
-              `}>
-                <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                
+              >
+                <p className="whitespace-pre-wrap text-sm leading-relaxed">{message.content}</p>
+
                 {message.variants && (
-                  <div className="space-y-4 mt-6">
+                  <div className="mt-4 space-y-3">
                     {message.variants.map((variant, vIndex) => (
-                      <div 
+                      <button
+                        type="button"
                         key={vIndex}
-                        className="p-5 rounded-xl bg-muted/50 border border-border/50 cursor-pointer hover:bg-muted hover:shadow-md transition-all"
+                        onClick={() => copyVariant(variant.text)}
+                        className="group block w-full rounded-lg border bg-muted/40 p-4 text-left transition-colors hover:border-primary/40 hover:bg-accent"
                         data-testid={`variant-${vIndex}`}
                       >
-                        <div className="flex items-center justify-between mb-3">
-                          <span className={`
-                            inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold
-                            ${vIndex === 0 ? "bg-gradient-to-r from-primary to-secondary text-white" : "bg-secondary/20 text-secondary"}
-                          `}>
-                            {variant.variant}
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <Badge variant={vIndex === 0 ? "default" : "muted"}>{variant.variant}</Badge>
+                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            {variant.characterCount} caractères
+                            <Copy className="h-3.5 w-3.5 opacity-60 group-hover:opacity-100" />
                           </span>
-                          <span className="text-xs text-muted-foreground font-medium">{variant.characterCount} caractères</span>
                         </div>
-                        <p className="text-sm text-foreground leading-relaxed">{variant.text}</p>
-                      </div>
+                        <p className="text-sm leading-relaxed text-foreground">{variant.text}</p>
+                      </button>
                     ))}
+                    <p className="text-xs text-muted-foreground">Cliquez sur une proposition pour la copier.</p>
                   </div>
                 )}
               </div>
-              <span className="text-xs text-muted-foreground mt-2 inline-block">
-                {message.role === "user" ? "Maintenant" : "Il y a quelques secondes"}
-              </span>
             </div>
 
             {message.role === "user" && (
-              <div className="w-10 h-10 rounded-xl bg-secondary/20 flex-shrink-0 flex items-center justify-center">
-                <User className="text-secondary w-5 h-5" />
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+                <User className="h-4 w-4" />
               </div>
             )}
           </div>
         ))}
+        {generateMutation.isPending && (
+          <div className="flex items-center gap-3 text-sm text-muted-foreground">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Loader2 className="h-4 w-4 animate-spin" />
+            </div>
+            L'IA rédige vos propositions…
+          </div>
+        )}
       </div>
 
-      <div className="p-6 border-t border-border/50 bg-card space-y-4">
-        <div className="flex gap-4">
+      <div className="border-t bg-card p-3 sm:p-4">
+        <div className="flex items-end gap-2">
           <Textarea
-            placeholder="Décrivez votre produit (nom, prix, caractéristiques)..."
+            placeholder="Décrivez votre produit (nom, prix, caractéristiques)…"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            className="flex-1 min-h-[80px] rounded-xl bg-muted/30 border-border/50 focus:border-primary/50"
+            className="max-h-40 min-h-[48px] flex-1 resize-none"
+            rows={2}
             onKeyDown={(e) => {
               if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
@@ -204,42 +205,20 @@ export default function AiChat() {
             }}
             data-testid="input-product-info"
           />
-          <Button 
+          <Button
             onClick={handleSubmit}
             disabled={generateMutation.isPending || !input.trim()}
-            className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 rounded-xl px-6"
+            variant="brand"
+            className="h-12"
             data-testid="button-generate"
           >
-            <Sparkles className="w-4 h-4 mr-2" />
-            {generateMutation.isPending ? "Génération..." : "Générer"}
+            {generateMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+            <span className="hidden sm:inline">Générer</span>
           </Button>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="rounded-xl"
-            onClick={() => toast({ title: "Bientôt disponible", description: "Les suggestions de produits seront disponibles prochainement" })}
-            data-testid="button-suggestions"
-          >
-            <Lightbulb className="w-4 h-4 mr-2" />
-            Suggestions
-          </Button>
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="rounded-xl"
-            onClick={() => toast({ title: "Bientôt disponible", description: "L'historique des générations sera disponible prochainement" })}
-            data-testid="button-history"
-          >
-            <History className="w-4 h-4 mr-2" />
-            Historique
-          </Button>
-          <div className="ml-auto text-xs text-muted-foreground flex items-center gap-2">
-            <Zap className="w-4 h-4 text-success" />
-            <span>Propulsé par OpenRouter</span>
-          </div>
-        </div>
+        <p className="mt-2 hidden text-xs text-muted-foreground sm:block">
+          Entrée pour envoyer · Maj + Entrée pour aller à la ligne
+        </p>
       </div>
     </div>
   );

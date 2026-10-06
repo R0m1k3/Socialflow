@@ -1,99 +1,58 @@
-import { Switch, Route, Redirect, useLocation } from "wouter";
-import { useEffect } from "react";
+import { Switch, Route, useLocation, Link } from "wouter";
+import { lazy, Suspense, useEffect, type ComponentType } from "react";
 import { queryClient } from "./lib/queryClient";
-import { QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ShieldAlert } from "lucide-react";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { createResponsiveRoute } from "@/components/responsive-route";
+import { Button } from "@/components/ui/button";
+import { ThemeProvider } from "@/components/theme-provider";
+import { AppShell, Page } from "@/components/layout/app-shell";
+import { EmptyState } from "@/components/empty-state";
+import { LogoMark } from "@/components/brand/logo";
+import { useSession } from "@/hooks/use-session";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
-import TestCamera from "@/pages/test-camera";
 
+// Pages chargées à la demande : une seule version responsive par écran.
+const Dashboard = lazy(() => import("@/pages/dashboard"));
+const NewPost = lazy(() => import("@/pages/new-post"));
+const NewReel = lazy(() => import("@/pages/new-reel"));
+const ScheduleReel = lazy(() => import("@/pages/schedule-reel"));
+const Calendar = lazy(() => import("@/pages/calendar"));
+const Media = lazy(() => import("@/pages/media"));
+const ImageEditor = lazy(() => import("@/pages/image-editor"));
+const PagesManagement = lazy(() => import("@/pages/pages"));
+const AI = lazy(() => import("@/pages/ai"));
+const History = lazy(() => import("@/pages/history"));
+const Settings = lazy(() => import("@/pages/settings"));
+const SqlAdmin = lazy(() => import("@/pages/sql"));
+const AudioAdmin = lazy(() => import("@/pages/audio-admin"));
+const UsersAdmin = lazy(() => import("@/pages/users-admin"));
+const Analytics = lazy(() => import("@/pages/analytics"));
 
-// Create responsive routes with lazy loading for optimal performance
-const History = createResponsiveRoute(
-  () => import("@/pages/history"),
-  () => import("@/pages/mobile/history")
-);
-const Dashboard = createResponsiveRoute(
-  () => import("@/pages/dashboard"),
-  () => import("@/pages/mobile/dashboard")
-);
+function FullScreenLoader() {
+  return (
+    <div className="flex h-screen items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <LogoMark size={44} className="animate-pulse" />
+        <p className="text-sm text-muted-foreground">Chargement…</p>
+      </div>
+    </div>
+  );
+}
 
-const NewPost = createResponsiveRoute(
-  () => import("@/pages/new-post"),
-  () => import("@/pages/mobile/new-post")
-);
+function PageLoader() {
+  return (
+    <div className="flex min-h-[50vh] items-center justify-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+    </div>
+  );
+}
 
-const Calendar = createResponsiveRoute(
-  () => import("@/pages/calendar"),
-  () => import("@/pages/mobile/calendar")
-);
-
-const Media = createResponsiveRoute(
-  () => import("@/pages/media"),
-  () => import("@/pages/mobile/media")
-);
-
-const ImageEditor = createResponsiveRoute(
-  () => import("@/pages/image-editor"),
-  () => import("@/pages/mobile/image-editor")
-);
-
-const PagesManagement = createResponsiveRoute(
-  () => import("@/pages/pages"),
-  () => import("@/pages/mobile/pages")
-);
-
-const AI = createResponsiveRoute(
-  () => import("@/pages/ai"),
-  () => import("@/pages/mobile/ai")
-);
-
-const Settings = createResponsiveRoute(
-  () => import("@/pages/settings"),
-  () => import("@/pages/mobile/settings")
-);
-
-const SqlAdmin = createResponsiveRoute(
-  () => import("@/pages/sql"),
-  () => import("@/pages/mobile/sql")
-);
-
-const AudioAdmin = createResponsiveRoute(
-  () => import("@/pages/audio-admin"),
-  () => import("@/pages/mobile/audio-admin")
-);
-
-const UsersAdmin = createResponsiveRoute(
-  () => import("@/pages/users-admin"),
-  () => import("@/pages/mobile/users-admin")
-);
-
-const Analytics = createResponsiveRoute(
-  () => import("@/pages/AnalyticsPage"),
-  () => import("@/pages/mobile/analytics")
-);
-
-// NewReel uses desktop version for now (mobile can be added later)
-const NewReel = createResponsiveRoute(
-  () => import("@/pages/new-reel"),
-  () => import("@/pages/mobile/new-reel") // Uses same component for now
-);
-
-// Reel déjà monté : même page responsive sur mobile et desktop
-const ScheduleReel = createResponsiveRoute(
-  () => import("@/pages/schedule-reel"),
-  () => import("@/pages/schedule-reel")
-);
-
-function ProtectedRoute({ component: Component, adminOnly = false }: { component: React.ComponentType; adminOnly?: boolean }) {
+function ProtectedRoute({ component: Component, adminOnly = false }: { component: ComponentType; adminOnly?: boolean }) {
   const [, setLocation] = useLocation();
-
-  const { data: session, isLoading } = useQuery({
-    queryKey: ["/api/auth/session"],
-    retry: false,
-  });
+  const { session, isAdmin, isLoading } = useSession();
 
   useEffect(() => {
     if (!isLoading && !session) {
@@ -101,33 +60,31 @@ function ProtectedRoute({ component: Component, adminOnly = false }: { component
     }
   }, [isLoading, session, setLocation]);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Chargement...</p>
-        </div>
-      </div>
-    );
-  }
+  if (isLoading) return <FullScreenLoader />;
+  if (!session) return null;
 
-  if (!session) {
-    return null;
-  }
-
-  if (adminOnly && (session as any).role !== "admin") {
-    return (
-      <div className="flex items-center justify-center h-screen bg-background">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2">Accès refusé</h1>
-          <p className="text-muted-foreground">Cette page est réservée aux administrateurs.</p>
-        </div>
-      </div>
-    );
-  }
-
-  return <Component />;
+  return (
+    <AppShell>
+      {adminOnly && !isAdmin ? (
+        <Page width="narrow">
+          <EmptyState
+            icon={ShieldAlert}
+            title="Accès réservé aux administrateurs"
+            description="Demandez à un administrateur de vous donner accès à cette page."
+            action={
+              <Button asChild variant="outline">
+                <Link href="/">Retour au tableau de bord</Link>
+              </Button>
+            }
+          />
+        </Page>
+      ) : (
+        <Suspense fallback={<PageLoader />}>
+          <Component />
+        </Suspense>
+      )}
+    </AppShell>
+  );
 }
 
 function Router() {
@@ -149,7 +106,6 @@ function Router() {
       <Route path="/audio-admin">{() => <ProtectedRoute component={AudioAdmin} adminOnly />}</Route>
       <Route path="/users">{() => <ProtectedRoute component={UsersAdmin} adminOnly />}</Route>
       <Route path="/analytics">{() => <ProtectedRoute component={Analytics} />}</Route>
-      <Route path="/test-camera" component={TestCamera} />
       <Route component={NotFound} />
     </Switch>
   );
@@ -157,14 +113,14 @@ function Router() {
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <div>
+    <ThemeProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
           <Toaster />
           <Router />
-        </div>
-      </TooltipProvider>
-    </QueryClientProvider>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </ThemeProvider>
   );
 }
 

@@ -23,12 +23,7 @@ function getStageLabel(post: OngoingReel): string {
     return (post.generationStep && STEP_LABELS[post.generationStep]) || "Démarrage du traitement…";
 }
 
-interface OngoingReelsProps {
-    /** Compact layout for mobile */
-    compact?: boolean;
-}
-
-export default function OngoingReels({ compact = false }: OngoingReelsProps) {
+export default function OngoingReels() {
     const { data: ongoingPosts = [] } = useQuery<OngoingReel[]>({
         queryKey: ["/api/reels/ongoing"],
         // Cette route ne renvoie que les générations en cours : tant qu'elle est
@@ -65,13 +60,9 @@ export default function OngoingReels({ compact = false }: OngoingReelsProps) {
     }
 
     return (
-        <Card
-            className={`rounded-2xl border-border/50 shadow-lg ${compact ? "" : ""
-                }`}
-            data-testid="card-ongoing-reels"
-        >
-            <CardHeader className={compact ? "pb-2 px-4 pt-4" : ""}>
-                <CardTitle className={`flex items-center gap-2 ${compact ? "text-base" : ""}`}>
+        <Card data-testid="card-ongoing-reels">
+            <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2">
                     {ongoingPosts.some((p) => p.generationStatus !== "failed") ? (
                         <Loader2 className="w-5 h-5 animate-spin text-primary" />
                     ) : (
@@ -80,8 +71,8 @@ export default function OngoingReels({ compact = false }: OngoingReelsProps) {
                     Reels en cours
                 </CardTitle>
             </CardHeader>
-            <CardContent className={compact ? "px-4 pb-4 pt-0" : ""}>
-                <div className={`space-y-${compact ? "3" : "4"}`}>
+            <CardContent>
+                <div className="space-y-3">
                     {ongoingPosts.map((post) => {
                         const progress = post.generationProgress ?? 0;
                         const isFailed = post.generationStatus === "failed";
@@ -89,17 +80,17 @@ export default function OngoingReels({ compact = false }: OngoingReelsProps) {
                         return (
                             <div
                                 key={post.id}
-                                className={`flex items-start gap-3 p-${compact ? "3" : "4"} rounded-lg border border-border/50 bg-muted/30`}
+                                className="flex items-start gap-3 rounded-lg border bg-muted/30 p-3"
                                 data-testid={`ongoing-reel-${post.id}`}
                             >
                                 {/* Icon */}
-                                <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center flex-shrink-0">
-                                    <Clapperboard className="w-4 h-4 text-white" />
+                                <div className="w-9 h-9 rounded-lg bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                                    <Clapperboard className="w-4 h-4" />
                                 </div>
 
                                 {/* Content */}
                                 <div className="flex-1 min-w-0">
-                                    <p className={`font-medium truncate ${compact ? "text-sm" : "text-sm"}`}>
+                                    <p className="font-medium truncate text-sm">
                                         {post.content || "Reel sans texte"}
                                     </p>
 
@@ -130,7 +121,7 @@ export default function OngoingReels({ compact = false }: OngoingReelsProps) {
                                     )}
 
                                     {progress >= 100 && !isFailed && (
-                                        <div className="flex items-center gap-1.5 mt-2 text-green-500">
+                                        <div className="flex items-center gap-1.5 mt-2 text-success">
                                             <CheckCircle2 className="w-4 h-4" />
                                             <span className="text-xs font-medium">Terminé</span>
                                         </div>

@@ -1,305 +1,178 @@
-import { Home, PlusCircle, CalendarClock, Calendar, Images, Users, Bot, Clock, Settings, Database, UserCog, LogOut, ChevronLeft, ChevronRight, ChevronDown, Wand2, BarChart3, Video, Music, Shield } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest, AUTH_MUTATION, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
-import { Button } from "@/components/ui/button";
+import { ChevronsLeft, ChevronsRight, LogOut, Plus } from "lucide-react";
+import { Logo, LogoMark } from "@/components/brand/logo";
+import { ThemeToggle } from "@/components/theme-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { isActivePath, visibleGroups, type NavItem } from "@/components/layout/nav-config";
+import { useLogout, useSession } from "@/hooks/use-session";
+import { cn } from "@/lib/utils";
 
-interface SidebarProps {
-  onLinkClick?: () => void;
+function readCollapsed(): boolean {
+  try {
+    return localStorage.getItem("sidebar-collapsed") === "true";
+  } catch {
+    return false;
+  }
 }
 
-export default function Sidebar({ onLinkClick }: SidebarProps = {}) {
+function NavLink({ item, active, collapsed }: { item: NavItem; active: boolean; collapsed: boolean }) {
+  const Icon = item.icon;
+  const link = (
+    <Link
+      href={item.href}
+      aria-current={active ? "page" : undefined}
+      className={cn(
+        "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        active
+          ? "bg-primary/10 text-primary"
+          : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
+        collapsed && "justify-center px-0",
+      )}
+      data-testid={item.testId}
+    >
+      {active && <span className="absolute -left-3 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary" />}
+      <Icon className="h-[18px] w-[18px] shrink-0" />
+      {!collapsed && <span className="truncate">{item.label}</span>}
+    </Link>
+  );
+
+  if (!collapsed) return link;
+  return (
+    <Tooltip delayDuration={0}>
+      <TooltipTrigger asChild>{link}</TooltipTrigger>
+      <TooltipContent side="right">{item.label}</TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** Barre latérale desktop (≥ lg). Sur mobile, la navigation passe par MobileNav. */
+export default function Sidebar() {
   const [location] = useLocation();
-  const [, setLocation] = useLocation();
-  const { toast } = useToast();
-  const [isCollapsed, setIsCollapsed] = useState(() => {
-    const saved = localStorage.getItem('sidebar-collapsed');
-    return saved === 'true';
-  });
-  const [adminExpanded, setAdminExpanded] = useState(() => {
-    const saved = localStorage.getItem('sidebar-admin-expanded');
-    return saved !== 'false'; // default: expanded
-  });
+  const { session, isAdmin } = useSession();
+  const logout = useLogout();
+  const [collapsed, setCollapsed] = useState(readCollapsed);
 
   useEffect(() => {
-    localStorage.setItem('sidebar-collapsed', String(isCollapsed));
-  }, [isCollapsed]);
-
-  useEffect(() => {
-    localStorage.setItem('sidebar-admin-expanded', String(adminExpanded));
-  }, [adminExpanded]);
-
-  const { data: session } = useQuery<{ id: string; username: string; role: string }>({
-    queryKey: ["/api/auth/session"],
-    retry: false,
-  });
-
-  const isAdmin = session?.role === "admin";
-
-  const handleLinkClick = (href: string, e: React.MouseEvent) => {
-    e.preventDefault();
-    // Always close sidebar on mobile first
-    if (onLinkClick) {
-      onLinkClick();
+    try {
+      localStorage.setItem("sidebar-collapsed", String(collapsed));
+    } catch {
+      /* stockage indisponible : on ignore */
     }
-    // Navigate after a small delay to ensure state update completes
-    setTimeout(() => {
-      setLocation(href);
-    }, 10);
-  };
+  }, [collapsed]);
 
-  const logoutMutation = useMutation({
-    mutationKey: [AUTH_MUTATION, "logout"],
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/auth/logout", {});
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.clear();
-      setLocation("/login");
-      toast({
-        title: "Déconnecté",
-        description: "Vous avez été déconnecté avec succès",
-      });
-    },
-  });
-
-  const navItems = [
-    { icon: Home, label: "Tableau de bord", href: "/", badge: null },
-    { icon: PlusCircle, label: "Nouvelle publication", href: "/new", badge: null },
-    { icon: Video, label: "Nouveau Reel", href: "/reel", badge: null },
-    { icon: CalendarClock, label: "Programmer un Reel", href: "/reel/schedule", badge: null },
-    { icon: Calendar, label: "Calendrier", href: "/calendar", badge: null },
-    { icon: Images, label: "Médiathèque", href: "/media", badge: null },
-    { icon: Wand2, label: "Éditeur d'images", href: "/image-editor", badge: null },
-    { icon: BarChart3, label: "Analytics", href: "/analytics", badge: null },
-  ];
-
-  const statsItems = [
-    { icon: Clock, label: "Historique", href: "/history" },
-  ];
+  const groups = visibleGroups(isAdmin);
+  const initials = session?.username.substring(0, 2).toUpperCase() ?? "?";
 
   return (
-    <aside className={`bg-sidebar border-r border-sidebar-border flex flex-col h-screen transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-72'}`}>
-      {/* Logo & Brand */}
-      <div className="p-6 border-b border-sidebar-border">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center shadow-lg">
-            <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-            </svg>
-          </div>
-          {!isCollapsed && (
-            <div>
-              <h1 className="text-xl font-bold gradient-text">Social Flow</h1>
-              <p className="text-xs text-muted-foreground">Automatisation sociale</p>
-            </div>
-          )}
-        </div>
+    <aside
+      className={cn(
+        "sticky top-0 hidden h-screen shrink-0 flex-col border-r border-sidebar-border bg-sidebar transition-[width] duration-200 lg:flex",
+        collapsed ? "w-[76px]" : "w-64",
+      )}
+    >
+      <div className={cn("flex h-16 items-center border-b border-sidebar-border", collapsed ? "justify-center" : "px-5")}>
+        <Link href="/" aria-label="Accueil Social Flow">
+          {collapsed ? <LogoMark size={34} /> : <Logo size={34} />}
+        </Link>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 p-4 overflow-y-auto">
-        <ul className="space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const isActive = location === item.href;
+      <div className={cn("pt-4", collapsed ? "px-3" : "px-4")}>
+        <Button asChild variant="brand" className={cn("w-full", collapsed && "px-0")} data-testid="button-sidebar-create">
+          <Link href="/new" aria-label="Créer une publication">
+            <Plus className="h-4 w-4" />
+            {!collapsed && "Créer"}
+          </Link>
+        </Button>
+      </div>
 
-            return (
-              <li key={item.href} className="relative group">
-                <a
-                  href={item.href}
-                  onClick={(e) => handleLinkClick(item.href, e)}
-                  className={`
-                    flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all relative cursor-pointer
-                    ${isActive
-                      ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
-                      : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-                    }
-                    ${isCollapsed ? 'justify-center' : ''}
-                  `}
-                  data-testid={`link-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                >
-                  {isActive && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 gradient-primary rounded-r-full" />
-                  )}
-                  <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : ''}`} />
-                  {!isCollapsed && (
-                    <>
-                      <span className="flex-1">{item.label}</span>
-                      {item.badge && (
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold gradient-primary text-white shadow-sm">
-                          {item.badge}
-                        </span>
-                      )}
-                    </>
-                  )}
-                </a>
-                {isCollapsed && (
-                  <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-                    {item.label}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ul>
-
-        {/* Stats Section */}
-        <div className="mt-8 pt-6 border-t border-sidebar-border">
-          {!isCollapsed && (
-            <p className="text-xs font-semibold text-muted-foreground mb-3 px-4 uppercase tracking-wider">Statistiques</p>
-          )}
-          <ul className="space-y-1">
-            {statsItems.map((item) => {
-              const Icon = item.icon;
-              const isActive = location === item.href;
-
-              return (
-                <li key={item.href} className="relative group">
-                  <a
-                    href={item.href}
-                    onClick={(e) => handleLinkClick(item.href, e)}
-                    className={`
-                      flex items-center gap-3 px-4 py-3 rounded-xl transition-all relative cursor-pointer
-                      ${isActive
-                        ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
-                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-                      }
-                      ${isCollapsed ? 'justify-center' : ''}
-                    `}
-                    data-testid={`link-${item.label.toLowerCase()}`}
-                  >
-                    {isActive && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 gradient-primary rounded-r-full" />
-                    )}
-                    <Icon className={`w-5 h-5 ${isActive ? 'text-primary' : ''}`} />
-                    {!isCollapsed && <span>{item.label}</span>}
-                  </a>
-                  {isCollapsed && (
-                    <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-                      {item.label}
-                    </div>
-                  )}
+      <nav className={cn("flex-1 overflow-y-auto py-4 scrollbar-none", collapsed ? "px-3" : "px-4")} aria-label="Navigation principale">
+        {groups.map((group, gi) => (
+          <div key={group.label ?? gi} className={cn(gi > 0 && "mt-5")}>
+            {group.label &&
+              (collapsed ? (
+                <div className="mx-auto mb-2 h-px w-6 bg-sidebar-border" />
+              ) : (
+                <p className="mb-1.5 px-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                  {group.label}
+                </p>
+              ))}
+            <ul className="space-y-0.5">
+              {group.items.map((item) => (
+                <li key={item.href}>
+                  <NavLink item={item} active={isActivePath(location, item.href)} collapsed={collapsed} />
                 </li>
-              );
-            })}
-          </ul>
-        </div>
+              ))}
+            </ul>
+          </div>
+        ))}
       </nav>
 
-      {/* Admin & User Section */}
-      <div className="p-4 border-t border-sidebar-border space-y-2">
-        {isAdmin && (
-          <>
-            {/* Admin section toggle */}
-            <button
-              onClick={() => !isCollapsed && setAdminExpanded(v => !v)}
-              className={`w-full flex items-center gap-3 px-4 py-2 rounded-xl transition-all text-muted-foreground hover:text-foreground hover:bg-sidebar-accent relative group ${isCollapsed ? 'justify-center' : ''}`}
-            >
-              <Shield className="w-4 h-4 shrink-0" />
-              {!isCollapsed && (
-                <>
-                  <span className="text-xs font-semibold uppercase tracking-wider flex-1 text-left">Administration</span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${adminExpanded ? '' : '-rotate-90'}`} />
-                </>
-              )}
-              {isCollapsed && (
-                <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-                  Administration
-                </div>
-              )}
-            </button>
-
-            {/* Admin links — collapsible */}
-            {(adminExpanded || isCollapsed) && (
-              <div className={`space-y-0.5 ${!isCollapsed ? 'pl-2' : ''}`}>
-                {[
-                  { href: "/pages",       icon: Users,   label: "Pages gérées",       testId: "link-pages-gérées" },
-                  { href: "/ai",          icon: Bot,     label: "Assistant IA",        testId: "link-assistant-ia" },
-                  { href: "/users",       icon: UserCog, label: "Utilisateurs",        testId: "link-users" },
-                  { href: "/sql",         icon: Database,label: "SQL",                 testId: "link-sql" },
-                  { href: "/audio-admin", icon: Music,   label: "Bibliothèque Audio",  testId: "link-audio-admin" },
-                  { href: "/settings",    icon: Settings,label: "Paramètres",          testId: "link-settings" },
-                ].map(({ href, icon: Icon, label, testId }) => (
-                  <a
-                    key={href}
-                    href={href}
-                    onClick={(e) => handleLinkClick(href, e)}
-                    className={`
-                      flex items-center gap-3 px-4 py-2.5 rounded-xl transition-all relative group cursor-pointer
-                      ${location === href
-                        ? 'bg-gradient-to-r from-primary/10 to-secondary/10 text-primary shadow-sm'
-                        : 'text-muted-foreground hover:bg-sidebar-accent hover:text-foreground'
-                      }
-                      ${isCollapsed ? 'justify-center' : ''}
-                    `}
-                    data-testid={testId}
-                  >
-                    {location === href && (
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 gradient-primary rounded-r-full" />
-                    )}
-                    <Icon className="w-4 h-4 shrink-0" />
-                    {!isCollapsed && <span className="text-sm">{label}</span>}
-                    {isCollapsed && (
-                      <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50">
-                        {label}
-                      </div>
-                    )}
-                  </a>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-
-        <div className="pt-2 relative group">
-          <Button
-            variant="ghost"
-            className={`w-full text-muted-foreground hover:text-foreground hover:bg-sidebar-accent rounded-xl ${isCollapsed ? 'justify-center px-0' : 'justify-start'}`}
-            onClick={() => logoutMutation.mutate()}
-            disabled={logoutMutation.isPending}
-            data-testid="button-logout"
-          >
-            <LogOut className={`w-5 h-5 ${isCollapsed ? '' : 'mr-3'}`} />
-            {!isCollapsed && (logoutMutation.isPending ? "Déconnexion..." : "Déconnexion")}
-          </Button>
-          {isCollapsed && (
-            <div className="absolute left-full ml-2 px-3 py-2 bg-popover text-popover-foreground text-sm rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all whitespace-nowrap z-50 top-0">
-              Déconnexion
-            </div>
-          )}
-        </div>
-
-        {/* User Profile Card */}
+      <div className={cn("border-t border-sidebar-border p-3", collapsed && "flex flex-col items-center gap-2")}>
         {session && (
-          <div className={`mt-4 bg-gradient-to-br from-primary/5 to-secondary/5 border border-primary/10 rounded-xl ${isCollapsed ? 'p-2' : 'p-4'}`}>
-            <div className={`flex items-center gap-3 ${isCollapsed ? 'justify-center' : ''}`}>
-              <Avatar className="w-10 h-10 border-2 border-primary/20">
-                <AvatarFallback className="gradient-primary text-white font-semibold">
-                  {session.username.substring(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              {!isCollapsed && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold truncate">{session.username}</p>
-                  <p className="text-xs text-muted-foreground capitalize">{session.role}</p>
-                </div>
-              )}
-            </div>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className={cn(
+                  "flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-sidebar-accent",
+                  collapsed && "justify-center",
+                )}
+                data-testid="button-user-menu"
+              >
+                <Avatar className="h-9 w-9">
+                  <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">{initials}</AvatarFallback>
+                </Avatar>
+                {!collapsed && (
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{session.username}</p>
+                    <p className="text-xs text-muted-foreground">{isAdmin ? "Administrateur" : "Utilisateur"}</p>
+                  </div>
+                )}
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side={collapsed ? "right" : "top"} align="start" className="w-60">
+              <DropdownMenuLabel className="font-normal">
+                <p className="text-sm font-medium">{session.username}</p>
+                <p className="text-xs text-muted-foreground">{isAdmin ? "Administrateur" : "Utilisateur"}</p>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <div className="px-2 py-1.5">
+                <p className="mb-1.5 text-xs text-muted-foreground">Apparence</p>
+                <ThemeToggle />
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => logout.mutate()}
+                disabled={logout.isPending}
+                className="text-destructive focus:text-destructive"
+                data-testid="button-logout"
+              >
+                <LogOut className="mr-2 h-4 w-4" />
+                {logout.isPending ? "Déconnexion…" : "Se déconnecter"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         )}
 
-        {/* Toggle Button (Desktop only) */}
         <button
-          onClick={() => setIsCollapsed(!isCollapsed)}
-          className="mt-2 w-full hidden lg:flex items-center justify-center p-2 text-muted-foreground hover:text-primary hover:bg-primary/10 border-2 border-border hover:border-primary/50 rounded-xl transition-all"
+          onClick={() => setCollapsed((c) => !c)}
+          className={cn(
+            "mt-1 flex w-full items-center justify-center gap-2 rounded-lg p-2 text-xs text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-foreground",
+          )}
+          aria-label={collapsed ? "Déplier le menu" : "Replier le menu"}
           data-testid="button-toggle-sidebar"
         >
-          {isCollapsed ? <ChevronRight className="w-5 h-5" /> : <ChevronLeft className="w-5 h-5" />}
+          {collapsed ? <ChevronsRight className="h-4 w-4" /> : <><ChevronsLeft className="h-4 w-4" /> Replier</>}
         </button>
       </div>
     </aside>

@@ -1,43 +1,56 @@
-import Sidebar from "@/components/sidebar";
-import TopBar from "@/components/topbar";
+import { Link } from "wouter";
+import { Film, PenSquare } from "lucide-react";
+import { Page } from "@/components/layout/app-shell";
+import { PageHeader } from "@/components/layout/page-header";
+import { Button } from "@/components/ui/button";
 import StatsCards from "@/components/stats-cards";
 import OngoingReels from "@/components/ongoing-reels";
 import RecentPublications from "@/components/recent-publications";
 import ManagedPages from "@/components/managed-pages";
-import { useState } from "react";
+import { useSession } from "@/hooks/use-session";
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 5 || h >= 18) return "Bonsoir";
+  return "Bonjour";
+}
 
 export default function Dashboard() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { session } = useSession();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+    <Page width="wide">
+      <PageHeader
+        title={`${greeting()}${session ? ` ${session.username}` : ""} 👋`}
+        description="Voici un aperçu de votre activité sur les réseaux sociaux."
+        actions={
+          <>
+            <Button asChild variant="outline" className="flex-1 sm:flex-none">
+              <Link href="/reel">
+                <Film className="h-4 w-4" /> Nouveau Reel
+              </Link>
+            </Button>
+            <Button asChild variant="brand" className="flex-1 sm:flex-none">
+              <Link href="/new">
+                <PenSquare className="h-4 w-4" /> Nouvelle publication
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
-      <div className={`
-        fixed lg:static inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out
-        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
-        <Sidebar onLinkClick={() => setSidebarOpen(false)} />
-      </div>
-
-      <main className="flex-1 overflow-y-auto">
-        <TopBar onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-
-        <div className="p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 max-w-[1600px] mx-auto">
-          <StatsCards />
-
-          <OngoingReels />
-
-          <RecentPublications />
-
-          <ManagedPages />
+      <div className="space-y-6">
+        <StatsCards />
+        <OngoingReels />
+        <div className="grid gap-6 xl:grid-cols-5">
+          <div className="xl:col-span-3">
+            <RecentPublications />
+          </div>
+          <div className="xl:col-span-2">
+            <ManagedPages />
+          </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </Page>
   );
 }

@@ -1,94 +1,83 @@
 import { useQuery } from "@tanstack/react-query";
-import { Users } from "lucide-react";
-import { SiFacebook, SiInstagram, SiTiktok } from "react-icons/si";
+import { Link } from "wouter";
+import { ArrowRight, Link2, Users } from "lucide-react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/empty-state";
+import { PlatformIcon, platformLabel } from "@/components/platform-icon";
+
+interface ManagedPage {
+  id: string;
+  pageName: string;
+  platform: string;
+  isActive: string;
+  followersCount?: number | null;
+}
 
 export default function ManagedPages() {
-  const { data: pages, isLoading } = useQuery({
+  const { data: pages, isLoading } = useQuery<ManagedPage[]>({
     queryKey: ["/api/pages"],
   });
 
-  if (isLoading) {
-    return (
-      <div className="bg-card rounded-2xl border border-border/50 p-8 shadow-lg">
-        <div className="skeleton h-8 w-48 mb-6 rounded-lg" />
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="skeleton h-40 rounded-xl" />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-lg">
-      <div className="border-b border-border/50 p-6 bg-gradient-to-r from-primary/5 to-secondary/5">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
-            <Users className="text-white w-6 h-6" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold text-foreground">Pages gérées</h3>
-            <p className="text-sm text-muted-foreground">
-              {(pages as any[])?.length || 0} page(s) connectée(s)
-            </p>
-          </div>
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle>Comptes connectés</CardTitle>
+          <CardDescription>{pages?.length ?? 0} compte(s) prêt(s) à publier</CardDescription>
         </div>
-      </div>
-
-      <div className="p-8">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {pages && (pages as any[]).length > 0 ? (
-            (pages as any[]).map((page: any) => (
-              <div
-                key={page.id}
-                className="border border-border/50 rounded-2xl p-6 hover:shadow-xl hover:border-primary/30 transition-all cursor-pointer bg-card"
-                data-testid={`page-card-${page.id}`}
-              >
-                <div className="flex items-start justify-between mb-5">
-                  <div className={`
-                    w-14 h-14 rounded-xl flex items-center justify-center shadow-md
-                    ${page.platform === "facebook" ? "bg-[#1877F2]/10" : page.platform === "tiktok" ? "bg-foreground/10" : "bg-[#E4405F]/10"}
-                  `}>
-                    {page.platform === "facebook" ? (
-                      <SiFacebook className="text-[#1877F2] text-2xl" />
-                    ) : page.platform === "tiktok" ? (
-                      <SiTiktok className="text-foreground text-2xl" />
-                    ) : (
-                      <SiInstagram className="text-[#E4405F] text-2xl" />
-                    )}
-                  </div>
-                  <span className={`
-                    inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold
-                    ${page.isActive === "true" ? "bg-success/20 text-success" : "bg-muted text-muted-foreground"}
-                  `}>
-                    {page.isActive === "true" ? "Actif" : "Inactif"}
-                  </span>
+        <Button asChild variant="ghost" size="sm" className="text-primary">
+          <Link href="/pages">
+            Gérer <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Button>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="skeleton h-[72px] rounded-lg" />
+            ))}
+          </div>
+        ) : pages && pages.length > 0 ? (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-1">
+            {pages.map((page) => (
+              <div key={page.id} className="flex items-center gap-3 rounded-lg border p-3" data-testid={`page-card-${page.id}`}>
+                <PlatformIcon platform={page.platform} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{page.pageName}</p>
+                  <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                    {platformLabel(page.platform)}
+                    {page.followersCount ? (
+                      <>
+                        <span>·</span>
+                        <Users className="h-3 w-3" />
+                        {page.followersCount.toLocaleString("fr-FR")}
+                      </>
+                    ) : null}
+                  </p>
                 </div>
-                <h4 className="font-semibold text-foreground text-lg mb-2">{page.pageName}</h4>
-                <p className="text-sm text-muted-foreground mb-4 font-medium">
-                  {page.platform === "facebook" ? "Facebook Page" : page.platform === "tiktok" ? "Compte TikTok" : "Instagram Business"}
-                </p>
-                <div className="flex items-center justify-between pt-4 border-t border-border/50">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground font-medium">
-                      {page.followersCount?.toLocaleString() || 0} abonnés
-                    </span>
-                  </div>
-                </div>
+                <Badge variant={page.isActive === "true" ? "success" : "muted"}>
+                  {page.isActive === "true" ? "Actif" : "Inactif"}
+                </Badge>
               </div>
-            ))
-          ) : (
-            <div className="col-span-full text-center py-16">
-              <div className="w-20 h-20 rounded-2xl bg-muted/30 flex items-center justify-center mx-auto mb-6">
-                <Users className="w-10 h-10 text-muted-foreground opacity-50" />
-              </div>
-              <p className="text-muted-foreground text-lg">Aucune page connectée</p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            compact
+            icon={Link2}
+            title="Aucun compte connecté"
+            description="Connectez une page Facebook, Instagram ou TikTok pour commencer à publier."
+            action={
+              <Button asChild size="sm">
+                <Link href="/pages">Connecter un compte</Link>
+              </Button>
+            }
+          />
+        )}
+      </CardContent>
+    </Card>
   );
 }

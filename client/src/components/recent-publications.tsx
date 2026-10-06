@@ -1,7 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Facebook, Instagram, Clock, CheckCircle2, XCircle, Eye, Image as ImageIcon, Smartphone, Clapperboard } from "lucide-react";
-import { SiTiktok } from "react-icons/si";
+import { ArrowRight, Clock, CheckCircle2, XCircle, Eye, Image as ImageIcon, Smartphone, Clapperboard } from "lucide-react";
+import { Link } from "wouter";
+import { Badge } from "@/components/ui/badge";
+import { EmptyState } from "@/components/empty-state";
+import { PlatformIcon } from "@/components/platform-icon";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { ScheduledPost, SocialPage, Post, Media } from "@shared/schema";
@@ -148,115 +151,106 @@ export default function RecentPublications() {
   };
 
   return (
-    <Card className="rounded-2xl border-border/50 shadow-lg" data-testid="card-recent-publications">
-      <CardHeader>
-        <CardTitle>Historique des publications</CardTitle>
-        <CardDescription>
-          Vos 10 dernières publications sur les réseaux sociaux
-        </CardDescription>
+    <Card data-testid="card-recent-publications">
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle>Dernières publications</CardTitle>
+          <CardDescription>Les 10 publications les plus récentes</CardDescription>
+        </div>
+        <Button asChild variant="ghost" size="sm" className="text-primary">
+          <Link href="/history">
+            Tout voir <ArrowRight className="h-4 w-4" />
+          </Link>
+        </Button>
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-20 bg-muted rounded-lg animate-pulse" />
+              <div key={i} className="skeleton h-16 rounded-lg" />
             ))}
           </div>
         ) : recentPublished.length === 0 ? (
-          <div className="text-center py-12">
-            <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground">Aucune publication pour le moment</p>
-          </div>
+          <EmptyState
+            compact
+            icon={Clock}
+            title="Aucune publication pour le moment"
+            description="Vos publications apparaîtront ici dès qu'elles seront envoyées."
+            action={
+              <Button asChild size="sm">
+                <Link href="/new">Créer une publication</Link>
+              </Button>
+            }
+          />
         ) : (
-          <div className="space-y-3">
+          <ul className="divide-y">
             {recentPublished.map((scheduledPost) => (
-              <div
+              <li
                 key={scheduledPost.id}
-                className="flex items-start gap-4 p-4 rounded-lg border border-border/50 hover:bg-muted/50 transition-colors"
+                className="group flex items-center gap-3 py-3 first:pt-0 last:pb-0"
                 data-testid={`publication-${scheduledPost.id}`}
               >
-                {/* Platform icon */}
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${scheduledPost.page?.platform === 'facebook'
-                  ? 'bg-blue-500'
-                  : scheduledPost.page?.platform === 'tiktok'
-                    ? 'bg-black'
-                    : 'bg-gradient-to-br from-purple-500 to-pink-500'
-                  }`}>
-                  {scheduledPost.page?.platform === 'facebook' ? (
-                    <Facebook className="w-5 h-5 text-white" />
-                  ) : scheduledPost.page?.platform === 'tiktok' ? (
-                    <SiTiktok className="w-5 h-5 text-white" />
-                  ) : (
-                    <Instagram className="w-5 h-5 text-white" />
-                  )}
-                </div>
+                <PlatformIcon platform={scheduledPost.page?.platform ?? "facebook"} />
 
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-sm truncate" data-testid={`text-page-name-${scheduledPost.id}`}>
-                        {scheduledPost.page?.pageName || 'Page inconnue'}
-                      </h4>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {scheduledPost.post?.content ? (
-                          <span className="line-clamp-2">{scheduledPost.post.content}</span>
-                        ) : (
-                          <span className="italic">Aucun texte</span>
-                        )}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handlePreviewPost(scheduledPost)}
-                        className="h-8 w-8 p-0"
-                        data-testid={`button-preview-post-${scheduledPost.id}`}
-                        title="Prévisualiser"
-                      >
-                        <Eye className="w-4 h-4 text-muted-foreground hover:text-foreground" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDeleteClick(scheduledPost.postId)}
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive transition-colors"
-                        data-testid={`button-delete-post-${scheduledPost.id}`}
-                        title="Supprimer"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                      {scheduledPost.error ? (
-                        <XCircle className="w-4 h-4 text-destructive" />
-                      ) : (
-                        <CheckCircle2 className="w-4 h-4 text-green-500" />
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1 capitalize">
-                      {getPostTypeIcon(scheduledPost.postType)}
-                      {scheduledPost.postType === 'feed' ? 'Feed' :
-                        scheduledPost.postType === 'story' ? 'Story' :
-                          scheduledPost.postType === 'reel' ? 'Reel' : 'Feed & Story'}
-                    </span>
-                    <span>•</span>
-                    <span>
-                      {format(new Date(scheduledPost.scheduledAt!), "d MMM yyyy 'à' HH:mm", { locale: fr })}
-                    </span>
-                    {scheduledPost.error && (
-                      <>
-                        <span>•</span>
-                        <span className="text-destructive">Erreur</span>
-                      </>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate text-sm font-medium" data-testid={`text-page-name-${scheduledPost.id}`}>
+                      {scheduledPost.page?.pageName || "Page inconnue"}
+                    </p>
+                    {scheduledPost.error ? (
+                      <Badge variant="danger" className="gap-1">
+                        <XCircle className="h-3 w-3" /> Échec
+                      </Badge>
+                    ) : (
+                      <Badge variant="success" className="gap-1">
+                        <CheckCircle2 className="h-3 w-3" /> Publié
+                      </Badge>
                     )}
                   </div>
+                  <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                    {scheduledPost.post?.content || <span className="italic">Aucun texte</span>}
+                  </p>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    {getPostTypeIcon(scheduledPost.postType)}
+                    {scheduledPost.postType === "feed"
+                      ? "Feed"
+                      : scheduledPost.postType === "story"
+                        ? "Story"
+                        : scheduledPost.postType === "reel"
+                          ? "Reel"
+                          : "Feed & Story"}
+                    <span>·</span>
+                    {format(new Date(scheduledPost.scheduledAt!), "d MMM yyyy 'à' HH:mm", { locale: fr })}
+                  </p>
                 </div>
-              </div>
+
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handlePreviewPost(scheduledPost)}
+                    className="h-8 w-8 text-muted-foreground"
+                    data-testid={`button-preview-post-${scheduledPost.id}`}
+                    title="Prévisualiser"
+                    aria-label="Prévisualiser"
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDeleteClick(scheduledPost.postId)}
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    data-testid={`button-delete-post-${scheduledPost.id}`}
+                    title="Supprimer"
+                    aria-label="Supprimer"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </li>
             ))}
-          </div>
+          </ul>
         )}
       </CardContent>
 
@@ -274,7 +268,7 @@ export default function RecentPublications() {
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Êtes-vous sûr ?</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer cette publication ?</AlertDialogTitle>
             <AlertDialogDescription>
               Cette action est irréversible. Cela supprimera définitivement cette publication de votre historique et des statistiques associées.
             </AlertDialogDescription>
