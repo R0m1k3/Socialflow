@@ -165,7 +165,7 @@ export default function CalendarListView({ scheduledPosts, onEditPost, onDeleteP
                       <div
                         key={post.id}
                         className={`px-4 py-3 border-b border-border/30 last:border-b-0 ${
-                          isPending ? 'bg-blue-500/5' : 'bg-green-500/5'
+                          isPending ? 'bg-primary/5' : 'bg-success/5'
                         }`}
                         data-testid={`calendar-list-post-${post.id}`}
                       >
@@ -176,8 +176,8 @@ export default function CalendarListView({ scheduledPosts, onEditPost, onDeleteP
                               <span className="font-semibold text-lg text-foreground">{time}</span>
                               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                                 isPending 
-                                  ? 'bg-blue-500/20 text-blue-600' 
-                                  : 'bg-green-500/20 text-green-600'
+                                  ? 'bg-primary/10 text-primary' 
+                                  : 'bg-success/15 text-success'
                               }`}>
                                 {isPending ? 'Programmé' : 'Publié'}
                               </span>
@@ -197,7 +197,7 @@ export default function CalendarListView({ scheduledPosts, onEditPost, onDeleteP
                               data-testid={`button-preview-post-${post.id}`}
                               title="Prévisualiser"
                             >
-                              <Eye className={`w-5 h-5 ${isPending ? 'text-blue-500' : 'text-green-500'}`} />
+                              <Eye className={`w-5 h-5 ${isPending ? 'text-primary' : 'text-success'}`} />
                             </Button>
                             {isPending && (
                               <>
@@ -209,7 +209,7 @@ export default function CalendarListView({ scheduledPosts, onEditPost, onDeleteP
                                   data-testid={`button-edit-post-${post.id}`}
                                   title="Modifier"
                                 >
-                                  <Edit className="w-5 h-5 text-blue-500" />
+                                  <Edit className="w-5 h-5 text-primary" />
                                 </Button>
                                 <Button
                                   variant="ghost"
@@ -219,7 +219,7 @@ export default function CalendarListView({ scheduledPosts, onEditPost, onDeleteP
                                   data-testid={`button-delete-post-${post.id}`}
                                   title="Supprimer"
                                 >
-                                  <Trash2 className="w-5 h-5 text-red-500" />
+                                  <Trash2 className="w-5 h-5 text-destructive" />
                                 </Button>
                               </>
                             )}

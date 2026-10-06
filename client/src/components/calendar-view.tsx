@@ -191,52 +191,47 @@ export default function CalendarView() {
   };
 
   return (
-    <div className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-lg">
-      <div className="border-b border-border/50 p-6 bg-gradient-to-r from-primary/5 to-secondary/5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
-              <CalendarIcon className="text-white w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">Calendrier</h3>
-              <p className="text-sm text-muted-foreground">Visualisez vos publications planifiées</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={goToPreviousMonth}
-              className="rounded-xl"
-              data-testid="button-prev-month"
-            >
-              <ChevronLeft className="w-4 h-4" />
-              Précédent
-            </Button>
-            <span className="text-sm font-semibold text-foreground min-w-[140px] text-center px-4 py-2 bg-muted/30 rounded-xl">
-              {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={goToNextMonth}
-              className="rounded-xl"
-              data-testid="button-next-month"
-            >
-              Suivant
-              <ChevronRight className="w-4 h-4 ml-2" />
-            </Button>
-          </div>
+    <div className="overflow-hidden rounded-xl border bg-card shadow-soft">
+      <div className="flex items-center justify-between gap-3 border-b px-4 py-3 sm:px-6">
+        <h2 className="text-lg font-semibold capitalize text-foreground">
+          {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+        </h2>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentDate(new Date())}
+            data-testid="button-today"
+          >
+            Aujourd'hui
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={goToPreviousMonth}
+            aria-label="Mois précédent"
+            data-testid="button-prev-month"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={goToNextMonth}
+            aria-label="Mois suivant"
+            data-testid="button-next-month"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </Button>
         </div>
       </div>
 
       {isDesktop ? (
-        <div className="p-8">
+        <div className="p-4 lg:p-6">
           <div className="grid grid-cols-7 gap-2 mb-2">
             {daysOfWeek.map((day) => (
-              <div key={day} className="bg-muted/30 py-3 rounded-lg text-center">
-                <span className="text-sm font-semibold text-muted-foreground">{day}</span>
+              <div key={day} className="py-1 text-center">
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{day}</span>
               </div>
             ))}
           </div>
@@ -246,8 +241,8 @@ export default function CalendarView() {
               <div
                 key={index}
                 className={`
-                bg-card border border-border/50 rounded-xl p-4 min-h-[140px] transition-all hover:shadow-md
-                ${isToday(day.date) ? "ring-2 ring-primary shadow-lg" : ""}
+                bg-card border rounded-lg p-2.5 min-h-[120px] transition-colors hover:border-primary/30
+                ${isToday(day.date) ? "border-primary/60 bg-primary/[0.03]" : ""}
                 ${!day.isCurrentMonth ? "opacity-40" : ""}
               `}
                 data-testid={`calendar-day-${index}`}
@@ -263,7 +258,7 @@ export default function CalendarView() {
                     {day.date.getDate()}
                   </span>
                   {isToday(day.date) && (
-                    <span className="text-[10px] bg-gradient-to-r from-primary to-secondary text-white px-2 py-0.5 rounded-full font-semibold">
+                    <span className="text-[10px] bg-primary text-primary-foreground px-2 py-0.5 rounded-full font-semibold">
                       Aujourd'hui
                     </span>
                   )}
@@ -289,8 +284,8 @@ export default function CalendarView() {
                             key={idx}
                             className={`
                             px-3 py-2 rounded-lg text-xs transition-all font-medium shadow-sm group relative
-                            ${isPending ? 'bg-blue-500/20 text-blue-600 hover:bg-blue-500/30' : ''}
-                            ${isPublished ? 'bg-green-500/20 text-green-600 hover:bg-green-500/30' : ''}
+                            ${isPending ? 'bg-primary/10 text-primary hover:bg-primary/20' : ''}
+                            ${isPublished ? 'bg-success/15 text-success hover:bg-success/25' : ''}
                           `}
                             data-testid={`calendar-post-${post.id}`}
                           >
@@ -308,29 +303,29 @@ export default function CalendarView() {
                               <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <button
                                   onClick={(e) => handlePreviewPost(post, e)}
-                                  className={`p-1 rounded ${isPending ? 'hover:bg-blue-500/20' : 'hover:bg-green-500/20'}`}
+                                  className={`p-1 rounded ${isPending ? 'hover:bg-primary/15' : 'hover:bg-success/20'}`}
                                   data-testid={`button-preview-post-${post.id}`}
                                   title="Prévisualiser"
                                 >
-                                  <Eye className={`w-3 h-3 ${isPending ? 'text-blue-500' : 'text-green-500'}`} />
+                                  <Eye className={`w-3 h-3 ${isPending ? 'text-primary' : 'text-success'}`} />
                                 </button>
                                 {isPending && (
                                   <>
                                     <button
                                       onClick={(e) => handleEditPost(post, e)}
-                                      className="p-1 hover:bg-blue-500/20 rounded"
+                                      className="p-1 hover:bg-primary/15 rounded"
                                       data-testid={`button-edit-post-${post.id}`}
                                       title="Modifier"
                                     >
-                                      <Edit className="w-3 h-3 text-blue-500" />
+                                      <Edit className="w-3 h-3 text-primary" />
                                     </button>
                                     <button
                                       onClick={(e) => handleDeletePost(post.id, e)}
-                                      className="p-1 hover:bg-red-500/20 rounded"
+                                      className="p-1 hover:bg-destructive/15 rounded"
                                       data-testid={`button-delete-post-${post.id}`}
                                       title="Supprimer"
                                     >
-                                      <Trash2 className="w-3 h-3 text-red-500" />
+                                      <Trash2 className="w-3 h-3 text-destructive" />
                                     </button>
                                   </>
                                 )}
@@ -368,8 +363,8 @@ export default function CalendarView() {
                                     key={idx}
                                     className={`
                                     px-3 py-2 rounded-lg text-xs transition-all font-medium shadow-sm group relative
-                                    ${isPending ? 'bg-blue-500/20 text-blue-600 hover:bg-blue-500/30' : ''}
-                                    ${isPublished ? 'bg-green-500/20 text-green-600 hover:bg-green-500/30' : ''}
+                                    ${isPending ? 'bg-primary/10 text-primary hover:bg-primary/20' : ''}
+                                    ${isPublished ? 'bg-success/15 text-success hover:bg-success/25' : ''}
                                   `}
                                     data-testid={`popover-post-${post.id}`}
                                   >
@@ -387,29 +382,29 @@ export default function CalendarView() {
                                       <div className="flex gap-1">
                                         <button
                                           onClick={(e) => handlePreviewPost(post, e)}
-                                          className={`p-1 rounded ${isPending ? 'hover:bg-blue-500/20' : 'hover:bg-green-500/20'}`}
+                                          className={`p-1 rounded ${isPending ? 'hover:bg-primary/15' : 'hover:bg-success/20'}`}
                                           data-testid={`button-preview-popover-post-${post.id}`}
                                           title="Prévisualiser"
                                         >
-                                          <Eye className={`w-3 h-3 ${isPending ? 'text-blue-500' : 'text-green-500'}`} />
+                                          <Eye className={`w-3 h-3 ${isPending ? 'text-primary' : 'text-success'}`} />
                                         </button>
                                         {isPending && (
                                           <>
                                             <button
                                               onClick={(e) => handleEditPost(post, e)}
-                                              className="p-1 hover:bg-blue-500/20 rounded"
+                                              className="p-1 hover:bg-primary/15 rounded"
                                               data-testid={`button-edit-popover-post-${post.id}`}
                                               title="Modifier"
                                             >
-                                              <Edit className="w-3 h-3 text-blue-500" />
+                                              <Edit className="w-3 h-3 text-primary" />
                                             </button>
                                             <button
                                               onClick={(e) => handleDeletePost(post.id, e)}
-                                              className="p-1 hover:bg-red-500/20 rounded"
+                                              className="p-1 hover:bg-destructive/15 rounded"
                                               data-testid={`button-delete-popover-post-${post.id}`}
                                               title="Supprimer"
                                             >
-                                              <Trash2 className="w-3 h-3 text-red-500" />
+                                              <Trash2 className="w-3 h-3 text-destructive" />
                                             </button>
                                           </>
                                         )}
@@ -429,13 +424,13 @@ export default function CalendarView() {
             ))}
           </div>
 
-          <div className="mt-8 flex items-center justify-center gap-8 flex-wrap">
+          <div className="mt-5 flex items-center justify-center gap-6 flex-wrap">
             <div className="flex items-center gap-3">
-              <div className="w-4 h-4 rounded-md bg-blue-500/20 border-2 border-blue-500"></div>
+              <div className="w-3 h-3 rounded bg-primary/15 border-2 border-primary"></div>
               <span className="text-sm text-muted-foreground font-medium">Programmé</span>
             </div>
             <div className="flex items-center gap-3">
-              <div className="w-4 h-4 rounded-md bg-green-500/20 border-2 border-green-500"></div>
+              <div className="w-3 h-3 rounded bg-success/15 border-2 border-success"></div>
               <span className="text-sm text-muted-foreground font-medium">Publié</span>
             </div>
           </div>

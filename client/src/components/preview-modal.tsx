@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ChevronLeft, ChevronRight, Send, Facebook, Instagram, Heart, MessageCircle, Share2, Bookmark, Loader2, Video } from 'lucide-react';
@@ -98,7 +99,7 @@ export function PreviewModal({
     <div className="bg-white rounded-lg overflow-hidden border border-gray-200 max-w-lg mx-auto">
       {/* Header */}
       <div className="p-3 flex items-center gap-3 border-b border-gray-200">
-        <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full bg-facebook flex items-center justify-center">
           <Facebook className="w-6 h-6 text-white" />
         </div>
         <div className="flex-1">
@@ -404,7 +405,7 @@ export function PreviewModal({
               <Instagram className="w-5 h-5 text-white" />
             </div>
           ) : (
-            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center">
+            <div className="w-8 h-8 rounded-full bg-facebook flex items-center justify-center">
               <Facebook className="w-5 h-5 text-white" />
             </div>
           )}
@@ -503,42 +504,31 @@ export function PreviewModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Prévisualisation de la publication</DialogTitle>
+          <DialogTitle>Aperçu de la publication</DialogTitle>
           <DialogDescription>
-            Visualisez votre publication avant de la publier
+            Vérifiez le rendu sur chaque réseau avant de valider.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6">
           {/* Format selector */}
-          <div className="flex items-center gap-4">
-            <label className="text-sm font-medium">Format de prévisualisation:</label>
-            <Select value={previewFormat} onValueChange={(value: PreviewFormat) => {
-              setPreviewFormat(value);
+          <Tabs
+            value={previewFormat}
+            onValueChange={(value) => {
+              setPreviewFormat(value as PreviewFormat);
               setCurrentPhotoIndex(0);
-            }}>
-              <SelectTrigger className="w-64" data-testid="select-preview-format">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="facebook-feed" data-testid="option-facebook-feed">
-                  Feed Facebook (1200x630)
-                </SelectItem>
-                <SelectItem value="facebook-story" data-testid="option-facebook-story">
-                  Story Facebook (1080x1920)
-                </SelectItem>
-                <SelectItem value="instagram-feed" data-testid="option-instagram-feed">
-                  Feed Instagram (1080x1080)
-                </SelectItem>
-                <SelectItem value="instagram-story" data-testid="option-instagram-story">
-                  Story Instagram (1080x1920)
-                </SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+            }}
+          >
+            <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4" data-testid="select-preview-format">
+              <TabsTrigger value="facebook-feed" data-testid="option-facebook-feed">Facebook · Fil</TabsTrigger>
+              <TabsTrigger value="facebook-story" data-testid="option-facebook-story">Facebook · Story</TabsTrigger>
+              <TabsTrigger value="instagram-feed" data-testid="option-instagram-feed">Instagram · Fil</TabsTrigger>
+              <TabsTrigger value="instagram-story" data-testid="option-instagram-story">Instagram · Story</TabsTrigger>
+            </TabsList>
+          </Tabs>
 
           {/* Preview */}
-          <div className="border rounded-lg p-6 bg-gray-50">
+          <div className="border rounded-lg p-4 sm:p-6 bg-muted/40">
             {previewFormat === 'facebook-feed' && renderFacebookFeed()}
             {previewFormat === 'facebook-story' && renderFacebookStory()}
             {previewFormat === 'instagram-feed' && renderInstagramFeed()}
@@ -546,7 +536,7 @@ export function PreviewModal({
           </div>
 
           {/* Actions */}
-          <div className="flex justify-end gap-3">
+          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             {readOnly ? (
               <Button
                 onClick={() => onOpenChange(false)}
@@ -561,16 +551,16 @@ export function PreviewModal({
                   onClick={() => onOpenChange(false)}
                   data-testid="button-cancel-preview"
                 >
-                  Annuler
+                  Modifier
                 </Button>
                 <Button
                   onClick={onPublish}
                   disabled={isPublishing}
-                  className="bg-gradient-to-r from-primary to-secondary hover:opacity-90"
+                  variant="brand"
                   data-testid="button-publish-from-preview"
                 >
                   <Send className="w-4 h-4" />
-                  {isPublishing ? 'Publication...' : 'Publier'}
+                  {isPublishing ? 'Envoi…' : 'Confirmer'}
                 </Button>
               </>
             )}

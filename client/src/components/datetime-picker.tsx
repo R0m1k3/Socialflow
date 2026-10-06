@@ -100,7 +100,7 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
                 occupied: (date) => isDateOccupied(date)
               }}
               modifiersClassNames={{
-                occupied: "bg-red-500/20 text-red-700 dark:text-red-300 font-bold hover:bg-red-500/30"
+                occupied: "bg-destructive/15 text-destructive font-bold hover:bg-destructive/25"
               }}
               disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
               data-testid="calendar-picker"
@@ -154,7 +154,7 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
                       className={cn(
                         "w-full justify-center mb-0.5 h-9 text-xs",
                         selectedHour === hour && "bg-primary text-primary-foreground",
-                        isOptimalHour(hour) && selectedHour !== hour && "bg-green-500/20 text-green-700 dark:text-green-300 font-semibold hover:bg-green-500/30"
+                        isOptimalHour(hour) && selectedHour !== hour && "bg-success/15 text-success font-semibold hover:bg-success/25"
                       )}
                       onClick={() => handleTimeChange(hour, selectedMinute)}
                       data-testid={`hour-${hour}`}
@@ -189,8 +189,8 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
             </div>
             <div className="p-2 border-t bg-muted/50">
               <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
-                <span className="text-[9px] font-semibold text-green-600 dark:text-green-400">
+                <div className="w-1.5 h-1.5 rounded-full bg-success"></div>
+                <span className="text-[9px] font-semibold text-success">
                   Heures optimales (8h, 12h-13h, 18h-20h)
                 </span>
               </div>
@@ -200,10 +200,10 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
       )}
 
       {occupiedDates.length > 0 && (
-        <div className="p-3 bg-red-500/10 rounded-lg border border-red-500/20">
+        <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20">
           <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-red-500"></div>
-            <span className="text-xs font-semibold text-red-600 dark:text-red-400">
+            <div className="w-2 h-2 rounded-full bg-destructive"></div>
+            <span className="text-xs font-semibold text-destructive">
               Les dates en fond rouge ont déjà des publications programmées
             </span>
           </div>

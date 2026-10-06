@@ -5,7 +5,18 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient, handleUnauthorized } from "@/lib/queryClient";
 import { MediaThumbnail } from "@/components/media-thumbnail";
-import { CloudUpload, Image as ImageIcon, Video, X, Upload, Loader2, ZoomIn, Camera } from "lucide-react";
+import { CloudUpload, Image as ImageIcon, X, Upload, Loader2, ZoomIn, Camera, Trash2 } from "lucide-react";
+import { EmptyState } from "@/components/empty-state";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { SiFacebook, SiInstagram } from "react-icons/si";
 
@@ -16,6 +27,7 @@ export default function MediaUpload() {
   const { toast } = useToast();
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [zoomImage, setZoomImage] = useState<string | null>(null);
+  const [mediaToDelete, setMediaToDelete] = useState<any>(null);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
 
@@ -213,205 +225,191 @@ export default function MediaUpload() {
     };
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
+  const formatPreview = (label: string, size: string, url: string | undefined, aspect: string, width: string) => (
+    <div className="rounded-lg border p-3">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <SiFacebook className="text-facebook" />
+          <SiInstagram className="text-instagram" />
+          <span className="text-sm font-medium">{label}</span>
+        </div>
+        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">{size}</span>
+      </div>
+      <div className={`mx-auto overflow-hidden rounded-md border bg-muted/40 ${aspect} ${width}`}>
+        {url ? (
+          <img src={url} alt={`Aperçu ${label}`} className="h-full w-full object-cover" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <ImageIcon className="h-8 w-8 text-muted-foreground/50" />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
   return (
-    <div className="bg-card rounded-2xl border border-border/50 overflow-hidden shadow-lg">
-      <div className="border-b border-border/50 p-6 bg-gradient-to-r from-primary/5 to-secondary/5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary to-secondary flex items-center justify-center shadow-lg">
-              <Upload className="text-white w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-lg font-semibold text-foreground">Médiathèque</h3>
-              <p className="text-sm text-muted-foreground">Téléchargement et recadrage automatique</p>
-            </div>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              onClick={() => cameraInputRef.current?.click()}
-              disabled={uploadMutation.isPending}
-              variant="outline"
-              className="lg:hidden"
-              data-testid="button-camera"
-            >
-              <Camera className="w-4 h-4" />
-            </Button>
-            <Button
-              onClick={open}
-              className="bg-gradient-to-r from-primary to-secondary hover:opacity-90 rounded-xl"
-              data-testid="button-browse"
-            >
-              <CloudUpload className="w-4 h-4" />
-              Parcourir
-            </Button>
-          </div>
+    <div className="space-y-6">
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*,video/*"
+        capture="environment"
+        onChange={handleCameraCapture}
+        className="hidden"
+      />
+      <div
+        {...getRootProps()}
+        className={`
+          flex cursor-pointer flex-col items-center gap-4 rounded-xl border-2 border-dashed bg-card p-6 text-center transition-colors sm:flex-row sm:text-left
+          ${isDragActive ? "border-primary bg-primary/5" : "hover:border-primary/50"}
+          ${uploadingCount > 0 ? "pointer-events-none opacity-60" : ""}
+        `}
+        data-testid="dropzone-upload"
+      >
+        <input {...getInputProps()} />
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          {uploadingCount > 0 ? <Loader2 className="h-6 w-6 animate-spin" /> : <CloudUpload className="h-6 w-6" />}
+        </div>
+        <div className="flex-1">
+          {uploadingCount > 0 ? (
+            <>
+              <p className="font-medium">Import en cours…</p>
+              <p className="text-sm text-muted-foreground">{uploadingCount} fichier(s) en cours de traitement</p>
+            </>
+          ) : (
+            <>
+              <p className="font-medium">{isDragActive ? "Déposez vos fichiers ici" : "Glissez-déposez vos images et vidéos"}</p>
+              <p className="text-sm text-muted-foreground">PNG, JPG ou MP4 jusqu'à 50 Mo — recadrées automatiquement pour le fil et les stories.</p>
+            </>
+          )}
+        </div>
+        <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+          <Button
+            onClick={() => cameraInputRef.current?.click()}
+            disabled={uploadMutation.isPending}
+            variant="outline"
+            className="lg:hidden"
+            data-testid="button-camera"
+          >
+            <Camera className="w-4 h-4" />
+            Caméra
+          </Button>
+          <Button onClick={open} data-testid="button-browse">
+            <Upload className="w-4 h-4" />
+            Importer
+          </Button>
         </div>
       </div>
 
-      <div className="p-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div className="space-y-6">
-            <div
-              {...getRootProps()}
-              className={`
-                border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-all
-                ${isDragActive ? "border-primary bg-primary/5 shadow-lg" : "border-border/50 hover:border-primary hover:bg-accent/30"}
-                ${uploadingCount > 0 ? "pointer-events-none opacity-50" : ""}
-              `}
-              data-testid="dropzone-upload"
-            >
-              <input {...getInputProps()} />
-              <input
-                ref={cameraInputRef}
-                type="file"
-                accept="image/*,video/*"
-                capture="environment"
-                onChange={handleCameraCapture}
-                className="hidden"
-              />
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/10 to-secondary/10 flex items-center justify-center mx-auto mb-6">
-                {uploadingCount > 0 ? (
-                  <Loader2 className="w-8 h-8 text-primary animate-spin" />
-                ) : (
-                  <CloudUpload className="w-8 h-8 text-primary" />
-                )}
-              </div>
-              {uploadingCount > 0 ? (
-                <>
-                  <p className="text-foreground font-semibold text-lg mb-2">
-                    Téléchargement en cours...
-                  </p>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {uploadingCount} fichier(s) en cours de traitement
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="text-foreground font-semibold text-lg mb-2">
-                    {isDragActive ? "Déposez vos fichiers ici" : "Glissez-déposez vos fichiers"}
-                  </p>
-                  <p className="text-sm text-muted-foreground mb-4">ou cliquez pour parcourir</p>
-                  <p className="text-xs text-muted-foreground font-medium">PNG, JPG, MP4 jusqu'à 50MB</p>
-                </>
-              )}
-            </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold">Vos médias</h2>
+            <span className="text-xs text-muted-foreground">{totalMedia} élément(s)</span>
+          </div>
 
-            <div className="space-y-4">
-              <h4 className="text-sm font-semibold text-foreground flex items-center justify-between">
-                <span>Fichiers téléchargés</span>
-                <span className="text-xs font-medium text-muted-foreground bg-muted/30 px-3 py-1 rounded-full">
-                  {totalMedia} média(s)
-                </span>
-              </h4>
-
-              <div className="max-h-[500px] overflow-y-auto">
-                <div className="grid grid-cols-3 gap-3">
-                  {mediaList.map((media: any) => (
-                    <div
-                      key={media.id}
-                      onClick={() => setSelectedFile(media)}
-                      className="relative aspect-square rounded-lg overflow-hidden border-2 border-border/50 cursor-pointer hover:border-primary hover:shadow-lg transition-all group"
-                      data-testid={`media-item-${media.id}`}
-                    >
-                      <MediaThumbnail
-                        src={media.facebookFeedUrl || media.originalUrl}
-                        alt={media.fileName}
-                        thumbnailUrl={media.thumbnailUrl ?? undefined}
-                        type={media.type === 'video' ? 'video' : 'image'}
-                      />
-                      <div className="absolute top-2 right-2 flex gap-2">
-                        {media.type === "image" && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setZoomImage(media.originalUrl);
-                            }}
-                            className="w-8 h-8 bg-black/70 hover:bg-primary rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                            data-testid={`button-zoom-${media.id}`}
-                          >
-                            <ZoomIn className="w-4 h-4 text-white" />
-                          </button>
-                        )}
+          {mediaList.length === 0 ? (
+            <EmptyState
+              icon={ImageIcon}
+              title="Votre médiathèque est vide"
+              description="Importez vos premières images ou vidéos pour les utiliser dans vos publications."
+            />
+          ) : (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 xl:grid-cols-5">
+              {mediaList.map((media: any) => {
+                const selected = selectedFile?.id === media.id;
+                return (
+                  <div
+                    key={media.id}
+                    onClick={() => setSelectedFile(media)}
+                    className={`group relative aspect-square cursor-pointer overflow-hidden rounded-lg border-2 transition-all ${selected ? "border-primary" : "border-transparent hover:border-primary/40"}`}
+                    data-testid={`media-item-${media.id}`}
+                  >
+                    <MediaThumbnail
+                      src={media.facebookFeedUrl || media.originalUrl}
+                      alt={media.fileName}
+                      thumbnailUrl={media.thumbnailUrl ?? undefined}
+                      type={media.type === 'video' ? 'video' : 'image'}
+                    />
+                    <div className="absolute right-1.5 top-1.5 flex gap-1.5 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                      {media.type === "image" && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            deleteMutation.mutate(media.id);
+                            setZoomImage(media.originalUrl);
                           }}
-                          className="w-8 h-8 bg-black/70 hover:bg-destructive rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                          data-testid={`button-delete-${media.id}`}
+                          className="flex h-7 w-7 items-center justify-center rounded-full bg-background/85 text-foreground shadow backdrop-blur hover:bg-background"
+                          aria-label="Agrandir"
+                          data-testid={`button-zoom-${media.id}`}
                         >
-                          <X className="w-4 h-4 text-white" />
+                          <ZoomIn className="h-3.5 w-3.5" />
                         </button>
-                      </div>
+                      )}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setMediaToDelete(media);
+                        }}
+                        className="flex h-7 w-7 items-center justify-center rounded-full bg-background/85 text-destructive shadow backdrop-blur hover:bg-destructive hover:text-destructive-foreground"
+                        aria-label="Supprimer"
+                        data-testid={`button-delete-${media.id}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
-                  ))}
-                </div>
-
-                {/* Élément sentinelle pour le scroll infini */}
-                {hasNextPage ? (
-                  <div ref={loadMoreRef} className="flex justify-center py-4 mt-3">
-                    <Loader2 className="w-5 h-5 text-primary animate-spin" />
                   </div>
-                ) : null}
-              </div>
+                );
+              })}
             </div>
-          </div>
+          )}
 
-          <div className="space-y-6">
-            <h4 className="text-sm font-semibold text-foreground">Aperçu et recadrage automatique</h4>
-
-            <div className="space-y-5">
-              <div className="border border-border/50 rounded-xl p-5 bg-card shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <SiFacebook className="text-[#1877F2] text-lg" />
-                    <SiInstagram className="text-[#E4405F] text-lg" />
-                    <span className="text-sm font-semibold text-foreground">Feed</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md font-medium">1080×1080</span>
-                </div>
-                <div className="aspect-square bg-muted/30 rounded-lg overflow-hidden border border-border/50" style={{ width: '250px' }}>
-                  {selectedFile?.facebookFeedUrl || selectedFile?.instagramFeedUrl ? (
-                    <img
-                      src={selectedFile.facebookFeedUrl || selectedFile.instagramFeedUrl}
-                      alt="Feed preview"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <ImageIcon className="w-12 h-12 text-muted-foreground opacity-50" />
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="border border-border/50 rounded-xl p-5 bg-card shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <SiFacebook className="text-[#1877F2] text-lg" />
-                    <SiInstagram className="text-[#E4405F] text-lg" />
-                    <span className="text-sm font-semibold text-foreground">Story</span>
-                  </div>
-                  <span className="text-xs text-muted-foreground bg-muted/30 px-2 py-1 rounded-md font-medium">1080×1920</span>
-                </div>
-                <div className="aspect-[9/16] bg-muted/30 rounded-lg overflow-hidden border border-border/50" style={{ width: '200px' }}>
-                  {selectedFile?.instagramStoryUrl ? (
-                    <img
-                      src={selectedFile.instagramStoryUrl}
-                      alt="Story preview"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center">
-                      <ImageIcon className="w-10 h-10 text-muted-foreground opacity-50" />
-                    </div>
-                  )}
-                </div>
-              </div>
+          {/* Élément sentinelle pour le scroll infini */}
+          {hasNextPage ? (
+            <div ref={loadMoreRef} className="mt-3 flex justify-center py-4">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
             </div>
-          </div>
+          ) : null}
         </div>
+
+        <aside>
+          <div className="space-y-3 rounded-xl border bg-card p-4 shadow-soft lg:sticky lg:top-6">
+            <div>
+              <h2 className="text-sm font-semibold">Formats générés</h2>
+              <p className="text-xs text-muted-foreground">
+                {selectedFile ? selectedFile.fileName : "Cliquez sur un média pour voir ses recadrages."}
+              </p>
+            </div>
+            {formatPreview("Fil", "1080×1080", selectedFile?.facebookFeedUrl || selectedFile?.instagramFeedUrl, "aspect-square", "w-full max-w-[260px]")}
+            {formatPreview("Story", "1080×1920", selectedFile?.instagramStoryUrl, "aspect-[9/16]", "w-full max-w-[160px]")}
+          </div>
+        </aside>
       </div>
+
+      <AlertDialog open={!!mediaToDelete} onOpenChange={(o) => !o && setMediaToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce média ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              « {mediaToDelete?.fileName} » sera définitivement retiré de la médiathèque.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (mediaToDelete) {
+                  deleteMutation.mutate(mediaToDelete.id);
+                  if (selectedFile?.id === mediaToDelete.id) setSelectedFile(null);
+                }
+                setMediaToDelete(null);
+              }}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog open={uploadMutation.isPending}>
         <DialogContent className="sm:max-w-md [&>button]:hidden">
@@ -419,13 +417,11 @@ export default function MediaUpload() {
             <div className="w-20 h-20 rounded-full bg-primary/10 flex items-center justify-center mb-6">
               <Loader2 className="w-10 h-10 text-primary animate-spin" />
             </div>
-            <h3 className="text-xl font-semibold text-foreground mb-2">
-              Upload en cours...
+            <h3 className="text-lg font-semibold text-foreground mb-1">
+              Import en cours…
             </h3>
             <p className="text-sm text-muted-foreground text-center">
-              Votre image est en cours de téléchargement et de traitement.
-              <br />
-              Veuillez patienter.
+              Votre fichier est en cours d'envoi et de recadrage.
             </p>
           </div>
         </DialogContent>
