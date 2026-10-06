@@ -3,7 +3,11 @@
     "allow": [
       "WebFetch(domain:pixabay.com)",
       "Bash(find /c/GIT/Socialflow/migrations -name \"*.sql\" -exec wc -l {} +)",
-      "Bash(xargs ls:*)"
+      "Bash(xargs ls:*)",
+      "Bash(git fetch *)",
+      "Bash(git push *)",
+      "Bash(git add *)",
+      "Bash(git commit -qm 'Autorise git fetch dans les permissions locales Claude Code *)"
     ]
   }
 }
