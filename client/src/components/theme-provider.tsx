@@ -37,7 +37,7 @@ export function ThemeToggle({ className, compact = false }: { className?: string
           title={label}
           onClick={() => setTheme(value)}
           className={cn(
-            "flex flex-1 items-center justify-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground transition-colors",
+            "flex min-w-0 flex-1 items-center justify-center gap-1.5 rounded-md px-1.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors",
             current === value ? "bg-card text-foreground shadow-sm" : "hover:text-foreground",
           )}
           data-testid={`theme-${value}`}

@@ -33,7 +33,7 @@ function NavLink({ item, active, collapsed }: { item: NavItem; active: boolean; 
       href={item.href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        "group relative flex items-center gap-3 rounded-lg px-3 py-[7px] text-sm font-medium transition-colors",
         active
           ? "bg-primary/10 text-primary"
           : "text-muted-foreground hover:bg-sidebar-accent hover:text-foreground",
@@ -98,7 +98,7 @@ export default function Sidebar() {
 
       <nav className={cn("flex-1 overflow-y-auto py-4 scrollbar-none", collapsed ? "px-3" : "px-4")} aria-label="Navigation principale">
         {groups.map((group, gi) => (
-          <div key={group.label ?? gi} className={cn(gi > 0 && "mt-5")}>
+          <div key={group.label ?? gi} className={cn(gi > 0 && "mt-4")}>
             {group.label &&
               (collapsed ? (
                 <div className="mx-auto mb-2 h-px w-6 bg-sidebar-border" />
@@ -140,7 +140,7 @@ export default function Sidebar() {
                 )}
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent side={collapsed ? "right" : "top"} align="start" className="w-60">
+            <DropdownMenuContent side={collapsed ? "right" : "top"} align="start" className="w-64">
               <DropdownMenuLabel className="font-normal">
                 <p className="text-sm font-medium">{session.username}</p>
                 <p className="text-xs text-muted-foreground">{isAdmin ? "Administrateur" : "Utilisateur"}</p>

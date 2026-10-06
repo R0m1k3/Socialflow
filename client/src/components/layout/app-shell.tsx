@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Link, useLocation } from "wouter";
 import Sidebar from "@/components/sidebar";
-import { LogoMark } from "@/components/brand/logo";
+import { Logo } from "@/components/brand/logo";
 import { MobileNav } from "@/components/layout/mobile-nav";
 import { titleForPath } from "@/components/layout/nav-config";
 import { cn } from "@/lib/utils";
@@ -15,10 +15,10 @@ export function AppShell({ children }: { children: ReactNode }) {
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-card/90 px-4 backdrop-blur-lg lg:hidden">
-          <Link href="/" aria-label="Accueil">
-            <LogoMark size={30} />
+          <Link href="/" aria-label="Accueil Social Flow">
+            <Logo size={30} subtitle={false} />
           </Link>
-          <p className="truncate font-semibold">{titleForPath(location)}</p>
+          <span className="sr-only">{titleForPath(location)}</span>
         </header>
         <main className="flex-1 pb-24 lg:pb-0">{children}</main>
       </div>

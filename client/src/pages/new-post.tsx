@@ -783,7 +783,7 @@ export default function NewPost() {
                         >
                           <div className="flex items-center justify-between">
                             <Icon className={`h-5 w-5 ${postType === value ? 'text-primary' : 'text-muted-foreground'}`} />
-                            <RadioGroupItem value={value} id={`format-${value}`} className="sr-only sm:not-sr-only" />
+                            <RadioGroupItem value={value} id={`format-${value}`} className="hidden sm:block" />
                           </div>
                           <div>
                             <p className="text-sm font-medium">{label}</p>

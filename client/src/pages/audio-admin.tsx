@@ -68,7 +68,7 @@ export default function AudioAdmin() {
             const successCount = data.results?.filter((r: any) => r.success).length ?? 0;
             const failCount = data.results?.filter((r: any) => !r.success).length ?? 0;
             toast({
-                title: "Upload terminé",
+                title: "Import terminé",
                 description: failCount > 0
                     ? `${successCount} fichier(s) ajouté(s), ${failCount} échec(s)`
                     : `${successCount} fichier(s) ajouté(s) à la bibliothèque`,

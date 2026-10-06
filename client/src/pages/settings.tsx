@@ -278,7 +278,7 @@ export default function Settings() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/cloudinary/config'] });
       toast({
-        title: "Logo uploadé",
+        title: "Logo enregistré",
         description: "Votre logo a été enregistré avec succès",
       });
       setLogoFile(null);
@@ -286,7 +286,7 @@ export default function Settings() {
     onError: (error: Error) => {
       toast({
         title: "Erreur",
-        description: error.message || "Impossible d'uploader le logo",
+        description: error.message || "Impossible d'importer le logo",
         variant: "destructive",
       });
     },
@@ -512,7 +512,7 @@ export default function Settings() {
                     Logo de l'entreprise
                   </CardTitle>
                   <CardDescription>
-                    Uploadez votre logo pour l'ajouter aux images éditées
+                    Importez votre logo pour l'ajouter aux images éditées
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -545,7 +545,7 @@ export default function Settings() {
                             onClick={() => document.getElementById('logo-upload-replace')?.click()}
                           >
                             <Upload className="w-4 h-4" />
-                            {uploadLogoMutation.isPending ? "Upload en cours..." : "Remplacer le logo"}
+                            {uploadLogoMutation.isPending ? "Import en cours…" : "Remplacer le logo"}
                           </Button>
                         </Label>
                         <input
@@ -567,7 +567,7 @@ export default function Settings() {
                       <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
                         <Upload className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
                         <p className="text-sm text-muted-foreground mb-4">
-                          Aucun logo uploadé. Choisissez une image PNG ou JPG.
+                          Aucun logo. Choisissez une image PNG ou JPG.
                         </p>
                         <Label htmlFor="logo-upload" className="cursor-pointer">
                           <Button
@@ -577,7 +577,7 @@ export default function Settings() {
                             onClick={() => document.getElementById('logo-upload')?.click()}
                           >
                             <Upload className="w-4 h-4" />
-                            {uploadLogoMutation.isPending ? "Upload en cours..." : "Uploader un logo"}
+                            {uploadLogoMutation.isPending ? "Import en cours…" : "Importer un logo"}
                           </Button>
                         </Label>
                         <input
