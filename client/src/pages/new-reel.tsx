@@ -4,10 +4,15 @@ import { PageHeader } from "@/components/layout/page-header";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import {
-    Send, Sparkles, Video, Music, Type, Calendar,
+    Send, Sparkles, Video, Music, Type, Film,
     Upload, Play, Pause, Volume2, VolumeX,
-    ChevronRight, Loader2, Check, RefreshCw, Mic
+    ChevronDown, Loader2, Check, Mic, CheckCircle2, AlertTriangle, Zap, CalendarClock, Link2
 } from "lucide-react";
+import { Stepper, StepNavigation, type StepDef } from "@/components/stepper";
+import { EmptyState } from "@/components/empty-state";
+import { PlatformIcon } from "@/components/platform-icon";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,7 +40,6 @@ import { DEFAULT_CAPTION_STYLE, type CaptionStyle } from "@shared/captions";
 import { DEFAULT_TTS_STYLE, DEFAULT_VOICE } from "@shared/voices";
 import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
-import { SiFacebook, SiTiktok } from "react-icons/si";
 import { MediaThumbnail } from "@/components/media-thumbnail";
 import { DateTimePicker } from "@/components/datetime-picker";
 
@@ -54,6 +58,15 @@ interface MusicTrack {
 // Étapes du workflow
 type Step = 'video' | 'music' | 'text' | 'publish';
 
+const STEP_ORDER: Step[] = ['video', 'music', 'text', 'publish'];
+
+const REEL_STEPS: StepDef[] = [
+    { id: 'video', label: 'Vidéo', icon: Video },
+    { id: 'music', label: 'Musique', icon: Music },
+    { id: 'text', label: 'Texte & voix', icon: Type },
+    { id: 'publish', label: 'Publication', icon: Send },
+];
+
 export default function NewReel() {
     const [, navigate] = useLocation();
     const { toast } = useToast();
@@ -61,6 +74,8 @@ export default function NewReel() {
 
     // État du workflow
     const [currentStep, setCurrentStep] = useState<Step>('video');
+    const [aiOpen, setAiOpen] = useState(false);
+    const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
 
     // État des données
     const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null);
@@ -144,27 +159,30 @@ export default function NewReel() {
     const facebookPages = pages.filter(p => p.platform === 'facebook');
     const tiktokAccounts = pages.filter(p => p.platform === 'tiktok');
 
-    const renderTargetCheckbox = (page: SocialPage) => (
-        <div key={page.id} className="flex items-center space-x-2">
-            <Checkbox
-                id={`page-${page.id}`}
-                checked={selectedPages.includes(page.id)}
-                onCheckedChange={(checked) => {
-                    if (checked) {
-                        setSelectedPages([...selectedPages, page.id]);
-                    } else {
-                        setSelectedPages(selectedPages.filter(id => id !== page.id));
-                    }
-                }}
-            />
+    const renderTargetCheckbox = (page: SocialPage) => {
+        const checked = selectedPages.includes(page.id);
+        return (
             <label
+                key={page.id}
                 htmlFor={`page-${page.id}`}
-                className="text-sm font-medium leading-none flex-1"
+                className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${checked ? 'border-primary bg-primary/5' : 'hover:bg-accent'}`}
             >
-                {page.pageName}
+                <PlatformIcon platform={page.platform} size="sm" />
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{page.pageName}</span>
+                <Checkbox
+                    id={`page-${page.id}`}
+                    checked={checked}
+                    onCheckedChange={(value) => {
+                        if (value) {
+                            setSelectedPages([...selectedPages, page.id]);
+                        } else {
+                            setSelectedPages(selectedPages.filter(id => id !== page.id));
+                        }
+                    }}
+                />
             </label>
-        </div>
-    );
+        );
+    };
 
     // Récupérer les vidéos disponibles
     const { data: allMedia = [] } = useQuery<Media[]>({
@@ -383,10 +401,6 @@ export default function NewReel() {
 
     const handleUseVariant = (text: string) => {
         setOverlayText(text);
-        toast({
-            title: "Texte sélectionné",
-            description: "Le texte a été ajouté à votre Reel",
-        });
     };
 
     const handleCreateReel = () => {
@@ -441,618 +455,524 @@ export default function NewReel() {
         return `${mins}:${secs.toString().padStart(2, '0')}`;
     };
 
+    const stepIndex = STEP_ORDER.indexOf(currentStep);
+    const lockedReason = (index: number): string | null =>
+        index > 0 && !selectedVideo ? "Sélectionnez d'abord une vidéo" : null;
+    const goTo = (index: number) => {
+        if (index < 0 || index >= STEP_ORDER.length) return;
+        const reason = lockedReason(index);
+        if (reason) {
+            toast({ title: "Étape incomplète", description: reason, variant: "destructive" });
+            return;
+        }
+        setCurrentStep(STEP_ORDER[index]);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
+    const optionRow = (id: string, label: string, description: string, checked: boolean, onChange: (v: boolean) => void) => (
+        <div className="flex items-start justify-between gap-4 py-3">
+            <Label htmlFor={id} className="cursor-pointer space-y-0.5">
+                <span className="block text-sm font-medium">{label}</span>
+                <span className="block text-xs font-normal text-muted-foreground">{description}</span>
+            </Label>
+            <Switch id={id} checked={checked} onCheckedChange={onChange} />
+        </div>
+    );
+
     return (
         <>
-      <Page width="default">
-                    <div className="mb-8">
-                        <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
-                            <Video className="w-8 h-8 text-primary" />
-                            Créer un Reel
-                        </h1>
-                        <p className="text-muted-foreground mt-2">
-                            Créez un Reel Facebook avec musique et texte overlay
-                        </p>
-                    </div>
+            <Page width="default">
+                <PageHeader
+                    icon={Film}
+                    title="Nouveau Reel"
+                    description="Montez une vidéo verticale avec musique, sous-titres et voix, puis publiez-la sur Facebook et TikTok."
+                />
 
-                    {/* Stepper */}
-                    <div className="flex items-center justify-between mb-8 px-4">
-                        {(['video', 'music', 'text', 'publish'] as Step[]).map((step, index) => (
-                            <div key={step} className="flex items-center">
-                                <button
-                                    onClick={() => {
-                                        if (step === 'video') setCurrentStep(step);
-                                        else if (step === 'music' && canProceedToMusic) setCurrentStep(step);
-                                        else if (step === 'text' && canProceedToText) setCurrentStep(step);
-                                        else if (step === 'publish' && canProceedToPublish) setCurrentStep(step);
-                                    }}
-                                    className={`flex items-center gap-2 px-4 py-2 rounded-full transition-all ${currentStep === step
-                                        ? 'bg-primary text-primary-foreground'
-                                        : step === 'video' ||
-                                            (step === 'music' && canProceedToMusic) ||
-                                            (step === 'text' && canProceedToText) ||
-                                            (step === 'publish' && canProceedToPublish)
-                                            ? 'bg-muted hover:bg-accent cursor-pointer'
-                                            : 'bg-muted/50 text-muted-foreground cursor-not-allowed'
-                                        }`}
-                                >
-                                    {step === 'video' && <Video className="w-4 h-4" />}
-                                    {step === 'music' && <Music className="w-4 h-4" />}
-                                    {step === 'text' && <Type className="w-4 h-4" />}
-                                    {step === 'publish' && <Send className="w-4 h-4" />}
-                                    <span className="hidden sm:inline capitalize">{step === 'video' ? 'Vidéo' : step === 'music' ? 'Musique' : step === 'text' ? 'Texte' : 'Publier'}</span>
-                                </button>
-                                {index < 3 && <ChevronRight className="w-5 h-5 text-muted-foreground mx-2" />}
-                            </div>
-                        ))}
-                    </div>
+                <Stepper steps={REEL_STEPS} current={stepIndex} lockedReason={lockedReason} onStepClick={goTo} />
 
-                    {/* Contenu par étape */}
-                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        {/* Colonne principale */}
-                        <div className="lg:col-span-2 space-y-6">
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    {/* Colonne principale */}
+                    <div className="min-w-0 space-y-6 lg:col-span-2">
 
-
-                            {/* ÉTAPE 1: Vidéo */}
-                            {currentStep === 'video' && (
-                                <Card className="rounded-2xl border-border/50 shadow-lg">
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Video className="w-5 h-5" />
-                                            Sélectionnez une Vidéo
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Choisissez une vidéo existante ou téléchargez-en une nouvelle
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="space-y-6">
-                                        <div className="p-4 border rounded-xl bg-primary/5 border-primary/20 space-y-2">
-                                            <div className="flex items-center justify-between">
-                                                <div className="space-y-0.5">
-                                                    <Label className="text-base font-semibold flex items-center gap-2">
-                                                        <Sparkles className="w-5 h-5 text-primary" />
-                                                        Stabilisation & Qualité 1080p
-                                                    </Label>
-                                                    <p className="text-sm text-muted-foreground">
-                                                        Recommandé pour un rendu professionnel sur Facebook Reels
-                                                    </p>
-                                                    <div className="flex items-center gap-1.5 text-[10px] text-primary/70 bg-primary/5 px-2 py-0.5 rounded-full w-fit">
-                                                        <Sparkles className="w-3 h-3" />
-                                                        <span>Note iPhone : Activez la stabilisation dans Réglages &gt; Appareil Photo</span>
-                                                    </div>
-                                                </div>
-                                                <Switch
-                                                    checked={stabilize}
-                                                    onCheckedChange={setStabilize}
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div {...getRootProps()} className={`${isDragActive ? 'bg-primary/5 border-primary' : ''}`}>
-                                            <input {...getInputProps()} />
-
-                                            <div className="flex gap-2 mb-4">
-                                                <Button
-                                                    onClick={open}
-                                                    disabled={uploadMutation.isPending}
-                                                    variant="outline"
-                                                >
-                                                    <Upload className="w-4 h-4" />
-                                                    {uploadMutation.isPending ? 'Upload...' : 'Uploader'}
-                                                </Button>
-                                            </div>
-
-                                            {videoList.length === 0 ? (
-                                                <div className="text-center py-12 border-2 border-dashed rounded-lg">
-                                                    <Video className="w-12 h-12 mx-auto text-muted-foreground mb-2" />
-                                                    <p className="text-muted-foreground">
-                                                        {isDragActive ? "Déposez votre vidéo ici" : "Aucune vidéo disponible"}
-                                                    </p>
-                                                </div>
-                                            ) : (
-                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                                                    {videoList.map((media) => (
-                                                        <button
-                                                            key={media.id}
-                                                            onClick={() => handleSelectVideo(media)}
-                                                            className={`relative aspect-video rounded-lg overflow-hidden border-2 transition-all ${selectedVideoId === media.id
-                                                                ? 'border-primary ring-2 ring-primary'
-                                                                : 'border-transparent hover:border-muted-foreground'
-                                                                }`}
-                                                        >
-                                                            <MediaThumbnail
-                                                                src={media.originalUrl}
-                                                                alt={media.fileName}
-                                                                thumbnailUrl={media.thumbnailUrl ?? undefined}
-                                                                type="video"
-                                                            />
-                                                            {selectedVideoId === media.id && (
-                                                                <div className="absolute inset-0 bg-primary/20 flex items-center justify-center">
-                                                                    <Check className="w-8 h-8 text-primary" />
-                                                                </div>
-                                                            )}
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {selectedVideo && (
-                                            <div className="mt-6 flex justify-end">
-                                                <Button onClick={() => setCurrentStep('music')}>
-                                                    Continuer
-                                                    <ChevronRight className="w-4 h-4 ml-2" />
-                                                </Button>
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {/* ÉTAPE 2: Musique */}
-                            {currentStep === 'music' && (
-                                <Card className="rounded-2xl border-border/50 shadow-lg">
-                                    <CardHeader>
-                                        <CardTitle className="flex items-center gap-2">
-
-                                            <Music className="w-5 h-5" />
-                                            Choisissez une Musique
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Sélectionnez une musique libre de droits (optionnel)
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent>
-                                        <audio ref={audioRef} onEnded={() => setIsPlaying(null)} />
-
-                                        {/* BIBLIOTHÈQUE INTERNE */}
-                                        <div className="space-y-2">
-                                            {internalTracksLoading ? (
-                                                <div className="flex items-center justify-center py-8">
-                                                    <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                                                </div>
-                                            ) : internalTracks.length === 0 ? (
-                                                <div className="text-center py-10 border-2 border-dashed border-border rounded-xl">
-                                                    <Music className="w-12 h-12 mx-auto text-muted-foreground mb-4 opacity-40" />
-                                                    <p className="text-muted-foreground font-medium">Aucune musique disponible</p>
-                                                    <p className="text-sm text-muted-foreground mt-1">Un administrateur peut ajouter des MP3 via la Bibliothèque Audio.</p>
-                                                </div>
-                                            ) : (
-                                                internalTracks.map((track) => (
-                                                    <div
-                                                        key={track.id}
-                                                        onClick={() => handleSelectTrack(track)}
-                                                        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${selectedTrack?.id === track.id
-                                                            ? 'bg-primary/10 border border-primary'
-                                                            : 'bg-muted/50 hover:bg-muted'
-                                                            }`}
-                                                    >
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                togglePlayPreview(track);
-                                                            }}
-                                                            className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center hover:bg-primary/30 shrink-0"
-                                                        >
-                                                            {isPlaying === track.id ? (
-                                                                <Pause className="w-5 h-5" />
-                                                            ) : (
-                                                                <Play className="w-5 h-5 ml-0.5" />
-                                                            )}
-                                                        </button>
-                                                        <div className="flex-1 min-w-0">
-                                                            <p className="font-medium truncate">{track.title}</p>
-                                                            <p className="text-xs text-muted-foreground truncate">
-                                                                {Math.floor(track.duration / 60)}:{String(track.duration % 60).padStart(2, '0')}
-                                                            </p>
-                                                        </div>
-                                                        {selectedTrack?.id === track.id && (
-                                                            <Check className="w-5 h-5 text-primary shrink-0" />
-                                                        )}
-                                                    </div>
-                                                ))
-                                            )}
-                                        </div>
-
-                                        {/* Slider volume + navigation */}
-                                        {selectedTrack && (
-                                            <div className="mt-4">
-                                                <Label className="flex items-center gap-2">
-                                                    <Volume2 className="w-4 h-4" />
-                                                    Volume musique: {musicVolume[0]}%
-                                                </Label>
-                                                <Slider
-                                                    value={musicVolume}
-                                                    onValueChange={setMusicVolume}
-                                                    max={100}
-                                                    step={5}
-                                                    className="mt-2"
-                                                />
-                                            </div>
-                                        )}
-
-                                        <div className="mt-4 flex justify-between">
-                                            <Button variant="outline" onClick={() => setCurrentStep('video')}>
-                                                Retour
-                                            </Button>
-                                            <div className="flex gap-2">
-                                                <Button variant="ghost" onClick={() => {
-                                                    setSelectedTrack(null);
-                                                    setCurrentStep('text');
-                                                }}>
-                                                    Passer (garder le son de la vidéo)
-                                                </Button>
-                                                <Button onClick={() => setCurrentStep('text')}>
-                                                    Continuer
-                                                    <ChevronRight className="w-4 h-4 ml-2" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )}
-
-                            {/* ÉTAPE 3: Texte */}
-                            {currentStep === 'text' && (
-                                <>
-                                    {!srtFile && (
-                                    <Card className="rounded-2xl border-border/50 shadow-lg">
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center gap-2">
-                                                <Sparkles className="w-5 h-5" />
-                                                Générer avec l'IA
-                                            </CardTitle>
-                                            <CardDescription>
-                                                Décrivez votre produit pour générer des textes
-                                            </CardDescription>
-                                        </CardHeader>
-                                        <CardContent className="space-y-4">
-                                            <Textarea
-                                                value={productInfo}
-                                                onChange={(e) => setProductInfo(e.target.value)}
-                                                placeholder="Décrivez votre produit : nom, caractéristiques, prix, etc."
-                                                rows={4}
+                        {/* ÉTAPE 1 : Vidéo */}
+                        {currentStep === 'video' && (
+                            <Card className="fade-in">
+                                <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+                                    <div>
+                                        <CardTitle>Choisissez une vidéo</CardTitle>
+                                        <CardDescription>Une vidéo de la médiathèque ou un nouveau fichier.</CardDescription>
+                                    </div>
+                                    <Button
+                                        onClick={open}
+                                        disabled={uploadMutation.isPending}
+                                        variant="outline"
+                                        size="sm"
+                                        className="shrink-0"
+                                    >
+                                        {uploadMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                        {uploadMutation.isPending ? 'Import…' : 'Importer'}
+                                    </Button>
+                                </CardHeader>
+                                <CardContent className="space-y-5">
+                                    <div
+                                        {...getRootProps()}
+                                        className={`rounded-xl transition-colors ${isDragActive ? 'bg-primary/5 ring-2 ring-primary ring-offset-2 ring-offset-card' : ''}`}
+                                    >
+                                        <input {...getInputProps()} />
+                                        {videoList.length === 0 ? (
+                                            <EmptyState
+                                                compact
+                                                icon={Video}
+                                                title={isDragActive ? "Déposez votre vidéo ici" : "Aucune vidéo pour l'instant"}
+                                                description="Glissez-déposez une vidéo ou importez-la depuis votre appareil."
+                                                action={
+                                                    <Button size="sm" onClick={open} disabled={uploadMutation.isPending}>
+                                                        <Upload className="w-4 h-4" /> Importer une vidéo
+                                                    </Button>
+                                                }
                                             />
-                                            <Button
-                                                onClick={handleGenerateText}
-                                                disabled={generateTextMutation.isPending}
-                                                className="w-full"
-                                            >
-                                                <Sparkles className="w-4 h-4" />
-                                                {generateTextMutation.isPending ? 'Génération...' : 'Générer 3 variations'}
-                                            </Button>
-                                        </CardContent>
-                                    </Card>
-                                    )}
-
-                                    {!srtFile && generatedVariants.length > 0 && (
-                                        <Card className="rounded-2xl border-border/50 shadow-lg">
-                                            <CardHeader>
-                                                <CardTitle>Variations générées</CardTitle>
-                                            </CardHeader>
-                                            <CardContent className="space-y-3">
-                                                {generatedVariants.map((variant, index) => (
-                                                    <div
-                                                        key={index}
-                                                        className="p-4 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                                        ) : (
+                                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                                                {videoList.map((media) => (
+                                                    <button
+                                                        key={media.id}
+                                                        onClick={() => handleSelectVideo(media)}
+                                                        className={`relative aspect-video overflow-hidden rounded-lg border-2 transition-all ${selectedVideoId === media.id
+                                                            ? 'border-primary'
+                                                            : 'border-transparent hover:border-primary/40'
+                                                            }`}
+                                                        aria-pressed={selectedVideoId === media.id}
                                                     >
-                                                        <div className="flex items-start justify-between gap-3">
-                                                            <div className="flex-1">
-                                                                <div className="text-xs font-semibold text-muted-foreground mb-2">
-                                                                    {variant.variant || `Version ${index + 1}`}
-                                                                </div>
-                                                                <p className="text-sm leading-relaxed whitespace-pre-wrap">
-                                                                    {variant.text}
-                                                                </p>
+                                                        <MediaThumbnail
+                                                            src={media.originalUrl}
+                                                            alt={media.fileName}
+                                                            thumbnailUrl={media.thumbnailUrl ?? undefined}
+                                                            type="video"
+                                                        />
+                                                        {selectedVideoId === media.id && (
+                                                            <div className="absolute inset-0 bg-primary/20">
+                                                                <span className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground shadow">
+                                                                    <Check className="h-4 w-4" />
+                                                                </span>
                                                             </div>
-                                                            <Button
-                                                                size="sm"
-                                                                onClick={() => handleUseVariant(variant.text)}
-                                                            >
-                                                                Utiliser
-                                                            </Button>
-                                                        </div>
-                                                    </div>
+                                                        )}
+                                                    </button>
                                                 ))}
-                                            </CardContent>
-                                        </Card>
-                                    )}
-
-                                    <Card className="rounded-2xl border-border/50 shadow-lg">
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center gap-2">
-                                                <Type className="w-5 h-5" />
-                                                Texte Overlay
-                                            </CardTitle>
-                                            <CardDescription>
-                                                Ce texte s'affichera au centre de votre Reel (style TikTok).
-                                                Vous pouvez aussi importer un fichier SRT : il remplace le texte.
-                                            </CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
-                                            <div className="mb-4">
-                                                <SrtUpload value={srtFile} onChange={setSrtFile} />
                                             </div>
-                                            {srtFile ? (
-                                                <p className="text-xs text-muted-foreground">
-                                                    Texte libre désactivé : le fichier SRT est utilisé. Retirez-le pour écrire un texte.
-                                                </p>
-                                            ) : (
+                                        )}
+                                    </div>
+
+                                    <div className="flex items-start justify-between gap-4 rounded-xl border bg-muted/40 p-4">
+                                        <Label htmlFor="stabilize" className="cursor-pointer space-y-1">
+                                            <span className="flex items-center gap-2 text-sm font-medium">
+                                                <Sparkles className="h-4 w-4 text-primary" />
+                                                Stabilisation & qualité 1080p
+                                            </span>
+                                            <span className="block text-xs font-normal text-muted-foreground">
+                                                Utile pour une vidéo tremblée. Double le temps de traitement.
+                                                Sur iPhone, activez aussi la stabilisation dans Réglages › Appareil photo.
+                                            </span>
+                                        </Label>
+                                        <Switch id="stabilize" checked={stabilize} onCheckedChange={setStabilize} />
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* ÉTAPE 2 : Musique */}
+                        {currentStep === 'music' && (
+                            <Card className="fade-in">
+                                <CardHeader>
+                                    <CardTitle>Ajoutez une musique</CardTitle>
+                                    <CardDescription>Facultatif : vous pouvez garder le son d'origine de la vidéo.</CardDescription>
+                                </CardHeader>
+                                <CardContent>
+                                    <audio ref={audioRef} onEnded={() => setIsPlaying(null)} />
+
+                                    <div className="space-y-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setSelectedTrack(null)}
+                                            className={`flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors ${!selectedTrack ? 'border-primary bg-primary/5' : 'hover:bg-accent'}`}
+                                        >
+                                            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                                                <VolumeX className="h-4 w-4" />
+                                            </span>
+                                            <span className="flex-1">
+                                                <span className="block text-sm font-medium">Pas de musique</span>
+                                                <span className="block text-xs text-muted-foreground">Garder le son de la vidéo</span>
+                                            </span>
+                                            {!selectedTrack && <Check className="h-5 w-5 shrink-0 text-primary" />}
+                                        </button>
+
+                                        {internalTracksLoading ? (
+                                            <div className="flex items-center justify-center py-8">
+                                                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                            </div>
+                                        ) : internalTracks.length === 0 ? (
+                                            <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                                                Aucune musique disponible. Un administrateur peut en ajouter depuis la page Musiques.
+                                            </p>
+                                        ) : (
+                                            internalTracks.map((track) => (
+                                                <div
+                                                    key={track.id}
+                                                    onClick={() => handleSelectTrack(track)}
+                                                    className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${selectedTrack?.id === track.id
+                                                        ? 'border-primary bg-primary/5'
+                                                        : 'hover:bg-accent'
+                                                        }`}
+                                                >
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            togglePlayPreview(track);
+                                                        }}
+                                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"
+                                                        aria-label={isPlaying === track.id ? "Pause" : "Écouter"}
+                                                    >
+                                                        {isPlaying === track.id ? <Pause className="h-4 w-4" /> : <Play className="ml-0.5 h-4 w-4" />}
+                                                    </button>
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="truncate text-sm font-medium">{track.title}</p>
+                                                        <p className="text-xs text-muted-foreground">{formatDuration(track.duration)}</p>
+                                                    </div>
+                                                    {selectedTrack?.id === track.id && <Check className="h-5 w-5 shrink-0 text-primary" />}
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+
+                                    {selectedTrack && (
+                                        <div className="mt-5 rounded-lg bg-muted/40 p-4">
+                                            <Label className="flex items-center justify-between text-sm">
+                                                <span className="flex items-center gap-2"><Volume2 className="h-4 w-4" /> Volume de la musique</span>
+                                                <span className="tabular-nums text-muted-foreground">{musicVolume[0]} %</span>
+                                            </Label>
+                                            <Slider value={musicVolume} onValueChange={setMusicVolume} max={100} step={5} className="mt-3" />
+                                        </div>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* ÉTAPE 3 : Texte & voix */}
+                        {currentStep === 'text' && (
+                            <div className="fade-in space-y-6">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Texte affiché sur la vidéo</CardTitle>
+                                        <CardDescription>
+                                            Écrivez un texte, générez-le avec l'IA ou importez des sous-titres (.srt).
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <SrtUpload value={srtFile} onChange={setSrtFile} />
+
+                                        {srtFile ? (
+                                            <p className="text-xs text-muted-foreground">
+                                                Le fichier SRT remplace le texte libre. Retirez-le pour écrire un texte.
+                                            </p>
+                                        ) : (
+                                            <>
+                                                <Collapsible open={aiOpen} onOpenChange={setAiOpen} className="rounded-xl border border-primary/20 bg-primary/5">
+                                                    <CollapsibleTrigger className="flex w-full items-center gap-3 p-3 text-left">
+                                                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                                            <Sparkles className="h-4 w-4" />
+                                                        </span>
+                                                        <span className="flex-1">
+                                                            <span className="block text-sm font-medium">Générer avec l'IA</span>
+                                                            <span className="block text-xs text-muted-foreground">Décrivez votre produit, l'IA rédige 3 propositions</span>
+                                                        </span>
+                                                        <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${aiOpen ? 'rotate-180' : ''}`} />
+                                                    </CollapsibleTrigger>
+                                                    <CollapsibleContent className="space-y-3 px-3 pb-3">
+                                                        <Textarea
+                                                            value={productInfo}
+                                                            onChange={(e) => setProductInfo(e.target.value)}
+                                                            placeholder="Ex. : Produit : Lampe LED — Prix : 29 € — Caractéristiques : sans fil, 3 intensités"
+                                                            rows={3}
+                                                            className="bg-card"
+                                                        />
+                                                        <Button onClick={handleGenerateText} disabled={generateTextMutation.isPending} className="w-full sm:w-auto">
+                                                            {generateTextMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                                                            {generateTextMutation.isPending ? 'Génération…' : 'Générer des propositions'}
+                                                        </Button>
+                                                        {generatedVariants.length > 0 && (
+                                                            <div className="space-y-2 pt-1">
+                                                                {generatedVariants.map((variant, index) => (
+                                                                    <div key={index} className="rounded-lg border bg-card p-3">
+                                                                        <div className="mb-1.5 flex items-center justify-between gap-2">
+                                                                            <span className="text-xs font-semibold text-muted-foreground">
+                                                                                {variant.variant || `Proposition ${index + 1}`}
+                                                                            </span>
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant={overlayText === variant.text ? "secondary" : "default"}
+                                                                                className="h-8"
+                                                                                onClick={() => handleUseVariant(variant.text)}
+                                                                            >
+                                                                                {overlayText === variant.text ? <><Check className="h-3.5 w-3.5" /> Utilisée</> : "Utiliser"}
+                                                                            </Button>
+                                                                        </div>
+                                                                        <p className="whitespace-pre-wrap text-sm leading-relaxed">{variant.text}</p>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </CollapsibleContent>
+                                                </Collapsible>
+
                                                 <Textarea
                                                     value={overlayText}
                                                     onChange={(e) => setOverlayText(e.target.value)}
-                                                    placeholder="Écrivez le texte qui apparaîtra sur votre Reel..."
+                                                    placeholder="Écrivez le texte qui apparaîtra sur votre Reel…"
                                                     rows={4}
                                                 />
-                                            )}
+                                            </>
+                                        )}
+                                    </CardContent>
+                                </Card>
 
-                                            <div className="flex items-center space-x-2 mt-4">
-                                                <Switch
-                                                    id="draw-text"
-                                                    checked={drawText}
-                                                    onCheckedChange={setDrawText}
-                                                />
-                                                <Label htmlFor="draw-text" className="font-medium cursor-pointer">
-                                                    Afficher le texte sur la vidéo
-                                                </Label>
-                                            </div>
-
+                                <Card>
+                                    <CardHeader className="pb-2">
+                                        <CardTitle>Habillage</CardTitle>
+                                        <CardDescription>Ce qui apparaît par-dessus la vidéo.</CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="divide-y">
+                                        <div>
+                                            {optionRow("draw-text", "Afficher les sous-titres", "Le texte s'affiche au fil de la vidéo", drawText, setDrawText)}
                                             {drawText && (
-                                                <div className="mt-3 ml-12">
-                                                    <Label className="text-sm font-medium">Style des sous-titres</Label>
-                                                    <div className="mt-2">
-                                                        <CaptionStylePicker value={captionStyle} onChange={setCaptionStyle} />
-                                                    </div>
+                                                <div className="pb-4">
+                                                    <CaptionStylePicker value={captionStyle} onChange={setCaptionStyle} />
                                                 </div>
                                             )}
+                                        </div>
+                                        {optionRow("show-logo", "Afficher le logo", "Votre logo en filigrane pendant la vidéo", showLogo, setShowLogo)}
+                                        {optionRow("enable-ending-effect", "Effet de fin", "Logo et fondu sur les dernières secondes", enableEndingEffect, setEnableEndingEffect)}
+                                    </CardContent>
+                                </Card>
 
-                                            <div className="flex items-center space-x-2 mt-4">
-                                                <Switch
-                                                    id="show-logo"
-                                                    checked={showLogo}
-                                                    onCheckedChange={setShowLogo}
-                                                />
-                                                <Label htmlFor="show-logo" className="font-medium cursor-pointer">
-                                                    Afficher le logo sur la vidéo
-                                                </Label>
+                                <Card>
+                                    <CardHeader className="pb-2">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <CardTitle className="flex items-center gap-2"><Mic className="h-4 w-4" /> Voix off</CardTitle>
+                                                <CardDescription>Une voix lit le texte pendant la vidéo.</CardDescription>
                                             </div>
+                                            <Switch id="tts-mode" checked={ttsEnabled} onCheckedChange={setTtsEnabled} aria-label="Activer la voix off" />
+                                        </div>
+                                    </CardHeader>
+                                    {ttsEnabled && (
+                                        <CardContent className="space-y-3">
+                                            <VoicePicker
+                                                value={voiceSettings}
+                                                onChange={setVoiceSettings}
+                                                sampleText={srtFile ? srtFile.cues[0]?.text : overlayText}
+                                                onPreview={setVoicePreview}
+                                            />
 
-                                            <div className="flex items-center space-x-2 mt-4">
-                                                <Switch
-                                                    id="enable-ending-effect"
-                                                    checked={enableEndingEffect}
-                                                    onCheckedChange={setEnableEndingEffect}
-                                                />
-                                                <Label htmlFor="enable-ending-effect" className="font-medium cursor-pointer">
-                                                    Activer l'effet de fin (logo + fondu)
-                                                </Label>
-                                            </div>
-
-                                            <div className="flex items-center space-x-2 mt-4">
-                                                <Switch
-                                                    id="tts-mode"
-                                                    checked={ttsEnabled}
-                                                    onCheckedChange={setTtsEnabled}
-                                                />
-                                                <Label htmlFor="tts-mode" className="font-medium cursor-pointer">
-                                                    Activer la lecture voix (TTS)
-                                                </Label>
-                                            </div>
-
-                                            {ttsEnabled && (
-                                                <div className="mt-4 space-y-2 ml-12 p-4 bg-muted/30 rounded-lg border border-border/50">
-                                                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                                                        <Mic className="w-4 h-4" />
-                                                        <span>TTS — voix activée</span>
+                                            {syncInfo && !srtFile && (
+                                                <div className={`rounded-lg border p-3 ${syncInfo.isHealthy ? 'border-success/30 bg-success/10' : 'border-warning/40 bg-warning/10'}`}>
+                                                    <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                                                        <span className="flex items-center gap-2 font-medium">
+                                                            {syncInfo.isHealthy ? <CheckCircle2 className="h-4 w-4 text-success" /> : <AlertTriangle className="h-4 w-4 text-warning" />}
+                                                            Synchronisation texte / voix
+                                                        </span>
+                                                        <span className="text-xs tabular-nums text-muted-foreground">
+                                                            {syncInfo.wordCount} mots · {syncInfo.audioDuration.toFixed(1)} s · {syncInfo.wordDuration.toFixed(2)} s/mot
+                                                        </span>
                                                     </div>
-
-                                                    <div className="mt-3">
-                                                        <VoicePicker
-                                                            value={voiceSettings}
-                                                            onChange={setVoiceSettings}
-                                                            sampleText={srtFile ? srtFile.cues[0]?.text : overlayText}
-                                                            onPreview={setVoicePreview}
-                                                        />
-                                                    </div>
-
-                                                    {syncInfo && !srtFile && (
-                                                        <div className={`p-3 rounded-lg border mt-3 ${syncInfo.isHealthy ? 'bg-green-500/10 border-green-500/30' : 'bg-yellow-500/10 border-yellow-500/30'}`}>
-                                                            <div className="flex items-center justify-between text-sm">
-                                                                <span className="font-medium">Sync texte/voix</span>
-                                                                <span className={syncInfo.isHealthy ? 'text-green-600' : 'text-yellow-600'}>
-                                                                    {syncInfo.wordCount} mots · {syncInfo.audioDuration.toFixed(1)}s · {syncInfo.wordDuration.toFixed(2)}s/mot
-                                                                </span>
-                                                            </div>
-                                                            {syncInfo.warnings.map((w, i) => (
-                                                                <p key={i} className="text-xs text-yellow-600 mt-1">⚠️ {w}</p>
-                                                            ))}
-                                                            {syncInfo.isHealthy && syncInfo.warnings.length === 0 && (
-                                                                <p className="text-xs text-green-600 mt-1">✅ Timing calculé automatiquement</p>
-                                                            )}
-                                                        </div>
+                                                    {syncInfo.warnings.map((w, i) => (
+                                                        <p key={i} className="mt-1 text-xs text-warning-foreground dark:text-warning">{w}</p>
+                                                    ))}
+                                                    {syncInfo.isHealthy && syncInfo.warnings.length === 0 && (
+                                                        <p className="mt-1 text-xs text-muted-foreground">Le minutage est calculé automatiquement.</p>
                                                     )}
-
-                                                    <p className="text-xs text-muted-foreground mt-2">
-                                                        {srtFile
-                                                            ? "Chaque sous-titre sera lu à son instant et accéléré si besoin pour respecter la durée du fichier SRT."
-                                                            : "Le texte sera automatiquement synchronisé avec la voix."}
-                                                        {' '}Les #hashtags et émojis ne seront pas lus.
-                                                    </p>
                                                 </div>
                                             )}
 
-                                            <div className="mt-4 flex justify-between">
-                                                <Button variant="outline" onClick={() => setCurrentStep('music')}>
-                                                    Retour
-                                                </Button>
-                                                <Button onClick={() => setCurrentStep('publish')}>
-                                                    Continuer
-                                                    <ChevronRight className="w-4 h-4 ml-2" />
-                                                </Button>
-                                            </div>
+                                            <p className="text-xs text-muted-foreground">
+                                                {srtFile
+                                                    ? "Chaque sous-titre sera lu à son instant et accéléré si besoin pour respecter la durée du fichier SRT."
+                                                    : "Le texte sera automatiquement synchronisé avec la voix."}
+                                                {' '}Les #hashtags et émojis ne sont pas lus.
+                                            </p>
                                         </CardContent>
-                                    </Card>
-                                </>
-                            )}
+                                    )}
+                                </Card>
+                            </div>
+                        )}
 
-                            {/* ÉTAPE 4: Publication */}
-                            {currentStep === 'publish' && (
-                                <>
-                                    <Card className="rounded-2xl border-border/50 shadow-lg">
-                                        <CardHeader>
-                                            <CardTitle>Destinations</CardTitle>
-                                            <CardDescription>
-                                                La même vidéo peut partir sur plusieurs pages Facebook et plusieurs comptes TikTok
-                                            </CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
-                                            {facebookPages.length === 0 && tiktokAccounts.length === 0 ? (
-                                                <div className="text-center py-8">
-                                                    <p className="text-muted-foreground mb-2">
-                                                        Aucune page Facebook ni compte TikTok connecté
-                                                    </p>
-                                                    <Button variant="link" onClick={() => navigate('/pages')}>
-                                                        Ajouter des pages
-                                                    </Button>
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-5">
-                                                    {facebookPages.length > 0 && (
-                                                        <div className="space-y-3">
-                                                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                                                <SiFacebook className="w-4 h-4 text-[#1877F2]" />
-                                                                Pages Facebook
-                                                            </div>
+                        {/* ÉTAPE 4 : Publication */}
+                        {currentStep === 'publish' && (
+                            <div className="fade-in space-y-6">
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Où publier ?</CardTitle>
+                                        <CardDescription>
+                                            La même vidéo peut partir sur plusieurs pages Facebook et comptes TikTok.
+                                        </CardDescription>
+                                    </CardHeader>
+                                    <CardContent>
+                                        {facebookPages.length === 0 && tiktokAccounts.length === 0 ? (
+                                            <EmptyState
+                                                compact
+                                                icon={Link2}
+                                                title="Aucun compte connecté"
+                                                description="Connectez une page Facebook ou un compte TikTok pour publier."
+                                                action={<Button size="sm" onClick={() => navigate('/pages')}>Connecter un compte</Button>}
+                                            />
+                                        ) : (
+                                            <div className="space-y-5">
+                                                {facebookPages.length > 0 && (
+                                                    <div className="space-y-2">
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pages Facebook</p>
+                                                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                                             {facebookPages.map(renderTargetCheckbox)}
-                                                            <StoryToggle checked={alsoStory} onCheckedChange={setAlsoStory} />
                                                         </div>
-                                                    )}
+                                                        <StoryToggle checked={alsoStory} onCheckedChange={setAlsoStory} />
+                                                    </div>
+                                                )}
 
-                                                    {tiktokAccounts.length > 0 && (
-                                                        <div className="space-y-3">
-                                                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                                                <SiTiktok className="w-4 h-4" />
-                                                                Comptes TikTok
-                                                            </div>
+                                                {tiktokAccounts.length > 0 && (
+                                                    <div className="space-y-2">
+                                                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Comptes TikTok</p>
+                                                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                                             {tiktokAccounts.map(renderTargetCheckbox)}
                                                         </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </CardContent>
-                                    </Card>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
 
-                                    <Card className="rounded-2xl border-border/50 shadow-lg">
-                                        <CardHeader>
-                                            <CardTitle className="flex items-center gap-2">
-                                                <Calendar className="w-5 h-5" />
-                                                Planification
-                                            </CardTitle>
-                                            <CardDescription>
-                                                Programmez la publication (optionnel)
-                                            </CardDescription>
-                                        </CardHeader>
-                                        <CardContent>
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Quand publier ?</CardTitle>
+                                        <CardDescription>Le Reel est d'abord monté, puis publié à l'heure choisie.</CardDescription>
+                                    </CardHeader>
+                                    <CardContent className="space-y-4">
+                                        <RadioGroup
+                                            value={scheduleMode}
+                                            onValueChange={(value) => {
+                                                setScheduleMode(value as 'now' | 'later');
+                                                if (value === 'now') setScheduledDate(undefined);
+                                            }}
+                                            className="grid grid-cols-1 gap-2 sm:grid-cols-2"
+                                        >
+                                            {([
+                                                { value: 'now', label: 'Dès que prêt', description: 'Publication à la fin du montage', icon: Zap },
+                                                { value: 'later', label: 'Programmer', description: 'Choisir une date et une heure', icon: CalendarClock },
+                                            ] as const).map(({ value, label, description, icon: Icon }) => (
+                                                <label
+                                                    key={value}
+                                                    htmlFor={`reel-when-${value}`}
+                                                    className={`flex cursor-pointer items-center gap-3 rounded-lg border p-4 transition-colors ${scheduleMode === value ? 'border-primary bg-primary/5' : 'hover:bg-accent'}`}
+                                                >
+                                                    <Icon className={`h-5 w-5 ${scheduleMode === value ? 'text-primary' : 'text-muted-foreground'}`} />
+                                                    <span className="flex-1">
+                                                        <span className="block text-sm font-medium">{label}</span>
+                                                        <span className="block text-xs text-muted-foreground">{description}</span>
+                                                    </span>
+                                                    <RadioGroupItem value={value} id={`reel-when-${value}`} />
+                                                </label>
+                                            ))}
+                                        </RadioGroup>
+                                        {scheduleMode === 'later' && (
                                             <DateTimePicker
                                                 value={scheduledDate}
                                                 onChange={setScheduledDate}
                                                 occupiedDates={[]}
-                                                placeholder="Publier immédiatement"
+                                                placeholder="Choisir une date"
                                             />
-                                        </CardContent>
-                                    </Card>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </div>
+                        )}
 
-                                    <div className="flex gap-3">
-                                        <Button
-                                            variant="outline"
-                                            onClick={() => setCurrentStep('text')}
-                                            className="flex-1"
-                                        >
-                                            Retour
-                                        </Button>
-                                        <Button
-                                            onClick={handleCreateReel}
-                                            disabled={!canPublish || createReelMutation.isPending}
-                                            className="flex-1 bg-gradient-to-r from-primary to-secondary hover:opacity-90"
-                                        >
-                                            {createReelMutation.isPending ? (
-                                                <>
-                                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                                    Création...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Send className="w-4 h-4" />
-                                                    Publier le Reel
-                                                </>
-                                            )}
-                                        </Button>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-
-                        {/* Colonne de prévisualisation */}
-                        <div className="space-y-6">
-                            <Card className="rounded-2xl border-border/50 shadow-lg sticky top-4">
-                                <CardHeader>
-                                    <CardTitle>Aperçu</CardTitle>
-                                </CardHeader>
-                                <CardContent>
-                                    {selectedVideo ? (
-                                        <ReelPreview
-                                            kind="video"
-                                            videoUrl={selectedVideo.originalUrl}
-                                            text={srtFile ? srtText(srtFile.cues) : overlayText}
-                                            srtCues={srtFile?.cues}
-                                            showCaptions={drawText}
-                                            captionStyle={captionStyle}
-                                            ttsEnabled={ttsEnabled}
-                                            voice={currentVoice}
-                                            musicUrl={selectedTrack?.previewUrl}
-                                            musicVolume={musicVolume[0] / 100}
-                                            logoUrl={reelConfig?.logoUrl}
-                                            showWatermark={showLogo}
-                                            storeName={pages.find((p) => p.id === selectedPages[0])?.pageName}
-                                            endingEffect={enableEndingEffect}
-                                        />
-                                    ) : (
-                                        <div className="aspect-[9/16] bg-muted rounded-lg flex items-center justify-center">
-                                            <div className="text-center text-muted-foreground">
-                                                <Video className="w-12 h-12 mx-auto mb-2" />
-                                                <p>Sélectionnez une vidéo</p>
-                                            </div>
-                                        </div>
-                                    )}
-                                </CardContent>
-                            </Card>
-
-                            {/* Résumé */}
-                            <Card className="rounded-2xl border-border/50 shadow-lg">
-                                <CardHeader>
-                                    <CardTitle>Résumé</CardTitle>
-                                </CardHeader>
-                                <CardContent className="space-y-2 text-sm">
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Vidéo</span>
-                                        <span>{selectedVideo ? '✓' : '—'}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Musique</span>
-                                        <span>{selectedTrack ? selectedTrack.title : 'Son de la vidéo'}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Texte</span>
-                                        <span>{srtFile ? `SRT (${srtFile.cues.length})` : overlayText ? '✓' : '—'}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Pages</span>
-                                        <span>{selectedPages.length} sélectionnée(s)</span>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </div>
+                        <StepNavigation
+                            onBack={() => goTo(stepIndex - 1)}
+                            backDisabled={stepIndex === 0}
+                            onNext={() => goTo(stepIndex + 1)}
+                            nextDisabled={currentStep === 'video' && !selectedVideo}
+                            hint={currentStep === 'video' && !selectedVideo ? "Sélectionnez une vidéo pour continuer" : undefined}
+                            next={
+                                currentStep === 'publish' ? (
+                                    <Button
+                                        onClick={() => {
+                                            if (scheduleMode === 'later' && !scheduledDate) {
+                                                toast({ title: "Date manquante", description: "Choisissez une date ou publiez dès que prêt.", variant: "destructive" });
+                                                return;
+                                            }
+                                            handleCreateReel();
+                                        }}
+                                        disabled={!canPublish || createReelMutation.isPending}
+                                        variant="brand"
+                                        className="w-full sm:w-auto"
+                                    >
+                                        {createReelMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                        {createReelMutation.isPending ? 'Création…' : scheduleMode === 'later' ? 'Programmer le Reel' : 'Créer et publier le Reel'}
+                                    </Button>
+                                ) : undefined
+                            }
+                        />
                     </div>
-                </Page>
+
+                    {/* Colonne de prévisualisation */}
+                    <aside className="space-y-6">
+                        <Card className="lg:sticky lg:top-6">
+                            <CardHeader className="pb-3">
+                                <CardTitle>Aperçu</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {selectedVideo ? (
+                                    <ReelPreview
+                                        kind="video"
+                                        videoUrl={selectedVideo.originalUrl}
+                                        text={srtFile ? srtText(srtFile.cues) : overlayText}
+                                        srtCues={srtFile?.cues}
+                                        showCaptions={drawText}
+                                        captionStyle={captionStyle}
+                                        ttsEnabled={ttsEnabled}
+                                        voice={currentVoice}
+                                        musicUrl={selectedTrack?.previewUrl}
+                                        musicVolume={musicVolume[0] / 100}
+                                        logoUrl={reelConfig?.logoUrl}
+                                        showWatermark={showLogo}
+                                        storeName={pages.find((p) => p.id === selectedPages[0])?.pageName}
+                                        endingEffect={enableEndingEffect}
+                                    />
+                                ) : (
+                                    <div className="flex aspect-[9/16] max-h-[420px] w-full items-center justify-center rounded-lg border border-dashed bg-muted/40">
+                                        <div className="text-center text-sm text-muted-foreground">
+                                            <Video className="mx-auto mb-2 h-8 w-8" />
+                                            L'aperçu apparaîtra ici
+                                        </div>
+                                    </div>
+                                )}
+
+                                <dl className="space-y-2 border-t pt-3 text-sm">
+                                    {[
+                                        { label: "Vidéo", value: selectedVideo ? "Sélectionnée" : "—", ok: !!selectedVideo },
+                                        { label: "Musique", value: selectedTrack ? selectedTrack.title : "Son d'origine", ok: true },
+                                        { label: "Texte", value: srtFile ? `SRT (${srtFile.cues.length} lignes)` : overlayText ? `${overlayText.length} caractères` : "—", ok: !!(srtFile || overlayText) },
+                                        { label: "Voix", value: ttsEnabled ? "Activée" : "Désactivée", ok: true },
+                                        { label: "Comptes", value: selectedPages.length ? `${selectedPages.length} sélectionné(s)` : "—", ok: selectedPages.length > 0 },
+                                    ].map((row) => (
+                                        <div key={row.label} className="flex items-start justify-between gap-3">
+                                            <dt className="text-muted-foreground">{row.label}</dt>
+                                            <dd className={`truncate text-right font-medium ${row.ok ? '' : 'text-muted-foreground'}`}>{row.value}</dd>
+                                        </div>
+                                    ))}
+                                </dl>
+                            </CardContent>
+                        </Card>
+                    </aside>
+                </div>
+            </Page>
         </>
     );
 }

@@ -3,7 +3,7 @@ import { Page } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { CalendarClock, Upload, Loader2, Check, Video } from "lucide-react";
+import { CalendarClock, Upload, Loader2, Check, Link2 } from "lucide-react";
 import { useDropzone } from "react-dropzone";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,8 @@ import { StoryToggle } from "@/components/reels/story-toggle";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
 import type { SocialPage, Media } from "@shared/schema";
-import { SiFacebook, SiTiktok } from "react-icons/si";
+import { PlatformIcon } from "@/components/platform-icon";
+import { EmptyState } from "@/components/empty-state";
 import { MediaThumbnail } from "@/components/media-thumbnail";
 import { DateTimePicker } from "@/components/datetime-picker";
 
@@ -110,44 +111,56 @@ export default function ScheduleReel() {
         setSelectedPages((prev) => (checked ? [...prev, id] : prev.filter((p) => p !== id)));
     };
 
-    const renderTargetCheckbox = (page: SocialPage) => (
-        <div key={page.id} className="flex items-center space-x-2">
-            <Checkbox
-                id={`schedule-reel-page-${page.id}`}
-                checked={selectedPages.includes(page.id)}
-                onCheckedChange={(checked) => togglePage(page.id, checked === true)}
-            />
-            <label htmlFor={`schedule-reel-page-${page.id}`} className="text-sm font-medium leading-none flex-1">
-                {page.pageName}
+    const renderTargetCheckbox = (page: SocialPage) => {
+        const checked = selectedPages.includes(page.id);
+        return (
+            <label
+                key={page.id}
+                htmlFor={`schedule-reel-page-${page.id}`}
+                className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition-colors ${checked ? "border-primary bg-primary/5" : "hover:bg-accent"}`}
+            >
+                <PlatformIcon platform={page.platform} size="sm" />
+                <span className="min-w-0 flex-1 truncate text-sm font-medium">{page.pageName}</span>
+                <Checkbox
+                    id={`schedule-reel-page-${page.id}`}
+                    checked={checked}
+                    onCheckedChange={(value) => togglePage(page.id, value === true)}
+                />
             </label>
-        </div>
+        );
+    };
+
+    const sectionTitle = (n: number, title: string, done: boolean) => (
+        <CardTitle className="flex items-center gap-3">
+            <span
+                className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${done ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}
+            >
+                {done ? <Check className="h-4 w-4" /> : n}
+            </span>
+            {title}
+        </CardTitle>
     );
 
     return (
-        <Page width="narrow" className="space-y-6">
-                    <div>
-                        <h1 className="text-2xl sm:text-3xl font-bold text-foreground flex items-center gap-2">
-                            <CalendarClock className="w-8 h-8 text-primary" />
-                            Programmer un Reel
-                        </h1>
-                        <p className="text-muted-foreground mt-2">
-                            Publiez une vidéo déjà montée, telle quelle, à la date et l'heure choisies
-                        </p>
-                    </div>
+        <Page width="narrow">
+                    <PageHeader
+                        icon={CalendarClock}
+                        title="Programmer un Reel"
+                        description="Publiez une vidéo déjà montée, telle quelle, à la date et l'heure choisies."
+                    />
 
+                    <div className="space-y-6">
                     {/* 1. Vidéo */}
                     <Card>
                         <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Video className="w-5 h-5" /> Vidéo
-                            </CardTitle>
-                            <CardDescription>Format vertical 9:16 recommandé</CardDescription>
+                            {sectionTitle(1, "Vidéo", !!selectedVideo)}
+                            <CardDescription>Format vertical 9:16 recommandé.</CardDescription>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             <div
                                 {...getRootProps()}
                                 className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors ${
-                                    isDragActive ? "border-primary bg-primary/5" : "border-border hover:border-primary/50"
+                                    isDragActive ? "border-primary bg-primary/5" : "border-border bg-muted/30 hover:border-primary/50"
                                 }`}
                                 data-testid="dropzone-schedule-reel"
                             >
@@ -188,7 +201,7 @@ export default function ScheduleReel() {
                                                     />
                                                     {selected && (
                                                         <div className="absolute inset-0 bg-primary/30 flex items-center justify-center">
-                                                            <Check className="w-6 h-6 text-white" />
+                                                            <Check className="w-6 h-6 text-primary-foreground" />
                                                         </div>
                                                     )}
                                                 </button>
@@ -209,7 +222,8 @@ export default function ScheduleReel() {
                     {/* 2. Description */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Description</CardTitle>
+                            {sectionTitle(2, "Description", !!description.trim())}
+                            <CardDescription>Texte publié avec le Reel (facultatif).</CardDescription>
                         </CardHeader>
                         <CardContent>
                             <Textarea
@@ -225,27 +239,29 @@ export default function ScheduleReel() {
                     {/* 3. Destinations et date */}
                     <Card>
                         <CardHeader>
-                            <CardTitle>Publication</CardTitle>
+                            {sectionTitle(3, "Destinations et date", canSchedule)}
                         </CardHeader>
                         <CardContent className="space-y-6">
                             {facebookPages.length === 0 && tiktokAccounts.length === 0 && (
-                                <p className="text-sm text-muted-foreground">Aucune page Facebook ou compte TikTok connecté.</p>
+                                <EmptyState
+                                    compact
+                                    icon={Link2}
+                                    title="Aucun compte connecté"
+                                    description="Connectez une page Facebook ou un compte TikTok pour publier."
+                                    action={<Button size="sm" onClick={() => navigate("/pages")}>Connecter un compte</Button>}
+                                />
                             )}
                             {facebookPages.length > 0 && (
                                 <div className="space-y-2">
-                                    <Label className="flex items-center gap-2">
-                                        <SiFacebook className="w-4 h-4 text-[#1877F2]" /> Pages Facebook
-                                    </Label>
-                                    {facebookPages.map(renderTargetCheckbox)}
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pages Facebook</p>
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{facebookPages.map(renderTargetCheckbox)}</div>
                                     <StoryToggle checked={alsoStory} onCheckedChange={setAlsoStory} />
                                 </div>
                             )}
                             {tiktokAccounts.length > 0 && (
                                 <div className="space-y-2">
-                                    <Label className="flex items-center gap-2">
-                                        <SiTiktok className="w-4 h-4" /> Comptes TikTok
-                                    </Label>
-                                    {tiktokAccounts.map(renderTargetCheckbox)}
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Comptes TikTok</p>
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{tiktokAccounts.map(renderTargetCheckbox)}</div>
                                 </div>
                             )}
 
@@ -264,6 +280,7 @@ export default function ScheduleReel() {
                             <Button
                                 className="w-full"
                                 size="lg"
+                                variant="brand"
                                 disabled={!canSchedule || scheduleMutation.isPending}
                                 onClick={() => scheduleMutation.mutate()}
                                 data-testid="button-schedule-reel"
@@ -277,6 +294,7 @@ export default function ScheduleReel() {
                             </Button>
                         </CardContent>
                     </Card>
+                    </div>
                 </Page>
     );
 }

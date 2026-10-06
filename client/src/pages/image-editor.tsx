@@ -13,7 +13,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Badge } from "@/components/ui/badge";
-import { Wand2, Save, ArrowRight, Image as ImageIcon, X } from "lucide-react";
+import { Wand2, Save, Image as ImageIcon, X } from "lucide-react";
+import { Link } from "wouter";
+import { EmptyState } from "@/components/empty-state";
 import { useToast } from "@/hooks/use-toast";
 
 interface Ribbon {
@@ -119,26 +121,111 @@ export default function ImageEditor() {
 
   return (
     <Page width="wide">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
-              <Wand2 className="w-8 h-8" />
-              Éditeur d'images
-            </h1>
-            <p className="text-muted-foreground mt-2">
-              Ajoutez des rubans promotionnels, badges prix et filtres à vos images
-            </p>
-          </div>
+      <style>{`
+        /* Triangle ribbon - auto-centered text */
+        .ribbon-container {
+          position: absolute;
+          z-index: 10;
+          pointer-events: none;
+        }
+        
+        .ribbon-container.north_west {
+          top: 0;
+          left: 0;
+          width: 140px;
+          height: 140px;
+        }
+        
+        .ribbon-container.north_east {
+          top: 0;
+          right: 0;
+          width: 140px;
+          height: 140px;
+        }
+        
+        .ribbon-triangle {
+          position: absolute;
+          width: 0;
+          height: 0;
+          border-style: solid;
+        }
+        
+        .ribbon-container.north_west .ribbon-triangle {
+          top: 0;
+          left: 0;
+          border-width: 140px 140px 0 0;
+        }
+        
+        .ribbon-container.north_west .ribbon-triangle.red {
+          border-top-color: #FF0000;
+          border-right-color: transparent;
+          border-bottom-color: transparent;
+          border-left-color: transparent;
+        }
+        
+        .ribbon-container.north_west .ribbon-triangle.yellow {
+          border-top-color: #FFC107;
+          border-right-color: transparent;
+          border-bottom-color: transparent;
+          border-left-color: transparent;
+        }
+        
+        .ribbon-container.north_east .ribbon-triangle {
+          top: 0;
+          right: 0;
+          border-width: 0 140px 140px 0;
+        }
+        
+        .ribbon-container.north_east .ribbon-triangle.red {
+          border-top-color: transparent;
+          border-right-color: #FF0000;
+          border-bottom-color: transparent;
+          border-left-color: transparent;
+        }
+        
+        .ribbon-container.north_east .ribbon-triangle.yellow {
+          border-top-color: transparent;
+          border-right-color: #FFC107;
+          border-bottom-color: transparent;
+          border-left-color: transparent;
+        }
+        
+        .ribbon-text {
+          position: absolute;
+          color: white;
+          font-weight: bold;
+          z-index: 11;
+          text-transform: uppercase;
+          text-align: center;
+          white-space: nowrap;
+        }
+        
+        .ribbon-container.north_west .ribbon-text {
+          top: 50%;
+          left: 50%;
+          transform: translate(-50%, -50%) rotate(-45deg) translateY(-20px);
+        }
+        
+        .ribbon-container.north_east .ribbon-text {
+          top: 50%;
+          right: 50%;
+          transform: translate(50%, -50%) rotate(45deg) translateY(-20px);
+        }
+      `}</style>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <PageHeader
+            icon={Wand2}
+            title="Éditeur d'images"
+            description="Ajoutez un ruban, un prix ou votre logo sur une image, puis enregistrez-la dans la médiathèque."
+          />
+
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
             {/* Left Column - Controls */}
             <div className="space-y-6">
               {/* Image Selection */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <ImageIcon className="w-5 h-5" />
-                    Sélectionner une image
-                  </CardTitle>
+                  <CardTitle>1. Choisissez une image</CardTitle>
                 </CardHeader>
                 <CardContent>
                   {mediaList && (mediaList as any[]).filter((m: any) => m.type === 'image').length > 0 ? (
@@ -149,7 +236,7 @@ export default function ImageEditor() {
                           <div
                             key={media.id}
                             className={`relative cursor-pointer rounded-lg overflow-hidden border-2 transition-all ${
-                              selectedMedia?.id === media.id ? 'border-primary ring-2 ring-primary' : 'border-border hover:border-primary/50'
+                              selectedMedia?.id === media.id ? 'border-primary ring-2 ring-primary/30' : 'border-transparent hover:border-primary/50'
                             }`}
                             onClick={() => setSelectedMedia(media)}
                             data-testid={`select-image-${media.id}`}
@@ -163,9 +250,17 @@ export default function ImageEditor() {
                         ))}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground text-center py-8">
-                      Aucune image disponible. Uploadez des images dans la médiathèque.
-                    </p>
+                    <EmptyState
+                      compact
+                      icon={ImageIcon}
+                      title="Aucune image disponible"
+                      description="Importez d'abord des images dans la médiathèque."
+                      action={
+                        <Button asChild size="sm">
+                          <Link href="/media">Ouvrir la médiathèque</Link>
+                        </Button>
+                      }
+                    />
                   )}
                 </CardContent>
               </Card>
@@ -173,7 +268,7 @@ export default function ImageEditor() {
               {/* Ribbon Controls */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Ruban promotionnel</CardTitle>
+                  <CardTitle>2. Ruban promotionnel</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center space-x-2">
@@ -254,7 +349,7 @@ export default function ImageEditor() {
               {/* Price Badge */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Badge prix</CardTitle>
+                  <CardTitle>3. Prix</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center space-x-2">
@@ -339,7 +434,7 @@ export default function ImageEditor() {
               {/* Logo */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Logo</CardTitle>
+                  <CardTitle>4. Logo</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex items-center space-x-2">
@@ -415,7 +510,7 @@ export default function ImageEditor() {
                 <CardContent>
                   {selectedMedia ? (
                     <div className="space-y-4">
-                      <div className="rounded-lg overflow-hidden bg-muted aspect-square flex items-center justify-center">
+                      <div className="relative rounded-lg overflow-hidden bg-muted aspect-square flex items-center justify-center">
                         <div ref={previewRef} className="relative">
                           <img
                             src={previewUrl || selectedMedia.originalUrl}
@@ -495,7 +590,7 @@ export default function ImageEditor() {
                         
                         <button
                           onClick={() => setSelectedMedia(null)}
-                          className="absolute top-2 right-2 p-1.5 bg-black/50 hover:bg-black/70 rounded-full text-white transition-colors z-20"
+                          className="absolute top-2 right-2 p-1.5 bg-background/80 backdrop-blur hover:bg-background rounded-full text-foreground shadow transition-colors z-20"
                           data-testid="button-clear-selection"
                           title="Désélectionner l'image"
                         >
@@ -505,18 +600,19 @@ export default function ImageEditor() {
 
                       <Button 
                         className="w-full" 
-                        variant="outline" 
+                        variant="brand" 
                         data-testid="button-save"
                         onClick={() => saveImageMutation.mutate()}
                         disabled={saveImageMutation.isPending}
                       >
                         <Save className="w-4 h-4" />
-                        {saveImageMutation.isPending ? "Enregistrement..." : "Enregistrer"}
+                        {saveImageMutation.isPending ? "Enregistrement…" : "Enregistrer dans la médiathèque"}
                       </Button>
                     </div>
                   ) : (
-                    <div className="aspect-square flex items-center justify-center bg-muted rounded-lg">
-                      <p className="text-muted-foreground">Sélectionnez une image</p>
+                    <div className="aspect-square flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed bg-muted/40 text-sm text-muted-foreground">
+                      <ImageIcon className="h-8 w-8" />
+                      Choisissez une image pour voir l'aperçu
                     </div>
                   )}
                 </CardContent>
