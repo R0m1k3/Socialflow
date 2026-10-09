@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import type { IncomingMessage } from "http";
 import path from "path";
 import fs from "fs";
 import session from "express-session";
@@ -87,11 +88,14 @@ declare module 'http' {
     rawBody: unknown
   }
 }
-app.use(express.json({
-  verify: (req, _res, buf) => {
-    req.rawBody = buf;
-  }
-}));
+const keepRawBody = (req: IncomingMessage, _res: unknown, buf: Buffer) => {
+  req.rawBody = buf;
+};
+// L'API externe accepte des images en base64 (imageData) : 10 MB d'image font
+// ~13,4 MB une fois encodés. Ce parseur passe avant le parseur global (100 KB),
+// qui ignore ensuite un corps déjà lu.
+app.use('/api/v1', express.json({ limit: '15mb', verify: keepRawBody }));
+app.use(express.json({ verify: keepRawBody }));
 app.use(express.urlencoded({ extended: false }));
 
 // Validation renforcée du SESSION_SECRET
