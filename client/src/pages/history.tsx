@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Page } from "@/components/layout/app-shell";
 import { PageHeader } from "@/components/layout/page-header";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle, XCircle, Calendar, History as HistoryIcon, Eye, Image as ImageIcon, Smartphone, Loader2, Clapperboard, Search, Sparkles } from "lucide-react";
+import { CheckCircle, XCircle, RotateCw, Calendar, History as HistoryIcon, Eye, Image as ImageIcon, Smartphone, Loader2, Clapperboard, Search, Sparkles } from "lucide-react";
 import { Link } from "wouter";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,8 +27,15 @@ function isAwaitingPublication(scheduledPost: ScheduledPostWithRelations): boole
   return (
     !!scheduledPost.scheduledAt &&
     new Date(scheduledPost.scheduledAt) <= new Date() &&
-    !scheduledPost.publishedAt
+    !scheduledPost.publishedAt &&
+    // Un échec ne bouge plus avant sa prochaine tentative (minutes ou heures)
+    !scheduledPost.error
   );
+}
+
+/** Échec dont le scheduler fera une nouvelle tentative automatique. */
+function isRetrying(scheduledPost: ScheduledPostWithRelations): boolean {
+  return !!scheduledPost.error && !scheduledPost.publishedAt && !!scheduledPost.nextAttemptAt;
 }
 
 type StatusFilter = "all" | "published" | "pending" | "failed";
@@ -115,8 +122,13 @@ export default function History() {
     return null;
   };
 
+  // Un échec avec un nouvel essai programmé est encore « en cours »
   const statusOf = (sp: ScheduledPostWithRelations): StatusFilter =>
-    sp.error ? "failed" : !sp.publishedAt ? "pending" : "published";
+    sp.publishedAt && !sp.error
+      ? "published"
+      : sp.error && !isRetrying(sp)
+        ? "failed"
+        : "pending";
 
   const counts = publishedPosts.reduce(
     (acc, sp) => {
@@ -200,6 +212,8 @@ export default function History() {
                         <p className="truncate font-medium">{scheduledPost.page?.pageName || "Page inconnue"}</p>
                         {status === "failed" ? (
                           <Badge variant="danger" className="gap-1"><XCircle className="h-3 w-3" /> Échec</Badge>
+                        ) : isRetrying(scheduledPost) ? (
+                          <Badge variant="warning" className="gap-1"><RotateCw className="h-3 w-3" /> Nouvel essai</Badge>
                         ) : status === "pending" ? (
                           <Badge variant="info" className="gap-1"><Loader2 className="h-3 w-3 animate-spin" /> En cours</Badge>
                         ) : (
@@ -238,7 +252,7 @@ export default function History() {
                           {scheduledPost.nextAttemptAt
                             ? `Nouvelle tentative automatique le ${format(new Date(scheduledPost.nextAttemptAt), "d MMM yyyy 'à' HH:mm", { locale: fr })}`
                             : scheduledPost.attempts > 0
-                              ? `Abandon après ${scheduledPost.attempts} tentatives : reprogrammez la publication pour réessayer.`
+                              ? "Plus de nouvelle tentative automatique : reprogrammez la publication pour réessayer."
                               : null}
                         </p>
                       )}

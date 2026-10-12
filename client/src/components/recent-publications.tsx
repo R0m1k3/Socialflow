@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, Clock, CheckCircle2, XCircle, Eye, Image as ImageIcon, Smartphone, Clapperboard } from "lucide-react";
+import { ArrowRight, Clock, CheckCircle2, XCircle, RotateCw, Eye, Image as ImageIcon, Smartphone, Clapperboard } from "lucide-react";
 import { Link } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/empty-state";
@@ -197,7 +197,11 @@ export default function RecentPublications() {
                     <p className="truncate text-sm font-medium" data-testid={`text-page-name-${scheduledPost.id}`}>
                       {scheduledPost.page?.pageName || "Page inconnue"}
                     </p>
-                    {scheduledPost.error ? (
+                    {scheduledPost.error && !scheduledPost.publishedAt && scheduledPost.nextAttemptAt ? (
+                      <Badge variant="warning" className="gap-1">
+                        <RotateCw className="h-3 w-3" /> Nouvel essai
+                      </Badge>
+                    ) : scheduledPost.error ? (
                       <Badge variant="danger" className="gap-1">
                         <XCircle className="h-3 w-3" /> Échec
                       </Badge>

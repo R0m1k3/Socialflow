@@ -37,6 +37,15 @@ pub fn start(state: AppState) {
 /// (il faut alors la reprogrammer).
 pub const MAX_PUBLISH_ATTEMPTS: i32 = 5;
 
+/// Retard au-delà duquel une publication n'est plus envoyée : une promotion
+/// ou une story publiée un jour trop tard fait plus de mal que de bien.
+const MAX_PUBLISH_DELAY_HOURS: i64 = 24;
+
+/// Publication trop en retard sur son heure prévue pour être encore envoyée.
+fn is_stale(scheduled_at: Ts, now: Ts) -> bool {
+    scheduled_at.add(chrono::Duration::hours(MAX_PUBLISH_DELAY_HOURS)) < now
+}
+
 /// Délai avant la tentative suivante, selon le nombre d'échecs déjà subis.
 /// Une limite de débit (quota d'appels, blocage anti-spam) appelle des délais
 /// plus longs : réessayer tout de suite prolonge le blocage.
@@ -106,6 +115,36 @@ pub async fn process_pending_posts(state: &AppState) {
     let mut cooldowns: HashMap<Platform, Ts> = HashMap::new();
 
     for scheduled_post in pending {
+        if is_stale(scheduled_post.scheduled_at, Ts::now()) {
+            tracing::warn!(
+                "[Scheduler] Post {} abandonné : plus de {MAX_PUBLISH_DELAY_HOURS} h de retard",
+                scheduled_post.id
+            );
+            // Le dernier message d'erreur est conservé s'il y en a un
+            let reason = format!(
+                "Publication abandonnée : plus de {MAX_PUBLISH_DELAY_HOURS} h de retard sur l'heure prévue."
+            );
+            let error = match scheduled_post.error.as_deref().filter(|e| !e.is_empty()) {
+                Some(last) => format!("{reason} Dernière erreur : {last}"),
+                None => reason,
+            };
+            let abandoned = state
+                .db
+                .update_scheduled_post(
+                    &scheduled_post.id,
+                    Patch::new()
+                        .set("error", error)
+                        .set("attempts", MAX_PUBLISH_ATTEMPTS)
+                        .set("next_attempt_at", None::<Ts>),
+                )
+                .await;
+            if let Err(error) = abandoned {
+                tracing::error!("Error processing pending posts: {error}");
+                return;
+            }
+            continue;
+        }
+
         if !cooldowns.is_empty() {
             let platform = page_platform(state, &scheduled_post.page_id).await;
             if let Some(until) = platform.and_then(|p| cooldowns.get(&p)).copied() {
@@ -397,6 +436,14 @@ mod tests {
             "Facebook API error: Invalid parameter (code: 100)"
         ));
         assert!(!is_rate_limited("Post or page not found"));
+    }
+
+    #[test]
+    fn posts_more_than_a_day_late_are_stale() {
+        let now = Ts::parse("2026-10-12T19:00:00Z").unwrap();
+        assert!(is_stale(Ts::parse("2026-10-11T16:30:00Z").unwrap(), now));
+        assert!(!is_stale(Ts::parse("2026-10-12T16:30:00Z").unwrap(), now));
+        assert!(!is_stale(Ts::parse("2026-10-11T19:00:00Z").unwrap(), now));
     }
 
     #[test]
