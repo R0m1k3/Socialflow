@@ -270,6 +270,7 @@ export default function ScheduleReel() {
                                 <DateTimePicker
                                     value={scheduledDate}
                                     onChange={setScheduledDate}
+                                    selectedPageIds={selectedPages}
                                     placeholder="Choisir la date et l'heure"
                                 />
                                 {isPast && (

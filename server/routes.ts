@@ -22,6 +22,7 @@ import { facebookRouter } from "./routes/facebook";
 import { legalRouter } from "./routes/legal";
 import { createVideoThumbnail } from "./services/thumbnail";
 import { insertAudioTrackSchema } from "@shared/schema";
+import { agendaItemFromScheduledPost, agendaItemsFromReelJob, type AgendaItem, type AgendaPage } from "@shared/agenda";
 import * as musicMetadata from "music-metadata";
 
 // Types MIME autorisés pour les uploads
@@ -1514,6 +1515,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating post media:", error);
       res.status(500).json({ error: "Failed to update post media" });
+    }
+  });
+
+  // Agenda : ce qui est déjà prévu par jour et par magasin, Reels en montage compris.
+  // Sous /api/scheduled-posts pour être rafraîchi avec les publications planifiées.
+  app.get("/api/scheduled-posts/agenda", requireAuth, async (req, res) => {
+    try {
+      const user = req.user as User;
+      const start = parseDateParam(req.query.startDate);
+      const end = parseDateParam(req.query.endDate);
+
+      const pages = user.role === 'admin'
+        ? await storage.getAllSocialPages()
+        : await storage.getUserAccessiblePages(user.id);
+      if (pages.length === 0) return res.json([]);
+
+      const pagesById = new Map<string, AgendaPage>(pages.map(p => [p.id, {
+        id: p.id,
+        pageName: p.pageName,
+        platform: p.platform,
+        avatarUrl: p.avatarUrl ?? null,
+      }]));
+
+      const [scheduled, renderingJobs] = await Promise.all([
+        storage.getScheduledPostsByPages(Array.from(pagesById.keys()), start, end),
+        storage.getRenderingReelJobs(),
+      ]);
+
+      const items: AgendaItem[] = scheduled.map(agendaItemFromScheduledPost);
+      // Un rendu qui vient de finir peut avoir déjà créé ses publications.
+      const plannedPosts = new Set(items.map(i => i.postId));
+      for (const job of renderingJobs) {
+        if (job.postId && plannedPosts.has(job.postId)) continue;
+        items.push(...agendaItemsFromReelJob(job, pagesById, start, end));
+      }
+
+      items.sort((a, b) => a.scheduledAt.localeCompare(b.scheduledAt));
+      res.json(items);
+    } catch (error) {
+      console.error("Error fetching publication agenda:", error);
+      res.status(500).json({ error: "Failed to fetch publication agenda" });
     }
   });
 

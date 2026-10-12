@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import type { DayContentProps } from "react-day-picker";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
@@ -7,25 +8,32 @@ import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { DayAgendaPanel } from "@/components/day-agenda-panel";
+import { usePublicationAgenda } from "@/hooks/use-publication-agenda";
+import { busyHours, conflictsFor, dayKey, groupByPage, occupiesSlot } from "@shared/agenda";
 
 interface DateTimePickerProps {
   value: Date | undefined;
   onChange: (date: Date | undefined) => void;
-  occupiedDates?: Date[];
+  /** Magasins visés : leurs publications déjà prévues sont signalées. */
+  selectedPageIds?: string[];
   placeholder?: string;
 }
 
 const OPTIMAL_HOURS = [8, 12, 13, 18, 19, 20];
 
-export function DateTimePicker({ value, onChange, occupiedDates = [], placeholder = "Sélectionner une date" }: DateTimePickerProps) {
+export function DateTimePicker({ value, onChange, selectedPageIds = [], placeholder = "Sélectionner une date" }: DateTimePickerProps) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(value);
   const [selectedHour, setSelectedHour] = useState<number>(value?.getHours() || 8);
   const [selectedMinute, setSelectedMinute] = useState<number>(value?.getMinutes() || 0);
+  const [month, setMonth] = useState<Date>(value ?? new Date());
+  const { itemsByDay } = usePublicationAgenda(month);
 
   // Sync internal state with parent value prop
   useEffect(() => {
     if (value) {
       setSelectedDate(value);
+      setMonth(value);
       setSelectedHour(value.getHours());
       setSelectedMinute(value.getMinutes());
     } else {
@@ -63,15 +71,44 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
     }
   };
 
-  // Convert occupied dates to a Set of date strings for efficient lookup
-  const occupiedDateStrings = new Set(
-    occupiedDates.map(date => format(date, 'yyyy-MM-dd'))
+  // Publications qui occupent encore un créneau, jour par jour
+  const activeItemsOn = useCallback(
+    (date: Date) => (itemsByDay.get(dayKey(date)) ?? []).filter(occupiesSlot),
+    [itemsByDay]
   );
+  const isSelectedStoreBusy = (date: Date) => conflictsFor(activeItemsOn(date), selectedPageIds).length > 0;
+  const isOtherStoreBusy = (date: Date) => activeItemsOn(date).length > 0 && !isSelectedStoreBusy(date);
 
-  // Check if a date is occupied
-  const isDateOccupied = (date: Date) => {
-    return occupiedDateStrings.has(format(date, 'yyyy-MM-dd'));
-  };
+  const selectedDayItems = selectedDate ? itemsByDay.get(dayKey(selectedDate)) ?? [] : [];
+  const hoursTaken = busyHours(selectedDayItems, selectedPageIds);
+  const selectedKey = selectedPageIds.join(",");
+
+  // Pastille du jour : publications sur les magasins choisis, sinon sur les autres
+  const AgendaDayContent = useCallback(
+    ({ date }: DayContentProps) => {
+      const items = activeItemsOn(date);
+      const mine = conflictsFor(items, selectedKey ? selectedKey.split(",") : []).length;
+      const title = groupByPage(items)
+        .map(({ page, items: pageItems }) => `${page.pageName} : ${pageItems.length}`)
+        .join("\n");
+      return (
+        <span className="relative flex h-full w-full items-center justify-center" title={title || undefined}>
+          {date.getDate()}
+          {items.length > 0 && (
+            <span
+              className={cn(
+                "absolute right-0 top-0 min-w-[14px] rounded-full px-1 text-[9px] font-bold leading-[14px]",
+                mine > 0 ? "bg-destructive text-destructive-foreground" : "bg-muted-foreground/70 text-background"
+              )}
+            >
+              {mine || items.length}
+            </span>
+          )}
+        </span>
+      );
+    },
+    [activeItemsOn, selectedKey]
+  );
 
   return (
     <div className="space-y-3">
@@ -95,16 +132,34 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
               mode="single"
               selected={selectedDate}
               onSelect={handleDateSelect}
+              month={month}
+              onMonthChange={setMonth}
               locale={fr}
               modifiers={{
-                occupied: (date) => isDateOccupied(date)
+                selectedStoreBusy: isSelectedStoreBusy,
+                otherStoreBusy: isOtherStoreBusy,
               }}
               modifiersClassNames={{
-                occupied: "bg-destructive/15 text-destructive font-bold hover:bg-destructive/25"
+                selectedStoreBusy: "bg-destructive/15 text-destructive font-bold hover:bg-destructive/25",
+                otherStoreBusy: "bg-muted font-semibold",
               }}
+              components={{ DayContent: AgendaDayContent }}
               disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
               data-testid="calendar-picker"
             />
+            <div className="space-y-1 border-t bg-muted/50 px-3 py-2 text-[10px]">
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-destructive" />
+                <span>Déjà prévu sur un magasin sélectionné</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-muted-foreground/70" />
+                <span>Prévu sur d'autres magasins</span>
+              </div>
+              {selectedPageIds.length === 0 && (
+                <p className="text-muted-foreground">Cochez un magasin pour repérer ses jours déjà occupés.</p>
+              )}
+            </div>
           </PopoverContent>
         </Popover>
         {value && (
@@ -147,7 +202,9 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
               <ScrollArea className="h-48 min-w-[96px] flex-1">
                 <div className="p-1.5">
                   <div className="text-[10px] font-semibold mb-1.5 px-1.5 text-muted-foreground">Heures</div>
-                  {hours.map((hour) => (
+                  {hours.map((hour) => {
+                    const taken = hoursTaken.get(hour) ?? 0;
+                    return (
                     <Button
                       key={hour}
                       variant="ghost"
@@ -163,8 +220,17 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
                       {isOptimalHour(hour) && selectedHour !== hour && (
                         <span className="ml-1 text-[10px]">✨</span>
                       )}
+                      {taken > 0 && (
+                        <span
+                          className="ml-1 rounded-full bg-destructive px-1 text-[9px] font-bold leading-[14px] text-destructive-foreground"
+                          title={`${taken} publication(s) déjà prévue(s) sur vos magasins`}
+                        >
+                          {taken}
+                        </span>
+                      )}
                     </Button>
-                  ))}
+                    );
+                  })}
                 </div>
               </ScrollArea>
               <ScrollArea className="h-48 min-w-[80px] flex-1 border-l">
@@ -194,20 +260,21 @@ export function DateTimePicker({ value, onChange, occupiedDates = [], placeholde
                   Heures optimales (8h, 12h-13h, 18h-20h)
                 </span>
               </div>
+              {hoursTaken.size > 0 && (
+                <div className="mt-1 flex items-center gap-1.5">
+                  <div className="w-1.5 h-1.5 rounded-full bg-destructive"></div>
+                  <span className="text-[9px] font-semibold text-destructive">
+                    Déjà prévu sur vos magasins
+                  </span>
+                </div>
+              )}
             </div>
           </PopoverContent>
         </Popover>
       )}
 
-      {occupiedDates.length > 0 && (
-        <div className="p-3 bg-destructive/10 rounded-lg border border-destructive/20">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-destructive"></div>
-            <span className="text-xs font-semibold text-destructive">
-              Les dates en fond rouge ont déjà des publications programmées
-            </span>
-          </div>
-        </div>
+      {selectedDate && (
+        <DayAgendaPanel date={selectedDate} items={selectedDayItems} selectedPageIds={selectedPageIds} />
       )}
     </div>
   );

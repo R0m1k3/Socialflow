@@ -884,7 +884,7 @@ export default function NewReel() {
                                             <DateTimePicker
                                                 value={scheduledDate}
                                                 onChange={setScheduledDate}
-                                                occupiedDates={[]}
+                                                selectedPageIds={selectedPages}
                                                 placeholder="Choisir une date"
                                             />
                                         )}

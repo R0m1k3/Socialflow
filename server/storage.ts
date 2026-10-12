@@ -149,6 +149,7 @@ export interface IStorage {
   getPost(id: string): Promise<Post | undefined>;
   getPostWithMedia(id: string): Promise<{ post: Post; media: Media[] } | undefined>;
   getOngoingReelPosts(userId: string): Promise<(Post & { generationStep: string | null })[]>;
+  getRenderingReelJobs(): Promise<{ id: string; postId: string | null; createdAt: Date; params: unknown; content: string | null }[]>;
   createPost(post: InsertPost): Promise<Post>;
   updatePost(id: string, post: Partial<InsertPost>): Promise<Post>;
   updatePostGenerationStatus(id: string, status: string, progress: number, error?: string): Promise<Post>;
@@ -580,6 +581,24 @@ export class DatabaseStorage implements IStorage {
       .where(inArray(reelJobs.postId, rows.map((p) => p.id)));
     const stepByPost = new Map(jobs.map((j) => [j.postId, j.step]));
     return rows.map((post) => ({ ...post, generationStep: stepByPost.get(post.id) ?? null }));
+  }
+
+  /**
+   * Reels vidéo en file ou en montage : leurs publications planifiées
+   * n'existent qu'à la fin du rendu, l'agenda les lit donc ici.
+   */
+  async getRenderingReelJobs(): Promise<{ id: string; postId: string | null; createdAt: Date; params: unknown; content: string | null }[]> {
+    return await db
+      .select({
+        id: reelJobs.id,
+        postId: reelJobs.postId,
+        createdAt: reelJobs.createdAt,
+        params: reelJobs.params,
+        content: posts.content,
+      })
+      .from(reelJobs)
+      .leftJoin(posts, eq(reelJobs.postId, posts.id))
+      .where(and(eq(reelJobs.kind, 'video'), inArray(reelJobs.status, ['pending', 'processing'])));
   }
 
   // AI Generations

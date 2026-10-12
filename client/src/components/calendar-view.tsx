@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trash2, Edit, MoreHorizontal, Eye, Image, Smartphone } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Trash2, Edit, MoreHorizontal, Eye, Image, Smartphone, Clapperboard } from "lucide-react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -126,6 +126,8 @@ export default function CalendarView() {
           <Smartphone className="w-2.5 h-2.5" />
         </div>
       );
+    } else if (postType === 'reel') {
+      return <Clapperboard className="w-3 h-3" />;
     }
     return null;
   };
