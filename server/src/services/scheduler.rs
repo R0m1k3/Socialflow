@@ -1,8 +1,12 @@
 //! Publication des posts programmés : toutes les minutes, les publications
 //! dues sont envoyées sur Facebook ou TikTok.
 
+use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+
+use once_cell::sync::Lazy;
+use regex::Regex;
 
 use crate::db::{
     Media, MediaType, Patch, Platform, Post, PostStatus, PostType, ScheduledPost, SocialPage,
@@ -29,9 +33,69 @@ pub fn start(state: AppState) {
     tracing::info!("Scheduler service started");
 }
 
+/// Nombre de tentatives en échec après lequel une publication est abandonnée
+/// (il faut alors la reprogrammer).
+pub const MAX_PUBLISH_ATTEMPTS: i32 = 5;
+
+/// Délai avant la tentative suivante, selon le nombre d'échecs déjà subis.
+/// Une limite de débit (quota d'appels, blocage anti-spam) appelle des délais
+/// plus longs : réessayer tout de suite prolonge le blocage.
+fn retry_delay(attempts: i32, rate_limited: bool) -> chrono::Duration {
+    const MINUTES: [i64; 4] = [5, 15, 60, 180];
+    const RATE_LIMITED_MINUTES: [i64; 4] = [30, 60, 120, 240];
+    let table = if rate_limited {
+        &RATE_LIMITED_MINUTES
+    } else {
+        &MINUTES
+    };
+    let index = usize::try_from(attempts - 1)
+        .unwrap_or(0)
+        .min(table.len() - 1);
+    chrono::Duration::minutes(table[index])
+}
+
+/// Code d'erreur Graph repris dans le message (`... (code: 4)`).
+fn graph_error_code(message: &str) -> Option<i64> {
+    static CODE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\(code: (\d+)").unwrap());
+    CODE.captures(message)?.get(1)?.as_str().parse().ok()
+}
+
+/// Erreur due à une limite de débit : quotas de l'application (4), de
+/// l'utilisateur (17), de la page (32, 613, 80001…) ou blocage temporaire
+/// anti-spam (368), ou `rate_limit_exceeded` côté TikTok.
+fn is_rate_limited(message: &str) -> bool {
+    if let Some(code) = graph_error_code(message) {
+        if matches!(code, 4 | 17 | 32 | 368 | 613 | 80001..=80014) {
+            return true;
+        }
+    }
+    let lower = message.to_lowercase();
+    lower.contains("rate_limit") || lower.contains("request limit")
+}
+
+async fn page_platform(state: &AppState, page_id: &str) -> Option<Platform> {
+    match state.db.get_social_page(page_id).await {
+        Ok(page) => page.map(|p| p.platform),
+        Err(error) => {
+            tracing::warn!("[Scheduler] Page {page_id} illisible : {error}");
+            None
+        }
+    }
+}
+
 /// Traite les publications dues (une erreur n'interrompt pas les suivantes).
+///
+/// Un échec n'est retenté qu'après un délai croissant, et au plus
+/// `MAX_PUBLISH_ATTEMPTS` fois : sans cela, chaque publication en échec était
+/// renvoyée toutes les minutes et épuisait le quota d'appels de l'application.
+/// Après une limite de débit, les autres publications de la même plateforme
+/// sont reportées au lieu d'aggraver le blocage.
 pub async fn process_pending_posts(state: &AppState) {
-    let pending = match state.db.get_pending_scheduled_posts().await {
+    let pending = match state
+        .db
+        .get_pending_scheduled_posts(MAX_PUBLISH_ATTEMPTS)
+        .await
+    {
         Ok(pending) => pending,
         Err(error) => {
             tracing::error!("Error processing pending posts: {error}");
@@ -39,14 +103,63 @@ pub async fn process_pending_posts(state: &AppState) {
         }
     };
 
+    let mut cooldowns: HashMap<Platform, Ts> = HashMap::new();
+
     for scheduled_post in pending {
+        if !cooldowns.is_empty() {
+            let platform = page_platform(state, &scheduled_post.page_id).await;
+            if let Some(until) = platform.and_then(|p| cooldowns.get(&p)).copied() {
+                tracing::info!(
+                    "[Scheduler] Post {} reporté au {until} (limite de débit atteinte)",
+                    scheduled_post.id
+                );
+                let deferred = state
+                    .db
+                    .update_scheduled_post(
+                        &scheduled_post.id,
+                        Patch::new().set("next_attempt_at", until),
+                    )
+                    .await;
+                if let Err(error) = deferred {
+                    tracing::error!("Error processing pending posts: {error}");
+                    return;
+                }
+                continue;
+            }
+        }
+
         if let Err(error) = process_one(state, &scheduled_post).await {
-            tracing::error!("Error publishing post {}: {error:#}", scheduled_post.id);
+            let message = error_message(&error);
+            let rate_limited = is_rate_limited(&message);
+            let attempts = scheduled_post.attempts + 1;
+            let retry_at = Ts::now().add(retry_delay(attempts, rate_limited));
+            let next_attempt_at = (attempts < MAX_PUBLISH_ATTEMPTS).then_some(retry_at);
+
+            match next_attempt_at {
+                Some(at) => tracing::error!(
+                    "Error publishing post {} (tentative {attempts}/{MAX_PUBLISH_ATTEMPTS}, nouvel essai le {at}): {error:#}",
+                    scheduled_post.id
+                ),
+                None => tracing::error!(
+                    "Error publishing post {} (abandon après {attempts} tentatives): {error:#}",
+                    scheduled_post.id
+                ),
+            }
+
+            if rate_limited {
+                if let Some(platform) = page_platform(state, &scheduled_post.page_id).await {
+                    cooldowns.insert(platform, retry_at);
+                }
+            }
+
             let recorded = state
                 .db
                 .update_scheduled_post(
                     &scheduled_post.id,
-                    Patch::new().set("error", error_message(&error)),
+                    Patch::new()
+                        .set("error", message)
+                        .set("attempts", attempts)
+                        .set("next_attempt_at", next_attempt_at),
                 )
                 .await;
             if let Err(error) = recorded {
@@ -136,7 +249,8 @@ async fn publish_post(state: &AppState, scheduled_post: &ScheduledPost) -> anyho
                     Patch::new()
                         .set("published_at", Ts::now())
                         .set("external_post_id", external_post_id)
-                        .set_null("error"),
+                        .set_null("error")
+                        .set("next_attempt_at", None::<Ts>),
                 )
                 .await?;
         }
@@ -154,7 +268,8 @@ async fn publish_post(state: &AppState, scheduled_post: &ScheduledPost) -> anyho
                         .set("published_at", Ts::now())
                         .set("publish_id", publish_id)
                         .set("publish_status", "PROCESSING_UPLOAD")
-                        .set_null("error"),
+                        .set_null("error")
+                        .set("next_attempt_at", None::<Ts>),
                 )
                 .await?;
         }
@@ -253,4 +368,44 @@ async fn publish_to_tiktok(
     let buffer = media_store::read_media_buffer(state, &video.original_url).await?;
 
     tiktok::publish_video_from_buffer(state, page, buffer, &post.content).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn detects_facebook_rate_limits() {
+        assert!(is_rate_limited(
+            "Facebook Story API error (START phase): (#4) Application request limit reached (code: 4)"
+        ));
+        assert!(is_rate_limited(
+            "Facebook Reel START error: Nous limitons le nombre de fois que vous pouvez publier (code: 368, subcode: 1390008)"
+        ));
+        assert!(is_rate_limited(
+            "Facebook API error: Page request limit reached (code: 32)"
+        ));
+        assert!(is_rate_limited("TikTok error: rate_limit_exceeded"));
+    }
+
+    #[test]
+    fn other_errors_are_not_rate_limits() {
+        assert!(!is_rate_limited(
+            "Facebook API error: Error validating access token (code: 190)"
+        ));
+        assert!(!is_rate_limited(
+            "Facebook API error: Invalid parameter (code: 100)"
+        ));
+        assert!(!is_rate_limited("Post or page not found"));
+    }
+
+    #[test]
+    fn retry_delays_grow_and_stay_bounded() {
+        assert_eq!(retry_delay(1, false), chrono::Duration::minutes(5));
+        assert_eq!(retry_delay(2, false), chrono::Duration::minutes(15));
+        assert_eq!(retry_delay(9, false), chrono::Duration::minutes(180));
+        assert_eq!(retry_delay(1, true), chrono::Duration::minutes(30));
+        assert_eq!(retry_delay(4, true), chrono::Duration::minutes(240));
+        assert_eq!(retry_delay(0, true), chrono::Duration::minutes(30));
+    }
 }

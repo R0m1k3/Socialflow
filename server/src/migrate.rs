@@ -251,6 +251,9 @@ const COLUMNS: &[&str] = &[
     r#"ALTER TABLE "scheduled_posts"
         ADD COLUMN IF NOT EXISTS "publish_id" text,
         ADD COLUMN IF NOT EXISTS "publish_status" text"#,
+    r#"ALTER TABLE "scheduled_posts"
+        ADD COLUMN IF NOT EXISTS "attempts" integer NOT NULL DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS "next_attempt_at" timestamp"#,
 ];
 
 /// Index de performance (Postgres n'indexe pas les clés étrangères seul).

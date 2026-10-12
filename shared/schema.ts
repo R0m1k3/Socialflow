@@ -230,6 +230,11 @@ export const scheduledPosts = pgTable("scheduled_posts", {
   // post_id définitif n'est connu qu'après interrogation du statut.
   publishId: text("publish_id"),
   publishStatus: text("publish_status"),
+
+  // Échecs de publication : nouvel essai à `nextAttemptAt` (délai croissant),
+  // abandon après quelques tentatives (il faut alors reprogrammer).
+  attempts: integer("attempts").notNull().default(0),
+  nextAttemptAt: timestamp("next_attempt_at"),
 });
 
 export const aiGenerations = pgTable("ai_generations", {
@@ -454,6 +459,8 @@ export const insertScheduledPostSchema = createInsertSchema(scheduledPosts).omit
   publishedAt: true,
   externalPostId: true,
   error: true,
+  attempts: true,
+  nextAttemptAt: true,
 });
 
 export const insertAiGenerationSchema = createInsertSchema(aiGenerations).omit({
