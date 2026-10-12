@@ -1,8 +1,8 @@
 //! Assemblage des routes HTTP.
 
+mod analytics;
 mod auth;
 mod core;
-mod analytics;
 mod external;
 mod facebook;
 mod legal;
@@ -35,7 +35,11 @@ pub fn router(state: AppState) -> Router {
         .merge(legal::router());
 
     let config = &state.config;
-    for dir in [&config.uploads_dir, &config.audio_upload_dir, &config.temp_upload_dir] {
+    for dir in [
+        &config.uploads_dir,
+        &config.audio_upload_dir,
+        &config.temp_upload_dir,
+    ] {
         let _ = std::fs::create_dir_all(dir);
     }
     for sub in ["media", "logos", "stories"] {
@@ -51,7 +55,10 @@ pub fn router(state: AppState) -> Router {
     api.merge(uploads)
         .fallback(fallback)
         .layer(DefaultBodyLimit::max(MAX_JSON_BODY))
-        .layer(middleware::from_fn_with_state(state.clone(), http::rate_limit))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            http::rate_limit,
+        ))
         .layer(middleware::from_fn(http::log_requests))
         .layer(middleware::from_fn(http::security_headers))
         .with_state(state)
@@ -59,7 +66,10 @@ pub fn router(state: AppState) -> Router {
 
 /// Sonde de santé (Docker) : le serveur répond et la base est joignable.
 async fn healthz(State(state): State<AppState>) -> Response {
-    match sqlx::query_scalar::<_, i32>("SELECT 1").fetch_one(&state.db.pool).await {
+    match sqlx::query_scalar::<_, i32>("SELECT 1")
+        .fetch_one(&state.db.pool)
+        .await
+    {
         Ok(_) => (StatusCode::OK, "ok").into_response(),
         Err(_) => (StatusCode::SERVICE_UNAVAILABLE, "database unavailable").into_response(),
     }
@@ -70,16 +80,27 @@ async fn fallback(State(state): State<AppState>, headers: HeaderMap, request: Re
     let path = request.uri().path().to_string();
     if path == "/api" || path.starts_with("/api/") {
         return if crate::auth::current_user(&state, &headers).await.is_none() {
-            (StatusCode::UNAUTHORIZED, axum::Json(json!({ "error": "Non authentifié" }))).into_response()
+            (
+                StatusCode::UNAUTHORIZED,
+                axum::Json(json!({ "error": "Non authentifié" })),
+            )
+                .into_response()
         } else {
-            (StatusCode::NOT_FOUND, axum::Json(json!({ "error": "Route introuvable" }))).into_response()
+            (
+                StatusCode::NOT_FOUND,
+                axum::Json(json!({ "error": "Route introuvable" })),
+            )
+                .into_response()
         };
     }
 
     // Vérifications de domaine (TikTok, Google, Meta…), sans les fichiers cachés
     let is_hidden = path.split('/').any(|part| part.starts_with('.'));
     if !is_hidden && path != "/" {
-        let candidate = state.config.public_root_dir.join(path.trim_start_matches('/'));
+        let candidate = state
+            .config
+            .public_root_dir
+            .join(path.trim_start_matches('/'));
         if candidate.is_file() {
             return serve(ServeFile::new(candidate), request).await;
         }

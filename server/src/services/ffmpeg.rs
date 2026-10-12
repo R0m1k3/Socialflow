@@ -39,6 +39,9 @@ pub async fn health_check(state: &AppState) -> bool {
 }
 
 /// Voix disponibles ; `qwen` remplace la cible Qwen configurée côté service.
-pub async fn list_voices(state: &AppState, qwen: Option<QwenTarget>) -> anyhow::Result<VoiceCatalog> {
+pub async fn list_voices(
+    state: &AppState,
+    qwen: Option<QwenTarget>,
+) -> anyhow::Result<VoiceCatalog> {
     anyhow::bail!("service FFmpeg non implémenté")
 }

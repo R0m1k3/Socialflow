@@ -255,23 +255,74 @@ const COLUMNS: &[&str] = &[
 
 /// Index de performance (Postgres n'indexe pas les clés étrangères seul).
 const INDEXES: &[(&str, &str)] = &[
-    ("idx_posts_user_id", r#"CREATE INDEX IF NOT EXISTS "idx_posts_user_id" ON "posts" ("user_id")"#),
-    ("idx_media_user_id", r#"CREATE INDEX IF NOT EXISTS "idx_media_user_id" ON "media" ("user_id")"#),
-    ("idx_social_pages_user_id", r#"CREATE INDEX IF NOT EXISTS "idx_social_pages_user_id" ON "social_pages" ("user_id")"#),
-    ("idx_ai_generations_user_id", r#"CREATE INDEX IF NOT EXISTS "idx_ai_generations_user_id" ON "ai_generations" ("user_id")"#),
-    ("idx_scheduled_posts_post_id", r#"CREATE INDEX IF NOT EXISTS "idx_scheduled_posts_post_id" ON "scheduled_posts" ("post_id")"#),
-    ("idx_post_media_post_id", r#"CREATE INDEX IF NOT EXISTS "idx_post_media_post_id" ON "post_media" ("post_id")"#),
-    ("idx_post_media_media_id", r#"CREATE INDEX IF NOT EXISTS "idx_post_media_media_id" ON "post_media" ("media_id")"#),
-    ("idx_post_analytics_post_id", r#"CREATE INDEX IF NOT EXISTS "idx_post_analytics_post_id" ON "post_analytics" ("post_id")"#),
-    ("idx_page_analytics_history_page_date", r#"CREATE INDEX IF NOT EXISTS "idx_page_analytics_history_page_date" ON "page_analytics_history" ("page_id", "date")"#),
-    ("idx_user_page_permissions_user_id", r#"CREATE INDEX IF NOT EXISTS "idx_user_page_permissions_user_id" ON "user_page_permissions" ("user_id")"#),
-    ("idx_user_page_permissions_page_id", r#"CREATE INDEX IF NOT EXISTS "idx_user_page_permissions_page_id" ON "user_page_permissions" ("page_id")"#),
-    ("idx_scheduled_posts_page_scheduled_at", r#"CREATE INDEX IF NOT EXISTS "idx_scheduled_posts_page_scheduled_at" ON "scheduled_posts" ("page_id", "scheduled_at")"#),
-    ("idx_scheduled_posts_pending", r#"CREATE INDEX IF NOT EXISTS "idx_scheduled_posts_pending" ON "scheduled_posts" ("scheduled_at") WHERE "published_at" IS NULL"#),
-    ("idx_scheduled_posts_publish_id", r#"CREATE INDEX IF NOT EXISTS "idx_scheduled_posts_publish_id" ON "scheduled_posts" ("publish_id") WHERE "publish_id" IS NOT NULL"#),
-    ("idx_reel_jobs_queue", r#"CREATE INDEX IF NOT EXISTS "idx_reel_jobs_queue" ON "reel_jobs" ("created_at") WHERE "status" IN ('pending', 'processing')"#),
-    ("idx_posts_generation_status", r#"CREATE INDEX IF NOT EXISTS "idx_posts_generation_status" ON "posts" ("generation_status") WHERE "generation_status" IS NOT NULL"#),
-    ("IDX_session_expire", r#"CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire")"#),
+    (
+        "idx_posts_user_id",
+        r#"CREATE INDEX IF NOT EXISTS "idx_posts_user_id" ON "posts" ("user_id")"#,
+    ),
+    (
+        "idx_media_user_id",
+        r#"CREATE INDEX IF NOT EXISTS "idx_media_user_id" ON "media" ("user_id")"#,
+    ),
+    (
+        "idx_social_pages_user_id",
+        r#"CREATE INDEX IF NOT EXISTS "idx_social_pages_user_id" ON "social_pages" ("user_id")"#,
+    ),
+    (
+        "idx_ai_generations_user_id",
+        r#"CREATE INDEX IF NOT EXISTS "idx_ai_generations_user_id" ON "ai_generations" ("user_id")"#,
+    ),
+    (
+        "idx_scheduled_posts_post_id",
+        r#"CREATE INDEX IF NOT EXISTS "idx_scheduled_posts_post_id" ON "scheduled_posts" ("post_id")"#,
+    ),
+    (
+        "idx_post_media_post_id",
+        r#"CREATE INDEX IF NOT EXISTS "idx_post_media_post_id" ON "post_media" ("post_id")"#,
+    ),
+    (
+        "idx_post_media_media_id",
+        r#"CREATE INDEX IF NOT EXISTS "idx_post_media_media_id" ON "post_media" ("media_id")"#,
+    ),
+    (
+        "idx_post_analytics_post_id",
+        r#"CREATE INDEX IF NOT EXISTS "idx_post_analytics_post_id" ON "post_analytics" ("post_id")"#,
+    ),
+    (
+        "idx_page_analytics_history_page_date",
+        r#"CREATE INDEX IF NOT EXISTS "idx_page_analytics_history_page_date" ON "page_analytics_history" ("page_id", "date")"#,
+    ),
+    (
+        "idx_user_page_permissions_user_id",
+        r#"CREATE INDEX IF NOT EXISTS "idx_user_page_permissions_user_id" ON "user_page_permissions" ("user_id")"#,
+    ),
+    (
+        "idx_user_page_permissions_page_id",
+        r#"CREATE INDEX IF NOT EXISTS "idx_user_page_permissions_page_id" ON "user_page_permissions" ("page_id")"#,
+    ),
+    (
+        "idx_scheduled_posts_page_scheduled_at",
+        r#"CREATE INDEX IF NOT EXISTS "idx_scheduled_posts_page_scheduled_at" ON "scheduled_posts" ("page_id", "scheduled_at")"#,
+    ),
+    (
+        "idx_scheduled_posts_pending",
+        r#"CREATE INDEX IF NOT EXISTS "idx_scheduled_posts_pending" ON "scheduled_posts" ("scheduled_at") WHERE "published_at" IS NULL"#,
+    ),
+    (
+        "idx_scheduled_posts_publish_id",
+        r#"CREATE INDEX IF NOT EXISTS "idx_scheduled_posts_publish_id" ON "scheduled_posts" ("publish_id") WHERE "publish_id" IS NOT NULL"#,
+    ),
+    (
+        "idx_reel_jobs_queue",
+        r#"CREATE INDEX IF NOT EXISTS "idx_reel_jobs_queue" ON "reel_jobs" ("created_at") WHERE "status" IN ('pending', 'processing')"#,
+    ),
+    (
+        "idx_posts_generation_status",
+        r#"CREATE INDEX IF NOT EXISTS "idx_posts_generation_status" ON "posts" ("generation_status") WHERE "generation_status" IS NOT NULL"#,
+    ),
+    (
+        "IDX_session_expire",
+        r#"CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire")"#,
+    ),
 ];
 
 pub async fn run(pool: &PgPool) {
@@ -281,7 +332,11 @@ pub async fn run(pool: &PgPool) {
     for statement in ENUMS.iter().chain(TABLES).chain(COLUMNS) {
         if let Err(error) = sqlx::raw_sql(statement).execute(pool).await {
             failures += 1;
-            let head: String = statement.split_whitespace().take(6).collect::<Vec<_>>().join(" ");
+            let head: String = statement
+                .split_whitespace()
+                .take(6)
+                .collect::<Vec<_>>()
+                .join(" ");
             tracing::warn!("[Migration] Échec de « {head} … » : {error}");
         }
     }

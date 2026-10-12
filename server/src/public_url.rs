@@ -25,9 +25,11 @@ pub fn resolve_public_base_url(state: &AppState, headers: Option<&HeaderMap>) ->
         return url.clone();
     }
     if let Some(headers) = headers {
-        let host = first_header_value(headers, "x-forwarded-host").or_else(|| first_header_value(headers, "host"));
+        let host = first_header_value(headers, "x-forwarded-host")
+            .or_else(|| first_header_value(headers, "host"));
         if let Some(host) = host {
-            let protocol = first_header_value(headers, "x-forwarded-proto").unwrap_or_else(|| "http".into());
+            let protocol =
+                first_header_value(headers, "x-forwarded-proto").unwrap_or_else(|| "http".into());
             return format!("{protocol}://{host}");
         }
     }

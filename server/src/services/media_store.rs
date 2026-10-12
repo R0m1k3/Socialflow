@@ -17,7 +17,11 @@ pub fn resolve_public_url(state: &AppState, url: &str) -> String {
     if url.is_empty() || !url.starts_with('/') {
         return url.to_string();
     }
-    let base = state.config.app_url.as_deref().unwrap_or("http://localhost:5555");
+    let base = state
+        .config
+        .app_url
+        .as_deref()
+        .unwrap_or("http://localhost:5555");
     format!("{}{url}", base.trim_end_matches('/'))
 }
 
@@ -40,8 +44,13 @@ pub fn resolve_internal_url(state: &AppState, url: &str) -> String {
 pub fn local_path(state: &AppState, url: &str) -> Option<PathBuf> {
     let rest = url.strip_prefix("/uploads/")?;
     let rest = rest.split(['?', '#']).next().unwrap_or(rest);
-    let decoded = percent_encoding::percent_decode_str(rest).decode_utf8().ok()?;
-    if decoded.split('/').any(|part| part == ".." || part.is_empty()) {
+    let decoded = percent_encoding::percent_decode_str(rest)
+        .decode_utf8()
+        .ok()?;
+    if decoded
+        .split('/')
+        .any(|part| part == ".." || part.is_empty())
+    {
         return None;
     }
     let (root, relative) = if let Some(r) = decoded.strip_prefix("audio/") {
@@ -78,7 +87,13 @@ fn safe_name(file_name: &str) -> String {
         .and_then(|n| n.to_str())
         .unwrap_or("file");
     base.chars()
-        .map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') { c } else { '-' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-') {
+                c
+            } else {
+                '-'
+            }
+        })
         .collect()
 }
 
@@ -111,7 +126,11 @@ pub enum MediaSource<'a> {
     Bytes(&'a [u8]),
 }
 
-pub async fn upload_media(state: &AppState, source: MediaSource<'_>, file_name: &str) -> anyhow::Result<StoredMedia> {
+pub async fn upload_media(
+    state: &AppState,
+    source: MediaSource<'_>,
+    file_name: &str,
+) -> anyhow::Result<StoredMedia> {
     let object_key = format!("media/{}-{}", now_ms(), safe_name(file_name));
     let target = state.config.uploads_dir.join(&object_key);
     if let Some(parent) = target.parent() {
@@ -148,14 +167,26 @@ pub async fn delete_media(state: &AppState, public_id: &str) -> anyhow::Result<(
 }
 
 /// Image de story avec texte incrusté ; renvoie son URL.
-pub async fn upload_story_image(state: &AppState, data: &[u8], original_file_name: &str) -> anyhow::Result<String> {
-    let object_key = format!("stories/story-{}-{}", now_ms(), safe_name(original_file_name));
+pub async fn upload_story_image(
+    state: &AppState,
+    data: &[u8],
+    original_file_name: &str,
+) -> anyhow::Result<String> {
+    let object_key = format!(
+        "stories/story-{}-{}",
+        now_ms(),
+        safe_name(original_file_name)
+    );
     write(state, &object_key, data).await?;
     Ok(build_url(&object_key))
 }
 
 /// Vignette vidéo (conservée après la suppression de la vidéo source).
-pub async fn upload_thumbnail(state: &AppState, data: &[u8], file_name: &str) -> anyhow::Result<(String, String)> {
+pub async fn upload_thumbnail(
+    state: &AppState,
+    data: &[u8],
+    file_name: &str,
+) -> anyhow::Result<(String, String)> {
     let object_key = format!("thumbnails/{}", safe_name(file_name));
     write(state, &object_key, data).await?;
     let url = build_url(&object_key);
@@ -163,7 +194,11 @@ pub async fn upload_thumbnail(state: &AppState, data: &[u8], file_name: &str) ->
 }
 
 /// Logo de l'entreprise ; renvoie (clé, URL).
-pub async fn upload_logo(state: &AppState, data: &[u8], file_name: &str) -> anyhow::Result<(String, String)> {
+pub async fn upload_logo(
+    state: &AppState,
+    data: &[u8],
+    file_name: &str,
+) -> anyhow::Result<(String, String)> {
     let ext = Path::new(file_name)
         .extension()
         .and_then(|e| e.to_str())

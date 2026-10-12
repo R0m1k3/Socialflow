@@ -30,7 +30,11 @@ pub struct RateDecision {
 
 impl RateLimiter {
     pub fn new(max: u32, window: Duration) -> Self {
-        Self { max, window, hits: Mutex::new(HashMap::new()) }
+        Self {
+            max,
+            window,
+            hits: Mutex::new(HashMap::new()),
+        }
     }
 
     pub fn check(&self, ip: IpAddr) -> RateDecision {
@@ -59,7 +63,7 @@ impl RateLimiter {
 /// sinon l'adresse de la connexion.
 pub fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>) -> IpAddr {
     if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
-        if let Some(ip) = xff.split(',').map(str::trim).filter(|s| !s.is_empty()).last() {
+        if let Some(ip) = xff.split(',').map(str::trim).rfind(|s| !s.is_empty()) {
             if let Ok(ip) = ip.parse() {
                 return ip;
             }
@@ -73,7 +77,10 @@ pub async fn rate_limit(State(state): State<AppState>, request: Request, next: N
     if !path.starts_with("/api/") {
         return next.run(request).await;
     }
-    let peer = request.extensions().get::<ConnectInfo<SocketAddr>>().map(|c| c.0);
+    let peer = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|c| c.0);
     let ip = client_ip(request.headers(), peer);
 
     let decision = state.global_limiter.check(ip);
@@ -83,7 +90,10 @@ pub async fn rate_limit(State(state): State<AppState>, request: Request, next: N
     if path == "/api/auth/login" {
         let auth = state.auth_limiter.check(ip);
         if !auth.allowed {
-            return too_many(&auth, "Trop de tentatives de connexion, réessayez dans 15 minutes");
+            return too_many(
+                &auth,
+                "Trop de tentatives de connexion, réessayez dans 15 minutes",
+            );
         }
     }
 
@@ -96,7 +106,11 @@ pub async fn rate_limit(State(state): State<AppState>, request: Request, next: N
 }
 
 fn too_many(decision: &RateDecision, message: &str) -> Response {
-    let mut response = (StatusCode::TOO_MANY_REQUESTS, axum::Json(json!({ "error": message }))).into_response();
+    let mut response = (
+        StatusCode::TOO_MANY_REQUESTS,
+        axum::Json(json!({ "error": message })),
+    )
+        .into_response();
     let headers = response.headers_mut();
     headers.insert("ratelimit-limit", HeaderValue::from(decision.limit));
     headers.insert("ratelimit-remaining", HeaderValue::from(0u32));
@@ -132,10 +146,20 @@ pub async fn security_headers(request: Request, next: Next) -> Response {
     set("content-security-policy", CSP);
     set("cross-origin-opener-policy", "same-origin");
     // Les fichiers téléversés sont lus par d'autres origines (rendu des Reels)
-    set("cross-origin-resource-policy", if is_upload { "cross-origin" } else { "same-origin" });
+    set(
+        "cross-origin-resource-policy",
+        if is_upload {
+            "cross-origin"
+        } else {
+            "same-origin"
+        },
+    );
     set("origin-agent-cluster", "?1");
     set("referrer-policy", "no-referrer");
-    set("strict-transport-security", "max-age=31536000; includeSubDomains");
+    set(
+        "strict-transport-security",
+        "max-age=31536000; includeSubDomains",
+    );
     set("x-content-type-options", "nosniff");
     set("x-dns-prefetch-control", "off");
     set("x-download-options", "noopen");
@@ -157,7 +181,11 @@ pub async fn log_requests(request: Request, next: Next) -> Response {
     let status = response.status();
     // Les 401 de /api/auth/session sont la vérification normale de session
     if !(path == "/api/auth/session" && status == StatusCode::UNAUTHORIZED) {
-        tracing::info!("{method} {path} {} in {}ms", status.as_u16(), started.elapsed().as_millis());
+        tracing::info!(
+            "{method} {path} {} in {}ms",
+            status.as_u16(),
+            started.elapsed().as_millis()
+        );
     }
     response
 }

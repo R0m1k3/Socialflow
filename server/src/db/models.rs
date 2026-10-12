@@ -104,7 +104,10 @@ impl SocialPage {
         let mut value = serde_json::to_value(self).unwrap_or(Value::Null);
         let auto_renew = match self.platform {
             Platform::Tiktok => self.refresh_token.as_deref().is_some_and(|t| !t.is_empty()),
-            _ => self.user_access_token.as_deref().is_some_and(|t| !t.is_empty()),
+            _ => self
+                .user_access_token
+                .as_deref()
+                .is_some_and(|t| !t.is_empty()),
         };
         if let Value::Object(map) = &mut value {
             map.insert("autoRenew".into(), Value::Bool(auto_renew));

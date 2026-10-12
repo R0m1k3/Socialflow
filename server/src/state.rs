@@ -49,7 +49,10 @@ impl AppState {
             .build()?;
 
         let ffmpeg = FfmpegSettings {
-            api_url: config.ffmpeg_api_url.as_ref().map(|u| u.trim_end_matches('/').to_string()),
+            api_url: config
+                .ffmpeg_api_url
+                .as_ref()
+                .map(|u| u.trim_end_matches('/').to_string()),
             api_key: config.ffmpeg_api_key.clone(),
         };
         if ffmpeg.api_url.is_none() || ffmpeg.api_key.is_none() {

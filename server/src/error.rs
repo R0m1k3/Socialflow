@@ -16,7 +16,10 @@ pub type ApiResult<T = Response> = Result<T, AppError>;
 impl AppError {
     /// Réponse `{ error: message }` avec le statut donné.
     pub fn new(status: StatusCode, message: impl Into<String>) -> Self {
-        Self { status, body: json!({ "error": message.into() }) }
+        Self {
+            status,
+            body: json!({ "error": message.into() }),
+        }
     }
 
     /// Corps JSON libre (ex. `{ success: false, error }`).

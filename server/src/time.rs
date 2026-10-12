@@ -24,15 +24,15 @@ impl Ts {
         Ts(dt.naive_utc())
     }
 
-    pub fn utc(&self) -> DateTime<Utc> {
+    pub fn utc(self) -> DateTime<Utc> {
         self.0.and_utc()
     }
 
-    pub fn to_iso(&self) -> String {
+    pub fn to_iso(self) -> String {
         self.0.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string()
     }
 
-    pub fn timestamp_millis(&self) -> i64 {
+    pub fn timestamp_millis(self) -> i64 {
         self.0.and_utc().timestamp_millis()
     }
 
@@ -40,7 +40,7 @@ impl Ts {
         DateTime::<Utc>::from_timestamp_millis(ms).map(Ts::from_utc)
     }
 
-    pub fn add(&self, d: Duration) -> Self {
+    pub fn add(self, d: Duration) -> Self {
         Ts(self.0 + d)
     }
 
@@ -68,9 +68,8 @@ impl<'de> Deserialize<'de> for Ts {
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let value = serde_json::Value::deserialize(deserializer)?;
         match &value {
-            serde_json::Value::String(s) => {
-                parse_js_date(s).ok_or_else(|| serde::de::Error::custom(format!("date invalide : {s}")))
-            }
+            serde_json::Value::String(s) => parse_js_date(s)
+                .ok_or_else(|| serde::de::Error::custom(format!("date invalide : {s}"))),
             serde_json::Value::Number(n) => n
                 .as_i64()
                 .or_else(|| n.as_f64().map(|f| f as i64))
@@ -102,7 +101,11 @@ pub fn parse_js_date(value: &str) -> Option<Ts> {
         return Some(Ts::from_utc(dt.with_timezone(&Utc)));
     }
     // Variantes ISO tolérées par Date.parse : décalage sans « : », espace au lieu de « T »
-    for fmt in ["%Y-%m-%dT%H:%M:%S%.f%z", "%Y-%m-%d %H:%M:%S%.f%z", "%Y-%m-%dT%H:%M%z"] {
+    for fmt in [
+        "%Y-%m-%dT%H:%M:%S%.f%z",
+        "%Y-%m-%d %H:%M:%S%.f%z",
+        "%Y-%m-%dT%H:%M%z",
+    ] {
         if let Ok(dt) = DateTime::parse_from_str(s, fmt) {
             return Some(Ts::from_utc(dt.with_timezone(&Utc)));
         }
@@ -149,8 +152,14 @@ mod tests {
 
     #[test]
     fn naive_and_date_only() {
-        assert_eq!(parse_js_date("2024-05-01T08:30").unwrap().to_iso(), "2024-05-01T08:30:00.000Z");
-        assert_eq!(parse_js_date("2024-05-01").unwrap().to_iso(), "2024-05-01T00:00:00.000Z");
+        assert_eq!(
+            parse_js_date("2024-05-01T08:30").unwrap().to_iso(),
+            "2024-05-01T08:30:00.000Z"
+        );
+        assert_eq!(
+            parse_js_date("2024-05-01").unwrap().to_iso(),
+            "2024-05-01T00:00:00.000Z"
+        );
         assert!(parse_js_date("pas une date").is_none());
     }
 }

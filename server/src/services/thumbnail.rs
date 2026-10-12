@@ -39,7 +39,10 @@ pub async fn generate_video_thumbnail(video: &Path, output: &Path, seek_time: f6
 
 /// Produit la vignette et la range dans le stockage public. Tolérante à
 /// l'échec : renvoie `None` sans jamais faire échouer l'appelant.
-pub async fn create_video_thumbnail(state: &AppState, source: ThumbnailSource<'_>) -> Option<String> {
+pub async fn create_video_thumbnail(
+    state: &AppState,
+    source: ThumbnailSource<'_>,
+) -> Option<String> {
     let temp_dir = state.config.uploads_dir.join("temp");
     if tokio::fs::create_dir_all(&temp_dir).await.is_err() {
         return None;
@@ -72,13 +75,17 @@ pub async fn create_video_thumbnail(state: &AppState, source: ThumbnailSource<'_
 
     let result = if ok {
         match tokio::fs::read(&output).await {
-            Ok(data) => match media_store::upload_thumbnail(state, &data, &format!("thumb-{stamp}.jpg")).await {
-                Ok((_, url)) => Some(url),
-                Err(error) => {
-                    tracing::warn!("⚠️ Vignette non enregistrée : {error}");
-                    None
+            Ok(data) => {
+                match media_store::upload_thumbnail(state, &data, &format!("thumb-{stamp}.jpg"))
+                    .await
+                {
+                    Ok((_, url)) => Some(url),
+                    Err(error) => {
+                        tracing::warn!("⚠️ Vignette non enregistrée : {error}");
+                        None
+                    }
                 }
-            },
+            }
             Err(_) => None,
         }
     } else {

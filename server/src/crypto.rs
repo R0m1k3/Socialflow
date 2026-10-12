@@ -88,11 +88,22 @@ pub fn encrypt(text: &str) -> String {
     let mut iv = [0u8; 16];
     rand::thread_rng().fill_bytes(&mut iv);
     let sealed = cipher
-        .encrypt(Nonce::<U16>::from_slice(&iv), Payload { msg: text.as_bytes(), aad: &[] })
+        .encrypt(
+            Nonce::<U16>::from_slice(&iv),
+            Payload {
+                msg: text.as_bytes(),
+                aad: &[],
+            },
+        )
         .expect("chiffrement AES-GCM");
     // `sealed` = chiffré || tag (16 octets)
     let (ciphertext, tag) = sealed.split_at(sealed.len() - 16);
-    format!("{}:{}:{}", hex::encode(iv), hex::encode(tag), hex::encode(ciphertext))
+    format!(
+        "{}:{}:{}",
+        hex::encode(iv),
+        hex::encode(tag),
+        hex::encode(ciphertext)
+    )
 }
 
 /// Déchiffre ; une valeur qui n'a pas le format attendu (jeton enregistré en
@@ -115,7 +126,13 @@ pub fn decrypt(value: &str) -> String {
         data.extend_from_slice(&tag);
         let cipher = Cipher::new_from_slice(key()).ok()?;
         let plain = cipher
-            .decrypt(Nonce::<U16>::from_slice(&iv), Payload { msg: &data, aad: &[] })
+            .decrypt(
+                Nonce::<U16>::from_slice(&iv),
+                Payload {
+                    msg: &data,
+                    aad: &[],
+                },
+            )
             .ok()?;
         String::from_utf8(plain).ok()
     };

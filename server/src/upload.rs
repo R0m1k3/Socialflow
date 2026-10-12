@@ -35,7 +35,13 @@ pub struct UploadRules<'a> {
 pub fn disk_name(original: &str) -> String {
     let safe: String = original
         .chars()
-        .map(|c| if c.is_ascii_alphanumeric() || c == '.' { c } else { '_' })
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '.' {
+                c
+            } else {
+                '_'
+            }
+        })
         .collect();
     let millis = chrono::Utc::now().timestamp_millis();
     let random: u32 = rand::thread_rng().gen_range(0..1_000_000_000);
@@ -103,7 +109,10 @@ pub async fn receive_files(
             {
                 size += chunk.len() as u64;
                 if size > rules.max_file_size {
-                    return Err(AppError::new(axum::http::StatusCode::PAYLOAD_TOO_LARGE, "File too large"));
+                    return Err(AppError::new(
+                        axum::http::StatusCode::PAYLOAD_TOO_LARGE,
+                        "File too large",
+                    ));
                 }
                 out.write_all(&chunk)
                     .await

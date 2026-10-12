@@ -57,7 +57,10 @@ impl Session {
     }
 
     pub fn get_str(&self, key: &str) -> Option<String> {
-        self.data.get(key).and_then(Value::as_str).map(str::to_string)
+        self.data
+            .get(key)
+            .and_then(Value::as_str)
+            .map(str::to_string)
     }
 
     pub fn set(&mut self, key: &str, value: Value) {
@@ -86,7 +89,8 @@ impl Session {
 }
 
 fn sign(secret: &str, value: &str) -> String {
-    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC accepte toute clé");
+    let mut mac =
+        Hmac::<Sha256>::new_from_slice(secret.as_bytes()).expect("HMAC accepte toute clé");
     mac.update(value.as_bytes());
     let sig = base64::engine::general_purpose::STANDARD.encode(mac.finalize().into_bytes());
     format!("{value}.{}", sig.trim_end_matches('='))
@@ -142,9 +146,15 @@ fn cookie_meta(secure: bool, expires: Ts) -> Value {
 }
 
 /// En-tête `Set-Cookie` de la session.
-pub fn session_cookie(state: &AppState, headers: &HeaderMap, sid: &str, expires: Ts) -> HeaderValue {
+pub fn session_cookie(
+    state: &AppState,
+    headers: &HeaderMap,
+    sid: &str,
+    expires: Ts,
+) -> HeaderValue {
     let signed = sign(&state.config.session_secret, sid);
-    let encoded = percent_encoding::utf8_percent_encode(&format!("s:{signed}"), COOKIE_ENCODE).to_string();
+    let encoded =
+        percent_encoding::utf8_percent_encode(&format!("s:{signed}"), COOKIE_ENCODE).to_string();
     let mut cookie = format!(
         "{COOKIE_NAME}={encoded}; Path=/; Expires={}; HttpOnly; SameSite=Lax",
         expires.utc().format("%a, %d %b %Y %H:%M:%S GMT")
@@ -157,19 +167,22 @@ pub fn session_cookie(state: &AppState, headers: &HeaderMap, sid: &str, expires:
 
 /// En-tête `Set-Cookie` qui efface la session côté navigateur.
 pub fn clear_session_cookie() -> HeaderValue {
-    HeaderValue::from_static("connect.sid=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax")
+    HeaderValue::from_static(
+        "connect.sid=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax",
+    )
 }
 
 /// Charge la session de la requête (cookie valide et session non expirée).
 pub async fn load_session(state: &AppState, headers: &HeaderMap) -> Option<Session> {
     let cookie = session_cookie_value(headers)?;
     let sid = unsign(&state.config.session_secret, &cookie)?;
-    let row: Option<(Value,)> = sqlx::query_as("SELECT sess FROM session WHERE sid = $1 AND expire > $2")
-        .bind(&sid)
-        .bind(Ts::now())
-        .fetch_optional(&state.db.pool)
-        .await
-        .ok()?;
+    let row: Option<(Value,)> =
+        sqlx::query_as("SELECT sess FROM session WHERE sid = $1 AND expire > $2")
+            .bind(&sid)
+            .bind(Ts::now())
+            .fetch_optional(&state.db.pool)
+            .await
+            .ok()?;
     row.map(|(data,)| Session { sid, data })
 }
 
@@ -201,7 +214,10 @@ pub async fn start_session(
 }
 
 pub async fn destroy_session(state: &AppState, sid: &str) -> Result<(), sqlx::Error> {
-    sqlx::query("DELETE FROM session WHERE sid = $1").bind(sid).execute(&state.db.pool).await?;
+    sqlx::query("DELETE FROM session WHERE sid = $1")
+        .bind(sid)
+        .execute(&state.db.pool)
+        .await?;
     Ok(())
 }
 
@@ -252,7 +268,10 @@ impl Deref for AuthUser {
 impl FromRequestParts<AppState> for AuthUser {
     type Rejection = AppError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         match current_user(state, &parts.headers).await {
             Some((user, session)) => Ok(AuthUser { user, session }),
             None => Err(AppError::unauthorized("Non authentifié")),
@@ -277,10 +296,15 @@ impl Deref for AdminUser {
 impl FromRequestParts<AppState> for AdminUser {
     type Rejection = AppError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let AuthUser { user, session } = AuthUser::from_request_parts(parts, state).await?;
         if user.role != UserRole::Admin {
-            return Err(AppError::forbidden("Accès refusé. Réservé aux administrateurs."));
+            return Err(AppError::forbidden(
+                "Accès refusé. Réservé aux administrateurs.",
+            ));
         }
         Ok(AdminUser { user, session })
     }
@@ -292,7 +316,10 @@ pub struct MaybeUser(pub Option<(User, Session)>);
 impl FromRequestParts<AppState> for MaybeUser {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, state: &AppState) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         Ok(MaybeUser(current_user(state, &parts.headers).await))
     }
 }
@@ -333,7 +360,10 @@ pub async fn ensure_admin_user_exists(state: &AppState) -> anyhow::Result<()> {
     }
     tracing::info!("🔧 Création de l'utilisateur admin par défaut...");
     let hash = hash_password("admin").await?;
-    state.db.create_user("admin", &hash, UserRole::Admin).await?;
+    state
+        .db
+        .create_user("admin", &hash, UserRole::Admin)
+        .await?;
     tracing::info!("✅ Utilisateur admin créé avec succès (admin / admin)");
     tracing::warn!("⚠️  IMPORTANT: Changez ce mot de passe immédiatement !");
     Ok(())
@@ -346,8 +376,18 @@ mod tests {
     #[test]
     fn signature_matches_cookie_signature_package() {
         // Valeur produite par `cookie-signature` (Node) : sign('abc', 'secret')
-        assert_eq!(sign("secret", "abc"), "abc.mUba1OAOkT/Ivo5dP34RCkqegy+D+wnDRShdeGONig4");
-        assert_eq!(unsign("secret", "s:abc.mUba1OAOkT/Ivo5dP34RCkqegy+D+wnDRShdeGONig4").as_deref(), Some("abc"));
+        assert_eq!(
+            sign("secret", "abc"),
+            "abc.mUba1OAOkT/Ivo5dP34RCkqegy+D+wnDRShdeGONig4"
+        );
+        assert_eq!(
+            unsign(
+                "secret",
+                "s:abc.mUba1OAOkT/Ivo5dP34RCkqegy+D+wnDRShdeGONig4"
+            )
+            .as_deref(),
+            Some("abc")
+        );
         assert!(unsign("secret", "s:abc.invalid").is_none());
         assert!(unsign("other", "s:abc.mUba1OAOkT/Ivo5dP34RCkqegy+D+wnDRShdeGONig4").is_none());
     }

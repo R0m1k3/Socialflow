@@ -57,7 +57,14 @@ pub async fn fix_audio_track_encoding(state: &AppState) -> usize {
 /// Durée d'un fichier audio en secondes (arrondie), via ffprobe ; 0 si inconnue.
 pub async fn probe_duration_secs(path: &Path) -> i32 {
     let output = Command::new("ffprobe")
-        .args(["-v", "error", "-show_entries", "format=duration", "-of", "default=noprint_wrappers=1:nokey=1"])
+        .args([
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration",
+            "-of",
+            "default=noprint_wrappers=1:nokey=1",
+        ])
         .arg(path)
         .output()
         .await;

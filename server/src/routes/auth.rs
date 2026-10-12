@@ -17,7 +17,10 @@ pub fn router() -> Router<AppState> {
         .route("/api/auth/login", post(login))
         .route("/api/auth/logout", post(logout))
         .route("/api/auth/session", get(session))
-        .route("/api/auth/default-password-status", get(default_password_status))
+        .route(
+            "/api/auth/default-password-status",
+            get(default_password_status),
+        )
 }
 
 async fn login(
@@ -28,8 +31,14 @@ async fn login(
     const BAD_CREDENTIALS: &str = "Nom d'utilisateur ou mot de passe incorrect";
 
     // passport-local : champs absents ou vides → « Missing credentials »
-    let username = body.get("username").and_then(Value::as_str).filter(|s| !s.is_empty());
-    let password = body.get("password").and_then(Value::as_str).filter(|s| !s.is_empty());
+    let username = body
+        .get("username")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty());
+    let password = body
+        .get("password")
+        .and_then(Value::as_str)
+        .filter(|s| !s.is_empty());
     let (Some(username), Some(password)) = (username, password) else {
         return Err(AppError::unauthorized("Missing credentials"));
     };
@@ -53,14 +62,19 @@ async fn login(
     Ok(auth::with_cookie(auth::user_json(&user), cookie))
 }
 
-async fn logout(axum::extract::State(state): axum::extract::State<AppState>, headers: HeaderMap) -> ApiResult {
+async fn logout(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    headers: HeaderMap,
+) -> ApiResult {
     if let Some(session) = auth::load_session(&state, &headers).await {
         auth::destroy_session(&state, &session.sid)
             .await
             .map_err(|_| AppError::internal("Erreur lors de la déconnexion"))?;
     }
     let mut response = Json(json!({ "message": "Déconnecté avec succès" })).into_response();
-    response.headers_mut().append(SET_COOKIE, auth::clear_session_cookie());
+    response
+        .headers_mut()
+        .append(SET_COOKIE, auth::clear_session_cookie());
     Ok(response)
 }
 
@@ -72,7 +86,9 @@ async fn session(MaybeUser(user): MaybeUser) -> Response {
 }
 
 /// Le mot de passe de `admin` est-il toujours « admin » ?
-async fn default_password_status(axum::extract::State(state): axum::extract::State<AppState>) -> ApiResult<Json<Value>> {
+async fn default_password_status(
+    axum::extract::State(state): axum::extract::State<AppState>,
+) -> ApiResult<Json<Value>> {
     let admin = state
         .db
         .get_user_by_username("admin")
