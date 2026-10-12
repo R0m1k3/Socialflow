@@ -38,7 +38,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient, handleUnauthorized, getErrorMessage } from "@/lib/queryClient";
 import { MediaThumbnail } from "@/components/media-thumbnail";
-import type { SocialPage, Media, ScheduledPost } from "@shared/schema";
+import type { SocialPage, Media } from "@shared/schema";
 import { PreviewModal } from "@/components/preview-modal";
 import { DateTimePicker } from "@/components/datetime-picker";
 
@@ -110,13 +110,6 @@ function SortableMediaItem({
 /** Nombre de médias récents proposés à la sélection. */
 const RECENT_MEDIA_COUNT = 12;
 
-/** Minuit, pour que la clé de requête reste stable d'un rendu à l'autre. */
-function startOfToday(): Date {
-  const date = new Date();
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
 const STEPS: StepDef[] = [
   { id: "media", label: "Médias", icon: ImageIcon },
   { id: "text", label: "Texte", icon: Type },
@@ -181,12 +174,6 @@ export default function NewPost() {
       })
       .slice(0, RECENT_MEDIA_COUNT);
   }, [allMedia]);
-
-  // Ne sert qu'à griser les créneaux déjà pris dans le sélecteur de date : le
-  // passé n'a aucune influence sur une planification à venir.
-  const { data: scheduledPosts = [] } = useQuery<ScheduledPost[]>({
-    queryKey: ['/api/scheduled-posts', { startDate: startOfToday().toISOString() }],
-  });
 
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
@@ -845,12 +832,10 @@ export default function NewPost() {
                       <DateTimePicker
                         value={scheduledDate}
                         onChange={setScheduledDate}
-                        occupiedDates={scheduledPosts
-                          .filter(post => post.scheduledAt)
-                          .map(post => new Date(post.scheduledAt!))}
+                        selectedPageIds={selectedPages}
                         placeholder="Choisir une date"
                       />
-                      <p className="text-xs text-muted-foreground">Les créneaux déjà occupés sont signalés dans le calendrier.</p>
+                      <p className="text-xs text-muted-foreground">Les jours et heures déjà occupés sur vos magasins sont signalés dans le calendrier.</p>
                     </div>
                   )}
                 </CardContent>
