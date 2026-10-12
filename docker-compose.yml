@@ -69,7 +69,6 @@ services:
       - media_uploads:/app/uploads/media
       - logos_uploads:/app/uploads/logos
       - stories_uploads:/app/uploads/stories
-    command: npm run start
 
   # Service FFmpeg dédié
   ffmpeg-api:

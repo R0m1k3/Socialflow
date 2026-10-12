@@ -38,3 +38,8 @@ logs
 
 # Uploads (seront montés comme volume)
 uploads/*
+
+# Compilation Rust
+server/target
+**/target
+.claude

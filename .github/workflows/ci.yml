@@ -6,8 +6,8 @@ on:
   pull_request:
 
 jobs:
-  app:
-    name: Application (TypeScript)
+  frontend:
+    name: Frontend (TypeScript)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -15,12 +15,28 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      # Les dépendances natives (canvas, sharp) et le navigateur Remotion ne
-      # servent pas aux vérifications : on saute leurs scripts d'installation.
       - run: npm ci --ignore-scripts
       - run: npm run check
       - run: npm test
       - run: npm run build
+
+  server:
+    name: Serveur (Rust)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
 
   ffmpeg-service:
     name: Service vidéo (Python)

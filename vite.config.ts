@@ -32,6 +32,12 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    // En développement, l'API et les fichiers sont servis par le serveur Rust
+    // (`npm run dev:server`, port 5000 par défaut).
+    proxy: {
+      "/api": process.env.API_URL ?? "http://localhost:5000",
+      "/uploads": process.env.API_URL ?? "http://localhost:5000",
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

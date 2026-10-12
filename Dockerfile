@@ -1,84 +1,68 @@
-# Debian slim — glibc requis par le Chrome headless shell de Remotion (posix_fallocate64, etc.)
-FROM node:20-slim
+# SocialFlow — image de l'application : serveur Rust + frontend React compilé.
+#
+# Trois étapes : le frontend est compilé par Vite, le serveur par Cargo, et
+# l'image finale ne contient que le binaire, les fichiers statiques et FFmpeg
+# (vignettes vidéo, durée des pistes audio). Pas de Node à l'exécution.
+
+# ---------------------------------------------------------------------------
+# 1. Frontend (Vite)
+# ---------------------------------------------------------------------------
+FROM node:20-slim AS frontend
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+# Aucune dépendance native n'est utile au build du frontend
+RUN npm ci --ignore-scripts --no-audit --no-fund
+
+COPY client ./client
+COPY shared ./shared
+COPY attached_assets ./attached_assets
+COPY vite.config.ts tsconfig.json tailwind.config.ts postcss.config.js components.json ./
+RUN npx vite build
+
+# ---------------------------------------------------------------------------
+# 2. Serveur (Rust)
+# ---------------------------------------------------------------------------
+FROM rust:1-slim-bookworm AS backend
+WORKDIR /app/server
+
+# Dépendances compilées dans une couche à part : elles ne sont recompilées que
+# si Cargo.toml / Cargo.lock changent.
+COPY server/Cargo.toml server/Cargo.lock ./
+RUN mkdir src && echo 'fn main() {}' > src/main.rs \
+    && cargo build --release --locked \
+    && rm -rf src target/release/socialflow target/release/deps/socialflow-* target/release/.fingerprint/socialflow-*
+
+COPY server/src ./src
+RUN cargo build --release --locked
+
+# ---------------------------------------------------------------------------
+# 3. Image d'exécution
+# ---------------------------------------------------------------------------
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates \
+        ffmpeg \
+        fonts-dejavu-core \
+        fontconfig \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Augmenter la mémoire AVANT npm install + build (évite OOM sur les grosses dépendances)
-ENV NODE_OPTIONS="--max-old-space-size=4096"
+COPY --from=backend /app/server/target/release/socialflow /usr/local/bin/socialflow
+COPY --from=frontend /app/dist/public ./dist/public
+COPY public-root ./public-root
+COPY server/fonts ./server/fonts
 
-# Dépendances système : build tools, canvas/sharp, fonts, ffmpeg + dépendances Chrome
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 make g++ \
-    libcairo2-dev libjpeg-dev libpango1.0-dev libgif-dev libpixman-1-dev \
-    libvips-dev pkg-config \
-    fonts-dejavu-core fontconfig \
-    curl tar bzip2 \
-    ffmpeg \
-    libcap2-bin \
-    ca-certificates \
-    # Dépendances Chrome headless
-    libasound2 \
-    libatk-bridge2.0-0 \
-    libatk1.0-0 \
-    libcups2 \
-    libdbus-1-3 \
-    libdrm2 \
-    libgbm1 \
-    libglib2.0-0 \
-    libgtk-3-0 \
-    libnspr4 \
-    libnss3 \
-    libpango-1.0-0 \
-    libx11-6 \
-    libx11-xcb1 \
-    libxcb1 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxext6 \
-    libxfixes3 \
-    libxkbcommon0 \
-    libxrandr2 \
-    libxshmfence1 \
-    libxtst6 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copier les fichiers de configuration
-COPY package*.json ./
-
-# Installer les dépendances
-RUN npm install --legacy-peer-deps --no-audit --no-fund
-
-# Copier tout le code source
-COPY . .
-
-# Télécharger et installer la police DejaVu Sans
-RUN mkdir -p server/fonts && \
-    cd server/fonts && \
-    curl -L -f --retry 3 --retry-delay 2 -o dejavu.tar.bz2 "https://sourceforge.net/projects/dejavu/files/dejavu/2.37/dejavu-fonts-ttf-2.37.tar.bz2/download" && \
-    tar -xjf dejavu.tar.bz2 && \
-    cp dejavu-fonts-ttf-2.37/ttf/DejaVuSans.ttf . && \
-    rm -rf dejavu.tar.bz2 dejavu-fonts-ttf-2.37 && \
-    echo "✓ Police DejaVu Sans installée"
-
-# Build du frontend et backend
-RUN npm run build
-
-# Nettoyer les fichiers inutiles
-RUN rm -rf client/node_modules \
-         client/.vite \
-         node_modules/.cache \
-         /tmp/remotion-*
-
-# Pré-bundler la composition Remotion
-RUN node scripts/prebundle-remotion.mjs || true
-
-# Télécharger le Chrome headless shell de Remotion (binaire glibc natif sur Debian)
-RUN npx remotion browser ensure && echo "✓ Remotion browser prêt"
-
-# Exposer le port
-EXPOSE 5555
+RUN mkdir -p uploads/media uploads/logos uploads/stories uploads/audio uploads/temp
 
 ENV NODE_ENV=production
 ENV PORT=5555
+EXPOSE 5555
 
-CMD ["npm", "run", "start"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS "http://localhost:${PORT}/healthz" > /dev/null || exit 1
+
+CMD ["socialflow"]

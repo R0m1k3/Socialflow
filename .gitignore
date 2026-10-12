@@ -35,3 +35,4 @@ npm-debug.log*
 Thumbs.db
 # Rust
 server/target
+.claude/worktrees

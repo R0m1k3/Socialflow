@@ -100,9 +100,9 @@ Architecture Production-Ready avec sécurité renforcée.
 
 | Fonctionnalité                  | Détail                                               |
 | ------------------------------- | ---------------------------------------------------- |
-| **Authentification**            | Passport.js + bcrypt, sessions PostgreSQL             |
-| **Rate Limiting**               | 100 req/15min global, 5 tentatives login/15min        |
-| **Headers de sécurité**         | Helmet (CSP, HSTS, XSS protection)                   |
+| **Authentification**            | bcrypt, sessions PostgreSQL (cookie signé)            |
+| **Rate Limiting**               | 1000 req/15min global, 30 tentatives login/15min      |
+| **Headers de sécurité**         | CSP, HSTS, X-Frame-Options, nosniff…                  |
 | **Chiffrement des tokens**      | Tokens Facebook/Instagram chiffrés (AES-256)          |
 | **Gestion multi-utilisateurs**  | Rôles Admin / User, permissions par page              |
 | **Console SQL**                 | Requêtes directes en base (admin uniquement)          |
@@ -117,42 +117,52 @@ Architecture Production-Ready avec sécurité renforcée.
 socialflow/
 ├── client/                    # Frontend React (Vite + TailwindCSS)
 │   └── src/
-│       ├── pages/             # 17 pages desktop + 13 pages mobile
-│       ├── components/        # 47 composants UI (Radix/shadcn)
-│       └── hooks/             # Hooks React personnalisés
-├── server/                    # Backend Express.js (TypeScript)
-│   ├── routes.ts              # 45+ endpoints REST API
-│   ├── routes/                # Routes modulaires (analytics, reels)
-│   ├── services/              # 12 services métier
-│   │   ├── analytics.ts       # Sync Facebook Graph API
-│   │   ├── facebook.ts        # Publication Facebook/Instagram
-│   │   ├── openrouter.ts      # Génération texte IA
-│   │   ├── cloudinary.ts      # Upload cloud médias
-│   │   ├── ffmpeg.ts          # Encodage vidéo (microservice)
-│   │   ├── freesound.ts       # Musique libre de droits
-│   │   ├── jamendo.ts         # Musique libre de droits
-│   │   ├── imageProcessor.ts  # Traitement images (Sharp)
-│   │   ├── scheduler.ts       # Publications programmées
-│   │   └── token_manager.ts   # Gestion tokens OAuth
-│   └── cron.ts                # Tâches planifiées
-├── shared/                    # Schéma DB partagé (Drizzle ORM)
+│       ├── pages/             # Pages desktop + mobile
+│       ├── components/        # Composants UI (Radix/shadcn)
+│       └── remotion/          # Compositions vidéo des Reels (aperçu + rendu)
+├── server/                    # Backend Rust (axum + sqlx)
+│   ├── Cargo.toml
+│   └── src/
+│       ├── main.rs            # Démarrage : migrations, routes, tâches de fond
+│       ├── migrate.rs         # Schéma PostgreSQL, mis à jour au démarrage
+│       ├── auth.rs            # Sessions (cookie connect.sid) et rôles
+│       ├── db/                # Accès aux données
+│       ├── routes/            # API REST (/api, /api/v1 externe, pages légales)
+│       └── services/          # Facebook, TikTok, OpenRouter, Reels, scheduler, crons
+├── shared/                    # Types et logique partagés par le frontend
+├── remotion-service/          # Rendu des Reels avec Remotion (Node + Chrome)
 ├── ffmpeg-service/            # Microservice FFmpeg (Python/FastAPI)
-├── docker-compose.yml         # Stack Docker (3 services)
-└── Dockerfile                 # Image production Node.js
+├── qwen-tts/                  # Voix Qwen3-TTS (optionnel)
+├── docker-compose.yml         # Stack Docker
+└── Dockerfile                 # Image de l'application (Rust + frontend compilé)
 ```
 
 ### Stack Technique
 
 | Couche     | Technologies                                                                |
 | ---------- | --------------------------------------------------------------------------- |
-| **Frontend**   | React 18, Vite, TailwindCSS, Radix UI, Recharts, Framer Motion, Wouter |
-| **Backend**    | Express.js, TypeScript, Passport.js, Helmet, node-cron                  |
-| **BDD**        | PostgreSQL 16, Drizzle ORM, connect-pg-simple (sessions)                |
+| **Frontend**   | React 18, Vite, TailwindCSS, Radix UI, Recharts, Wouter                |
+| **Backend**    | Rust : axum, tokio, sqlx, reqwest                                        |
+| **BDD**        | PostgreSQL 16 (schéma créé et migré automatiquement au démarrage)       |
 | **IA**         | OpenRouter (multi-modèle : GPT-4, Claude, Gemini, etc.)                |
-| **Médias**     | Cloudinary (upload), Sharp (images), FFmpeg microservice (vidéo)        |
-| **Musique**    | FreeSound API, Jamendo API                                               |
-| **Réseaux**    | Facebook Graph API v19 (Pages, Instagram, Insights)                     |
+| **Médias**     | Stockage local, FFmpeg (vignettes, microservice vidéo), Remotion (Reels) |
+| **Réseaux**    | Facebook Graph API (Pages, Instagram, Insights), TikTok Content Posting |
 | **Infra**      | Docker Compose, Nginx reverse proxy                                     |
+
+### Mise à jour
+
+L'image de l'application est construite à partir des sources (`pull_policy: build`).
+Après un `git pull`, le prochain démarrage de la stack reconstruit l'image et
+applique la nouvelle version :
+
+```bash
+git pull
+docker compose up -d --build
+```
+
+Au démarrage, le serveur met le schéma de la base à jour tout seul (aucune
+commande de migration à lancer). Les données, les médias, la clé de chiffrement
+et les sessions ouvertes sont conservés.
 
 ---
 
@@ -161,7 +171,7 @@ socialflow/
 ### Prérequis
 
 - [Docker](https://www.docker.com/) & Docker Compose
-- [Node.js](https://nodejs.org/) v18+ (pour le développement local)
+- Pour le développement local : [Rust](https://rustup.rs/) (stable), [Node.js](https://nodejs.org/) 20+ et PostgreSQL
 
 ### 1. Récupérer l'application
 
@@ -199,11 +209,12 @@ FACEBOOK_APP_SECRET=...
 
 ```bash
 # Production (Docker)
-docker-compose up -d
+docker compose up -d --build
 
-# Développement local
+# Développement local (deux terminaux)
 npm install
-npm run dev
+DATABASE_URL=postgresql://... npm run dev:server   # API Rust sur le port 5000
+npm run dev                                         # Frontend Vite, relaie /api vers le port 5000
 ```
 
 🚀 Rendez-vous sur **`http://localhost:5555`** pour commencer !

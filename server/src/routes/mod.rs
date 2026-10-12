@@ -24,6 +24,7 @@ use crate::state::AppState;
 
 pub fn router(state: AppState) -> Router {
     let api = Router::new()
+        .route("/healthz", axum::routing::get(healthz))
         .merge(auth::router())
         .merge(core::router())
         .nest("/api/analytics", analytics::router())
@@ -54,6 +55,14 @@ pub fn router(state: AppState) -> Router {
         .layer(middleware::from_fn(http::log_requests))
         .layer(middleware::from_fn(http::security_headers))
         .with_state(state)
+}
+
+/// Sonde de santé (Docker) : le serveur répond et la base est joignable.
+async fn healthz(State(state): State<AppState>) -> Response {
+    match sqlx::query_scalar::<_, i32>("SELECT 1").fetch_one(&state.db.pool).await {
+        Ok(_) => (StatusCode::OK, "ok").into_response(),
+        Err(_) => (StatusCode::SERVICE_UNAVAILABLE, "database unavailable").into_response(),
+    }
 }
 
 /// Route inconnue : JSON pour `/api`, sinon fichiers publics puis l'application React.
