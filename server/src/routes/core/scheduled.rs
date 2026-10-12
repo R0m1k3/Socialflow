@@ -160,7 +160,12 @@ async fn update_scheduled(
     let mut patch = Patch::new();
     if let Some(value) = body.get("scheduledAt").filter(|v| is_truthy(Some(v))) {
         let date = js_date(value).ok_or_else(|| AppError::internal(FAILED))?;
-        patch = patch.set("scheduled_at", date);
+        // Reprogrammer relance les publications en échec ou abandonnées
+        patch = patch
+            .set("scheduled_at", date)
+            .set("attempts", 0)
+            .set("next_attempt_at", None::<Ts>)
+            .set_null("error");
         state
             .db
             .update_post(&scheduled.post_id, Patch::new().set("scheduled_for", date))

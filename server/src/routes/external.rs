@@ -869,7 +869,14 @@ async fn update_post_inner(state: &AppState, id: &str, body: &Value) -> Outcome 
             if sp.published_at.is_none() {
                 state
                     .db
-                    .update_scheduled_post(&sp.id, Patch::new().set("scheduled_at", new_date))
+                    .update_scheduled_post(
+                        &sp.id,
+                        Patch::new()
+                            .set("scheduled_at", new_date)
+                            .set("attempts", 0)
+                            .set("next_attempt_at", None::<Ts>)
+                            .set_null("error"),
+                    )
                     .await?;
             }
         }

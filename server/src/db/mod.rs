@@ -907,11 +907,21 @@ impl Db {
     }
 
     /// Publications dues et pas encore traitées.
-    pub async fn get_pending_scheduled_posts(&self) -> Result<Vec<ScheduledPost>, sqlx::Error> {
+    /// Publications dues, hors échecs en attente de leur prochaine tentative
+    /// et hors publications abandonnées après `max_attempts` échecs.
+    pub async fn get_pending_scheduled_posts(
+        &self,
+        max_attempts: i32,
+    ) -> Result<Vec<ScheduledPost>, sqlx::Error> {
         sqlx::query_as(
-            "SELECT * FROM scheduled_posts WHERE published_at IS NULL AND scheduled_at <= $1",
+            r#"SELECT * FROM scheduled_posts
+               WHERE published_at IS NULL AND scheduled_at <= $1
+                 AND (next_attempt_at IS NULL OR next_attempt_at <= $1)
+                 AND attempts < $2
+               ORDER BY scheduled_at"#,
         )
         .bind(Ts::now())
+        .bind(max_attempts)
         .fetch_all(&self.pool)
         .await
     }

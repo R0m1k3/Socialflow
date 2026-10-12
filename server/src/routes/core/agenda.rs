@@ -214,6 +214,8 @@ mod tests {
                 error: error.map(str::to_string),
                 publish_id: None,
                 publish_status: None,
+                attempts: 0,
+                next_attempt_at: None,
             },
             post: ScheduledPostPost {
                 id: "p".into(),

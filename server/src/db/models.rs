@@ -175,6 +175,10 @@ pub struct ScheduledPost {
     pub error: Option<String>,
     pub publish_id: Option<String>,
     pub publish_status: Option<String>,
+    /// Tentatives de publication en échec.
+    pub attempts: i32,
+    /// Prochaine tentative après un échec (`None` : immédiate ou abandonnée).
+    pub next_attempt_at: Option<Ts>,
 }
 
 #[derive(Debug, Clone, Serialize, FromRow)]

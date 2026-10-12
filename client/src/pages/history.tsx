@@ -233,6 +233,15 @@ export default function History() {
                       {scheduledPost.error && (
                         <p className="mt-2 rounded-md bg-destructive/10 px-2.5 py-1.5 text-xs text-destructive">{scheduledPost.error}</p>
                       )}
+                      {scheduledPost.error && !scheduledPost.publishedAt && (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {scheduledPost.nextAttemptAt
+                            ? `Nouvelle tentative automatique le ${format(new Date(scheduledPost.nextAttemptAt), "d MMM yyyy 'à' HH:mm", { locale: fr })}`
+                            : scheduledPost.attempts > 0
+                              ? `Abandon après ${scheduledPost.attempts} tentatives : reprogrammez la publication pour réessayer.`
+                              : null}
+                        </p>
+                      )}
                     </div>
                     <Button
                       variant="ghost"
