@@ -55,8 +55,8 @@ services:
       # Rendu des Reels vidéo : remotion (sous-titres animés, identique à
       # l'aperçu) ou ffmpeg (plus rapide, sous-titres classiques)
       REEL_RENDERER: ${REEL_RENDERER:-remotion}
-      # Onglets Chromium en parallèle pour Remotion (défaut : moitié des cœurs)
-      RENDER_CONCURRENCY: ${RENDER_CONCURRENCY:-}
+      # Service de rendu Remotion (conteneur Node dédié, même clé que FFmpeg)
+      REMOTION_RENDERER_URL: http://remotion-renderer:8100
     networks:
       - internal
       - nginx_default
@@ -69,7 +69,27 @@ services:
       - media_uploads:/app/uploads/media
       - logos_uploads:/app/uploads/logos
       - stories_uploads:/app/uploads/stories
-    command: npm run start
+
+  # Rendu Remotion des Reels (sous-titres animés, logo, effet de fin)
+  remotion-renderer:
+    build:
+      context: .
+      dockerfile: remotion-service/Dockerfile
+    image: socialflow-remotion-renderer:latest
+    pull_policy: build
+    container_name: socialflow-remotion
+    restart: unless-stopped
+    environment:
+      API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
+      PORT: 8100
+      # Onglets Chromium par rendu (défaut : moitié des cœurs)
+      RENDER_CONCURRENCY: ${RENDER_CONCURRENCY:-}
+      MAX_PARALLEL_RENDERS: 1
+    shm_size: 1gb
+    networks:
+      - internal
+    expose:
+      - "8100"
 
   # Service FFmpeg dédié
   ffmpeg-api:

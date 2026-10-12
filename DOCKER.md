@@ -4,7 +4,8 @@
 
 L'application utilise Docker Compose pour orchestrer :
 - **PostgreSQL 16** : Base de données sur réseau interne
-- **Social Flow App** : Application Node.js exposée sur le port **4523**
+- **Social Flow App** : serveur Rust (API + frontend compilé), port interne **5555**
+- **ffmpeg-api** / **remotion-renderer** : services de traitement vidéo des Reels
 
 ## 🚀 Démarrage rapide
 
@@ -203,7 +204,8 @@ La stack se construit depuis les sources : `app` et `ffmpeg-api` ont une section
 ## 📊 Healthchecks
 
 - **PostgreSQL** : Vérifie que la base est prête avant de démarrer l'app
-- **Migrations** : Exécutées automatiquement au démarrage (`drizzle-kit push --force`)
+- **Migrations** : exécutées automatiquement par le serveur à chaque démarrage (idempotentes)
+- **Application** : `GET /healthz` répond `ok` quand le serveur et la base sont joignables (healthcheck de l'image)
 
 ## 🐛 Dépannage
 
@@ -232,23 +234,37 @@ Vérifiez que `DATABASE_URL` dans `.env` correspond aux variables `PGUSER`, `PGP
 
 ## 📦 Volumes Docker
 
-- `postgres_data` : Données persistantes de PostgreSQL
-- Mappages locaux :
-  - `./attached_assets` → `/app/attached_assets` (médias uploadés)
-  - `./migrations` → `/app/migrations` (migrations DB)
+- `postgres_data` : données persistantes de PostgreSQL
+- `encryption_key` : clé de chiffrement des jetons (`/app/.encryption-key-data`)
+- `audio_uploads`, `media_uploads`, `logos_uploads`, `stories_uploads` : fichiers téléversés (`/app/uploads/...`)
 
 ## 🔄 Mise à jour de l'application
 
+L'image `socialflow-app` est construite à partir des sources
+(`pull_policy: build`) : le prochain démarrage de la stack après un `git pull`
+applique la nouvelle version.
+
 ```bash
-# 1. Pull les dernières modifications
+# 1. Récupérer les dernières modifications
 git pull
 
-# 2. Reconstruire l'image
-docker-compose build
+# 2. Reconstruire et redémarrer (Portainer : « Update the stack »)
+docker compose up -d --build
 
-# 3. Redémarrer
-docker-compose up -d
-
-# 4. Vérifier les logs
-docker-compose logs -f app
+# 3. Vérifier les logs
+docker compose logs -f app
 ```
+
+Au démarrage, le serveur complète le schéma de la base (tables, colonnes,
+index) : aucune commande de migration n'est nécessaire. Les données, les
+fichiers téléversés, la clé de chiffrement et les sessions ouvertes sont
+conservés.
+
+### Passage au serveur Rust
+
+Depuis la version 2, le serveur est écrit en Rust (dossier `server/`) et
+remplace l'ancien serveur Node/Express. La bascule ne demande rien de plus
+qu'une reconstruction : mêmes variables d'environnement, même base, mêmes
+volumes, et les utilisateurs déjà connectés le restent (cookie `connect.sid`
+et table `session` repris tels quels). Le rendu Remotion des Reels tourne
+désormais dans son propre conteneur (`remotion-renderer`).
