@@ -1,5 +1,6 @@
 # Dépendances
 node_modules
+**/node_modules
 npm-debug.log
 
 # Fichiers de build
