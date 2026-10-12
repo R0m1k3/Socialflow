@@ -1,3 +1,5 @@
+// Quelques aides (accès aux données, réponses des services) sont gardées
+// complètes même si toutes ne sont pas encore appelées.
 #![allow(dead_code)]
 //! SocialFlow — serveur HTTP en Rust.
 //!
