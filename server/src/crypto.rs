@@ -148,5 +148,10 @@ mod tests {
         assert!(is_encrypted(&sealed));
         assert_eq!(decrypt(&sealed), "EAAB-token");
         assert_eq!(decrypt("plain-token"), "plain-token");
+        // Valeur chiffrée par l'ancien serveur Node avec la même clé
+        assert_eq!(
+            decrypt("b313bfc2eec1a7b8c9743a580c75561b:348a147444c5ef2ee708e5b8bb72d5d0:aebf8e28c21928d5ad207d48d210f4"),
+            "EAAB-node-token"
+        );
     }
 }
