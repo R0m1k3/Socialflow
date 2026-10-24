@@ -36,3 +36,7 @@ Thumbs.db
 # Rust
 server/target
 .claude/worktrees
+
+# Exports et journaux collés (peuvent contenir des jetons)
+attached_assets/*.json
+attached_assets/Pasted-*.txt
