@@ -7,7 +7,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde_json::{json, Value};
 
-use crate::auth::{self, MaybeUser};
+use crate::auth::{self, AdminUser, MaybeUser};
 use crate::error::{ApiResult, AppError, OrApiError};
 use crate::extract::Body;
 use crate::state::AppState;
@@ -85,9 +85,11 @@ async fn session(MaybeUser(user): MaybeUser) -> Response {
     }
 }
 
-/// Le mot de passe de `admin` est-il toujours « admin » ?
+/// Le mot de passe de `admin` est-il toujours « admin » ? Réservé aux
+/// administrateurs : publique, cette route signalait les instances vulnérables.
 async fn default_password_status(
     axum::extract::State(state): axum::extract::State<AppState>,
+    _admin: AdminUser,
 ) -> ApiResult<Json<Value>> {
     let admin = state
         .db

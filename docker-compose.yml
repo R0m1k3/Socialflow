@@ -6,12 +6,13 @@ services:
     image: postgres:16-alpine
     container_name: socialflow-db
     restart: unless-stopped
-    ports:
-      - "4523:4523"
+    # Pas de port publié : la base n'est joignable que depuis les conteneurs.
+    # Pour un accès d'administration ponctuel, lier à 127.0.0.1 uniquement :
+    #   ports: ["127.0.0.1:4523:4523"]
     environment:
       POSTGRES_DB: ${PGDATABASE:-socialflow}
       POSTGRES_USER: ${PGUSER:-socialflow}
-      POSTGRES_PASSWORD: ${PGPASSWORD:-changeme}
+      POSTGRES_PASSWORD: ${PGPASSWORD:?Définissez PGPASSWORD dans .env}
       PGPORT: 4523
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -39,10 +40,19 @@ services:
     environment:
       NODE_ENV: production
       PORT: 5555
-      DATABASE_URL: postgresql://${PGUSER:-socialflow}:${PGPASSWORD:-changeme}@postgres:4523/${PGDATABASE:-socialflow}
+      DATABASE_URL: postgresql://${PGUSER:-socialflow}:${PGPASSWORD:?Définissez PGPASSWORD dans .env}@postgres:4523/${PGDATABASE:-socialflow}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      SESSION_SECRET: ${SESSION_SECRET:-your-secret-key-change-me}
+      SESSION_SECRET: ${SESSION_SECRET:?Définissez SESSION_SECRET dans .env (openssl rand -hex 32)}
+      # Mot de passe du compte admin créé au premier démarrage (sinon un mot de
+      # passe aléatoire est affiché une fois dans les journaux). Sans effet si
+      # le compte existe déjà.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      # Console SQL d'administration (lecture seule) : désactivée par défaut
+      ENABLE_SQL_CONSOLE: ${ENABLE_SQL_CONSOLE:-false}
+      # Proxys dont l'en-tête X-Forwarded-For est accepté (IP ou CIDR, séparés
+      # par des virgules). Vide : adresses privées (réseau Docker) uniquement.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       # URL publique (ex. https://socialflow.exemple.fr). Laissée vide, elle est
       # déduite des en-têtes du reverse proxy — ne jamais forcer localhost ici,
       # les URI de redirection OAuth (Facebook/TikTok) en dépendent.
@@ -105,6 +115,8 @@ services:
     restart: unless-stopped
     environment:
       API_KEY: ${FFMPEG_API_KEY:-socialflow-secret-ffmpeg-key}
+      # Seul hôte interne d'où télécharger vidéos, musiques et logos (SSRF)
+      INTERNAL_DOWNLOAD_HOSTS: socialflow-app
       GEMINI_TTS_MODEL: ${GEMINI_TTS_MODEL:-gemini-2.5-flash-preview-tts}
       # Service Qwen TTS par défaut. Normalement réglé dans l'application
       # (Paramètres → Qwen TTS, ex. serveur GPU Unraid) ; pour le service local

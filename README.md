@@ -191,7 +191,7 @@ Variables essentielles :
 
 ```env
 # Base de données
-DATABASE_URL=postgresql://socialflow:changeme@postgres:4523/socialflow
+PGPASSWORD=mot-de-passe-fort   # openssl rand -hex 24
 
 # Session (OBLIGATOIRE en production) — openssl rand -hex 32
 SESSION_SECRET=votre-cle-secrete-ici
@@ -219,7 +219,19 @@ npm run dev                                         # Frontend Vite, relaie /api
 
 🚀 Rendez-vous sur **`http://localhost:5555`** pour commencer !
 
-> **Premier lancement** : Un compte admin est créé automatiquement (`admin` / `admin`). Changez le mot de passe immédiatement dans les Paramètres.
+> **Premier lancement** : un compte `admin` est créé automatiquement, avec le mot de passe de `ADMIN_PASSWORD` ou, à défaut, un mot de passe aléatoire affiché une seule fois dans les journaux (`docker compose logs app | grep "Mot de passe"`). Changez-le ensuite dans les Paramètres.
+
+### Sécurité / variables obligatoires
+
+| Variable | Rôle |
+|---|---|
+| `PGPASSWORD` | **Obligatoire.** Mot de passe PostgreSQL (`openssl rand -hex 24`). Le port 4523 n'est plus publié sur l'hôte. Instance existante créée avec l'ancien défaut `changeme` : mettez `PGPASSWORD=changeme`, ou changez-le d'abord (`ALTER USER socialflow PASSWORD '…'`) puis reportez la nouvelle valeur. |
+| `SESSION_SECRET` | **Obligatoire.** `openssl rand -hex 32`. Les valeurs d'exemple sont refusées. |
+| `ADMIN_PASSWORD` | Facultatif. Mot de passe du compte `admin` créé au premier démarrage (sans effet si le compte existe). |
+| `ENABLE_SQL_CONSOLE` | `false` par défaut. `true` active la console SQL d'administration, en lecture seule (une seule requête `SELECT`/`WITH`/`EXPLAIN`/`SHOW`). |
+| `TRUSTED_PROXIES` | Facultatif. IP/CIDR des reverse proxys dont `X-Forwarded-For` est cru (limitation de débit). Vide : adresses privées seulement. |
+
+Les fichiers téléversés (`/uploads`) ne sont acceptés qu'avec une extension d'image ou de vidéo, et servis avec `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox` (et `Content-Disposition: attachment` hors images, vidéos et sons).
 
 ---
 

@@ -1,11 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { AlertTriangle, CheckCircle2, Loader2, Lock, User } from "lucide-react";
+import { CheckCircle2, Loader2, Lock, User } from "lucide-react";
 import { Logo, LogoMark } from "@/components/brand/logo";
 
 export default function Login() {
@@ -14,21 +14,6 @@ export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [showDefaultPassword, setShowDefaultPassword] = useState(false);
-
-  useEffect(() => {
-    const checkDefaultPassword = async () => {
-      try {
-        const response = await fetch("/api/auth/default-password-status");
-        const data = await response.json();
-        setShowDefaultPassword(data.isDefault === true);
-      } catch (error) {
-        console.error("Error checking default password status:", error);
-      }
-    };
-
-    checkDefaultPassword();
-  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,17 +128,6 @@ export default function Login() {
             </Button>
           </form>
 
-          {showDefaultPassword && (
-            <div className="mt-6 flex gap-3 rounded-xl border border-warning/30 bg-warning/10 p-4 text-sm">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
-              <div>
-                <p className="text-foreground">
-                  Identifiants par défaut : <span className="font-semibold">admin / admin</span>
-                </p>
-                <p className="mt-1 text-muted-foreground">Changez ce mot de passe après la première connexion.</p>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </div>

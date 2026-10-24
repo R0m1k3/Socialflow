@@ -28,11 +28,30 @@ pub fn router() -> Router<AppState> {
         .route("/api/sql/tables", get(tables))
 }
 
+/// La console SQL n'est active que si `ENABLE_SQL_CONSOLE=true`.
+fn console_enabled() -> bool {
+    crate::config::Config::var("ENABLE_SQL_CONSOLE")
+        .is_some_and(|v| v.eq_ignore_ascii_case("true") || v == "1")
+}
+
+fn console_disabled() -> AppError {
+    AppError::json(
+        StatusCode::FORBIDDEN,
+        json!({
+            "success": false,
+            "error": "Console SQL désactivée. Définissez ENABLE_SQL_CONSOLE=true pour l'activer (lecture seule).",
+        }),
+    )
+}
+
 async fn execute(
     State(state): State<AppState>,
     _admin: AdminUser,
     Body(body): Body<Value>,
 ) -> ApiResult<Json<Value>> {
+    if !console_enabled() {
+        return Err(console_disabled());
+    }
     let mut issues = Issues::new();
     let query = issues.string_min(
         &body,
@@ -47,6 +66,12 @@ async fn execute(
             json!({ "success": false, "error": issues.first_message().unwrap_or_else(|| "Données invalides".into()) }),
         ));
     };
+    if let Err(message) = check_read_only_query(&query) {
+        return Err(AppError::json(
+            StatusCode::BAD_REQUEST,
+            json!({ "success": false, "error": message }),
+        ));
+    }
 
     match run_query(&state, &query).await {
         Ok(result) => Ok(Json(json!({ "success": true, "result": result }))),
@@ -67,6 +92,9 @@ async fn execute(
 }
 
 async fn tables(State(state): State<AppState>, _admin: AdminUser) -> ApiResult<Json<Value>> {
+    if !console_enabled() {
+        return Err(console_disabled());
+    }
     let names: Result<Vec<String>, sqlx::Error> = sqlx::query_scalar(
         "SELECT tablename::text FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename",
     )
@@ -90,14 +118,77 @@ struct StatementResult {
     fields: Vec<Value>,
 }
 
-/// Exécute la requête par le protocole simple (plusieurs instructions
-/// possibles, comme avec `pg`) et assemble les résultats au format `pg`.
+/// Instructions de lecture acceptées (premier mot-clé).
+const READ_ONLY_COMMANDS: [&str; 6] = ["SELECT", "WITH", "VALUES", "TABLE", "EXPLAIN", "SHOW"];
+
+/// Fonctions donnant accès au serveur (fichiers, programmes, autres
+/// sessions, réglages) : refusées même en lecture seule.
+const FORBIDDEN_WORDS: [&str; 16] = [
+    "COPY",
+    "PG_READ_FILE",
+    "PG_READ_BINARY_FILE",
+    "PG_LS_DIR",
+    "PG_STAT_FILE",
+    "LO_IMPORT",
+    "LO_EXPORT",
+    "LO_FROM_BYTEA",
+    "DBLINK",
+    "QUERY_TO_XML",
+    "QUERY_TO_XML_AND_XMLSCHEMA",
+    "SET_CONFIG",
+    "PG_TERMINATE_BACKEND",
+    "PG_CANCEL_BACKEND",
+    "PG_RELOAD_CONF",
+    "PG_SLEEP",
+];
+
+/// Une seule instruction de lecture, sans fonction d'accès au serveur.
+/// L'exécution a de plus lieu dans une transaction en lecture seule.
+fn check_read_only_query(query: &str) -> Result<(), String> {
+    let statements = split_statements(query);
+    if statements.len() > 1 {
+        return Err("Une seule instruction SQL à la fois.".into());
+    }
+    let Some(statement) = statements.first() else {
+        return Ok(());
+    };
+    let upper = statement.to_ascii_uppercase();
+    let first: String = upper
+        .trim_start()
+        .trim_start_matches('(')
+        .trim_start()
+        .chars()
+        .take_while(|c| c.is_ascii_alphabetic())
+        .collect();
+    if !READ_ONLY_COMMANDS.contains(&first.as_str()) {
+        return Err("Console SQL en lecture seule : seules les requêtes SELECT, WITH, VALUES, TABLE, EXPLAIN et SHOW sont autorisées.".into());
+    }
+    let words = upper
+        .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+        .filter(|w| !w.is_empty());
+    for word in words {
+        if FORBIDDEN_WORDS.contains(&word) {
+            return Err(format!("Instruction ou fonction non autorisée : {word}"));
+        }
+    }
+    Ok(())
+}
+
+/// Exécute la requête (une seule instruction de lecture) dans une transaction
+/// en lecture seule, annulée à la fin, et assemble le résultat au format `pg`.
 async fn run_query(state: &AppState, query: &str) -> Result<Value, sqlx::Error> {
     let commands = statement_commands(query);
     let mut results: Vec<Value> = Vec::new();
     let mut current = StatementResult::default();
 
-    let mut stream = sqlx::raw_sql(query).fetch_many(&state.db.pool);
+    let mut tx = state.db.pool.begin().await?;
+    sqlx::query("SET TRANSACTION READ ONLY")
+        .execute(&mut *tx)
+        .await?;
+    sqlx::query("SET LOCAL statement_timeout = '30s'")
+        .execute(&mut *tx)
+        .await?;
+    let mut stream = sqlx::raw_sql(query).fetch_many(&mut *tx);
     while let Some(item) = stream.try_next().await? {
         match item {
             Either::Right(row) => {
@@ -113,6 +204,8 @@ async fn run_query(state: &AppState, query: &str) -> Result<Value, sqlx::Error> 
             }
         }
     }
+    drop(stream);
+    tx.rollback().await?;
 
     Ok(match results.len() {
         // Requête vide (commentaire seul…) : objet résultat vierge
@@ -616,6 +709,21 @@ mod tests {
             statement_commands("create table \"a;b\" (id int)"),
             vec!["CREATE"]
         );
+    }
+
+    #[test]
+    fn read_only_guard() {
+        assert!(check_read_only_query("select * from users;").is_ok());
+        assert!(check_read_only_query("  WITH x AS (SELECT 1) SELECT * FROM x").is_ok());
+        assert!(check_read_only_query("(select 1)").is_ok());
+        assert!(check_read_only_query("select 'a;b' -- ; drop").is_ok());
+        assert!(check_read_only_query("select 1; drop table users").is_err());
+        assert!(check_read_only_query("commit").is_err());
+        assert!(check_read_only_query("DROP TABLE users").is_err());
+        assert!(check_read_only_query("do $$ begin end $$").is_err());
+        assert!(check_read_only_query("copy users to program 'id'").is_err());
+        assert!(check_read_only_query("select pg_read_file('/etc/passwd')").is_err());
+        assert!(check_read_only_query("select query_to_xml('x', true, true, '')").is_err());
     }
 
     #[test]

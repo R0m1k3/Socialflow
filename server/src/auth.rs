@@ -352,20 +352,47 @@ pub async fn verify_password(password: &str, hash: &str) -> bool {
         .unwrap_or(false)
 }
 
-/// Crée l'utilisateur `admin` / `admin` au premier démarrage.
+/// Crée l'utilisateur `admin` au premier démarrage, avec le mot de passe de
+/// `ADMIN_PASSWORD` ou, à défaut, un mot de passe aléatoire affiché une seule
+/// fois dans les journaux. Un compte `admin` existant n'est jamais modifié.
 pub async fn ensure_admin_user_exists(state: &AppState) -> anyhow::Result<()> {
-    if state.db.get_user_by_username("admin").await?.is_some() {
+    if let Some(admin) = state.db.get_user_by_username("admin").await? {
         tracing::info!("✓ Utilisateur admin existe déjà");
+        if verify_password("admin", &admin.password).await {
+            tracing::warn!(
+                "⚠️  SÉCURITÉ : le compte admin utilise encore le mot de passe par défaut « admin ». Changez-le immédiatement !"
+            );
+        }
         return Ok(());
     }
-    tracing::info!("🔧 Création de l'utilisateur admin par défaut...");
-    let hash = hash_password("admin").await?;
+    tracing::info!("🔧 Création de l'utilisateur admin...");
+    let from_env = crate::config::Config::var("ADMIN_PASSWORD");
+    if from_env.as_deref() == Some("admin") {
+        anyhow::bail!(
+            "ADMIN_PASSWORD ne peut pas valoir « admin ». Choisissez un mot de passe robuste."
+        );
+    }
+    let password = match from_env {
+        Some(password) => password,
+        None => {
+            let mut bytes = [0u8; 18];
+            rand::thread_rng().fill_bytes(&mut bytes);
+            base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
+        }
+    };
+    let hash = hash_password(&password).await?;
     state
         .db
         .create_user("admin", &hash, UserRole::Admin)
         .await?;
-    tracing::info!("✅ Utilisateur admin créé avec succès (admin / admin)");
-    tracing::warn!("⚠️  IMPORTANT: Changez ce mot de passe immédiatement !");
+    if crate::config::Config::var("ADMIN_PASSWORD").is_some() {
+        tracing::info!("✅ Utilisateur admin créé (mot de passe : variable ADMIN_PASSWORD)");
+    } else {
+        tracing::warn!(
+            "✅ Utilisateur admin créé. Mot de passe généré (affiché une seule fois) : {password}"
+        );
+        tracing::warn!("⚠️  Notez-le puis changez-le après la première connexion.");
+    }
     Ok(())
 }
 

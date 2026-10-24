@@ -97,8 +97,8 @@ GET /api/auth/session
 }
 ```
 
-### Vérifier si le mot de passe admin par défaut est actif
-Permet de savoir si le mot de passe par défaut `"admin"` de l'utilisateur `"admin"` est toujours actif.
+### Vérifier si le mot de passe admin par défaut est actif (Admin uniquement)
+Permet de savoir si le mot de passe par défaut `"admin"` de l'utilisateur `"admin"` est toujours actif. Nécessite une session administrateur.
 ```http
 GET /api/auth/default-password-status
 ```

@@ -51,6 +51,20 @@ impl Config {
         );
 
         let session_secret = match env("SESSION_SECRET") {
+            // Valeurs d'exemple publiques (.env.example, ancien docker-compose)
+            Some(secret)
+                if production
+                    && matches!(
+                        secret.as_str(),
+                        "your-secret-key-change-me"
+                            | "your-secret-key-change-me-to-random-string"
+                            | "votre-cle-secrete-ici"
+                    ) =>
+            {
+                bail!(
+                    "SESSION_SECRET vaut une valeur d'exemple publique. Générez-en une (openssl rand -hex 32). Arrêt du serveur."
+                )
+            }
             Some(secret) => secret,
             None if production => {
                 bail!("SESSION_SECRET non défini en production. Arrêt du serveur.")

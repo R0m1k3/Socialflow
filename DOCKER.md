@@ -48,7 +48,7 @@ docker-compose down
 
 ## 🌐 Accès
 
-- **PostgreSQL** : Accessible sur le port **4523** (interne et externe)
+- **PostgreSQL** : port **4523**, joignable uniquement depuis les conteneurs (non publié sur l'hôte)
 - **Application** : Accessible via Nginx sur le réseau `nginx_default`
 
 ## 🔧 Architecture réseau
@@ -62,7 +62,7 @@ docker-compose down
 - Permet l'accès via Nginx et un domaine personnalisé
 
 ### Ports exposés
-- **PostgreSQL** : `4523:4523` (port hôte 4523 → port container 4523)
+- **PostgreSQL** : aucun port publié (pour un accès ponctuel : `127.0.0.1:4523:4523`)
 - **Application** : Port 5555 interne (non exposé sur l'hôte, accessible via Nginx)
 
 ## 📝 Configuration Nginx
@@ -198,7 +198,7 @@ La stack se construit depuis les sources : `app` et `ffmpeg-api` ont une section
 1. **Variables d'environnement** : Ne commitez JAMAIS le fichier `.env`
 2. **Mots de passe** : Utilisez des mots de passe forts et aléatoires
 3. **SESSION_SECRET** : Générez une clé aléatoire de 32+ caractères
-4. **Firewall** : Limitez l'accès au port 4523 ou utilisez Nginx
+4. **Base de données** : ne publiez jamais le port 4523 sur toutes les interfaces
 5. **HTTPS** : Configurez un certificat SSL (Let's Encrypt + Nginx)
 
 ## 📊 Healthchecks
