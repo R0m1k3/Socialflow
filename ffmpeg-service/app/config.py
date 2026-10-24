@@ -7,6 +7,15 @@ from pathlib import Path
 # n'est pas protégé. Le démarrage échoue si elle manque.
 API_KEY = os.environ.get("API_KEY", "")
 
+# Hôtes internes (réseau Docker) d'où les vidéos, musiques et logos peuvent
+# être téléchargés : l'application. Toute autre URL doit viser une adresse
+# publique (protection contre la SSRF).
+INTERNAL_DOWNLOAD_HOSTS = {
+    host.strip().lower()
+    for host in os.environ.get("INTERNAL_DOWNLOAD_HOSTS", "socialflow-app").split(",")
+    if host.strip()
+}
+
 TEMP_DIR = Path(os.environ.get("TEMP_DIR", "/tmp/ffmpeg_processing"))
 
 # Durée de conservation des fichiers produits (téléchargés par l'application

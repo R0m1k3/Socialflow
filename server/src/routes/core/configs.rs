@@ -172,7 +172,8 @@ async fn store_logo(state: &AppState, file: &upload::UploadedFile) -> anyhow::Re
 
     let data = tokio::fs::read(&file.path).await?;
     let _ = tokio::fs::remove_file(&file.path).await;
-    let (public_id, url) = media_store::upload_logo(state, &data, &file.original_name).await?;
+    let name = media_store::with_media_extension(&file.original_name, Some(&file.mime));
+    let (public_id, url) = media_store::upload_logo(state, &data, &name).await?;
     state
         .db
         .update_cloudinary_config(Patch::new().set("logo_public_id", public_id.as_str()))

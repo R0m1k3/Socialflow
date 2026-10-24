@@ -43,9 +43,12 @@ pub fn router() -> Router<AppState> {
         .route("/api/media/{id}", delete(delete_media))
 }
 
-/// Filtre des médias (iOS envoie parfois `application/octet-stream`).
-fn media_filter(mime: &str, _name: &str) -> Result<(), String> {
-    if ALLOWED_MIME_TYPES.contains(&mime) || mime == "application/octet-stream" {
+/// Filtre des médias (iOS envoie parfois `application/octet-stream` : accepté
+/// seulement avec une extension d'image ou de vidéo).
+fn media_filter(mime: &str, name: &str) -> Result<(), String> {
+    if ALLOWED_MIME_TYPES.contains(&mime)
+        || (mime == "application/octet-stream" && media_store::has_media_extension(name))
+    {
         Ok(())
     } else {
         Err(format!("Type de fichier non autorisé: {mime}"))
@@ -114,9 +117,10 @@ async fn store_upload(
         file.original_name,
         file.size as f64 / 1024.0 / 1024.0
     );
+    // Extension imposée d'après le type : jamais de .html ou .svg sous /uploads
+    let stored_name = media_store::with_media_extension(&file.original_name, Some(&file.mime));
     let stored =
-        media_store::upload_media(state, MediaSource::Path(&file.path), &file.original_name)
-            .await?;
+        media_store::upload_media(state, MediaSource::Path(&file.path), &stored_name).await?;
     let video = is_video(&file.mime, &file.original_name);
 
     // Vignette extraite tant que la vidéo est sur le disque : elle survit à la
@@ -238,7 +242,18 @@ mod tests {
         assert!(is_video("application/octet-stream", "clip.MOV"));
         assert!(!is_video("image/png", "a.png"));
         assert!(media_filter("image/png", "a.png").is_ok());
-        assert!(media_filter("application/octet-stream", "a").is_ok());
+        assert!(media_filter("application/octet-stream", "clip.MOV").is_ok());
+        assert!(media_filter("application/octet-stream", "a").is_err());
+        assert!(media_filter("application/octet-stream", "x.html").is_err());
+        assert_eq!(
+            media_store::with_media_extension("x.html", Some("image/png")),
+            "x.html.png"
+        );
+        assert_eq!(media_store::with_media_extension("a.JPG", None), "a.JPG");
+        assert_eq!(
+            media_store::with_media_extension("a.svg", None),
+            "a.svg.bin"
+        );
         assert_eq!(
             media_filter("application/pdf", "a.pdf").unwrap_err(),
             "Type de fichier non autorisé: application/pdf"

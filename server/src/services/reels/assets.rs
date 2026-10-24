@@ -14,7 +14,14 @@ pub async fn resolve_music_url(
     music_url: Option<&str>,
 ) -> Option<String> {
     if let Some(url) = music_url.filter(|u| !u.is_empty()) {
-        return Some(media_store::resolve_internal_url(state, url));
+        // Seuls les fichiers de l'application sont acceptés : le service FFmpeg
+        // ne doit pas télécharger d'URL arbitraire (SSRF)
+        if media_store::local_path(state, url).is_some() {
+            return Some(media_store::resolve_internal_url(state, url));
+        }
+        tracing::warn!(
+            "⚠️ [Reels] musicUrl ignorée (seules les URL /uploads/… sont acceptées) : {url}"
+        );
     }
     let id = music_track_id?.strip_prefix("internal_")?;
     match state.db.get_audio_track(id).await {

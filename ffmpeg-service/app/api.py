@@ -3,10 +3,12 @@
 import asyncio
 import base64
 import contextlib
+import ipaddress
 import logging
 import shutil
 import time
 from pathlib import Path
+from urllib.parse import urljoin, urlsplit
 
 import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -231,15 +233,47 @@ async def _synthesize_srt(cues: list[srt_voice.Cue], request, workdir: Path) -> 
         raise HTTPException(status_code=502, detail=f"La voix n'a pas pu être générée : {error}") from error
 
 
+async def _check_download_url(url: str) -> None:
+    """Refuse les URL qui ne visent ni l'application (hôtes internes déclarés)
+    ni une adresse publique : protection contre la SSRF."""
+    parts = urlsplit(url)
+    host = (parts.hostname or "").lower()
+    if parts.scheme not in ("http", "https") or not host:
+        raise ValueError(f"URL non prise en charge : {url}")
+    if host in config.INTERNAL_DOWNLOAD_HOSTS:
+        return
+    port = parts.port or (443 if parts.scheme == "https" else 80)
+    infos = await asyncio.get_running_loop().getaddrinfo(host, port)
+    if not infos:
+        raise ValueError(f"Hôte introuvable : {host}")
+    for info in infos:
+        ip = ipaddress.ip_address(info[4][0].split("%", 1)[0])
+        if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+            ip = ip.ipv4_mapped
+        if not ip.is_global or ip.is_multicast:
+            raise ValueError(f"Adresse non publique refusée : {host}")
+
+
+MAX_REDIRECTS = 5
+
+
 async def _download(url: str, target: Path, what: str, required: bool) -> bool:
     try:
-        async with httpx.AsyncClient(timeout=httpx.Timeout(120, connect=15), follow_redirects=True) as client:
-            async with client.stream("GET", url, headers={"User-Agent": "Mozilla/5.0"}) as response:
-                response.raise_for_status()
-                with target.open("wb") as out:
-                    async for chunk in response.aiter_bytes(1 << 20):
-                        out.write(chunk)
-        return True
+        timeout = httpx.Timeout(120, connect=15)
+        async with httpx.AsyncClient(timeout=timeout, follow_redirects=False) as client:
+            # Redirections suivies à la main : chaque saut est contrôlé
+            for _ in range(MAX_REDIRECTS + 1):
+                await _check_download_url(url)
+                async with client.stream("GET", url, headers={"User-Agent": "Mozilla/5.0"}) as response:
+                    if response.is_redirect and "location" in response.headers:
+                        url = urljoin(url, response.headers["location"])
+                        continue
+                    response.raise_for_status()
+                    with target.open("wb") as out:
+                        async for chunk in response.aiter_bytes(1 << 20):
+                            out.write(chunk)
+                    return True
+            raise ValueError("Trop de redirections")
     except Exception as error:
         if required:
             detail = f"Téléchargement de {what} impossible : {error}"

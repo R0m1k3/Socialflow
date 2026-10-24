@@ -19,6 +19,7 @@ mod http;
 mod migrate;
 mod public_url;
 mod routes;
+mod safehttp;
 mod services;
 mod state;
 mod time;

@@ -7,9 +7,11 @@ use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use axum::extract::{ConnectInfo, Request, State};
+use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE};
 use axum::http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use once_cell::sync::Lazy;
 use serde_json::json;
 
 use crate::state::AppState;
@@ -59,9 +61,68 @@ impl RateLimiter {
     }
 }
 
-/// IP du client : dernier saut de `X-Forwarded-For` (posé par Nginx, `trust proxy 1`),
-/// sinon l'adresse de la connexion.
+/// Proxys dont on accepte `X-Forwarded-For` : `TRUSTED_PROXIES` (adresses ou
+/// réseaux CIDR séparés par des virgules) ; par défaut, les adresses privées
+/// et locales (reverse proxy Nginx sur le réseau Docker).
+static TRUSTED_PROXIES: Lazy<Option<Vec<ipnet::IpNet>>> = Lazy::new(|| {
+    let raw = crate::config::Config::var("TRUSTED_PROXIES")?;
+    let nets = raw
+        .split(',')
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .filter_map(|s| {
+            let parsed = s
+                .parse::<ipnet::IpNet>()
+                .or_else(|_| s.parse::<IpAddr>().map(ipnet::IpNet::from));
+            if parsed.is_err() {
+                tracing::warn!("TRUSTED_PROXIES : entrée ignorée « {s} »");
+            }
+            parsed.ok()
+        })
+        .collect();
+    Some(nets)
+});
+
+fn is_private_or_local(ip: IpAddr) -> bool {
+    let ip = match ip {
+        IpAddr::V6(v6) => v6
+            .to_ipv4_mapped()
+            .map(IpAddr::V4)
+            .unwrap_or(IpAddr::V6(v6)),
+        v4 => v4,
+    };
+    match ip {
+        IpAddr::V4(v4) => v4.is_loopback() || v4.is_private() || v4.is_link_local(),
+        IpAddr::V6(v6) => {
+            v6.is_loopback()
+                || (v6.segments()[0] & 0xfe00) == 0xfc00
+                || (v6.segments()[0] & 0xffc0) == 0xfe80
+        }
+    }
+}
+
+fn is_trusted_proxy(ip: IpAddr, trusted: Option<&[ipnet::IpNet]>) -> bool {
+    match trusted {
+        Some(nets) => nets.iter().any(|net| net.contains(&ip)),
+        None => is_private_or_local(ip),
+    }
+}
+
+/// IP du client : dernier saut de `X-Forwarded-For` (posé par Nginx) si la
+/// connexion vient d'un proxy de confiance, sinon l'adresse de la connexion.
 pub fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>) -> IpAddr {
+    client_ip_with(headers, peer, TRUSTED_PROXIES.as_deref())
+}
+
+fn client_ip_with(
+    headers: &HeaderMap,
+    peer: Option<SocketAddr>,
+    trusted: Option<&[ipnet::IpNet]>,
+) -> IpAddr {
+    let peer_ip = peer.map(|p| p.ip()).unwrap_or(IpAddr::from([127, 0, 0, 1]));
+    if !is_trusted_proxy(peer_ip, trusted) {
+        return peer_ip;
+    }
     if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
         if let Some(ip) = xff.split(',').map(str::trim).rfind(|s| !s.is_empty()) {
             if let Ok(ip) = ip.parse() {
@@ -69,7 +130,7 @@ pub fn client_ip(headers: &HeaderMap, peer: Option<SocketAddr>) -> IpAddr {
             }
         }
     }
-    peer.map(|p| p.ip()).unwrap_or(IpAddr::from([127, 0, 0, 1]))
+    peer_ip
 }
 
 pub async fn rate_limit(State(state): State<AppState>, request: Request, next: Next) -> Response {
@@ -133,11 +194,42 @@ connect-src 'self' https://graph.facebook.com https://openrouter.ai https://res.
 media-src 'self' https: data:;\
 upgrade-insecure-requests";
 
+/// Fichiers téléversés : jamais interprétés comme une page du site. Seuls
+/// images (hors SVG), vidéos, sons et polices s'affichent dans le navigateur,
+/// tout le reste est proposé en téléchargement, dans un bac à sable.
+fn harden_upload_headers(headers: &mut HeaderMap) {
+    let inline = headers
+        .get(CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|ct| {
+            let ct = ct.trim().to_ascii_lowercase();
+            (ct.starts_with("image/") && !ct.starts_with("image/svg"))
+                || ct.starts_with("video/")
+                || ct.starts_with("audio/")
+                || ct.starts_with("font/")
+        })
+        .unwrap_or(false);
+    headers.insert(
+        HeaderName::from_static("content-security-policy"),
+        HeaderValue::from_static("sandbox"),
+    );
+    headers.insert(
+        HeaderName::from_static("x-content-type-options"),
+        HeaderValue::from_static("nosniff"),
+    );
+    if !inline {
+        headers.insert(CONTENT_DISPOSITION, HeaderValue::from_static("attachment"));
+    }
+}
+
 /// En-têtes posés par helmet dans l'ancien serveur.
 pub async fn security_headers(request: Request, next: Next) -> Response {
     let is_upload = request.uri().path().starts_with("/uploads/");
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
+    if is_upload {
+        harden_upload_headers(headers);
+    }
     let mut set = |name: &'static str, value: &'static str| {
         headers
             .entry(HeaderName::from_static(name))
@@ -188,4 +280,55 @@ pub async fn log_requests(request: Request, next: Next) -> Response {
         );
     }
     response
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn xff(value: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-forwarded-for", HeaderValue::from_str(value).unwrap());
+        headers
+    }
+
+    #[test]
+    fn forwarded_for_only_from_trusted_proxy() {
+        let headers = xff("1.2.3.4, 5.6.7.8");
+        let public: SocketAddr = "203.0.113.9:443".parse().unwrap();
+        let docker: SocketAddr = "172.18.0.5:443".parse().unwrap();
+        // Connexion directe depuis Internet : en-tête ignoré
+        assert_eq!(client_ip_with(&headers, Some(public), None), public.ip());
+        // Reverse proxy sur le réseau Docker : dernier saut retenu
+        assert_eq!(
+            client_ip_with(&headers, Some(docker), None),
+            "5.6.7.8".parse::<IpAddr>().unwrap()
+        );
+        // Liste explicite : seules ces adresses sont de confiance
+        let nets = vec!["10.0.0.0/8".parse::<ipnet::IpNet>().unwrap()];
+        assert_eq!(
+            client_ip_with(&headers, Some(docker), Some(&nets)),
+            docker.ip()
+        );
+    }
+
+    #[test]
+    fn upload_headers() {
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("text/html"));
+        harden_upload_headers(&mut headers);
+        assert_eq!(headers[CONTENT_DISPOSITION], "attachment");
+        assert_eq!(headers["content-security-policy"], "sandbox");
+
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("image/svg+xml"));
+        harden_upload_headers(&mut headers);
+        assert_eq!(headers[CONTENT_DISPOSITION], "attachment");
+
+        let mut headers = HeaderMap::new();
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("video/mp4"));
+        harden_upload_headers(&mut headers);
+        assert!(headers.get(CONTENT_DISPOSITION).is_none());
+        assert_eq!(headers["x-content-type-options"], "nosniff");
+    }
 }

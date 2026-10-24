@@ -63,7 +63,8 @@ pub fn local_path(state: &AppState, url: &str) -> Option<PathBuf> {
     Some(root.join(relative))
 }
 
-/// Contenu d'un média, local (`/uploads/...`) ou distant.
+/// Contenu d'un média, local (`/uploads/...`) ou distant. Une URL absolue
+/// (fournie par l'utilisateur) ne peut viser qu'une adresse publique (SSRF).
 pub async fn read_media_buffer(state: &AppState, url: &str) -> anyhow::Result<Bytes> {
     if let Some(path) = local_path(state, url) {
         if let Ok(data) = tokio::fs::read(&path).await {
@@ -71,7 +72,12 @@ pub async fn read_media_buffer(state: &AppState, url: &str) -> anyhow::Result<By
         }
     }
     let absolute = resolve_public_url(state, url);
-    let response = state.http.get(&absolute).send().await?;
+    let response = if url.starts_with('/') {
+        // Chemin relatif : fichier de l'application, via APP_URL
+        state.http.get(&absolute).send().await?
+    } else {
+        crate::safehttp::get(&absolute).await?
+    };
     if !response.status().is_success() {
         anyhow::bail!(
             "Impossible de récupérer le média depuis {absolute} ({})",
@@ -79,6 +85,49 @@ pub async fn read_media_buffer(state: &AppState, url: &str) -> anyhow::Result<By
         );
     }
     Ok(response.bytes().await?)
+}
+
+/// Extensions des médias servis sous `/uploads` (images et vidéos) : tout
+/// autre fichier est rangé en `.bin`, que le navigateur ne peut pas exécuter.
+pub const MEDIA_EXTENSIONS: [&str; 9] = [
+    "jpg", "jpeg", "png", "gif", "webp", "mp4", "mov", "m4v", "webm",
+];
+
+/// Extension (en minuscules) d'un nom de fichier.
+fn extension_of(file_name: &str) -> Option<String> {
+    Path::new(file_name)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_ascii_lowercase)
+}
+
+/// Extension d'un type MIME de média autorisé.
+pub fn extension_for_mime(mime: &str) -> Option<&'static str> {
+    match mime {
+        "image/jpeg" => Some("jpg"),
+        "image/png" => Some("png"),
+        "image/gif" => Some("gif"),
+        "image/webp" => Some("webp"),
+        "video/mp4" => Some("mp4"),
+        "video/quicktime" => Some("mov"),
+        "video/webm" => Some("webm"),
+        _ => None,
+    }
+}
+
+/// L'extension du nom est-elle celle d'un média autorisé ?
+pub fn has_media_extension(file_name: &str) -> bool {
+    extension_of(file_name).is_some_and(|ext| MEDIA_EXTENSIONS.contains(&ext.as_str()))
+}
+
+/// Nom de fichier dont l'extension est sûre : celle d'origine si elle est
+/// autorisée, sinon celle du type MIME, sinon `.bin`.
+pub fn with_media_extension(file_name: &str, mime: Option<&str>) -> String {
+    if has_media_extension(file_name) {
+        return file_name.to_string();
+    }
+    let ext = mime.and_then(extension_for_mime).unwrap_or("bin");
+    format!("{file_name}.{ext}")
 }
 
 fn safe_name(file_name: &str) -> String {
@@ -131,7 +180,11 @@ pub async fn upload_media(
     source: MediaSource<'_>,
     file_name: &str,
 ) -> anyhow::Result<StoredMedia> {
-    let object_key = format!("media/{}-{}", now_ms(), safe_name(file_name));
+    let object_key = format!(
+        "media/{}-{}",
+        now_ms(),
+        safe_name(&with_media_extension(file_name, None))
+    );
     let target = state.config.uploads_dir.join(&object_key);
     if let Some(parent) = target.parent() {
         tokio::fs::create_dir_all(parent).await?;
@@ -199,9 +252,9 @@ pub async fn upload_logo(
     data: &[u8],
     file_name: &str,
 ) -> anyhow::Result<(String, String)> {
-    let ext = Path::new(file_name)
-        .extension()
-        .and_then(|e| e.to_str())
+    // Extension d'origine seulement si c'est celle d'un média autorisé
+    let ext = extension_of(file_name)
+        .filter(|e| MEDIA_EXTENSIONS.contains(&e.as_str()))
         .map(|e| format!(".{e}"))
         .unwrap_or_else(|| ".png".into());
     let object_key = format!("logos/logo-{}{ext}", now_ms());

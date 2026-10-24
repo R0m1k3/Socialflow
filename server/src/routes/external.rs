@@ -400,7 +400,7 @@ fn check_image(content_type: &str, buffer: Bytes) -> anyhow::Result<DownloadedIm
     Ok(DownloadedImage { buffer, ext })
 }
 
-async fn download_image(state: &AppState, url: &str) -> anyhow::Result<DownloadedImage> {
+async fn download_image(url: &str) -> anyhow::Result<DownloadedImage> {
     let parsed =
         url::Url::parse(url).map_err(|_| anyhow::anyhow!("Failed to parse URL from {url}"))?;
 
@@ -409,7 +409,14 @@ async fn download_image(state: &AppState, url: &str) -> anyhow::Result<Downloade
         return check_image(&mime, buffer);
     }
 
-    let response = match tokio::time::timeout(DOWNLOAD_TIMEOUT, state.http.get(parsed).send()).await
+    // URL fournie par l'appelant : adresses publiques uniquement (SSRF)
+    let parsed = crate::safehttp::check_url(parsed.as_str())
+        .map_err(|error| anyhow::anyhow!("URL d'image refusée : {error}"))?;
+    let response = match tokio::time::timeout(
+        DOWNLOAD_TIMEOUT,
+        crate::safehttp::client().get(parsed).send(),
+    )
+    .await
     {
         Err(_) => anyhow::bail!("This operation was aborted"),
         Ok(Err(error)) => {
@@ -450,7 +457,7 @@ async fn import_image(
     owner_id: &str,
     prefix: &str,
 ) -> anyhow::Result<crate::db::Media> {
-    let image = download_image(state, url).await?;
+    let image = download_image(url).await?;
     let file_name = format!(
         "{prefix}-{}{}",
         chrono::Utc::now().timestamp_millis(),
