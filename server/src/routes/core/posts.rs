@@ -208,10 +208,8 @@ async fn create_post_inner(
                 .get_social_page(&id_text(page_id))
                 .await
                 .map_err(db_error)?;
-            if !page.is_some_and(|p| matches!(p.platform, Platform::Facebook | Platform::Tiktok)) {
-                return Ok(Err(AppError::bad_request(
-                    "Les Reels ne peuvent être publiés que sur Facebook ou TikTok",
-                )));
+            if page.is_none() {
+                return Ok(Err(AppError::bad_request("Page introuvable pour ce Reel")));
             }
         }
     }

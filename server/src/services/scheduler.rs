@@ -1,5 +1,5 @@
 //! Publication des posts programmés : toutes les minutes, les publications
-//! dues sont envoyées sur Facebook ou TikTok.
+//! dues sont envoyées sur Facebook, Instagram ou TikTok.
 
 use std::collections::HashMap;
 use std::sync::atomic::AtomicBool;
@@ -13,7 +13,7 @@ use crate::db::{
 };
 use crate::services::cron::{sleep_until_next_minute, spawn_guarded};
 use crate::services::tiktok::error_message;
-use crate::services::{facebook, media_store, tiktok};
+use crate::services::{facebook, instagram, media_store, tiktok};
 use crate::state::AppState;
 use crate::time::Ts;
 
@@ -82,9 +82,19 @@ fn is_rate_limited(message: &str) -> bool {
     lower.contains("rate_limit") || lower.contains("request limit")
 }
 
+/// Clé de la pause « limite de débit » : Instagram et Facebook partagent le
+/// quota de l'application Meta, une limite atteinte sur l'un vaut pour l'autre.
+fn cooldown_key(platform: Platform) -> Platform {
+    match platform {
+        Platform::Instagram => Platform::Facebook,
+        other => other,
+    }
+}
+
+/// Plateforme de la page, ramenée à sa clé de pause (`cooldown_key`).
 async fn page_platform(state: &AppState, page_id: &str) -> Option<Platform> {
     match state.db.get_social_page(page_id).await {
-        Ok(page) => page.map(|p| p.platform),
+        Ok(page) => page.map(|p| cooldown_key(p.platform)),
         Err(error) => {
             tracing::warn!("[Scheduler] Page {page_id} illisible : {error}");
             None
@@ -170,7 +180,12 @@ pub async fn process_pending_posts(state: &AppState) {
         if let Err(error) = process_one(state, &scheduled_post).await {
             let message = error_message(&error);
             let rate_limited = is_rate_limited(&message);
-            let attempts = scheduled_post.attempts + 1;
+            // Une erreur définitive (média refusé, configuration manquante…) n'est pas retentée
+            let attempts = if instagram::is_permanent(&error) {
+                MAX_PUBLISH_ATTEMPTS
+            } else {
+                scheduled_post.attempts + 1
+            };
             let retry_at = Ts::now().add(retry_delay(attempts, rate_limited));
             let next_attempt_at = (attempts < MAX_PUBLISH_ATTEMPTS).then_some(retry_at);
 
@@ -205,8 +220,52 @@ pub async fn process_pending_posts(state: &AppState) {
                 tracing::error!("Error processing pending posts: {error}");
                 return;
             }
+            if next_attempt_at.is_none() {
+                if let Err(error) = settle_post_status(state, &scheduled_post.post_id).await {
+                    tracing::error!(
+                        "[Scheduler] État du post {} non recalculé : {error}",
+                        scheduled_post.post_id
+                    );
+                }
+            }
         }
     }
+}
+
+/// État final d'un post d'après ses envois (publié, en attente) ; `None` tant
+/// qu'un envoi est encore en attente.
+fn final_post_status(rows: &[(bool, bool)]) -> Option<PostStatus> {
+    if rows.is_empty() || rows.iter().any(|&(_, pending)| pending) {
+        return None;
+    }
+    if rows.iter().any(|&(published, _)| published) {
+        Some(PostStatus::Published)
+    } else {
+        Some(PostStatus::Failed)
+    }
+}
+
+/// Recalcule l'état d'un post quand plus aucun de ses envois n'est en attente :
+/// publié si au moins une page a publié, sinon en échec. Ne dépend pas de
+/// l'ordre dans lequel les pages sont traitées.
+async fn settle_post_status(state: &AppState, post_id: &str) -> anyhow::Result<()> {
+    let rows: Vec<(bool, bool)> = state
+        .db
+        .get_scheduled_posts_by_post(post_id)
+        .await?
+        .iter()
+        .map(|sp| {
+            let published = sp.published_at.is_some();
+            (published, !published && sp.attempts < MAX_PUBLISH_ATTEMPTS)
+        })
+        .collect();
+    if let Some(status) = final_post_status(&rows) {
+        state
+            .db
+            .update_post(post_id, Patch::new().set("status", status))
+            .await?;
+    }
+    Ok(())
 }
 
 async fn process_one(state: &AppState, scheduled_post: &ScheduledPost) -> anyhow::Result<()> {
@@ -313,23 +372,21 @@ async fn publish_post(state: &AppState, scheduled_post: &ScheduledPost) -> anyho
                 .await?;
         }
         Platform::Instagram => {
-            // La publication Instagram n'est pas encore implémentée
-            tracing::warn!(
-                "Instagram publishing not yet implemented for post {}",
-                post.id
-            );
+            let external_post_id =
+                instagram::publish_post(state, &post, &page, scheduled_post.post_type, &media_list)
+                    .await?;
+
             state
                 .db
                 .update_scheduled_post(
                     &scheduled_post.id,
-                    Patch::new().set("error", "Instagram publishing not yet implemented"),
+                    Patch::new()
+                        .set("published_at", Ts::now())
+                        .set("external_post_id", external_post_id)
+                        .set_null("error")
+                        .set("next_attempt_at", None::<Ts>),
                 )
                 .await?;
-            state
-                .db
-                .update_post(&post.id, Patch::new().set("status", PostStatus::Failed))
-                .await?;
-            return Ok(());
         }
     }
 
@@ -436,6 +493,35 @@ mod tests {
             "Facebook API error: Invalid parameter (code: 100)"
         ));
         assert!(!is_rate_limited("Post or page not found"));
+    }
+
+    #[test]
+    fn instagram_shares_the_facebook_cooldown() {
+        assert_eq!(cooldown_key(Platform::Instagram), Platform::Facebook);
+        assert_eq!(cooldown_key(Platform::Facebook), Platform::Facebook);
+        assert_eq!(cooldown_key(Platform::Tiktok), Platform::Tiktok);
+    }
+
+    #[test]
+    fn post_status_is_settled_once_nothing_is_pending() {
+        // (publié, en attente)
+        assert_eq!(final_post_status(&[(false, true), (true, false)]), None);
+        assert_eq!(
+            final_post_status(&[(true, false), (false, false)]),
+            Some(PostStatus::Published)
+        );
+        assert_eq!(
+            final_post_status(&[(false, false), (false, false)]),
+            Some(PostStatus::Failed)
+        );
+        assert_eq!(final_post_status(&[]), None);
+    }
+
+    #[test]
+    fn instagram_rate_limits_are_detected() {
+        assert!(is_rate_limited(
+            "Instagram API error publishing: Application request limit reached (code: 4)"
+        ));
     }
 
     #[test]

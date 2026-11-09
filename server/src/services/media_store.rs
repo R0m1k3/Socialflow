@@ -234,6 +234,18 @@ pub async fn upload_story_image(
     Ok(build_url(&object_key))
 }
 
+/// Image préparée pour Instagram (JPEG), servie publiquement le temps que
+/// Meta la télécharge ; recréée à chaque tentative. Renvoie son chemin `/uploads/...`.
+pub async fn upload_instagram_image(
+    state: &AppState,
+    data: &[u8],
+    file_name: &str,
+) -> anyhow::Result<String> {
+    let object_key = format!("instagram/{}", safe_name(file_name));
+    write(state, &object_key, data).await?;
+    Ok(build_url(&object_key))
+}
+
 /// Vignette vidéo (conservée après la suppression de la vidéo source).
 pub async fn upload_thumbnail(
     state: &AppState,

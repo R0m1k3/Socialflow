@@ -5,6 +5,7 @@ pub mod audio;
 pub mod cron;
 pub mod facebook;
 pub mod ffmpeg;
+pub mod instagram;
 pub mod media_purge;
 pub mod media_store;
 pub mod openrouter;

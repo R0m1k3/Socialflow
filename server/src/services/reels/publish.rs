@@ -51,6 +51,9 @@ impl PagePublishResult {
     }
 }
 
+/// `reel_id` d'un envoi confié au planificateur.
+const DEFERRED_TO_SCHEDULER: &str = "scheduled";
+
 /// Range la vidéo rendue dans la médiathèque, avec sa vignette.
 pub async fn store_rendered_video(
     state: &AppState,
@@ -120,7 +123,13 @@ pub async fn publish_reel_to_pages(
     }
 
     let succeeded = results.iter().filter(|r| r.success).count();
-    let status = if options.scheduled_for.is_some() && succeeded > 0 {
+    // Un reel Instagram est toujours confié au planificateur : tant qu'il n'est
+    // pas parti, le post reste « programmé » (le planificateur le passera à
+    // « publié »).
+    let deferred = results
+        .iter()
+        .any(|r| r.success && r.reel_id.as_deref() == Some(DEFERRED_TO_SCHEDULER));
+    let status = if (options.scheduled_for.is_some() || deferred) && succeeded > 0 {
         PostStatus::Scheduled
     } else if succeeded > 0 {
         PostStatus::Published
@@ -143,16 +152,6 @@ async fn publish_to_page(
     let Some(page) = state.db.get_social_page(page_id).await? else {
         return Ok(PagePublishResult::failed(page_id, "Page non trouvée"));
     };
-    if page.platform != Platform::Facebook && page.platform != Platform::Tiktok {
-        return Ok(PagePublishResult::failed(
-            page_id,
-            format!(
-                "Plateforme non supportée pour les reels : {}",
-                page.platform
-            ),
-        ));
-    }
-
     let scheduled_at = match options.scheduled_for {
         Some(date) => parse_date(date)?,
         None => Ts::now(),
@@ -168,6 +167,14 @@ async fn publish_to_page(
         .await?;
     let with_story = options.also_story && page.platform == Platform::Facebook;
 
+    // Instagram n'est jamais publié dans la requête : Meta traite la vidéo
+    // pendant parfois plusieurs minutes, au-delà du délai du proxy. Le
+    // planificateur s'en charge à la minute suivante (la vidéo est déjà liée
+    // au post, cf. `pipeline.rs`).
+    if page.platform == Platform::Instagram {
+        return Ok(PagePublishResult::ok(page_id, DEFERRED_TO_SCHEDULER, None));
+    }
+
     if let Some(date) = options.scheduled_for {
         // Le planificateur publiera à l'heure dite
         if with_story {
@@ -181,7 +188,7 @@ async fn publish_to_page(
                 ))
                 .await?;
         }
-        return Ok(PagePublishResult::ok(page_id, "scheduled", None));
+        return Ok(PagePublishResult::ok(page_id, DEFERRED_TO_SCHEDULER, None));
     }
 
     tracing::info!(
