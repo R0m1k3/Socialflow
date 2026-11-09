@@ -22,7 +22,7 @@ use crate::db::{Media, MediaType, Platform, Post, PostType, SocialPage};
 use crate::services::media_store;
 use crate::state::AppState;
 
-const BASE_URL: &str = "https://graph.facebook.com/v23.0";
+pub(crate) const BASE_URL: &str = "https://graph.facebook.com/v23.0";
 
 /// Suivi du traitement d'une story vidéo après la phase FINISH.
 const STORY_STATUS_ATTEMPTS: u32 = 12;
@@ -33,7 +33,11 @@ const STORY_STATUS_INTERVAL: Duration = Duration::from_secs(5);
 // ----------------------------------------------------------------------
 
 /// URL `/{node}/{edge}` de l'API Graph avec ses paramètres en query string.
-fn graph_url(node: &str, edge: &str, params: &[(&str, &str)]) -> anyhow::Result<url::Url> {
+pub(crate) fn graph_url(
+    node: &str,
+    edge: &str,
+    params: &[(&str, &str)],
+) -> anyhow::Result<url::Url> {
     let mut url = url::Url::parse(&format!("{BASE_URL}/{node}/{edge}"))?;
     if !params.is_empty() {
         url.query_pairs_mut().extend_pairs(params);
@@ -52,7 +56,7 @@ fn js(value: Option<&Value>) -> String {
 }
 
 /// Texte non vide d'un champ (identifiants renvoyés en chaîne ou en nombre).
-fn field(data: &Value, key: &str) -> Option<String> {
+pub(crate) fn field(data: &Value, key: &str) -> Option<String> {
     match data.get(key) {
         Some(Value::String(s)) if !s.is_empty() => Some(s.clone()),
         Some(Value::Number(n)) => Some(n.to_string()),
@@ -61,7 +65,7 @@ fn field(data: &Value, key: &str) -> Option<String> {
 }
 
 /// Message d'une erreur Graph : `{prefix}: {message} (code: {code})`.
-fn format_api_error(prefix: &str, status: u16, body: &str) -> String {
+pub(crate) fn format_api_error(prefix: &str, status: u16, body: &str) -> String {
     match serde_json::from_str::<Value>(body) {
         Ok(data) if data.get("error").is_some_and(Value::is_object) => {
             let error = &data["error"];
@@ -80,14 +84,18 @@ fn format_api_error(prefix: &str, status: u16, body: &str) -> String {
     }
 }
 
-async fn api_error(prefix: &str, response: reqwest::Response) -> anyhow::Error {
+pub(crate) async fn api_error(prefix: &str, response: reqwest::Response) -> anyhow::Error {
     let status = response.status().as_u16();
     let body = response.text().await.unwrap_or_default();
     anyhow::anyhow!(format_api_error(prefix, status, &body))
 }
 
 /// `POST` sans corps (paramètres en query string), réponse JSON exigée.
-async fn post_query(state: &AppState, url: url::Url, error_prefix: &str) -> anyhow::Result<Value> {
+pub(crate) async fn post_query(
+    state: &AppState,
+    url: url::Url,
+    error_prefix: &str,
+) -> anyhow::Result<Value> {
     let response = state.http.post(url).send().await?;
     if !response.status().is_success() {
         return Err(api_error(error_prefix, response).await);
@@ -450,7 +458,7 @@ fn parse_start(data: &Value) -> Option<(String, String)> {
 }
 
 /// Envoie la vidéo en binaire vers l'`upload_url` (rupload.facebook.com).
-async fn upload_binary(
+pub(crate) async fn upload_binary(
     state: &AppState,
     upload_url: &str,
     access_token: &str,

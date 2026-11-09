@@ -383,7 +383,7 @@ pub async fn render_story_image(
     .await?
 }
 
-fn decode_oriented(data: &[u8]) -> anyhow::Result<image::DynamicImage> {
+pub(crate) fn decode_oriented(data: &[u8]) -> anyhow::Result<image::DynamicImage> {
     let reader = ImageReader::new(Cursor::new(data)).with_guessed_format()?;
     let mut decoder = reader.into_decoder()?;
     // Rotation EXIF appliquée, comme `sharp().rotate()`

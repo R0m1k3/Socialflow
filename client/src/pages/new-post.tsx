@@ -318,10 +318,12 @@ export default function NewPost() {
       return;
     }
 
-    if ((postType === 'story' || postType === 'both') && selectedMedia.length === 0) {
+    if (needsMedia && selectedMedia.length === 0) {
       toast({
         title: "Média requis",
-        description: "Les stories nécessitent au moins une image ou vidéo",
+        description: targetsInstagram
+          ? "Instagram nécessite au moins une photo ou vidéo"
+          : "Les stories nécessitent au moins une image ou vidéo",
         variant: "destructive",
       });
       return;
@@ -397,12 +399,17 @@ export default function NewPost() {
   };
 
   const contentReady = postText.trim().length > 0 || selectedMedia.length > 0;
-  const needsMedia = postType === 'story' || postType === 'both';
+  // Instagram n'accepte pas les publications sans photo ni vidéo
+  const targetsInstagram = pages.some(p => selectedPages.includes(p.id) && p.platform === 'instagram');
+  const needsMedia = postType === 'story' || postType === 'both' || targetsInstagram;
+  const missingMediaMessage = targetsInstagram
+    ? "Instagram nécessite au moins une photo ou vidéo"
+    : "Les stories nécessitent un média";
   const targetsReady = selectedPages.length > 0 && (!needsMedia || selectedMedia.length > 0);
 
   const lockedReason = (index: number): string | null => {
     if (index >= 2 && !contentReady) return "Ajoutez un média ou un texte";
-    if (index >= 3 && !targetsReady) return selectedPages.length === 0 ? "Choisissez au moins une page" : "Les stories nécessitent un média";
+    if (index >= 3 && !targetsReady) return selectedPages.length === 0 ? "Choisissez au moins une page" : missingMediaMessage;
     return null;
   };
 
@@ -782,7 +789,7 @@ export default function NewPost() {
                     {needsMedia && selectedMedia.length === 0 && (
                       <p className="mt-3 flex items-center gap-2 rounded-lg bg-warning/10 px-3 py-2 text-xs text-warning-foreground dark:text-warning">
                         <AlertTriangle className="h-4 w-4 shrink-0" />
-                        Une story nécessite au moins une image ou vidéo : revenez à l'étape Médias.
+                        {targetsInstagram ? "Instagram nécessite au moins une photo ou vidéo" : "Une story nécessite au moins une image ou vidéo"} : revenez à l'étape Médias.
                       </p>
                     )}
                   </CardContent>

@@ -39,6 +39,7 @@ export default function ScheduleReel() {
     // Destinations acceptant un Reel
     const facebookPages = pages.filter((p) => p.platform === "facebook");
     const tiktokAccounts = pages.filter((p) => p.platform === "tiktok");
+    const instagramAccounts = pages.filter((p) => p.platform === "instagram");
     const videoList = allMedia.filter((m) => m.type === "video").slice(0, 12);
 
     const uploadMutation = useMutation({
@@ -242,12 +243,12 @@ export default function ScheduleReel() {
                             {sectionTitle(3, "Destinations et date", canSchedule)}
                         </CardHeader>
                         <CardContent className="space-y-6">
-                            {facebookPages.length === 0 && tiktokAccounts.length === 0 && (
+                            {facebookPages.length === 0 && instagramAccounts.length === 0 && tiktokAccounts.length === 0 && (
                                 <EmptyState
                                     compact
                                     icon={Link2}
                                     title="Aucun compte connecté"
-                                    description="Connectez une page Facebook ou un compte TikTok pour publier."
+                                    description="Connectez une page Facebook, un compte Instagram ou un compte TikTok pour publier."
                                     action={<Button size="sm" onClick={() => navigate("/pages")}>Connecter un compte</Button>}
                                 />
                             )}
@@ -256,6 +257,12 @@ export default function ScheduleReel() {
                                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pages Facebook</p>
                                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{facebookPages.map(renderTargetCheckbox)}</div>
                                     <StoryToggle checked={alsoStory} onCheckedChange={setAlsoStory} />
+                                </div>
+                            )}
+                            {instagramAccounts.length > 0 && (
+                                <div className="space-y-2">
+                                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Comptes Instagram</p>
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{instagramAccounts.map(renderTargetCheckbox)}</div>
                                 </div>
                             )}
                             {tiktokAccounts.length > 0 && (
