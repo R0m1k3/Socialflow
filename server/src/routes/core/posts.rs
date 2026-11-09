@@ -294,10 +294,10 @@ async fn create_post_inner(
                     .create_scheduled_post(create(final_type))
                     .await
                     .map_err(db_error)?;
-                // Reel doublé d'une story : seulement sur Facebook, TikTok n'en a pas
+                // Reel doublé d'une story : Facebook et Instagram, TikTok n'en a pas
                 if final_type == PostType::Reel && also_story {
                     let page = state.db.get_social_page(&page_id).await.map_err(db_error)?;
-                    if page.is_some_and(|p| p.platform == Platform::Facebook) {
+                    if page.is_some_and(|p| p.platform != Platform::Tiktok) {
                         state
                             .db
                             .create_scheduled_post(create(PostType::Story))
