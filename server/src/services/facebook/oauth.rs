@@ -245,7 +245,7 @@ pub async fn list_pages(
         &[
             (
                 "fields",
-                "id,name,access_token,fan_count,followers_count,instagram_business_account{id,name,username,followers_count}",
+                "id,name,access_token,fan_count,followers_count,instagram_business_account{id,name,username,followers_count},connected_instagram_account{id,name,username,followers_count}",
             ),
             ("limit", "200"),
             ("access_token", user_token),
@@ -269,9 +269,12 @@ pub fn parse_pages(response: &Value) -> Vec<FacebookPageTarget> {
             let followers = count("followers_count")
                 .or_else(|| count("fan_count"))
                 .unwrap_or(0);
-            let instagram = page
-                .get("instagram_business_account")
-                .filter(|v| v.is_object())
+            // `connected_instagram_account` : compte lié depuis les réglages de la
+            // page, parfois seul renseigné pour un compte ajouté récemment.
+            let instagram = ["instagram_business_account", "connected_instagram_account"]
+                .iter()
+                .filter_map(|key| page.get(*key))
+                .find(|v| v.is_object() && non_empty_str(v, "id").is_some())
                 .map(|ig| InstagramTarget {
                     id: ig.get("id").map(value_text).unwrap_or_default(),
                     name: non_empty_str(ig, "username")
@@ -291,6 +294,36 @@ pub fn parse_pages(response: &Value) -> Vec<FacebookPageTarget> {
             }
         })
         .collect()
+}
+
+/// Permissions accordées par l'utilisateur lors de l'autorisation
+/// (`status == "granted"`), pour expliquer un compte Instagram absent.
+pub async fn granted_permissions(
+    state: &AppState,
+    user_token: &str,
+) -> anyhow::Result<Vec<String>> {
+    let response = graph_get(
+        state,
+        "/me/permissions",
+        &[("access_token", user_token)],
+        "lecture des permissions",
+    )
+    .await?;
+    Ok(parse_granted_permissions(&response))
+}
+
+pub fn parse_granted_permissions(response: &Value) -> Vec<String> {
+    response
+        .get("data")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter(|p| p.get("status").and_then(Value::as_str) == Some("granted"))
+                .filter_map(|p| non_empty_str(p, "permission"))
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Interroge Meta sur l'état réel d'un jeton. Un simple appel /me ne dit pas
@@ -426,10 +459,14 @@ mod tests {
               "instagram_business_account": { "id": "ig1", "username": "boutique.ig" } },
             { "id": "2", "name": "Autre", "access_token": "T2", "fan_count": 5,
               "instagram_business_account": { "id": "ig2" } },
-            { "id": "3", "name": "Sans IG", "access_token": "T3" }
+            { "id": "3", "name": "Sans IG", "access_token": "T3" },
+            { "id": "4", "name": "Lié", "access_token": "T4",
+              "connected_instagram_account": { "id": "ig4", "username": "lie.ig", "followers_count": 7 } }
         ]});
         let pages = parse_pages(&response);
-        assert_eq!(pages.len(), 3);
+        assert_eq!(pages.len(), 4);
+        assert_eq!(pages[3].instagram.as_ref().unwrap().id, "ig4");
+        assert_eq!(pages[3].instagram.as_ref().unwrap().followers_count, 7);
         assert_eq!(pages[0].followers_count, 12);
         assert_eq!(pages[0].instagram.as_ref().unwrap().name, "boutique.ig");
         assert_eq!(pages[1].followers_count, 5);
@@ -437,6 +474,18 @@ mod tests {
         assert_eq!(pages[2].followers_count, 0);
         assert!(pages[2].instagram.is_none());
         assert!(parse_pages(&json!({})).is_empty());
+    }
+
+    #[test]
+    fn granted_permissions_are_filtered() {
+        let response = json!({ "data": [
+            { "permission": "pages_show_list", "status": "granted" },
+            { "permission": "instagram_basic", "status": "declined" }
+        ]});
+        assert_eq!(
+            parse_granted_permissions(&response),
+            vec!["pages_show_list".to_string()]
+        );
     }
 
     #[test]

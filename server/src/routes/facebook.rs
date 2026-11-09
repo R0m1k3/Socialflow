@@ -456,7 +456,46 @@ async fn connect_pages(
         }
     }
 
-    Ok(Some(connection_summary(created, updated)))
+    for target in &targets {
+        match &target.instagram {
+            Some(ig) => tracing::info!(
+                "📷 [Facebook] Page {} → Instagram {} ({})",
+                target.name,
+                ig.name,
+                ig.id
+            ),
+            None => tracing::info!(
+                "📷 [Facebook] Page {} → aucun Instagram renvoyé par Meta",
+                target.name
+            ),
+        }
+    }
+
+    let mut summary = connection_summary(created, updated);
+    if targets.iter().all(|t| t.instagram.is_none()) {
+        let granted = oauth::granted_permissions(state, &user_token.access_token)
+            .await
+            .unwrap_or_default();
+        let missing: Vec<&str> = ["instagram_basic", "instagram_content_publish"]
+            .into_iter()
+            .filter(|p| !granted.iter().any(|g| g == p))
+            .collect();
+        let hint = if missing.is_empty() {
+            "aucun compte Instagram renvoyé par Meta : vérifiez qu'il est professionnel et coché dans l'autorisation (« Modifier les paramètres »)".to_string()
+        } else {
+            format!(
+                "aucun compte Instagram : permission(s) non accordée(s) {} — reconnectez-vous et acceptez l'accès Instagram",
+                missing.join(", ")
+            )
+        };
+        summary = if summary.is_empty() {
+            hint
+        } else {
+            format!("{summary} ; {hint}")
+        };
+    }
+
+    Ok(Some(summary))
 }
 
 /// Contrôle (et renouvelle si besoin) le jeton d'une page à la demande.
