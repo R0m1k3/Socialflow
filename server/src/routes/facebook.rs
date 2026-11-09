@@ -419,6 +419,43 @@ async fn connect_pages(
         updated += 1;
     }
 
+    // Comptes Instagram rattachés à une page mais pas encore connus : on les
+    // crée, sinon un compte ajouté après coup chez Meta n'apparaît jamais.
+    for target in &targets {
+        let Some(ig) = target.instagram.as_ref().filter(|ig| !ig.id.is_empty()) else {
+            continue;
+        };
+        let known = existing_pages
+            .iter()
+            .any(|p| p.platform == Platform::Instagram && p.page_id == ig.id);
+        if known {
+            continue;
+        }
+        let page = state
+            .db
+            .create_social_page(NewSocialPage {
+                user_id: user.id.clone(),
+                platform: Some(Platform::Instagram),
+                page_id: ig.id.clone(),
+                page_name: ig.name.clone(),
+                access_token: target.access_token.clone(),
+                token_expires_at: None,
+                user_access_token: Some(encrypted_user_token.clone()),
+                user_token_expires_at: user_token.expires_at,
+                followers_count: Some(ig.followers_count),
+                is_active: Some("true".to_string()),
+                ..Default::default()
+            })
+            .await?;
+        created += 1;
+
+        if !user.is_admin() {
+            if let Err(error) = state.db.create_page_permission(&user.id, &page.id).await {
+                tracing::error!("⚠️ [Facebook] Impossible de créer la permission de page: {error}");
+            }
+        }
+    }
+
     Ok(Some(connection_summary(created, updated)))
 }
 

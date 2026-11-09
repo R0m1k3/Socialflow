@@ -52,6 +52,7 @@ pub struct FacebookLongLivedToken {
 pub struct InstagramTarget {
     pub id: String,
     pub name: String,
+    pub followers_count: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -244,7 +245,7 @@ pub async fn list_pages(
         &[
             (
                 "fields",
-                "id,name,access_token,fan_count,followers_count,instagram_business_account{id,name,username}",
+                "id,name,access_token,fan_count,followers_count,instagram_business_account{id,name,username,followers_count}",
             ),
             ("limit", "200"),
             ("access_token", user_token),
@@ -276,6 +277,10 @@ pub fn parse_pages(response: &Value) -> Vec<FacebookPageTarget> {
                     name: non_empty_str(ig, "username")
                         .or_else(|| non_empty_str(ig, "name"))
                         .unwrap_or_else(|| name.clone()),
+                    followers_count: ig
+                        .get("followers_count")
+                        .and_then(Value::as_i64)
+                        .unwrap_or(0) as i32,
                 });
             FacebookPageTarget {
                 id: text("id"),
