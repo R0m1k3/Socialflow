@@ -832,7 +832,6 @@ export default function NewReel() {
                                                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                                             {facebookPages.map(renderTargetCheckbox)}
                                                         </div>
-                                                        <StoryToggle checked={alsoStory} onCheckedChange={setAlsoStory} />
                                                     </div>
                                                 )}
 
@@ -852,6 +851,9 @@ export default function NewReel() {
                                                             {tiktokAccounts.map(renderTargetCheckbox)}
                                                         </div>
                                                     </div>
+                                                )}
+                                                {(facebookPages.length > 0 || instagramAccounts.length > 0) && (
+                                                    <StoryToggle checked={alsoStory} onCheckedChange={setAlsoStory} />
                                                 )}
                                             </div>
                                         )}

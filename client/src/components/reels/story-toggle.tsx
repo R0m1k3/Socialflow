@@ -6,7 +6,8 @@ interface StoryToggleProps {
 }
 
 /**
- * Double le Reel d'une story sur les pages Facebook sélectionnées. TikTok n'a
+ * Double le Reel d'une story sur les pages Facebook et les comptes Instagram
+ * sélectionnés. TikTok n'a
  * pas de stories : l'option ne le concerne pas.
  */
 export function StoryToggle({ checked, onCheckedChange }: StoryToggleProps) {
@@ -15,7 +16,7 @@ export function StoryToggle({ checked, onCheckedChange }: StoryToggleProps) {
       <label htmlFor="reel-also-story" className="space-y-0.5 cursor-pointer">
         <div className="text-sm font-medium">Publier aussi en story</div>
         <div className="text-xs text-muted-foreground">
-          La vidéo est aussi publiée en story sur les pages Facebook sélectionnées (visible 24 h).
+          La vidéo est aussi publiée en story sur les pages Facebook et les comptes Instagram sélectionnés (visible 24 h).
         </div>
       </label>
       <Switch

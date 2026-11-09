@@ -102,8 +102,8 @@ fn parse_date(value: &str) -> anyhow::Result<Ts> {
 /// Publie (ou planifie) la vidéo sur chaque page, crée les entrées
 /// `scheduled_posts` et met à jour le statut du post.
 ///
-/// Avec `also_story`, chaque page Facebook reçoit aussi la vidéo en story
-/// (TikTok n'a pas de stories).
+/// Avec `also_story`, chaque page Facebook et chaque compte Instagram reçoit
+/// aussi la vidéo en story (TikTok n'a pas de stories).
 pub async fn publish_reel_to_pages(
     state: &AppState,
     options: PublishOptions<'_>,
@@ -165,13 +165,25 @@ async fn publish_to_page(
             scheduled_at,
         ))
         .await?;
-    let with_story = options.also_story && page.platform == Platform::Facebook;
+    let with_story = options.also_story && page.platform != Platform::Tiktok;
 
     // Instagram n'est jamais publié dans la requête : Meta traite la vidéo
     // pendant parfois plusieurs minutes, au-delà du délai du proxy. Le
     // planificateur s'en charge à la minute suivante (la vidéo est déjà liée
     // au post, cf. `pipeline.rs`).
+    // La story Instagram suit le même chemin, à la même heure.
     if page.platform == Platform::Instagram {
+        if with_story {
+            state
+                .db
+                .create_scheduled_post(NewScheduledPost::new(
+                    options.post_id,
+                    &page.id,
+                    PostType::Story,
+                    scheduled_at,
+                ))
+                .await?;
+        }
         return Ok(PagePublishResult::ok(page_id, DEFERRED_TO_SCHEDULER, None));
     }
 

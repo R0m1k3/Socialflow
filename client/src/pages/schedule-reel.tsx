@@ -256,7 +256,6 @@ export default function ScheduleReel() {
                                 <div className="space-y-2">
                                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Pages Facebook</p>
                                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{facebookPages.map(renderTargetCheckbox)}</div>
-                                    <StoryToggle checked={alsoStory} onCheckedChange={setAlsoStory} />
                                 </div>
                             )}
                             {instagramAccounts.length > 0 && (
@@ -270,6 +269,9 @@ export default function ScheduleReel() {
                                     <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Comptes TikTok</p>
                                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">{tiktokAccounts.map(renderTargetCheckbox)}</div>
                                 </div>
+                            )}
+                            {(facebookPages.length > 0 || instagramAccounts.length > 0) && (
+                                <StoryToggle checked={alsoStory} onCheckedChange={setAlsoStory} />
                             )}
 
                             <div className="space-y-2">
