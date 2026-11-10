@@ -960,6 +960,8 @@ POST /api/v1/publish
   "postType": "feed"
 }
 ```
+`pageIds` accepte les pages Facebook comme les comptes Instagram (voir `platform` dans `GET /api/v1/pages`). `imageUrl` est obligatoire pour une story (`story` / `both`) et pour tout envoi vers un compte Instagram (Instagram ne publie pas de texte seul) ; sinon la réponse est `400`.
+
 **Réponse (201 Created) :**
 ```json
 {
