@@ -16,7 +16,9 @@ use bytes::Bytes;
 use regex::Regex;
 use serde_json::{json, Map, Value};
 
-use crate::db::{MediaType, NewMedia, NewPost, NewScheduledPost, Patch, PostStatus, PostType, Val};
+use crate::db::{
+    MediaType, NewMedia, NewPost, NewScheduledPost, Patch, Platform, PostStatus, PostType, Val,
+};
 use crate::error::AppError;
 use crate::extract::{Body, QueryMap};
 use crate::services::media_store::{self, MediaSource};
@@ -528,10 +530,10 @@ async fn publish_inner(state: &AppState, body: &Value) -> Outcome {
     };
 
     // Vérifier que toutes les pages existent
-    let mut resolved_pages: Vec<(String, String)> = Vec::new();
+    let mut resolved_pages: Vec<(String, String, Platform)> = Vec::new();
     for page_id in &input.page_ids {
         match state.db.get_social_page(page_id).await? {
-            Some(page) => resolved_pages.push((page.id, page.page_name)),
+            Some(page) => resolved_pages.push((page.id, page.page_name, page.platform)),
             None => {
                 return Err(AppError::bad_request(format!("Page introuvable: {page_id}")).into())
             }
@@ -539,11 +541,25 @@ async fn publish_inner(state: &AppState, body: &Value) -> Outcome {
     }
 
     // Validation story → image obligatoire
+    let has_image = input.image_url.as_deref().is_some_and(|u| !u.is_empty());
     let needs_image = matches!(input.post_type, PostType::Story | PostType::Both);
-    if needs_image && input.image_url.as_deref().is_none_or(str::is_empty) {
+    if needs_image && !has_image {
         return Err(
             AppError::bad_request("Les stories nécessitent une image (imageUrl requis)").into(),
         );
+    }
+
+    // Instagram ne publie pas de texte seul : image obligatoire
+    if !has_image {
+        if let Some((_, name, _)) = resolved_pages
+            .iter()
+            .find(|(_, _, p)| *p == Platform::Instagram)
+        {
+            return Err(AppError::bad_request(format!(
+                "Instagram nécessite une image (imageUrl requis) : {name}"
+            ))
+            .into());
+        }
     }
 
     // Télécharger l'image si fournie
@@ -575,7 +591,7 @@ async fn publish_inner(state: &AppState, body: &Value) -> Outcome {
 
     // Créer les scheduled_posts par page
     let mut created = Vec::new();
-    for (page_id, page_name) in &resolved_pages {
+    for (page_id, page_name, _) in &resolved_pages {
         let types: &[PostType] = if input.post_type == PostType::Both {
             &[PostType::Story, PostType::Feed]
         } else {
