@@ -12,6 +12,7 @@ import { format } from 'date-fns';
 import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { PlatformIcon, platformLabel } from '@/components/platform-icon';
 
 /** Maximum staleness before triggering an auto-refresh (12 hours in ms). */
 const STALE_THRESHOLD_MS = 12 * 60 * 60 * 1000;
@@ -56,21 +57,29 @@ export function AnalyticsDashboard() {
             queryClient.invalidateQueries({ queryKey: ['/api/pages'] });
             toast({
                 title: "Analyses actualisées",
-                description: "Les dernières données ont été récupérées depuis Facebook.",
+                description: "Les dernières données ont été récupérées.",
             });
         },
-        onError: () => {
+        onError: (error: Error) => {
+            // apiRequest lève « <statut>: <corps> » ; on garde le message du serveur
+            const body = error.message.replace(/^\d+:\s*/, '');
+            let detail = '';
+            try { detail = JSON.parse(body).error ?? ""; } catch { detail = body; }
             toast({
                 title: "Échec de l'actualisation",
-                description: "Impossible de récupérer les dernières données.",
+                description: detail || "Impossible de récupérer les dernières données.",
                 variant: "destructive"
             });
         }
     });
 
+    const selectedPage = pages.find((p: any) => p.id === selectedPageId);
+    const isTiktok = selectedPage?.platform === 'tiktok';
+    const isInstagram = selectedPage?.platform === 'instagram';
+
     // Auto-refresh on first load if data is stale or empty
     useEffect(() => {
-        if (!selectedPageId || autoRefreshDone.current || refreshMutation.isPending) return;
+        if (!selectedPageId || isTiktok || autoRefreshDone.current || refreshMutation.isPending) return;
 
         const isStale = history.length === 0
             || (history[0]?.date && (Date.now() - new Date(history[0].date).getTime()) > STALE_THRESHOLD_MS);
@@ -79,9 +88,7 @@ export function AnalyticsDashboard() {
             autoRefreshDone.current = true;
             refreshMutation.mutate();
         }
-    }, [selectedPageId, history, refreshMutation]);
-
-    const selectedPage = pages.find((p: any) => p.id === selectedPageId);
+    }, [selectedPageId, isTiktok, history, refreshMutation]);
 
     // Prepare chart data (reverse to show chronological order)
     const chartData = [...history].reverse().map((entry: any) => ({
@@ -128,13 +135,17 @@ export function AnalyticsDashboard() {
             <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
                 <div className="flex items-center gap-3">
                     <Select value={selectedPageId || ''} onValueChange={setSelectedPageId}>
-                        <SelectTrigger className="w-full sm:w-[260px]">
+                        <SelectTrigger className="w-full sm:w-[320px]">
                             <SelectValue placeholder="Sélectionner une page" />
                         </SelectTrigger>
                         <SelectContent>
                             {pages.map((page: any) => (
                                 <SelectItem key={page.id} value={page.id}>
-                                    {page.pageName}
+                                    <span className="flex items-center gap-2">
+                                        <PlatformIcon platform={page.platform} size="sm" className="h-5 w-5" />
+                                        <span className="truncate">{page.pageName}</span>
+                                        <span className="text-xs text-muted-foreground">{platformLabel(page.platform)}</span>
+                                    </span>
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -150,14 +161,22 @@ export function AnalyticsDashboard() {
                 <Button
                     variant="outline"
                     onClick={() => refreshMutation.mutate()}
-                    disabled={refreshMutation.isPending || !selectedPageId}
+                    disabled={refreshMutation.isPending || !selectedPageId || isTiktok}
                 >
                     <RefreshCw className={`h-4 w-4 ${refreshMutation.isPending ? 'animate-spin' : ''}`} />
                     Actualiser
                 </Button>
             </div>
 
-            {selectedPageId && (
+            {selectedPageId && isTiktok && (
+                <EmptyState
+                    icon={BarChart3}
+                    title="Statistiques indisponibles pour TikTok"
+                    description="TikTok ne fournit pas les statistiques du compte à Socialflow. Seuls les comptes Facebook et Instagram sont suivis ici."
+                />
+            )}
+
+            {selectedPageId && !isTiktok && (
                 <>
                     <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
                         <MetricsCard
@@ -172,7 +191,7 @@ export function AnalyticsDashboard() {
                             value={latest?.pageReach?.toLocaleString() || 0}
                             icon={<BarChart3 className="h-4 w-4 text-muted-foreground" />}
                             trend={latest && previous ? getTrend(latest.pageReach, previous.pageReach) : undefined}
-                            description="impressions uniques (jour)"
+                            description={isInstagram ? "comptes touchés (jour)" : "impressions uniques (jour)"}
                         />
                         <MetricsCard
                             title="Engagement"
@@ -182,11 +201,11 @@ export function AnalyticsDashboard() {
                             description="interactions totales (jour)"
                         />
                         <MetricsCard
-                            title="Vues de la page"
+                            title={isInstagram ? "Vues du profil" : "Vues de la page"}
                             value={(latest?.pageViews || 0).toLocaleString()}
                             icon={<Eye className="h-4 w-4 text-muted-foreground" />}
                             trend={latest && previous ? getTrend(latest.pageViews || 0, previous.pageViews || 0) : undefined}
-                            description="vues totales (jour)"
+                            description={isInstagram ? "visites du profil (jour)" : "vues totales (jour)"}
                         />
                     </div>
 

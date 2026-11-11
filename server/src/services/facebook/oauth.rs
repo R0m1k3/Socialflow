@@ -30,7 +30,7 @@ use crate::state::AppState;
 use crate::time::Ts;
 
 /// Permissions nécessaires pour publier et lire les statistiques d'une page.
-const DEFAULT_SCOPES: &str = "pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_engagement,read_insights,business_management,instagram_basic,instagram_content_publish";
+const DEFAULT_SCOPES: &str = "pages_show_list,pages_manage_posts,pages_read_engagement,pages_manage_engagement,read_insights,business_management,instagram_basic,instagram_content_publish,instagram_manage_insights";
 
 fn graph_version() -> String {
     Config::var("FACEBOOK_GRAPH_VERSION").unwrap_or_else(|| "v19.0".to_string())
