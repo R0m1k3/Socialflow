@@ -237,26 +237,35 @@ pub async fn sync_page_analytics(state: &AppState, page_id: &str) -> anyhow::Res
     };
     let access_token = page.access_token.as_str();
 
+    // TikTok n'expose pas ses statistiques via la Graph API
+    if page.platform == Platform::Tiktok {
+        anyhow::bail!("Les statistiques ne sont pas disponibles pour les comptes TikTok.");
+    }
+    let instagram = page.platform == Platform::Instagram;
+
     // 1. Infos de base (abonnés) — indispensables : un échec signale
     // généralement un jeton invalide, on s'arrête là.
     let mut followers = page.followers_count.unwrap_or(0) as i64;
+    let followers_field = if instagram {
+        "followers_count"
+    } else {
+        "fan_count"
+    };
     match graph::get(
         state,
         &page.page_id,
         Some(access_token),
-        &[("fields", "fan_count")],
+        &[("fields", followers_field)],
     )
     .await
     {
         Ok(info) => {
-            if let Some(fan_count) = info.get("fan_count").and_then(Value::as_f64) {
-                followers = fan_count as i64;
+            if let Some(count) = info.get(followers_field).and_then(Value::as_f64) {
+                followers = count as i64;
             }
         }
         Err(error) => {
             tracing::error!("[AnalyticsService] Failed to fetch basic info for {page_id}: {error}");
-            let preview: String = access_token.chars().take(10).collect();
-            tracing::info!("[AnalyticsService] DEBUG: Token used: {preview}...");
 
             // Erreur d'authentification : jeton marqué expiré, on s'arrête
             if graph::error_code(&error).is_some_and(|code| AUTH_ERROR_CODES.contains(&code)) {
@@ -277,31 +286,20 @@ pub async fn sync_page_analytics(state: &AppState, page_id: &str) -> anyhow::Res
         }
     }
 
-    // 2. Chaque métrique de page, indépendamment
-    let page_reach = fetch_insight(
-        state,
-        &page.page_id,
-        page_id,
-        access_token,
-        "page_impressions_unique",
-    )
-    .await;
-    let page_engagement = fetch_insight(
-        state,
-        &page.page_id,
-        page_id,
-        access_token,
-        "page_post_engagements",
-    )
-    .await;
-    let page_views = fetch_insight(
-        state,
-        &page.page_id,
-        page_id,
-        access_token,
-        "page_views_total",
-    )
-    .await;
+    // 2. Chaque métrique, indépendamment. Instagram : portée, interactions et
+    // vues du profil (permission instagram_manage_insights).
+    let [reach_metric, engagement_metric, views_metric] = if instagram {
+        ["reach", "total_interactions", "profile_views"]
+    } else {
+        [
+            "page_impressions_unique",
+            "page_post_engagements",
+            "page_views_total",
+        ]
+    };
+    let page_reach = fetch_insight(state, &page, access_token, reach_metric).await;
+    let page_engagement = fetch_insight(state, &page, access_token, engagement_metric).await;
+    let page_views = fetch_insight(state, &page, access_token, views_metric).await;
 
     tracing::info!(
         "[AnalyticsService] Metrics: followers={followers}, reach={page_reach}, engagement={page_engagement}, views={page_views}"
@@ -364,17 +362,39 @@ pub async fn sync_page_analytics(state: &AppState, page_id: &str) -> anyhow::Res
     Ok(())
 }
 
-/// Une métrique de page (`period=day`) ; 0 si elle est indisponible.
+/// Une métrique de page sur la journée ; 0 si elle est indisponible.
+/// Instagram renvoie un total (`metric_type=total_value`), Facebook une série.
 async fn fetch_insight(
     state: &AppState,
-    graph_page_id: &str,
-    page_id: &str,
+    page: &crate::db::SocialPage,
     access_token: &str,
     metric: &str,
 ) -> i64 {
-    let endpoint = format!("{graph_page_id}/insights/{metric}");
-    match graph::get(state, &endpoint, Some(access_token), &[("period", "day")]).await {
-        Ok(result) => last_insight_value(&result),
+    let page_id = &page.id;
+    let instagram = page.platform == Platform::Instagram;
+    let result = if instagram {
+        graph::get(
+            state,
+            &format!("{}/insights", page.page_id),
+            Some(access_token),
+            &[
+                ("metric", metric),
+                ("period", "day"),
+                ("metric_type", "total_value"),
+            ],
+        )
+        .await
+    } else {
+        graph::get(
+            state,
+            &format!("{}/insights/{metric}", page.page_id),
+            Some(access_token),
+            &[("period", "day")],
+        )
+        .await
+    };
+    match result {
+        Ok(result) => insight_value(&result),
         Err(error) => {
             if graph::error_code(&error) == Some(100) {
                 tracing::warn!("[AnalyticsService] Metric \"{metric}\" unavailable for {page_id} (Code 100). Skipping.");
@@ -386,6 +406,18 @@ async fn fetch_insight(
             0
         }
     }
+}
+
+/// Valeur d'une métrique : total (`total_value`, Instagram) sinon dernière
+/// valeur de la série.
+pub fn insight_value(result: &Value) -> i64 {
+    result
+        .get("data")
+        .and_then(Value::as_array)
+        .and_then(|data| data.first())
+        .and_then(|first| first.get("total_value"))
+        .map(|total| number(total.get("value")))
+        .unwrap_or_else(|| last_insight_value(result))
 }
 
 /// Synchronise les statistiques de toutes les pages (tâche planifiée).
@@ -457,6 +489,15 @@ mod tests {
             last_insight_value(&json!({ "data": [{ "values": [] }] })),
             0
         );
+    }
+
+    #[test]
+    fn instagram_total_value_is_read() {
+        let result = json!({ "data": [{ "name": "reach", "period": "day", "total_value": { "value": 42 } }] });
+        assert_eq!(insight_value(&result), 42);
+        let series = json!({ "data": [{ "values": [{ "value": 3 }, { "value": 5 }] }] });
+        assert_eq!(insight_value(&series), 5);
+        assert_eq!(insight_value(&json!({})), 0);
     }
 
     #[test]
