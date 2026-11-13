@@ -34,7 +34,17 @@ RUN mkdir src && echo 'fn main() {}' > src/main.rs \
     && rm -rf src target/release/socialflow target/release/deps/socialflow-* target/release/.fingerprint/socialflow-*
 
 COPY server/src ./src
-RUN cargo build --release --locked
+# `touch` : les fichiers copiés gardent leur date d'origine, parfois plus
+# ancienne que le main.rs factice ; sans lui, Cargo peut garder le binaire vide
+# de l'étape précédente. Le contrôle final fait échouer la construction plutôt
+# que de livrer ce binaire vide (le conteneur redémarrerait en boucle, sans
+# aucun journal, code de sortie 0).
+RUN touch src/main.rs \
+    && cargo build --release --locked \
+    && size=$(stat -c %s target/release/socialflow) \
+    && if [ "$size" -lt 5000000 ]; then \
+         echo "Binaire socialflow suspect ($size octets) : programme vide ?" >&2; exit 1; \
+       fi
 
 # ---------------------------------------------------------------------------
 # 3. Image d'exécution
