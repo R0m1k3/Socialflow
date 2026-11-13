@@ -72,7 +72,7 @@ fn graph_error_code(message: &str) -> Option<i64> {
 /// Erreur due à une limite de débit : quotas de l'application (4), de
 /// l'utilisateur (17), de la page (32, 613, 80001…) ou blocage temporaire
 /// anti-spam (368), ou `rate_limit_exceeded` côté TikTok.
-fn is_rate_limited(message: &str) -> bool {
+pub(crate) fn is_rate_limited(message: &str) -> bool {
     if let Some(code) = graph_error_code(message) {
         if matches!(code, 4 | 17 | 32 | 368 | 613 | 80001..=80014) {
             return true;
