@@ -3,9 +3,10 @@
 //!
 //! Instagram publie en deux temps : un conteneur est créé (`/{ig}/media`), Meta
 //! le traite, puis il est publié (`/{ig}/media_publish`). Les vidéos sont
-//! envoyées en binaire (resumable upload) ; les images, qu'Instagram ne prend
-//! que par URL publique et en JPEG, sont converties puis servies par
-//! Socialflow sous `/uploads/instagram/` (d'où le besoin d'`APP_URL`).
+//! envoyées en binaire (resumable upload) ; si Meta refuse cet envoi, elles
+//! sont redonnées par URL publique, comme les images, qu'Instagram ne prend
+//! que par URL publique et en JPEG : converties puis servies par Socialflow
+//! sous `/uploads/instagram/` (d'où le besoin d'`APP_URL`).
 
 use std::fmt;
 use std::future::Future;
@@ -13,13 +14,12 @@ use std::io::Cursor;
 use std::time::Duration;
 
 use anyhow::anyhow;
-use bytes::Bytes;
 use serde_json::Value;
 use tokio::time::Instant;
 
 use crate::db::{Media, MediaType, Platform, Post, PostType, SocialPage};
 use crate::services::facebook::{self, story_image};
-use crate::services::media_store;
+use crate::services::{media_store, scheduler};
 use crate::state::AppState;
 
 const RUPLOAD: &str = "https://rupload.facebook.com/ig-api-upload/v23.0";
@@ -186,6 +186,34 @@ pub fn public_image_url(app_url: Option<&str>, path: &str) -> anyhow::Result<Str
     }
 }
 
+/// URL publique d'une vidéo, pour le repli par `video_url` : `https://…` tel
+/// quel, `/…` (fichier local) préfixé d'`APP_URL` en https ; sinon aucune
+/// (Meta ne télécharge que depuis une adresse publique). Pas de
+/// `media_store::resolve_public_url` : il se replie sur `http://localhost:5555`.
+pub fn public_video_url(app_url: Option<&str>, original_url: &str) -> Option<String> {
+    if original_url.starts_with("https://") {
+        return Some(original_url.to_string());
+    }
+    if !original_url.starts_with('/') {
+        return None;
+    }
+    match app_url.map(str::trim) {
+        Some(base) if base.starts_with("https://") => {
+            Some(format!("{}{original_url}", base.trim_end_matches('/')))
+        }
+        _ => None,
+    }
+}
+
+/// Suffixe de [`fallback_error`] quand aucune URL publique n'est disponible.
+const FALLBACK_NO_URL: &str = " impossible : APP_URL doit être une adresse https publique";
+
+/// Échec de l'envoi binaire puis du repli par URL : jamais définitif, car le
+/// refus de l'envoi binaire est aléatoire et peut passer à l'essai suivant.
+pub fn fallback_error(binary: &str, fallback: &str) -> anyhow::Error {
+    anyhow!("{binary} ; repli par URL{fallback}")
+}
+
 fn upload_error_message(body: &str) -> String {
     let is_graph_error = serde_json::from_str::<Value>(body)
         .ok()
@@ -280,7 +308,7 @@ pub async fn publish_post(
                     )
                     .await?;
                     let deadline = Deadline::start();
-                    wait_all(state, &account, std::slice::from_ref(&id), &deadline).await?;
+                    wait_all(state, &account, std::slice::from_ref(&id), &[], &deadline).await?;
                     media_publish(state, &account, &id).await
                 }
                 FeedKind::Video => {
@@ -302,16 +330,23 @@ async fn publish_reel(
     video: &Media,
     caption: &str,
 ) -> anyhow::Result<String> {
-    let buffer = media_store::read_media_buffer(state, &video.original_url).await?;
-    let id = create_video_container(
+    let container = create_video_container(
         state,
         account,
         &[("media_type", "REELS"), ("caption", caption)],
-        buffer,
+        video,
     )
     .await?;
+    let id = container.id.clone();
     let deadline = Deadline::start();
-    wait_all(state, account, std::slice::from_ref(&id), &deadline).await?;
+    wait_all(
+        state,
+        account,
+        std::slice::from_ref(&id),
+        &container.retryable(),
+        &deadline,
+    )
+    .await?;
     media_publish(state, account, &id).await
 }
 
@@ -326,10 +361,13 @@ async fn publish_stories(
         return Err(permanent("Les stories nécessitent un média"));
     }
     let mut containers = Vec::with_capacity(media.len());
+    let mut retryable = Vec::new();
     for item in media {
         let id = if item.media_type == MediaType::Video {
-            let buffer = media_store::read_media_buffer(state, &item.original_url).await?;
-            create_video_container(state, account, &[("media_type", "STORIES")], buffer).await?
+            let container =
+                create_video_container(state, account, &[("media_type", "STORIES")], item).await?;
+            retryable.extend(container.retryable());
+            container.id
         } else {
             create_image_container(
                 state,
@@ -344,7 +382,7 @@ async fn publish_stories(
     }
 
     let deadline = Deadline::start();
-    wait_all(state, account, &containers, &deadline).await?;
+    wait_all(state, account, &containers, &retryable, &deadline).await?;
 
     let mut published: Vec<String> = Vec::with_capacity(containers.len());
     for (index, container) in containers.iter().enumerate() {
@@ -371,16 +409,18 @@ async fn publish_carousel(
     caption: &str,
 ) -> anyhow::Result<String> {
     let mut children = Vec::with_capacity(media.len());
+    let mut retryable = Vec::new();
     for item in media {
         let id = if item.media_type == MediaType::Video {
-            let buffer = media_store::read_media_buffer(state, &item.original_url).await?;
-            create_video_container(
+            let container = create_video_container(
                 state,
                 account,
                 &[("media_type", "VIDEO"), ("is_carousel_item", "true")],
-                buffer,
+                item,
             )
-            .await?
+            .await?;
+            retryable.extend(container.retryable());
+            container.id
         } else {
             create_image_container(
                 state,
@@ -395,7 +435,7 @@ async fn publish_carousel(
     }
 
     let deadline = Deadline::start();
-    wait_all(state, account, &children, &deadline).await?;
+    wait_all(state, account, &children, &retryable, &deadline).await?;
 
     let children_list = children.join(",");
     let carousel = create_container(
@@ -408,7 +448,14 @@ async fn publish_carousel(
         ],
     )
     .await?;
-    wait_all(state, account, std::slice::from_ref(&carousel), &deadline).await?;
+    wait_all(
+        state,
+        account,
+        std::slice::from_ref(&carousel),
+        &[],
+        &deadline,
+    )
+    .await?;
     media_publish(state, account, &carousel).await
 }
 
@@ -430,24 +477,80 @@ async fn create_container(
         .ok_or_else(|| anyhow!("{PREFIX_CREATE}: réponse sans identifiant ({data})"))
 }
 
+/// Conteneur vidéo prêt à être attendu puis publié.
+struct VideoContainer {
+    id: String,
+    /// Créé par le repli `video_url` : un refus de Meta peut venir d'un
+    /// téléchargement raté, il n'est donc pas définitif.
+    via_url: bool,
+}
+
+impl VideoContainer {
+    /// Identifiants dont l'état `ERROR` reste à retenter (pour `wait_all`).
+    fn retryable(&self) -> Vec<String> {
+        if self.via_url {
+            vec![self.id.clone()]
+        } else {
+            Vec::new()
+        }
+    }
+}
+
+/// Vidéo envoyée en binaire ; si Meta refuse l'envoi (hors limite de débit),
+/// nouveau conteneur par `video_url`, que Meta télécharge lui-même.
 async fn create_video_container(
     state: &AppState,
     account: &Account<'_>,
     params: &[(&str, &str)],
-    video: Bytes,
-) -> anyhow::Result<String> {
+    video: &Media,
+) -> anyhow::Result<VideoContainer> {
+    let buffer = media_store::read_media_buffer(state, &video.original_url).await?;
     let mut all: Vec<(&str, &str)> = params.to_vec();
     all.push(("upload_type", "resumable"));
     let id = create_container(state, account, &all).await?;
 
     let upload_url = format!("{RUPLOAD}/{id}");
     let upload = async {
-        facebook::upload_binary(state, &upload_url, account.token, video)
+        facebook::upload_binary(state, &upload_url, account.token, buffer)
             .await
             .map_err(|body| anyhow!(upload_error_message(&body)))
     };
-    timed(UPLOAD_TIMEOUT, upload).await?;
-    Ok(id)
+    let binary_error = match timed(UPLOAD_TIMEOUT, upload).await {
+        Ok(()) => return Ok(VideoContainer { id, via_url: false }),
+        Err(error) => error,
+    };
+    let binary = format!("{binary_error:#}");
+    if scheduler::is_rate_limited(&binary) {
+        return Err(binary_error);
+    }
+
+    tracing::warn!(
+        "📷 [Instagram] Envoi binaire refusé (conteneur {id}) : {binary} — repli par URL"
+    );
+    let Some(video_url) = public_video_url(state.config.app_url.as_deref(), &video.original_url)
+    else {
+        return Err(fallback_error(&binary, FALLBACK_NO_URL));
+    };
+    let mut all: Vec<(&str, &str)> = params.to_vec();
+    all.push(("video_url", video_url.as_str()));
+    match create_container(state, account, &all).await {
+        Ok(url_id) => {
+            tracing::info!("📷 [Instagram] Repli par URL : conteneur {url_id} créé ({video_url})");
+            Ok(VideoContainer {
+                id: url_id,
+                via_url: true,
+            })
+        }
+        Err(url_error) => {
+            let message = format!("{url_error:#}");
+            // Le planificateur ne lit que le premier « (code: N) » du message
+            if scheduler::is_rate_limited(&message) {
+                Err(url_error)
+            } else {
+                Err(fallback_error(&binary, &format!(" : {message}")))
+            }
+        }
+    }
 }
 
 async fn create_image_container(
@@ -476,6 +579,7 @@ async fn wait_all(
     state: &AppState,
     account: &Account<'_>,
     ids: &[String],
+    retryable: &[String],
     deadline: &Deadline,
 ) -> anyhow::Result<()> {
     tokio::time::sleep(FIRST_CHECK_DELAY.min(deadline.remaining())).await;
@@ -490,6 +594,9 @@ async fn wait_all(
                 ContainerState::Ready => break,
                 ContainerState::Failed => {
                     let detail = facebook::field(&data, "status").unwrap_or_default();
+                    if retryable.contains(id) {
+                        anyhow::bail!("Instagram a refusé le média (repli par URL) : {detail}");
+                    }
                     return Err(permanent(format!("Instagram a refusé le média : {detail}")));
                 }
                 ContainerState::Expired => {
@@ -552,6 +659,44 @@ async fn media_publish(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn public_video_url_needs_a_public_https_address() {
+        assert_eq!(
+            public_video_url(None, "https://cdn.example/x.mp4").as_deref(),
+            Some("https://cdn.example/x.mp4")
+        );
+        assert_eq!(
+            public_video_url(Some("https://app.fr/"), "/uploads/media/a.mp4").as_deref(),
+            Some("https://app.fr/uploads/media/a.mp4")
+        );
+        assert_eq!(
+            public_video_url(Some("https://app.fr"), "http://minio/x.mp4"),
+            None
+        );
+        assert_eq!(public_video_url(Some("https://app.fr"), ""), None);
+        assert_eq!(public_video_url(None, "/uploads/media/a.mp4"), None);
+        assert_eq!(
+            public_video_url(Some("http://localhost:5555"), "/uploads/media/a.mp4"),
+            None
+        );
+    }
+
+    #[test]
+    fn fallback_errors_stay_retryable() {
+        let no_url = fallback_error("Instagram upload error: boom", FALLBACK_NO_URL);
+        assert_eq!(
+            no_url.to_string(),
+            "Instagram upload error: boom ; repli par URL impossible : APP_URL doit être une adresse https publique"
+        );
+        assert!(!is_permanent(&no_url));
+        let refused = fallback_error("Instagram upload error: boom", " : refus");
+        assert_eq!(
+            refused.to_string(),
+            "Instagram upload error: boom ; repli par URL : refus"
+        );
+        assert!(!is_permanent(&refused));
+    }
 
     #[test]
     fn crop_box_keeps_instagram_ratios() {
